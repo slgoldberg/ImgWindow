@@ -413,6 +413,13 @@ ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
         io.KeysDown[XPLM_VK_BACK] = false;
         thisWindow->bResetBackspace = false;
     }
+    
+    // Hack: Reset the Backspace key if in VR (see HandleKeyFuncCB for details)
+    if (thisWindow->bResetBackspace) {
+        ImGuiIO& io = ImGui::GetIO();
+        io.KeysDown[XPLM_VK_BACK] = false;
+        thisWindow->bResetBackspace = false;
+    }
 }
 
 int
