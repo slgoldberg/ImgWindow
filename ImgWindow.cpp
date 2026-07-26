@@ -38,6 +38,12 @@
 #include <XPLMDisplay.h>
 #include <XPLMGraphics.h>
 
+// size of "frame" around a resizable window, by which its size can be changed
+constexpr int WND_RESIZE_LEFT_WIDTH     = 15;
+constexpr int WND_RESIZE_TOP_WIDTH      =  5;
+constexpr int WND_RESIZE_RIGHT_WIDTH    = 15;
+constexpr int WND_RESIZE_BOTTOM_WIDTH   = 15;
+
 static XPLMDataRef		gVrEnabledRef			= nullptr;
 static XPLMDataRef		gModelviewMatrixRef		= nullptr;
 static XPLMDataRef		gViewportRef			= nullptr;
@@ -53,10 +59,10 @@ ImgWindow::ImgWindow(
 	int bottom,
 	XPLMWindowDecoration decoration,
 	XPLMWindowLayer layer) :
-	mIsInVR(false),
+    mFirstRender(true),
+    mFontAtlas(sFontAtlas),
 	mPreferredLayer(layer),
-	mFirstRender(true),
-	mFontAtlas(sFontAtlas)
+    bHandleWndResize(xplm_WindowDecorationSelfDecoratedResizable == decoration)
 {
     ImFontAtlas *iFontAtlas = nullptr;
     if (mFontAtlas) {
@@ -77,8 +83,10 @@ ImgWindow::ImgWindow(
 		first_init=true;
 	}
 
+#ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 	// we render ourselves, we don't use the DrawListsFunc
 	io.RenderDrawListsFn = nullptr;
+#endif
 	// set up the Keymap
 	io.KeyMap[ImGuiKey_Tab] = XPLM_VK_TAB;
 	io.KeyMap[ImGuiKey_LeftArrow] = XPLM_VK_LEFT;
@@ -111,7 +119,7 @@ ImgWindow::ImgWindow(
 	if (mFontAtlas) {
         mFontTexture = static_cast<GLuint>(reinterpret_cast<intptr_t>(io.Fonts->TexID));
     } else {
-        if (iFontAtlas->TexID == nullptr) {
+        if (!iFontAtlas || iFontAtlas->TexID == nullptr) {
             // fallback binding if an atlas wasn't explicitly set.
             unsigned char *pixels;
             int width, height;
@@ -123,7 +131,7 @@ ImgWindow::ImgWindow(
             mFontTexture = (GLuint)texNum;
 
             // upload texture.
-            XPLMBindTexture2d(mFontTexture, 0);
+            XPLMBindTexture2d((int)mFontTexture, 0);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -179,6 +187,29 @@ ImgWindow::~ImgWindow()
 }
 
 void
+ImgWindow::GetCurrentWindowGeometry (int& left, int& top, int& right, int& bottom) const
+{
+    if (IsPoppedOut())
+        GetWindowGeometryOS(left, top, right, bottom);
+    else if (IsInVR()) {
+        left = bottom = 0;
+        GetWindowGeometryVR(right, top);
+    } else {
+        GetWindowGeometry(left, top, right, bottom);
+    }
+}
+
+void
+ImgWindow::SetWindowResizingLimits (int minW, int minH, int maxW, int maxH)
+{
+    minWidth  = minW;
+    minHeight = minH;
+    maxWidth  = maxW;
+    maxHeight = maxH;
+    XPLMSetWindowResizingLimits(mWindowID, minW, minH, maxW, maxH);
+}
+
+void
 ImgWindow::updateMatrices()
 {
 	// Get the current modelview matrix, viewport, and projection matrix from X-Plane
@@ -222,9 +253,11 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
 {
 	// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
 	ImGuiIO& io = ImGui::GetIO();
-	draw_data->ScaleClipRects(io.DisplayFramebufferScale);
+    if (io.DisplayFramebufferScale.x != 1.0 ||
+        io.DisplayFramebufferScale.y != 1.0)
+        draw_data->ScaleClipRects(io.DisplayFramebufferScale);
 
-	updateMatrices();
+    updateMatrices();
 
 	// We are using the OpenGL fixed pipeline because messing with the
 	// shader-state in X-Plane is not very well documented, but using the fixed
@@ -262,7 +295,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
 			if (pcmd->UserCallback)	{
 				pcmd->UserCallback(cmd_list, pcmd);
 			} else {
-			    XPLMBindTexture2d((GLuint)(intptr_t)pcmd->TextureId, 0);
+			    XPLMBindTexture2d((int)(intptr_t)pcmd->TextureId, 0);
 
 				// Scissors work in viewport space - must translate the coordinates from ImGui -> Boxels, then Boxels -> Native.
 				//FIXME: it must be possible to apply the scale+transform manually to the projection matrix so we don't need to doublestep.
@@ -326,7 +359,11 @@ ImgWindow::updateImgui()
 	float win_width = static_cast<float>(mRight - mLeft);
 	float win_height = static_cast<float>(mTop - mBottom);
 
-	io.DeltaTime = XPLMGetDataf(gFrameRatePeriodRef);
+    // Needed to add this to prevent io.DeltaTime causing a CTD because when X-Plane starts FrameRatePeriod is equal to 0.0f
+    float FrameRatePeriod = XPLMGetDataf(gFrameRatePeriodRef);
+    if (FrameRatePeriod > 0.0f) {
+        io.DeltaTime = XPLMGetDataf(gFrameRatePeriodRef);
+    }
 	io.DisplaySize = ImVec2(win_width, win_height);
 	// in boxels, we're always scale 1, 1.
 	io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
@@ -336,7 +373,7 @@ ImgWindow::updateImgui()
 	ImGui::SetNextWindowSize(ImVec2(win_width, win_height), ImGuiCond_Always);
 
 	// and construct the window
-	ImGui::Begin(mWindowTitle.c_str(), nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+	ImGui::Begin(mWindowTitle.c_str(), nullptr, beforeBegin() | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 	buildInterface();
 	ImGui::End();
 
@@ -366,6 +403,16 @@ ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
 	ImGui::Render();
 
 	thisWindow->RenderImGui(ImGui::GetDrawData());
+    
+    // Give subclasses a chance to do something after all rendering
+    thisWindow->afterRendering();
+    
+    // Hack: Reset the Backspace key if in VR (see HandleKeyFuncCB for details)
+    if (thisWindow->bResetBackspace) {
+        ImGuiIO& io = ImGui::GetIO();
+        io.KeysDown[XPLM_VK_BACK] = false;
+        thisWindow->bResetBackspace = false;
+    }
 }
 
 int
@@ -381,59 +428,172 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
 	ImGui::SetCurrentContext(mImGuiContext);
 	ImGuiIO& io = ImGui::GetIO();
 
-	float outX, outY;
-	translateToImguiSpace(x, y, outX, outY);
+    // Tell ImGui the mous position relative to the window
+    translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
+    const int loc_x = int(io.MousePos.x);       // local x, relative to top/left corner
+    const int loc_y = int(io.MousePos.y);
+    const int dx = x - lastMouseDragX;          // dragged how far since last down/drag event?
+    const int dy = y - lastMouseDragY;
 
-	io.MousePos = ImVec2(outX, outY);
+    switch (inMouse) {
+            
+        case xplm_MouseDrag:
+            io.MouseDown[button] = true;
 
-	switch (inMouse) {
-	case xplm_MouseDown:
-	case xplm_MouseDrag:
-		io.MouseDown[button] = true;
-		break;
-	case xplm_MouseUp:
-		io.MouseDown[button] = false;
-		break;
-	default:
-		// dunno!
-		break;
-	}
-	return 1;
+            // Any kind of self-dragging/resizing only happens with a floating window in the sim
+            if (button == 0 &&              // left button
+                IsInsideSim() &&            // floating window in sim
+                dragWhat &&                 // and if there actually _is_ dragging
+                (dx != 0 || dy != 0))
+            {
+                // shall we drag the entire window?
+                if (dragWhat.wnd)
+                {
+                    mLeft   += dx;                      // move the wdinow
+                    mRight  += dx;
+                    mTop    += dy;
+                    mBottom += dy;
+                } else {
+                    // do we need to handle window resize?
+                    if (dragWhat.left)   mLeft   += dx;
+                    if (dragWhat.top)    mTop    += dy;
+                    if (dragWhat.right)  mRight  += dx;
+                    if (dragWhat.bottom) mBottom += dy;
+                    
+                    // Make sure resizing limits are honored
+                    if (mRight-mLeft < minWidth)
+                    {
+                        if (dragWhat.left) mLeft = mRight - minWidth;
+                        else mRight = mLeft + minWidth;
+                    }
+                    if (mRight-mLeft > maxWidth)
+                    {
+                        if (dragWhat.left) mLeft = mRight - maxWidth;
+                        else mRight = mLeft + maxWidth;
+                    }
+                    if (mTop-mBottom < minHeight) {
+                        if (dragWhat.top) mTop = mBottom + minHeight;
+                        else mBottom = mTop - minHeight;
+                    }
+                    if (mTop-mBottom > maxHeight) {
+                        if (dragWhat.top) mTop = mBottom + maxHeight;
+                        else mBottom = mTop - maxHeight;
+                    }
+                    // FIXME: If we had to apply resizing restricitons, then mouse and window frame will now be out of synch
+                }
+
+                // Change window geometry
+                SetWindowGeometry(mLeft, mTop, mRight, mBottom);
+                // now that the window has moved under the mouse we need to update relative mouse pos
+                translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
+                // Update the last handled position
+                lastMouseDragX = x;
+                lastMouseDragY = y;
+            }
+            break;
+
+        case xplm_MouseDown:
+            io.MouseDown[button] = true;
+            
+            // Which part of the window would we drag, if any?
+            dragWhat.clear();
+            if (button == 0 &&              // left button
+                IsInsideSim() &&            // floating window in simulator
+                loc_x >= 0 && loc_y >= 0)   // valid local position
+            {
+                // shall we drag the entire window?
+                if (IsInsideWindowDragArea(loc_x, loc_y))
+                {
+                    dragWhat.wnd = true;
+                }
+                // do we need to handle window resize?
+                else if (bHandleWndResize)
+                {
+                    dragWhat.left   = loc_x <= WND_RESIZE_LEFT_WIDTH;
+                    dragWhat.top    = loc_y <= WND_RESIZE_TOP_WIDTH;
+                    dragWhat.right  = loc_x >= (mRight - mLeft) - WND_RESIZE_RIGHT_WIDTH;
+                    dragWhat.bottom = loc_y >= (mTop - mBottom) - WND_RESIZE_BOTTOM_WIDTH;
+                }
+                // Anything to drag?
+                if (dragWhat) {
+                    // Remember pos in case of dragging
+                    lastMouseDragX = x;
+                    lastMouseDragY = y;
+                }
+            }
+            break;
+            
+        case xplm_MouseUp:
+            io.MouseDown[button] = false;
+            lastMouseDragX = lastMouseDragY = -1;
+            dragWhat.clear();
+            break;
+        default:
+            // dunno!
+            break;
+    }
+
+    return 1;
 }
 
 
 void
 ImgWindow::HandleKeyFuncCB(
-	XPLMWindowID         inWindowID,
+	XPLMWindowID         /*inWindowID*/,
 	char                 inKey,
 	XPLMKeyFlags         inFlags,
 	char                 inVirtualKey,
 	void *               inRefcon,
-	int                  losingFocus)
+	int                  blosingFocus)
 {
 	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
 	ImGui::SetCurrentContext(thisWindow->mImGuiContext);
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.WantCaptureKeyboard) {
-		auto vk = static_cast<unsigned char>(inVirtualKey);
-		io.KeysDown[vk] = (inFlags & xplm_DownFlag) == xplm_DownFlag;
-		io.KeyShift = (inFlags & xplm_ShiftFlag) == xplm_ShiftFlag;
-		io.KeyAlt = (inFlags & xplm_OptionAltFlag) == xplm_OptionAltFlag;
-		io.KeyCtrl = (inFlags & xplm_ControlFlag) == xplm_ControlFlag;
+        
+        // Loosing focus? That's not exactly something ImGui allows us to do...
+        // we try convincing ImGui to let it go by sending an [Esc] key
+        if (blosingFocus) {
+            io.KeysDown[int(XPLM_VK_ESCAPE)] = true;
+        }
+        else
+        {
+            // Hack for the Backspace key in VR:
+            // Apparently, the virtual VR keyboard sends both the Up and the Down
+            // event within the same drawing cycle, which would overwrite
+            // io.KeyDown[XPLM_VK_BACK] with false again before we could pass on true.
+            // Also see https://forums.x-plane.org/index.php?/forums/topic/147139-dear-imgui-x-plane/&do=findComment&comment=2032062
+            // though I am following a different solution:
+            // So we ignore the "up" event (release key) here, and do the actual
+            // release only after the next drawing cycle (flag bResetBackspace).
+            // (And this little delay doesn't hurt in non-VR either, so we don't even test for VR.)
+            
+            // If Backspace is _released_ ...
+            if (inVirtualKey == XPLM_VK_BACK && !(inFlags & xplm_DownFlag)) {
+                thisWindow->bResetBackspace = true; // have it reset only later in DrawWindowCB
+            }
+            else
+                // in all normal cases: save the up/down flag as it comes from XP
+                io.KeysDown[int(inVirtualKey)] = (inFlags & xplm_DownFlag) == xplm_DownFlag;
+            io.KeyShift = (inFlags & xplm_ShiftFlag) == xplm_ShiftFlag;
+            io.KeyAlt = (inFlags & xplm_OptionAltFlag) == xplm_OptionAltFlag;
+            io.KeyCtrl = (inFlags & xplm_ControlFlag) == xplm_ControlFlag;
 
-		if ((inFlags & xplm_DownFlag) == xplm_DownFlag
-			&& !io.KeyCtrl
-			&& !io.KeyAlt
-			&& isprint(inKey)) {
-			char smallStr[2] = { inKey, 0 };
-			io.AddInputCharactersUTF8(smallStr);
-		}
+            // inKey will only includes printable characters,
+            // but also those created with key combinations like @ or {}
+            if ((inFlags & xplm_DownFlag) == xplm_DownFlag &&
+                inKey > '\0')
+            {
+                char smallStr[2] = { inKey, 0 };
+                io.AddInputCharactersUTF8(smallStr);
+            }
+        }
 	}
 }
 
 XPLMCursorStatus
 ImgWindow::HandleCursorFuncCB(
-	XPLMWindowID         inWindowID,
+	XPLMWindowID         /*inWindowID*/,
 	int                  x,
 	int                  y,
 	void *               inRefcon)
@@ -450,7 +610,7 @@ ImgWindow::HandleCursorFuncCB(
 
 int
 ImgWindow::HandleMouseWheelFuncCB(
-	XPLMWindowID         inWindowID,
+	XPLMWindowID         /*inWindowID*/,
 	int                  x,
 	int                  y,
 	int                  wheel,
@@ -466,10 +626,10 @@ ImgWindow::HandleMouseWheelFuncCB(
 	io.MousePos = ImVec2(outX, outY);
 	switch (wheel) {
 	case 0:
-		io.MouseWheel = static_cast<float>(clicks);
+		io.MouseWheel += static_cast<float>(clicks);
 		break;
 	case 1:
-		io.MouseWheelH = static_cast<float>(clicks);
+		io.MouseWheelH += static_cast<float>(clicks);
 		break;
 	default:
 		// unknown wheel
@@ -518,11 +678,9 @@ ImgWindow::moveForVR()
 	// - if we're VR enabled, explicitly move the window to the VR world.
 	if (XPLMGetDatai(gVrEnabledRef)) {
 			XPLMSetWindowPositioningMode(mWindowID, xplm_WindowVR, 0);
-			mIsInVR = true;
 		} else {
-			if (mIsInVR) {
+			if (IsInVR()) {
 				XPLMSetWindowPositioningMode(mWindowID, mPreferredLayer, -1);
-				mIsInVR = false;
 			}
 		}
 }
@@ -538,6 +696,54 @@ bool
 ImgWindow::onShow()
 {
 	return true;
+}
+
+void
+ImgWindow::SetWindowDragArea (int left, int top, int right, int bottom)
+{
+    dragLeft    = left;
+    dragTop     = top;
+    dragRight   = right;
+    dragBottom  = bottom;
+}
+
+void
+ImgWindow::ClearWindowDragArea ()
+{
+    dragLeft = dragTop = dragRight = dragBottom = -1;
+}
+
+bool
+ImgWindow::HasWindowDragArea (int* pL, int* pT,
+                              int* pR, int* pB) const
+{
+    // return definition if requested
+    if (pL) *pL = dragLeft;
+    if (pT) *pT = dragTop;
+    if (pR) *pR = dragRight;
+    if (pB) *pB = dragBottom;
+    
+    // is a valid drag area defined?
+    return
+    dragLeft  >= 0          && dragTop    >= 0 &&
+    dragRight >  dragLeft   && dragBottom >= dragTop;
+}
+
+bool
+ImgWindow::IsInsideWindowDragArea (int x, int y) const
+{
+    // values outside the window aren't valid
+    if (x == -FLT_MAX || y == -FLT_MAX)
+        return false;
+    
+    // is a drag area defined in the first place?
+    if (!HasWindowDragArea())
+        return false;
+    
+    // inside the defined drag area?
+    return
+    dragLeft <= x && x <= dragRight &&
+    dragTop  <= y && y <= dragBottom;
 }
 
 void
@@ -560,10 +766,10 @@ std::queue<ImgWindow *>  ImgWindow::sPendingDestruction;
 XPLMFlightLoopID         ImgWindow::sSelfDestructHandler = nullptr;
 
 float
-ImgWindow::SelfDestructCallback(float inElapsedSinceLastCall,
-                                float inElapsedTimeSinceLastFlightLoop,
-                                int inCounter,
-                                void *inRefcon)
+ImgWindow::SelfDestructCallback(float /*inElapsedSinceLastCall*/,
+                                float /*inElapsedTimeSinceLastFlightLoop*/,
+                                int   /*inCounter*/,
+                                void* /*inRefcon*/)
 {
     while (!sPendingDestruction.empty()) {
         auto *thisObj = sPendingDestruction.front();
