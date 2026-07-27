@@ -40,11 +40,11 @@
 #include <climits>
 #include <string>
 #include <memory>
-#include <queue>
 
 #include <XPLMDisplay.h>
 #include <XPLMProcessing.h>
 #include <imgui.h>
+#include <queue>
 
 #include "ImgFontAtlas.h"
 
