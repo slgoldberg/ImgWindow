@@ -200,6 +200,7 @@ protected:
      * @param bottom Bottom edge of the window's contents in global boxels.
      * @param decoration The decoration style to use (see notes)
      * @param layer the preferred layer to present this window in (see notes)
+     * @param cursors switch to ImGui mouse cursors inside window  (brat)
      *
      * @note The decoration should generally be one presented/rendered by XP -
      *     the ImGui window decorations are very intentionally supressed by
@@ -215,7 +216,8 @@ protected:
         int right,
         int bottom,
         XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle,
-        XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows);
+        XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows,
+        bool cursors = false);
     
     /** An ImgWindow object must not be copied!
      */
@@ -271,6 +273,10 @@ protected:
     
     /** Returns X-Plane's internal Window id */
     XPLMWindowID GetWindowId () const { return mWindowID; }
+
+    /** Enables/disables ImGui handling of all mouse cursors inside window. */
+    inline void SetImgCursorHandling (bool inIsEnabled)
+    { bUseImgCursors = inIsEnabled; }
 
 private:
     std::shared_ptr<ImgFontAtlas> mFontAtlas;
@@ -348,6 +354,12 @@ private:
     int mRight;
 
     XPLMWindowLayer mPreferredLayer;
+
+    /** Shall window be locked in place, e.g. invisible full-screen root container? */
+    bool bCanMove = true;
+
+    /** Shall window allow ImGui to manage the mouse cursor inside windows? */
+    bool bUseImgCursors = false;
     
     /** Shall reset the backspace key? (see HandleKeyFuncCB for details) */
     bool bResetBackspace = false;
@@ -376,6 +388,7 @@ private:
     int lastMouseDragX  = -1;
     int lastMouseDragY  = -1;
     
+protected:
     /** What are we dragging right now? */
     struct DragTy {
         bool wnd    : 1;
