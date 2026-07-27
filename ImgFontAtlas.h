@@ -43,7 +43,6 @@
  * This also assigns the texture name which is necessary as, again, must be done
  * in an x-plane compatible manner.
  *
- * @return an empty font atlas ready to be initialised.
  */
 class ImgFontAtlas {
 public:
