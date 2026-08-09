@@ -74,13 +74,22 @@ public:
                                                  const ImFontConfig *font_cfg = NULL,
                                                  const unsigned short *glyph_ranges = NULL);              // 'compressed_font_data_base85' still owned by caller. Compress with binary_to_compressed_c.cpp with -base85 parameter.
 
-    /** bindTexture creates and binds the font texture to OpenGL, ready for use.
-     *
-     * This should be called after all fonts are loaded, before any rendering occurs!
-     */
+    //bindTexture creates and binds the font texture to OpenGL, ready for use.
+    //This should be called after all fonts are loaded, before any rendering occurs!
     virtual void bindTexture();
 
     ImFontAtlas *getAtlas();
+
+  struct strct_texture_info {
+    unsigned char* pixels = nullptr;
+    int width = 0;
+    int height = 0;
+    int bytesPerPixel = 4; // RGBA32
+  };
+
+  // Custom replacement function for extracting the font atlas pixel data in v1.92+
+  static bool GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo);
+
 protected:
     ImFontAtlas *mOurAtlas;
     bool        mTextureBound;

@@ -76,11 +76,11 @@ constexpr int WND_RESIZE_TOP_WIDTH      =  5;
 constexpr int WND_RESIZE_RIGHT_WIDTH    = 15;
 constexpr int WND_RESIZE_BOTTOM_WIDTH   = 15;
 
-static XPLMDataRef		gVrEnabledRef			= nullptr;
-static XPLMDataRef		gModelviewMatrixRef		= nullptr;
-static XPLMDataRef		gViewportRef			= nullptr;
-static XPLMDataRef		gProjectionMatrixRef	= nullptr;
-static XPLMDataRef		gFrameRatePeriodRef     = nullptr;
+static XPLMDataRef gVrEnabledRef        = nullptr;
+static XPLMDataRef gModelviewMatrixRef  = nullptr;
+static XPLMDataRef gViewportRef         = nullptr;
+static XPLMDataRef gProjectionMatrixRef = nullptr;
+static XPLMDataRef gFrameRatePeriodRef  = nullptr;
 
 std::shared_ptr<ImgFontAtlas> ImgWindow::sFontAtlas;
 
@@ -93,11 +93,15 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     // Check 3: Is the last font unbaked? (e.g. Partial build)
     bool need_rebuild = !atlas->TexIsBuilt;
 
-    if (!need_rebuild && atlas->TexID.GetTexID()) {
-         if (!glIsTexture((GLuint)(uintptr_t)atlas->TexID.GetTexID())) need_rebuild = true;
+    // if (!need_rebuild && atlas->TexID.GetTexID()) {
+    //   if (!glIsTexture((GLuint)(uintptr_t)atlas->TexID.GetTexID())) need_rebuild = true;
+    if (!need_rebuild && atlas->TexData->GetTexRef().GetTexID()) {
+      if (!glIsTexture((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID()))
+        need_rebuild = true;
     }
     if (!need_rebuild && atlas->Fonts.Size > 0) {
-        if (atlas->Fonts.back()->LastBaked == 0) need_rebuild = true;
+        if (atlas->Fonts.back()->LastBaked == 0)
+          need_rebuild = true;
     }
 
     if (need_rebuild)
@@ -106,9 +110,11 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         atlas->TexIsBuilt = false; 
 
         // 2. CPU Rasterize (RGBA32 for stability)
-        unsigned char* pixels;
-        int width, height;
-        atlas->GetTexDataAsRGBA32(&pixels, &width, &height);	// TODO: deprecated in ImGui v1.92?
+        // unsigned char* pixels;
+        // int width, height;
+        // atlas->GetTexDataAsRGBA32(&pixels, &width, &height);	// TODO: deprecated in ImGui v1.92?
+        ImgFontAtlas::strct_texture_info outInfo;
+        ImgFontAtlas::GetCustomAtlasTextureData(atlas, outInfo);
 
         // 3. GPU Upload
         // If texture ID is 0 or invalid, generate a new one.
@@ -122,10 +128,11 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
 
         // 4. Link
-        atlas->SetTexID((ImTextureID)(uintptr_t)textureID);
+        // atlas->SetTexID((ImTextureID)(uintptr_t)textureID);
+        atlas->TexData->SetTexID ((ImTextureID)(uintptr_t)textureID);
     }
 }
 #endif /* IMGUI_V190_REFACTOR */
@@ -794,9 +801,9 @@ ImgWindow::HandleKeyFuncCB(
 			
 			// Sync modifiers *first*.
 			// (We send these regardless of whether it's a key down or up, to ensure ImGui's internal modifier bitmask is current.)
-			bool shift = (inFlags & xplm_ShiftFlag) != 0;
-			bool alt = (inFlags & xplm_OptionAltFlag) != 0;	// 'Option' on macOS (though no special handling needed).
-			bool ctrl = (inFlags & xplm_ControlFlag) != 0;	// 'Super' on macOS (see below).
+      bool shift = (inFlags & xplm_ShiftFlag) != 0;
+      bool alt   = (inFlags & xplm_OptionAltFlag) != 0; // 'Option' on macOS (though no special handling needed).
+      bool ctrl  = (inFlags & xplm_ControlFlag) != 0; // 'Super' on macOS (see below).
 
 			// Sync all basic modifiers via the Event System (modern way).
 			io.AddKeyEvent(ImGuiMod_Shift, shift != 0);
