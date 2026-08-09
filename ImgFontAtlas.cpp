@@ -142,6 +142,7 @@ ImgFontAtlas::bindTexture()
     mTextureBound = true;
 }
 
+#ifdef IMGUI_V190_REFACTOR
 bool
 ImgFontAtlas::GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo)
 {
@@ -166,3 +167,5 @@ ImgFontAtlas::GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& 
 
   return (outInfo.pixels != nullptr && outInfo.width > 0 && outInfo.height > 0);
 }
+#endif
+
