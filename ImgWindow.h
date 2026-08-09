@@ -34,7 +34,6 @@
 
 #ifndef IMGWINDOW_H
 #define IMGWINDOW_H
-// #define IMGUI_V190_REFACTOR // debug
 
 #include "SystemGL.h"
 
@@ -402,9 +401,6 @@ protected:
         void clear () { wnd = left = top = right = bottom = false; }
         operator bool() const { return wnd || left || top || right || bottom; }
     } dragWhat;
-
-  
-
 };
 
 #endif // #ifndef IMGWINDOW_H

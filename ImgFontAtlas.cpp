@@ -131,13 +131,14 @@ ImgFontAtlas::bindTexture()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    #ifndef IMGUI_V190_REFACTOR
+
+#ifndef IMGUI_V190_REFACTOR
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
     mOurAtlas->SetTexID((void *)((intptr_t)mGLTextureNum));
-    #else
+#else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
     mOurAtlas->TexData->SetTexID(mGLTextureNum);
-    #endif
+#endif
 
     mTextureBound = true;
 }
@@ -146,26 +147,25 @@ ImgFontAtlas::bindTexture()
 bool
 ImgFontAtlas::GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo)
 {
-  // Ensure the atlas has populated the new TexList vector
-  if (atlas->TexList.empty())
-  {
-    return false;
-  }
+    // Ensure the atlas has populated the new TexList vector
+    if (atlas->TexList.empty())
+    {
+        return false;
+    }
 
-  // Access the latest texture data using back()
-  // (Using auto handles whether TexList stores objects or pointers)
-  auto& texData = atlas->TexList.back();
-  // auto& texData = ImGui::GetDrawData()->Textures->back();
+    // Access the latest texture data using back()
+    // (Using auto handles whether TexList stores objects or pointers)
+    auto& texData = atlas->TexList.back();
 
-  // Extract dimensions directly from the modern ImTextureData structure
-  outInfo.width = texData->Width;
-  outInfo.height = texData->Height;
-  outInfo.bytesPerPixel = 4; // ImGui RGBA32
+    // Extract dimensions directly from the modern ImTextureData structure
+    outInfo.width = texData->Width;
+    outInfo.height = texData->Height;
+    outInfo.bytesPerPixel = 4; // ImGui RGBA32
 
-  // Extract the raw CPU-side pixel buffer
-  outInfo.pixels = (unsigned char*)texData->Pixels;
+    // Extract the raw CPU-side pixel buffer
+    outInfo.pixels = (unsigned char*)texData->Pixels;
 
-  return (outInfo.pixels != nullptr && outInfo.width > 0 && outInfo.height > 0);
+    return (outInfo.pixels != nullptr && outInfo.width > 0 && outInfo.height > 0);
 }
 #endif
 

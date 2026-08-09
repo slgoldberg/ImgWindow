@@ -85,17 +85,17 @@ public:
 
     ImFontAtlas *getAtlas();
 
-  #ifdef IMGUI_V190_REFACTOR
-  struct strct_texture_info {
-    unsigned char* pixels = nullptr;
-    int width = 0;
-    int height = 0;
-    int bytesPerPixel = 4; // RGBA32
-  };
+#ifdef IMGUI_V190_REFACTOR
+    struct strct_texture_info {
+        unsigned char* pixels = nullptr;
+        int width = 0;
+        int height = 0;
+        int bytesPerPixel = 4; // RGBA32
+    };
 
-  // Custom replacement function for extracting the font atlas pixel data in v1.92+
-  static bool GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo);
-  #endif
+    // Custom replacement function for extracting the font atlas pixel data in v1.92+
+    static bool GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo);
+#endif
 
 protected:
     ImFontAtlas *mOurAtlas;

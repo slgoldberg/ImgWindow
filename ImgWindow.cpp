@@ -110,9 +110,6 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         atlas->TexIsBuilt = false; 
 
         // 2. CPU Rasterize (RGBA32 for stability)
-        // unsigned char* pixels;
-        // int width, height;
-        // atlas->GetTexDataAsRGBA32(&pixels, &width, &height);	// TODO: deprecated in ImGui v1.92?
         ImgFontAtlas::strct_texture_info outInfo;
         ImgFontAtlas::GetCustomAtlasTextureData(atlas, outInfo);
 
@@ -131,7 +128,6 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
 
         // 4. Link
-        // atlas->SetTexID((ImTextureID)(uintptr_t)textureID);
         atlas->TexData->SetTexID ((ImTextureID)(uintptr_t)textureID);
     }
 }
@@ -271,8 +267,6 @@ ImgWindow::ImgWindow(
 #else
 	// Sync texture ID:
 	// if CheckAndRebuildAtlas() above did its job, mFontTexture is set; if the shared atlas was already built, grab the ID here.
-	// if (io.Fonts->TexID.GetTexID() != 0) {
-	// 	mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexID.GetTexID());
 	if (io.Fonts->TexData->GetTexID() != 0) {
 	  mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexData->GetTexID());
 
@@ -549,6 +543,8 @@ ImgWindow::updateImgui()
 	// Just-in-time rebuild:
 	// If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
 	// (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
+	// FIXME: Should this move to happen on a flight loop callback instead of every frame?
+	// (We don't want to rebuild the atlas in the middle of a frame, but we also don't want to rebuild it every frame if nothing changed.)
 	if (mFontAtlas && mFontAtlas->getAtlas()) {
 		CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
 	}
