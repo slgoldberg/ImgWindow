@@ -38,6 +38,11 @@
 #include "SystemGL.h"
 #include <imgui.h>
 
+
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19000)
+#define IMGUI_V190_REFACTOR
+#endif
+
 /** Construct an empty font atlas we can use later
  *
  * This also assigns the texture name which is necessary as, again, must be done
@@ -80,6 +85,7 @@ public:
 
     ImFontAtlas *getAtlas();
 
+  #ifdef IMGUI_V190_REFACTOR
   struct strct_texture_info {
     unsigned char* pixels = nullptr;
     int width = 0;
@@ -89,6 +95,7 @@ public:
 
   // Custom replacement function for extracting the font atlas pixel data in v1.92+
   static bool GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo);
+  #endif
 
 protected:
     ImFontAtlas *mOurAtlas;

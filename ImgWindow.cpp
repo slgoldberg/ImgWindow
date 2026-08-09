@@ -147,9 +147,9 @@ ImgWindow::ImgWindow(
     bool cursors) :
     mFirstRender(true),
     mFontAtlas(sFontAtlas),
-	mPreferredLayer(layer),
-    bHandleWndResize(xplm_WindowDecorationSelfDecoratedResizable == decoration),
-    bUseImgCursors(cursors)
+    mPreferredLayer(layer),
+	  bUseImgCursors(cursors),
+    bHandleWndResize(xplm_WindowDecorationSelfDecoratedResizable == decoration)
 {
 #if _DEBUG
 	// Recommended by ImGui in imconfig.h:
@@ -271,14 +271,17 @@ ImgWindow::ImgWindow(
 #else
 	// Sync texture ID:
 	// if CheckAndRebuildAtlas() above did its job, mFontTexture is set; if the shared atlas was already built, grab the ID here.
-	if (io.Fonts->TexID.GetTexID() != 0) {
-		mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexID.GetTexID());
+	// if (io.Fonts->TexID.GetTexID() != 0) {
+	// 	mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexID.GetTexID());
+	if (io.Fonts->TexData->GetTexID() != 0) {
+	  mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexData->GetTexID());
+
 	}
 #endif
 
 	// disable OSX-like keyboard behaviours always - we don't have the keymapping for it.
 	io.ConfigMacOSXBehaviors = false;
-	
+
 #ifdef IMGUI_V190_REFACTOR
 	// override to enable the required OSX behaviors specifically for macOS only.
 #if defined(__APPLE__) || defined(__MACH__)
@@ -328,7 +331,7 @@ ImgWindow::~ImgWindow()
 				break; // Found and removed.
 			}
 		}
-		
+
 		// 3. NOW it is safe to sever the link (prevent double free):
 		io.Fonts = NULL;
 	}
@@ -593,10 +596,10 @@ ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
 	ImGui::Render();
 
 	thisWindow->RenderImGui(ImGui::GetDrawData());
-    
+
     // Give subclasses a chance to do something after all rendering
     thisWindow->afterRendering();
-    
+
     // Hack: Reset the Backspace key if in VR (see HandleKeyFuncCB for details)
     if (thisWindow->bResetBackspace) {
         ImGuiIO& io = ImGui::GetIO();
@@ -613,12 +616,12 @@ int
 ImgWindow::HandleMouseClickCB(XPLMWindowID /* inWindowID */, int x, int y, XPLMMouseStatus inMouse, void *inRefcon)
 {
 	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
-	
+
 	// If this is an overlay window that cannot be moved, ignore mouse clicks.
 	if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay &&
 		!thisWindow->bCanMove)
 		return 0;	// (ignore mouse clicks in this case)
-	
+
 	return thisWindow->HandleMouseClickGeneric(x, y, inMouse, 0);
 }
 
@@ -627,7 +630,7 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
 {
 	ImGui::SetCurrentContext(mImGuiContext);
 	ImGuiIO& io = ImGui::GetIO();
-	
+
     // Tell ImGui the mous position relative to the window
     translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
     const int loc_x = int(io.MousePos.x);       // local x, relative to top/left corner
@@ -636,7 +639,7 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
     const int dy = y - lastMouseDragY;
 
     switch (inMouse) {
-            
+
         case xplm_MouseDrag:
             io.MouseDown[button] = true;
 
@@ -659,7 +662,7 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                     if (dragWhat.top)    mTop    += dy;
                     if (dragWhat.right)  mRight  += dx;
                     if (dragWhat.bottom) mBottom += dy;
-                    
+
                     // Make sure resizing limits are honored
                     if (mRight-mLeft < minWidth)
                     {
@@ -694,7 +697,7 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
 
         case xplm_MouseDown:
             io.MouseDown[button] = true;
-            
+
             // Which part of the window would we drag, if any?
             dragWhat.clear();
             if ((button == 0 || bCanMove) &&  // left button OR right-drag (if move allowed)
@@ -723,7 +726,7 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                 }
             }
             break;
-            
+
         case xplm_MouseUp:
             io.MouseDown[button] = false;
             lastMouseDragX = lastMouseDragY = -1;
@@ -751,7 +754,7 @@ ImgWindow::HandleKeyFuncCB(
 	ImGui::SetCurrentContext(thisWindow->mImGuiContext);
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.WantCaptureKeyboard) {
-        
+
         // Loosing focus? That's not exactly something ImGui allows us to do...
         // we try convincing ImGui to let it go by sending an [Esc] key
         if (blosingFocus) {
@@ -774,7 +777,7 @@ ImgWindow::HandleKeyFuncCB(
             // So we ignore the "up" event (release key) here, and do the actual
             // release only after the next drawing cycle (flag bResetBackspace).
             // (And this little delay doesn't hurt in non-VR either, so we don't even test for VR.)
-            
+
 #ifndef IMGUI_V190_REFACTOR
 			// If Backspace is _released_ ...
             if (inVirtualKey == XPLM_VK_BACK && !(inFlags & xplm_DownFlag)) {
@@ -798,7 +801,7 @@ ImgWindow::HandleKeyFuncCB(
 #else
 			bool isDown = (inFlags & xplm_DownFlag) == xplm_DownFlag;
 			ImGuiKey key = vpXPLMKeyToImGuiKey(inVirtualKey);
-			
+
 			// Sync modifiers *first*.
 			// (We send these regardless of whether it's a key down or up, to ensure ImGui's internal modifier bitmask is current.)
       bool shift = (inFlags & xplm_ShiftFlag) != 0;
@@ -844,11 +847,10 @@ ImgWindow::HandleCursorFuncCB(
 	void *               inRefcon)
 {
 	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
-	
+
 	// If this is an overlay window that cannot be moved, ignore mouse cursor changes.
-    if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay &&
-        !thisWindow->bCanMove)
-        return xplm_CursorDefault;  // (ignore for immovable overlays)
+  if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay && !thisWindow->bCanMove)
+      return xplm_CursorDefault;  // (ignore for immovable overlays)
 	
 	ImGui::SetCurrentContext(thisWindow->mImGuiContext);
 	ImGuiIO& io = ImGui::GetIO();
@@ -1058,4 +1060,3 @@ ImgWindow::SelfDestructCallback(float /*inElapsedSinceLastCall*/,
     }
     return 0;
 }
-

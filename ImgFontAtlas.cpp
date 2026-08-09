@@ -118,22 +118,26 @@ ImgFontAtlas::bindTexture()
 
     XPLMGenerateTextureNumbers(&mGLTextureNum, 1);
 
-    // unsigned char *pixData = nullptr;
-    // int width, height;
-    // mOurAtlas->GetTexDataAsRGBA32(&pixData, &width, &height);
-
+#ifndef IMGUI_V190_REFACTOR
+    unsigned char *pixData = nullptr;
+    int width, height;
+    mOurAtlas->GetTexDataAsRGBA32(&pixData, &width, &height);
+#else
     strct_texture_info outInfo;
     GetCustomAtlasTextureData(mOurAtlas, outInfo);
+#endif
 
     XPLMBindTexture2d(mGLTextureNum, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
+    #ifndef IMGUI_V190_REFACTOR
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
+    mOurAtlas->SetTexID((void *)((intptr_t)mGLTextureNum));
+    #else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
-
-    // mOurAtlas->SetTexID((void *)((intptr_t)mGLTextureNum));
-    mOurAtlas->TexData->SetTexID(mGLTextureNum); // v26.08.1
+    mOurAtlas->TexData->SetTexID(mGLTextureNum);
+    #endif
 
     mTextureBound = true;
 }

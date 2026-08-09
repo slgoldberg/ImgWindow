@@ -34,7 +34,7 @@
 
 #ifndef IMGWINDOW_H
 #define IMGWINDOW_H
-#define IMGUI_V190_REFACTOR
+// #define IMGUI_V190_REFACTOR // debug
 
 #include "SystemGL.h"
 
