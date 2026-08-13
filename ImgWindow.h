@@ -110,7 +110,7 @@ public:
     { XPLMSetWindowGeometryVR(mWindowID, width, height); }
     
     /** Gets the current valid geometry (free, OS, or VR
-        If VR, then left=bottom=0 and right=width and top=height*/
+        If VR, then left=bottom=0 and right=width and top=height */
     void GetCurrentWindowGeometry (int& left, int& top, int& right, int& bottom) const;
     
     /** Set resize limits. If set this way then the window object knows. */

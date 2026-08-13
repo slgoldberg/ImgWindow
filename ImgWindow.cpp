@@ -59,14 +59,34 @@ static ImGuiKey vpXPLMKeyToImGuiKey(int inVirtualKey) {
         case XPLM_VK_RETURN: return ImGuiKey_Enter;
         case XPLM_VK_ESCAPE: return ImGuiKey_Escape;
         case XPLM_VK_ENTER: return ImGuiKey_KeypadEnter;
+        case XPLM_VK_NUMPAD0: return ImGuiKey_Keypad0;
+        case XPLM_VK_NUMPAD1: return ImGuiKey_Keypad1;
+        case XPLM_VK_NUMPAD2: return ImGuiKey_Keypad2;
+        case XPLM_VK_NUMPAD3: return ImGuiKey_Keypad3;
+        case XPLM_VK_NUMPAD4: return ImGuiKey_Keypad4;
+        case XPLM_VK_NUMPAD5: return ImGuiKey_Keypad5;
+        case XPLM_VK_NUMPAD6: return ImGuiKey_Keypad6;
+        case XPLM_VK_NUMPAD7: return ImGuiKey_Keypad7;
+        case XPLM_VK_NUMPAD8: return ImGuiKey_Keypad8;
+        case XPLM_VK_NUMPAD9: return ImGuiKey_Keypad9;
         case XPLM_VK_A: return ImGuiKey_A;
         case XPLM_VK_C: return ImGuiKey_C;
         case XPLM_VK_V: return ImGuiKey_V;
         case XPLM_VK_X: return ImGuiKey_X;
         case XPLM_VK_Y: return ImGuiKey_Y;
         case XPLM_VK_Z: return ImGuiKey_Z;
-        default: return ImGuiKey_None;
+        case XPLM_VK_0: return ImGuiKey_0;
+        case XPLM_VK_1: return ImGuiKey_1;
+        case XPLM_VK_2: return ImGuiKey_2;
+        case XPLM_VK_3: return ImGuiKey_3;
+        case XPLM_VK_4: return ImGuiKey_4;
+        case XPLM_VK_5: return ImGuiKey_5;
+        case XPLM_VK_6: return ImGuiKey_6;
+        case XPLM_VK_7: return ImGuiKey_7;
+        case XPLM_VK_8: return ImGuiKey_8;
+        case XPLM_VK_9: return ImGuiKey_9;
     }
+    return ImGuiKey_None;
 }
 #endif /* IMGUI_V190_REFACTOR */
 
@@ -96,12 +116,12 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     // if (!need_rebuild && atlas->TexID.GetTexID()) {
     //   if (!glIsTexture((GLuint)(uintptr_t)atlas->TexID.GetTexID())) need_rebuild = true;
     if (!need_rebuild && atlas->TexData->GetTexRef().GetTexID()) {
-      if (!glIsTexture((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID()))
-        need_rebuild = true;
+        if (!glIsTexture((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID()))
+            need_rebuild = true;
     }
     if (!need_rebuild && atlas->Fonts.Size > 0) {
         if (atlas->Fonts.back()->LastBaked == 0)
-          need_rebuild = true;
+            need_rebuild = true;
     }
 
     if (need_rebuild)
@@ -134,23 +154,23 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
 #endif /* IMGUI_V190_REFACTOR */
 
 ImgWindow::ImgWindow(
-	int left,
-	int top,
-	int right,
-	int bottom,
-	XPLMWindowDecoration decoration,
-	XPLMWindowLayer layer,
+    int left,
+    int top,
+    int right,
+    int bottom,
+    XPLMWindowDecoration decoration,
+    XPLMWindowLayer layer,
     bool cursors) :
     mFirstRender(true),
     mFontAtlas(sFontAtlas),
+    bHandleWndResize(xplm_WindowDecorationSelfDecoratedResizable == decoration),
     mPreferredLayer(layer),
-	  bUseImgCursors(cursors),
-    bHandleWndResize(xplm_WindowDecorationSelfDecoratedResizable == decoration)
+    bUseImgCursors(cursors)
 {
 #if _DEBUG
-	// Recommended by ImGui in imconfig.h:
-	// Check to make sure the current data structures this file is using are matching the ones imgui.cpp is using.
-	IMGUI_CHECKVERSION();
+    // Recommended by ImGui in imconfig.h:
+    // Check to make sure the current data structures this file is using are matching the ones imgui.cpp is using.
+    IMGUI_CHECKVERSION();
 #endif
 
     ImFontAtlas *iFontAtlas = nullptr;
@@ -158,82 +178,82 @@ ImgWindow::ImgWindow(
         mFontAtlas->bindTexture();
         iFontAtlas = mFontAtlas->getAtlas();
     }
-	mImGuiContext = ImGui::CreateContext(iFontAtlas);
-	ImGui::SetCurrentContext(mImGuiContext);
-	auto &io = ImGui::GetIO();
+    mImGuiContext = ImGui::CreateContext(iFontAtlas);
+    ImGui::SetCurrentContext(mImGuiContext);
+    auto &io = ImGui::GetIO();
 
 #ifdef IMGUI_V190_REFACTOR
-	// use "modern" self-managed font atlas.
-	io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+    // use "modern" self-managed font atlas.
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
 
-	// Just-in-time atlas build & verification:
-	// we check this immediately to handle initial builds, high-DPI switches, or fallback default fonts.
-	// (This replaces the legacy binding logic #ifdef'ed out below for ImGui v1.90 and above.)
-	if (io.Fonts) {
-		CheckAndRebuildAtlas(io.Fonts, mFontTexture);
-	}
+    // Just-in-time atlas build & verification:
+    // we check this immediately to handle initial builds, high-DPI switches, or fallback default fonts.
+    // (This replaces the legacy binding logic #ifdef'ed out below for ImGui v1.90 and above.)
+    if (io.Fonts) {
+        CheckAndRebuildAtlas(io.Fonts, mFontTexture);
+    }
 
-	// "Stealth Mode":
-	// Remove this atlas from the context's update list to prevent ImGui v1.92+
-	// from trying to manage the texture lifecycle (which can cause crashes
-	// since we want to manage this stuff, not let ImGui modify at will).
-	if (iFontAtlas) {
-		for (int i = 0; i < mImGuiContext->FontAtlases.Size; i++) {
-			if (mImGuiContext->FontAtlases[i] == iFontAtlas) {
-				mImGuiContext->FontAtlases.erase(mImGuiContext->FontAtlases.Data + i);
-				break;
-			}
-		}
-	}
+    // "Stealth Mode":
+    // Remove this atlas from the context's update list to prevent ImGui v1.92+
+    // from trying to manage the texture lifecycle (which can cause crashes
+    // since we want to manage this stuff, not let ImGui modify at will).
+    if (iFontAtlas) {
+        for (int i = 0; i < mImGuiContext->FontAtlases.Size; i++) {
+            if (mImGuiContext->FontAtlases[i] == iFontAtlas) {
+                mImGuiContext->FontAtlases.erase(mImGuiContext->FontAtlases.Data + i);
+                break;
+            }
+        }
+    }
 #endif /* IMGUI_V190_REFACTOR */
 
-	static bool first_init=false;
-	if (!first_init) {
-		gVrEnabledRef = XPLMFindDataRef("sim/graphics/VR/enabled");
-		gModelviewMatrixRef = XPLMFindDataRef("sim/graphics/view/modelview_matrix");
-		gViewportRef = XPLMFindDataRef("sim/graphics/view/viewport");
-		gProjectionMatrixRef = XPLMFindDataRef("sim/graphics/view/projection_matrix");
+    static bool first_init=false;
+    if (!first_init) {
+        gVrEnabledRef = XPLMFindDataRef("sim/graphics/VR/enabled");
+        gModelviewMatrixRef = XPLMFindDataRef("sim/graphics/view/modelview_matrix");
+        gViewportRef = XPLMFindDataRef("sim/graphics/view/viewport");
+        gProjectionMatrixRef = XPLMFindDataRef("sim/graphics/view/projection_matrix");
         gFrameRatePeriodRef = XPLMFindDataRef("sim/operation/misc/frame_rate_period");
-		first_init=true;
-	}
+        first_init=true;
+    }
 
 #ifndef IMGUI_V190_REFACTOR
 #ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
-	// we render ourselves, we don't use the DrawListsFunc
-	io.RenderDrawListsFn = nullptr;
+    // we render ourselves, we don't use the DrawListsFunc
+    io.RenderDrawListsFn = nullptr;
 #endif
-	// set up the Keymap
-	io.KeyMap[ImGuiKey_Tab] = XPLM_VK_TAB;
-	io.KeyMap[ImGuiKey_LeftArrow] = XPLM_VK_LEFT;
-	io.KeyMap[ImGuiKey_RightArrow] = XPLM_VK_RIGHT;
-	io.KeyMap[ImGuiKey_UpArrow] = XPLM_VK_UP;
-	io.KeyMap[ImGuiKey_DownArrow] = XPLM_VK_DOWN;
-	io.KeyMap[ImGuiKey_PageUp] = XPLM_VK_PRIOR;
-	io.KeyMap[ImGuiKey_PageDown] = XPLM_VK_NEXT;
-	io.KeyMap[ImGuiKey_Home] = XPLM_VK_HOME;
-	io.KeyMap[ImGuiKey_End] = XPLM_VK_END;
-	io.KeyMap[ImGuiKey_Insert] = XPLM_VK_INSERT;
-	io.KeyMap[ImGuiKey_Delete] = XPLM_VK_DELETE;
-	io.KeyMap[ImGuiKey_Backspace] = XPLM_VK_BACK;
-	io.KeyMap[ImGuiKey_Space] = XPLM_VK_SPACE;
+    // set up the Keymap
+    io.KeyMap[ImGuiKey_Tab] = XPLM_VK_TAB;
+    io.KeyMap[ImGuiKey_LeftArrow] = XPLM_VK_LEFT;
+    io.KeyMap[ImGuiKey_RightArrow] = XPLM_VK_RIGHT;
+    io.KeyMap[ImGuiKey_UpArrow] = XPLM_VK_UP;
+    io.KeyMap[ImGuiKey_DownArrow] = XPLM_VK_DOWN;
+    io.KeyMap[ImGuiKey_PageUp] = XPLM_VK_PRIOR;
+    io.KeyMap[ImGuiKey_PageDown] = XPLM_VK_NEXT;
+    io.KeyMap[ImGuiKey_Home] = XPLM_VK_HOME;
+    io.KeyMap[ImGuiKey_End] = XPLM_VK_END;
+    io.KeyMap[ImGuiKey_Insert] = XPLM_VK_INSERT;
+    io.KeyMap[ImGuiKey_Delete] = XPLM_VK_DELETE;
+    io.KeyMap[ImGuiKey_Backspace] = XPLM_VK_BACK;
+    io.KeyMap[ImGuiKey_Space] = XPLM_VK_SPACE;
     io.KeyMap[ImGuiKey_Enter] = XPLM_VK_RETURN;
     io.KeyMap[ImGuiKey_Escape] = XPLM_VK_ESCAPE;
     io.KeyMap[ImGuiKey_KeyPadEnter] = XPLM_VK_ENTER;
-	io.KeyMap[ImGuiKey_A] = XPLM_VK_A;
-	io.KeyMap[ImGuiKey_C] = XPLM_VK_C;
-	io.KeyMap[ImGuiKey_V] = XPLM_VK_V;
-	io.KeyMap[ImGuiKey_X] = XPLM_VK_X;
-	io.KeyMap[ImGuiKey_Y] = XPLM_VK_Y;
-	io.KeyMap[ImGuiKey_Z] = XPLM_VK_Z;
+    io.KeyMap[ImGuiKey_A] = XPLM_VK_A;
+    io.KeyMap[ImGuiKey_C] = XPLM_VK_C;
+    io.KeyMap[ImGuiKey_V] = XPLM_VK_V;
+    io.KeyMap[ImGuiKey_X] = XPLM_VK_X;
+    io.KeyMap[ImGuiKey_Y] = XPLM_VK_Y;
+    io.KeyMap[ImGuiKey_Z] = XPLM_VK_Z;
 #endif /* IMGUI_V190_REFACTOR */
 
-	// disable window rounding since we're not rendering the frame anyway.
-	auto &style = ImGui::GetStyle();
-	style.WindowRounding = 0;
+    // disable window rounding since we're not rendering the frame anyway.
+    auto &style = ImGui::GetStyle();
+    style.WindowRounding = 0;
 
 #ifndef IMGUI_V190_REFACTOR
-	// bind the font
-	if (mFontAtlas) {
+    // bind the font
+    if (mFontAtlas) {
         mFontTexture = static_cast<GLuint>(reinterpret_cast<intptr_t>(io.Fonts->TexID));
     } else {
         if (!iFontAtlas || iFontAtlas->TexID == nullptr) {
@@ -265,77 +285,77 @@ ImgWindow::ImgWindow(
         }
     }
 #else
-	// Sync texture ID:
-	// if CheckAndRebuildAtlas() above did its job, mFontTexture is set; if the shared atlas was already built, grab the ID here.
-	if (io.Fonts->TexData->GetTexID() != 0) {
-	  mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexData->GetTexID());
+    // Sync texture ID:
+    // if CheckAndRebuildAtlas() above did its job, mFontTexture is set; if the shared atlas was already built, grab the ID here.
+    if (io.Fonts->TexData->GetTexID() != 0) {
+      mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexData->GetTexID());
 
-	}
+    }
 #endif
 
-	// disable OSX-like keyboard behaviours always - we don't have the keymapping for it.
-	io.ConfigMacOSXBehaviors = false;
+    // disable OSX-like keyboard behaviours always - we don't have the keymapping for it.
+    io.ConfigMacOSXBehaviors = false;
 
 #ifdef IMGUI_V190_REFACTOR
-	// override to enable the required OSX behaviors specifically for macOS only.
+    // override to enable the required OSX behaviors specifically for macOS only.
 #if defined(__APPLE__) || defined(__MACH__)
-	io.ConfigMacOSXBehaviors = true;
+    io.ConfigMacOSXBehaviors = true;
 #endif
 #endif
 
-	// try to inhibit a few resize/move behaviours that won't play nice with our window control.
-	io.ConfigWindowsResizeFromEdges = false;
-	io.ConfigWindowsMoveFromTitleBarOnly = true;
+    // try to inhibit a few resize/move behaviours that won't play nice with our window control.
+    io.ConfigWindowsResizeFromEdges = false;
+    io.ConfigWindowsMoveFromTitleBarOnly = true;
 
-	XPLMCreateWindow_t	windowParams = {
-		sizeof(windowParams),
-		left,
-		top,
-		right,
-		bottom,
-		0,
-		DrawWindowCB,
-		HandleMouseClickCB,
-		HandleKeyFuncCB,
-		HandleCursorFuncCB,
-		HandleMouseWheelFuncCB,
-		reinterpret_cast<void*>(this),
-		decoration,
-		layer,
-		HandleRightClickFuncCB,
-	};
-	mWindowID = XPLMCreateWindowEx(&windowParams);
+    XPLMCreateWindow_t windowParams = {
+        sizeof(windowParams),
+        left,
+        top,
+        right,
+        bottom,
+        0,
+        DrawWindowCB,
+        HandleMouseClickCB,
+        HandleKeyFuncCB,
+        HandleCursorFuncCB,
+        HandleMouseWheelFuncCB,
+        reinterpret_cast<void*>(this),
+        decoration,
+        layer,
+        HandleRightClickFuncCB,
+    };
+    mWindowID = XPLMCreateWindowEx(&windowParams);
 }
 
 ImgWindow::~ImgWindow()
 {
-	ImGui::SetCurrentContext(mImGuiContext);
+    ImGui::SetCurrentContext(mImGuiContext);
 #ifdef IMGUI_V190_REFACTOR
-	ImGuiIO& io = ImGui::GetIO();
-	if (io.Fonts)
-	{
-		// 1. Get the shared data pointer for THIS context:
-		ImDrawListSharedData* data = ImGui::GetDrawListSharedData();
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.Fonts)
+    {
+        // 1. Get the shared data pointer for THIS context:
+        ImDrawListSharedData* data = ImGui::GetDrawListSharedData();
 
-		// 2. Manually find and remove it from the Atlas's list:
-		for (int i = 0; i < io.Fonts->DrawListSharedDatas.Size; i++)
-		{
-			if (io.Fonts->DrawListSharedDatas[i] == data) {
-				io.Fonts->DrawListSharedDatas.erase(io.Fonts->DrawListSharedDatas.Data + i);
-				break; // Found and removed.
-			}
-		}
+        // 2. Manually find and remove it from the Atlas's list:
+        for (int i = 0; i < io.Fonts->DrawListSharedDatas.Size; i++)
+        {
+            if (io.Fonts->DrawListSharedDatas[i] == data) {
+                io.Fonts->DrawListSharedDatas.erase(io.Fonts->DrawListSharedDatas.Data + i);
+                break; // Found and removed.
+            }
+        }
 
-		// 3. NOW it is safe to sever the link (prevent double free):
-		io.Fonts = NULL;
-	}
+        // 3. NOW it is safe to sever the link (prevent double free):
+        io.Fonts = NULL;
+    }
 #endif /* IMGUI_V190_REFACTOR */
-	if (!mFontAtlas) {
-	    // if we didn't have an explicit font atlas, destroy the texture.
+    if (!mFontAtlas) {
+        // if we didn't have an explicit font atlas, destroy the texture.
         glDeleteTextures(1, &mFontTexture);
     }
-	ImGui::DestroyContext(mImGuiContext);
-	XPLMDestroyWindow(mWindowID);
+    ImGui::DestroyContext(mImGuiContext);
+    XPLMDestroyWindow(mWindowID);
 }
 
 void
@@ -364,34 +384,34 @@ ImgWindow::SetWindowResizingLimits (int minW, int minH, int maxW, int maxH)
 void
 ImgWindow::updateMatrices()
 {
-	// Get the current modelview matrix, viewport, and projection matrix from X-Plane
-	XPLMGetDatavf(gModelviewMatrixRef, mModelView, 0, 16);
-	XPLMGetDatavf(gProjectionMatrixRef, mProjection, 0, 16);
-	XPLMGetDatavi(gViewportRef, mViewport, 0, 4);
+    // Get the current modelview matrix, viewport, and projection matrix from X-Plane
+    XPLMGetDatavf(gModelviewMatrixRef, mModelView, 0, 16);
+    XPLMGetDatavf(gProjectionMatrixRef, mProjection, 0, 16);
+    XPLMGetDatavi(gViewportRef, mViewport, 0, 4);
 }
 
 static void multMatrixVec4f(GLfloat dst[4], const GLfloat m[16], const GLfloat v[4])
 {
-	dst[0] = v[0] * m[0] + v[1] * m[4] + v[2] * m[8] + v[3] * m[12];
-	dst[1] = v[0] * m[1] + v[1] * m[5] + v[2] * m[9] + v[3] * m[13];
-	dst[2] = v[0] * m[2] + v[1] * m[6] + v[2] * m[10] + v[3] * m[14];
-	dst[3] = v[0] * m[3] + v[1] * m[7] + v[2] * m[11] + v[3] * m[15];
+    dst[0] = v[0] * m[0] + v[1] * m[4] + v[2] * m[8] + v[3] * m[12];
+    dst[1] = v[0] * m[1] + v[1] * m[5] + v[2] * m[9] + v[3] * m[13];
+    dst[2] = v[0] * m[2] + v[1] * m[6] + v[2] * m[10] + v[3] * m[14];
+    dst[3] = v[0] * m[3] + v[1] * m[7] + v[2] * m[11] + v[3] * m[15];
 }
 
 void
 ImgWindow::boxelsToNative(int x, int y, int &outX, int &outY)
 {
-	GLfloat boxelPos[4] = { (GLfloat)x, (GLfloat)y, 0, 1 };
-	GLfloat eye[4], ndc[4];
+    GLfloat boxelPos[4] = { (GLfloat)x, (GLfloat)y, 0, 1 };
+    GLfloat eye[4], ndc[4];
 
-	multMatrixVec4f(eye, mModelView, boxelPos);
-	multMatrixVec4f(ndc, mProjection, eye);
-	ndc[3] = 1.0f / ndc[3];
-	ndc[0] *= ndc[3];
-	ndc[1] *= ndc[3];
+    multMatrixVec4f(eye, mModelView, boxelPos);
+    multMatrixVec4f(ndc, mProjection, eye);
+    ndc[3] = 1.0f / ndc[3];
+    ndc[0] *= ndc[3];
+    ndc[1] *= ndc[3];
 
-	outX = static_cast<int>((ndc[0] * 0.5f + 0.5f) * mViewport[2] + mViewport[0]);
-	outY = static_cast<int>((ndc[1] * 0.5f + 0.5f) * mViewport[3] + mViewport[1]);
+    outX = static_cast<int>((ndc[0] * 0.5f + 0.5f) * mViewport[2] + mViewport[0]);
+    outY = static_cast<int>((ndc[1] * 0.5f + 0.5f) * mViewport[3] + mViewport[1]);
 }
 
 /*
@@ -404,194 +424,194 @@ void
 ImgWindow::RenderImGui(ImDrawData *draw_data)
 {
 #ifdef IMGUI_V190_REFACTOR
-	if (mFontAtlas && mFontAtlas->getAtlas()) {
-		// rebuild and upload *only* if the atlas is actually out of date (e.g., dynamic font size or style changes, etc.)
-		// (Note: very inexpensive with early-out returns in common case.)
-		CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
-	}
+    if (mFontAtlas && mFontAtlas->getAtlas()) {
+        // rebuild and upload *only* if the atlas is actually out of date (e.g., dynamic font size or style changes, etc.)
+        // (Note: very inexpensive with early-out returns in common case.)
+        CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
+    }
 #endif
 
-	// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
-	ImGuiIO& io = ImGui::GetIO();
+    // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
+    ImGuiIO& io = ImGui::GetIO();
     if (io.DisplayFramebufferScale.x != 1.0 ||
         io.DisplayFramebufferScale.y != 1.0)
         draw_data->ScaleClipRects(io.DisplayFramebufferScale);
 
     updateMatrices();
 
-	// We are using the OpenGL fixed pipeline because messing with the
-	// shader-state in X-Plane is not very well documented, but using the fixed
-	// function pipeline is.
+    // We are using the OpenGL fixed pipeline because messing with the
+    // shader-state in X-Plane is not very well documented, but using the fixed
+    // function pipeline is.
 
-	// 1TU + Alpha settings, no depth, no fog.
-	XPLMSetGraphicsState(0, 1, 0, 1, 1, 0, 0);
-	glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
-	glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_TRANSFORM_BIT);
-	glDisable(GL_CULL_FACE);
-	glEnable(GL_SCISSOR_TEST);
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	glEnableClientState(GL_COLOR_ARRAY);
-	glEnable(GL_TEXTURE_2D);
+    // 1TU + Alpha settings, no depth, no fog.
+    XPLMSetGraphicsState(0, 1, 0, 1, 1, 0, 0);
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+    glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_TRANSFORM_BIT);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_SCISSOR_TEST);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+    glEnable(GL_TEXTURE_2D);
 
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-	glScalef(1.0f, -1.0f, 1.0f);
-	glTranslatef(static_cast<GLfloat>(mLeft), static_cast<GLfloat>(-mTop), 0.0f);
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glScalef(1.0f, -1.0f, 1.0f);
+    glTranslatef(static_cast<GLfloat>(mLeft), static_cast<GLfloat>(-mTop), 0.0f);
 
-	// Render command lists
-	for (int n = 0; n < draw_data->CmdListsCount; n++)
-	{
-		const ImDrawList* cmd_list = draw_data->CmdLists[n];
-		const ImDrawVert* vtx_buffer = cmd_list->VtxBuffer.Data;
-		const ImDrawIdx* idx_buffer = cmd_list->IdxBuffer.Data;
+    // Render command lists
+    for (int n = 0; n < draw_data->CmdListsCount; n++)
+    {
+        const ImDrawList* cmd_list = draw_data->CmdLists[n];
+        const ImDrawVert* vtx_buffer = cmd_list->VtxBuffer.Data;
+        const ImDrawIdx* idx_buffer = cmd_list->IdxBuffer.Data;
 #ifndef IMGUI_V190_REFACTOR
-		glVertexPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, pos)));
-		glTexCoordPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, uv)));
-		glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, col)));
+        glVertexPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, pos)));
+        glTexCoordPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, uv)));
+        glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, col)));
 #else /* IMGUI_V190_REFACTOR: */
-		glVertexPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, pos)));
-		glTexCoordPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, uv)));
-		glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, col)));
+        glVertexPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, pos)));
+        glTexCoordPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, uv)));
+        glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, col)));
 #endif /* IMGUI_V190_REFACTOR */
 
-		for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
-		{
-			const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
-			if (pcmd->UserCallback)	{
-				pcmd->UserCallback(cmd_list, pcmd);
-			} else {
+        for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
+        {
+            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+            if (pcmd->UserCallback) {
+                pcmd->UserCallback(cmd_list, pcmd);
+            } else {
 #ifndef IMGUI_V190_REFACTOR
-				XPLMBindTexture2d((int)(intptr_t)pcmd->TextureId, 0);
+                XPLMBindTexture2d((int)(intptr_t)pcmd->TextureId, 0);
 #else
-			    XPLMBindTexture2d((int)(intptr_t)pcmd->GetTexID(), 0);
+                XPLMBindTexture2d((int)(intptr_t)pcmd->GetTexID(), 0);
 #endif /* IMGUI_V190_REFACTOR */
 
-				// Scissors work in viewport space - must translate the coordinates from ImGui -> Boxels, then Boxels -> Native.
-				//FIXME: it must be possible to apply the scale+transform manually to the projection matrix so we don't need to doublestep.
-				int bTop, bLeft, bRight, bBottom;
-				translateImguiToBoxel(pcmd->ClipRect.x, pcmd->ClipRect.y, bLeft, bTop);
-				translateImguiToBoxel(pcmd->ClipRect.z, pcmd->ClipRect.w, bRight, bBottom);
-				int nTop, nLeft, nRight, nBottom;
-				boxelsToNative(bLeft, bTop, nLeft, nTop);
-				boxelsToNative(bRight, bBottom, nRight, nBottom);
-				glScissor(nLeft, nBottom, nRight-nLeft, nTop-nBottom);
-				glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, idx_buffer);
-			}
-			idx_buffer += pcmd->ElemCount;
-		}
-	}
+                // Scissors work in viewport space - must translate the coordinates from ImGui -> Boxels, then Boxels -> Native.
+                //FIXME: it must be possible to apply the scale+transform manually to the projection matrix so we don't need to doublestep.
+                int bTop, bLeft, bRight, bBottom;
+                translateImguiToBoxel(pcmd->ClipRect.x, pcmd->ClipRect.y, bLeft, bTop);
+                translateImguiToBoxel(pcmd->ClipRect.z, pcmd->ClipRect.w, bRight, bBottom);
+                int nTop, nLeft, nRight, nBottom;
+                boxelsToNative(bLeft, bTop, nLeft, nTop);
+                boxelsToNative(bRight, bBottom, nRight, nBottom);
+                glScissor(nLeft, nBottom, nRight-nLeft, nTop-nBottom);
+                glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, idx_buffer);
+            }
+            idx_buffer += pcmd->ElemCount;
+        }
+    }
 
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix();
-	// Restore modified state
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_COLOR_ARRAY);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	glBindTexture(GL_TEXTURE_2D, 0);	// fix from Mark Parker 2026
-	glPopAttrib();
-	glPopClientAttrib();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    // Restore modified state
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glBindTexture(GL_TEXTURE_2D, 0);    // fix from Mark Parker 2026
+    glPopAttrib();
+    glPopClientAttrib();
 }
 
 void
 ImgWindow::translateToImguiSpace(int inX, int inY, float &outX, float &outY)
 {
-	outX = static_cast<float>(inX - mLeft);
-	if (outX < 0.0f || outX > (float)(mRight - mLeft)) {
-		outX = -FLT_MAX;
-		outY = -FLT_MAX;
-		return;
-	}
-	outY = static_cast<float>(mTop-inY);
-	if (outY < 0.0f || outY > (float)(mTop - mBottom)) {
-		outX = -FLT_MAX;
-		outY = -FLT_MAX;
-		return;
-	}
+    outX = static_cast<float>(inX - mLeft);
+    if (outX < 0.0f || outX > (float)(mRight - mLeft)) {
+        outX = -FLT_MAX;
+        outY = -FLT_MAX;
+        return;
+    }
+    outY = static_cast<float>(mTop-inY);
+    if (outY < 0.0f || outY > (float)(mTop - mBottom)) {
+        outX = -FLT_MAX;
+        outY = -FLT_MAX;
+        return;
+    }
 }
 
 void
 ImgWindow::translateImguiToBoxel(float inX, float inY, int &outX, int &outY)
 {
-	outX = (int)(mLeft + inX);
-	outY = (int)(mTop - inY);
+    outX = (int)(mLeft + inX);
+    outY = (int)(mTop - inY);
 }
 
 
 void
 ImgWindow::updateImgui()
 {
-	ImGui::SetCurrentContext(mImGuiContext);
-	auto &io = ImGui::GetIO();
+    ImGui::SetCurrentContext(mImGuiContext);
+    auto &io = ImGui::GetIO();
 
-	// transfer the window geometry to ImGui
-	XPLMGetWindowGeometry(mWindowID, &mLeft, &mTop, &mRight, &mBottom);
+    // transfer the window geometry to ImGui
+    XPLMGetWindowGeometry(mWindowID, &mLeft, &mTop, &mRight, &mBottom);
 
-	float win_width = static_cast<float>(mRight - mLeft);
-	float win_height = static_cast<float>(mTop - mBottom);
+    float win_width = static_cast<float>(mRight - mLeft);
+    float win_height = static_cast<float>(mTop - mBottom);
 
     // Needed to add this to prevent io.DeltaTime causing a CTD because when X-Plane starts FrameRatePeriod is equal to 0.0f
     float FrameRatePeriod = XPLMGetDataf(gFrameRatePeriodRef);
     if (FrameRatePeriod > 0.0f) {
         io.DeltaTime = XPLMGetDataf(gFrameRatePeriodRef);
     }
-	io.DisplaySize = ImVec2(win_width, win_height);
-	// in boxels, we're always scale 1, 1.
-	io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+    io.DisplaySize = ImVec2(win_width, win_height);
+    // in boxels, we're always scale 1, 1.
+    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 
 #ifdef IMGUI_V190_REFACTOR
-	// Just-in-time rebuild:
-	// If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
-	// (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
-	// FIXME: Should this move to happen on a flight loop callback instead of every frame?
-	// (We don't want to rebuild the atlas in the middle of a frame, but we also don't want to rebuild it every frame if nothing changed.)
-	if (mFontAtlas && mFontAtlas->getAtlas()) {
-		CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
-	}
+    // Just-in-time rebuild:
+    // If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
+    // (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
+    // FIXME: Should this move to happen on a flight loop callback instead of every frame?
+    // (We don't want to rebuild the atlas in the middle of a frame, but we also don't want to rebuild it every frame if nothing changed.)
+    if (mFontAtlas && mFontAtlas->getAtlas()) {
+        CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
+    }
 #endif /* IMGUI_V190_REFACTOR */
 
-	ImGui::NewFrame();
+    ImGui::NewFrame();
 
-	ImGui::SetNextWindowPos(ImVec2((float) 0.0, (float) 0.0), ImGuiCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(win_width, win_height), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2((float) 0.0, (float) 0.0), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(win_width, win_height), ImGuiCond_Always);
 
-	// ...and construct the window, detecting whether the window flags allow moving via right-drag.
-	ImGuiWindowFlags_ userFlags = beforeBegin();
-	bCanMove = !(userFlags & ImGuiWindowFlags_NoMove);
-	ImGui::Begin(mWindowTitle.c_str(), nullptr, userFlags | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-	buildInterface();
-	ImGui::End();
+    // ...and construct the window, detecting whether the window flags allow moving via right-drag.
+    ImGuiWindowFlags_ userFlags = beforeBegin();
+    bCanMove = !(userFlags & ImGuiWindowFlags_NoMove);
+    ImGui::Begin(mWindowTitle.c_str(), nullptr, userFlags | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+    buildInterface();
+    ImGui::End();
 
-	// finally, handle window focus.
-	int hasKeyboardFocus = XPLMHasKeyboardFocus(mWindowID);
-	if (io.WantTextInput && !hasKeyboardFocus) {
-		XPLMTakeKeyboardFocus(mWindowID);
-	}
-	else if (!io.WantTextInput && hasKeyboardFocus) {
-		XPLMTakeKeyboardFocus(nullptr);
-		// reset keysdown otherwise we'll think any keys used to defocus the keyboard are still down!
+    // finally, handle window focus.
+    int hasKeyboardFocus = XPLMHasKeyboardFocus(mWindowID);
+    if (io.WantTextInput && !hasKeyboardFocus) {
+        XPLMTakeKeyboardFocus(mWindowID);
+    }
+    else if (!io.WantTextInput && hasKeyboardFocus) {
+        XPLMTakeKeyboardFocus(nullptr);
+        // reset keysdown otherwise we'll think any keys used to defocus the keyboard are still down!
 #ifndef IMGUI_V190_REFACTOR
-		for (auto &key : io.KeysDown) {
-			key = false;
-		}
+        for (auto &key : io.KeysDown) {
+            key = false;
+        }
 #else
-		io.AddFocusEvent(false);
+        io.AddFocusEvent(false);
 #endif /* IMGUI_V190_REFACTOR */
-	}
-	mFirstRender = false;
+    }
+    mFirstRender = false;
 }
 
 void
 ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
 {
-	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
+    auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
 
-	thisWindow->updateImgui();
+    thisWindow->updateImgui();
 
-	ImGui::SetCurrentContext(thisWindow->mImGuiContext);
-	ImGui::Render();
+    ImGui::SetCurrentContext(thisWindow->mImGuiContext);
+    ImGui::Render();
 
-	thisWindow->RenderImGui(ImGui::GetDrawData());
+    thisWindow->RenderImGui(ImGui::GetDrawData());
 
     // Give subclasses a chance to do something after all rendering
     thisWindow->afterRendering();
@@ -600,9 +620,9 @@ ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
     if (thisWindow->bResetBackspace) {
         ImGuiIO& io = ImGui::GetIO();
 #ifndef IMGUI_V190_REFACTOR
-		io.KeysDown[XPLM_VK_BACK] = false;
+        io.KeysDown[XPLM_VK_BACK] = false;
 #else
-		io.AddKeyEvent(ImGuiKey_Backspace, false);
+        io.AddKeyEvent(ImGuiKey_Backspace, false);
 #endif /* IMGUI_V190_REFACTOR */
         thisWindow->bResetBackspace = false;
     }
@@ -611,21 +631,21 @@ ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
 int
 ImgWindow::HandleMouseClickCB(XPLMWindowID /* inWindowID */, int x, int y, XPLMMouseStatus inMouse, void *inRefcon)
 {
-	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
+    auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
 
-	// If this is an overlay window that cannot be moved, ignore mouse clicks.
-	if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay &&
-		!thisWindow->bCanMove)
-		return 0;	// (ignore mouse clicks in this case)
+    // If this is an overlay window that cannot be moved, ignore mouse clicks.
+    if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay &&
+        !thisWindow->bCanMove)
+        return 0;    // (ignore mouse clicks in this case)
 
-	return thisWindow->HandleMouseClickGeneric(x, y, inMouse, 0);
+    return thisWindow->HandleMouseClickGeneric(x, y, inMouse, 0);
 }
 
 int
 ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int button)
 {
-	ImGui::SetCurrentContext(mImGuiContext);
-	ImGuiIO& io = ImGui::GetIO();
+    ImGui::SetCurrentContext(mImGuiContext);
+    ImGuiIO& io = ImGui::GetIO();
 
     // Tell ImGui the mous position relative to the window
     translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
@@ -701,13 +721,13 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                 loc_x >= 0 && loc_y >= 0)   // valid local position
             {
                 // Shall we drag the entire window?
-				// (We allow right-dragging to move the entire window if bCanMove is true, which is set based on the ImGuiWindowFlags_NoMove flag.)
+                // (We allow right-dragging to move the entire window if bCanMove is true, which is set based on the ImGuiWindowFlags_NoMove flag.)
                 if (IsInsideWindowDragArea(loc_x, loc_y) || (button == 1 && bCanMove))
                 {
                     dragWhat.wnd = true;
                 }
                 // Do we need to handle window resize?
-                else if (bHandleWndResize && button == 0)	// left button ONLY for resizing
+                else if (bHandleWndResize && button == 0) // left button ONLY for resizing
                 {
                     dragWhat.left   = loc_x <= WND_RESIZE_LEFT_WIDTH;
                     dragWhat.top    = loc_y <= WND_RESIZE_TOP_WIDTH;
@@ -739,27 +759,27 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
 
 void
 ImgWindow::HandleKeyFuncCB(
-	XPLMWindowID         /*inWindowID*/,
-	char                 inKey,
-	XPLMKeyFlags         inFlags,
-	char                 inVirtualKey,
-	void *               inRefcon,
-	int                  blosingFocus)
+    XPLMWindowID         /*inWindowID*/,
+    char                 inKey,
+    XPLMKeyFlags         inFlags,
+    char                 inVirtualKey,
+    void *               inRefcon,
+    int                  blosingFocus)
 {
-	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
-	ImGui::SetCurrentContext(thisWindow->mImGuiContext);
-	ImGuiIO& io = ImGui::GetIO();
-	if (io.WantCaptureKeyboard) {
+    auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
+    ImGui::SetCurrentContext(thisWindow->mImGuiContext);
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureKeyboard) {
 
         // Loosing focus? That's not exactly something ImGui allows us to do...
         // we try convincing ImGui to let it go by sending an [Esc] key
         if (blosingFocus) {
 #ifndef IMGUI_V190_REFACTOR
-			io.KeysDown[int(XPLM_VK_ESCAPE)] = true;
+            io.KeysDown[int(XPLM_VK_ESCAPE)] = true;
 #else
-			io.AddFocusEvent(false);	// tell ImGui it lost focus
-			io.AddKeyEvent(ImGuiKey_Escape, true);
-			io.AddKeyEvent(ImGuiKey_Escape, false);
+            io.AddFocusEvent(false); // tell ImGui it lost focus
+            io.AddKeyEvent(ImGuiKey_Escape, true);
+            io.AddKeyEvent(ImGuiKey_Escape, false);
 #endif /* IMGUI_V190_REFACTOR */
         }
         else
@@ -775,7 +795,7 @@ ImgWindow::HandleKeyFuncCB(
             // (And this little delay doesn't hurt in non-VR either, so we don't even test for VR.)
 
 #ifndef IMGUI_V190_REFACTOR
-			// If Backspace is _released_ ...
+            // If Backspace is _released_ ...
             if (inVirtualKey == XPLM_VK_BACK && !(inFlags & xplm_DownFlag)) {
                 thisWindow->bResetBackspace = true; // have it reset only later in DrawWindowCB
             }
@@ -795,185 +815,185 @@ ImgWindow::HandleKeyFuncCB(
                 io.AddInputCharactersUTF8(smallStr);
             }
 #else
-			bool isDown = (inFlags & xplm_DownFlag) == xplm_DownFlag;
-			ImGuiKey key = vpXPLMKeyToImGuiKey(inVirtualKey);
+            bool isDown = (inFlags & xplm_DownFlag) == xplm_DownFlag;
+            ImGuiKey key = vpXPLMKeyToImGuiKey(inVirtualKey);
 
-			// Sync modifiers *first*.
-			// (We send these regardless of whether it's a key down or up, to ensure ImGui's internal modifier bitmask is current.)
-      bool shift = (inFlags & xplm_ShiftFlag) != 0;
-      bool alt   = (inFlags & xplm_OptionAltFlag) != 0; // 'Option' on macOS (though no special handling needed).
-      bool ctrl  = (inFlags & xplm_ControlFlag) != 0; // 'Super' on macOS (see below).
+            // Sync modifiers *first*.
+            // (We send these regardless of whether it's a key down or up, to ensure ImGui's internal modifier bitmask is current.)
+            bool shift = (inFlags & xplm_ShiftFlag) != 0;
+            bool alt = (inFlags & xplm_OptionAltFlag) != 0; // 'Option' on macOS (though no special handling needed).
+            bool ctrl = (inFlags & xplm_ControlFlag) != 0; // 'Super' on macOS (see below).
 
-			// Sync all basic modifiers via the Event System (modern way).
-			io.AddKeyEvent(ImGuiMod_Shift, shift != 0);
-			io.AddKeyEvent(ImGuiMod_Alt,   alt != 0);
+            // Sync all basic modifiers via the Event System (modern way).
+            io.AddKeyEvent(ImGuiMod_Shift, shift != 0);
+            io.AddKeyEvent(ImGuiMod_Alt,   alt != 0);
 #if defined(__APPLE__) || defined(__MACH__)
-			// On macOS: re-map both 'Ctrl' and 'Cmd' to 'Super'.
-			// (X-Plane's 'Ctrl' and 'Cmd' are indistinguishable, and both need to appear as 'Super' here instead.)
-			io.AddKeyEvent(ImGuiMod_Super, ctrl != 0);
-			io.AddKeyEvent(ImGuiMod_Ctrl,  false);	// 'Super' subsumes and thus cancels 'Ctrl' in X-Plane!
+            // On macOS: re-map both 'Ctrl' and 'Cmd' to 'Super'.
+            // (X-Plane's 'Ctrl' and 'Cmd' are indistinguishable, and both need to appear as 'Super' here instead.)
+            io.AddKeyEvent(ImGuiMod_Super, ctrl != 0);
+            io.AddKeyEvent(ImGuiMod_Ctrl,  false); // 'Super' subsumes and thus cancels 'Ctrl' in X-Plane!
 #else
-			io.AddKeyEvent(ImGuiMod_Ctrl,  ctrl != 0);
+            io.AddKeyEvent(ImGuiMod_Ctrl,  ctrl != 0);
 #endif
 
-			// If backspace is _released_ ...
-			if (inVirtualKey == XPLM_VK_BACK && !isDown) {
-				thisWindow->bResetBackspace = true; // have it reset only later in DrawWindowCB
-			}
-			else if (key != ImGuiKey_None) {
-				io.AddKeyEvent(key, isDown);		// send the actual key
-			}
+            // If backspace is _released_ ...
+            if (inVirtualKey == XPLM_VK_BACK && !isDown) {
+                thisWindow->bResetBackspace = true; // have it reset only later in DrawWindowCB
+            }
+            else if (key != ImGuiKey_None) {
+                io.AddKeyEvent(key, isDown); // send the actual key
+            }
 
-			// Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).
-			bool isShortcutDown = ctrl || alt;
-			if (isDown && (unsigned char)inKey >= 32 && !isShortcutDown)
-			{
-				io.AddInputCharacter((unsigned char)inKey);
-			}
+            // Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).
+            bool isShortcutDown = ctrl || alt;
+            if (isDown && (unsigned char)inKey >= 32 && !isShortcutDown)
+            {
+                io.AddInputCharacter((unsigned char)inKey);
+            }
 #endif /* IMGUI_V190_REFACTOR */
         }
-	}
+    }
 }
 
 XPLMCursorStatus
 ImgWindow::HandleCursorFuncCB(
-	XPLMWindowID         /*inWindowID*/,
-	int                  x,
-	int                  y,
-	void *               inRefcon)
+    XPLMWindowID         /*inWindowID*/,
+    int                  x,
+    int                  y,
+    void *               inRefcon)
 {
-	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
+    auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
 
-	// If this is an overlay window that cannot be moved, ignore mouse cursor changes.
-  if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay && !thisWindow->bCanMove)
-      return xplm_CursorDefault;  // (ignore for immovable overlays)
-	
-	ImGui::SetCurrentContext(thisWindow->mImGuiContext);
-	ImGuiIO& io = ImGui::GetIO();
-	float outX, outY;
-	thisWindow->translateToImguiSpace(x, y, outX, outY);
-	io.MousePos = ImVec2(outX, outY);
-	
-	// Don't use ImGui mouse cursor handling if disabled, or if cursor is
-	// within special XPLM self-styled resize handling regions.
-	if (!thisWindow->bUseImgCursors ||
-		(thisWindow->IsInsideSim() && thisWindow->bHandleWndResize &&
-		 (x < (thisWindow->mLeft + WND_RESIZE_LEFT_WIDTH) ||
-		  x > (thisWindow->mRight - WND_RESIZE_RIGHT_WIDTH) ||
-		  y > (thisWindow->mTop - WND_RESIZE_TOP_WIDTH) ||
-		  y < (thisWindow->mBottom + WND_RESIZE_BOTTOM_WIDTH))))
-	{
-		// Defer to XPLM's hand cursor if disabled, or when inside the XPLM-managed resize grab regions:
-		io.MouseDrawCursor = false;
-		return xplm_CursorDefault;
-	}
-	
-	// Have ImGui take over the mouse cursor for the rest:
-	io.MouseDrawCursor = true;
-	return xplm_CursorHidden;
+    // If this is an overlay window that cannot be moved, ignore mouse cursor changes.
+    if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay && !thisWindow->bCanMove)
+        return xplm_CursorDefault;  // (ignore for immovable overlays)
+
+    ImGui::SetCurrentContext(thisWindow->mImGuiContext);
+    ImGuiIO& io = ImGui::GetIO();
+    float outX, outY;
+    thisWindow->translateToImguiSpace(x, y, outX, outY);
+    io.MousePos = ImVec2(outX, outY);
+    
+    // Don't use ImGui mouse cursor handling if disabled, or if cursor is
+    // within special XPLM self-styled resize handling regions.
+    if (!thisWindow->bUseImgCursors ||
+        (thisWindow->IsInsideSim() && thisWindow->bHandleWndResize &&
+         (x < (thisWindow->mLeft + WND_RESIZE_LEFT_WIDTH) ||
+          x > (thisWindow->mRight - WND_RESIZE_RIGHT_WIDTH) ||
+          y > (thisWindow->mTop - WND_RESIZE_TOP_WIDTH) ||
+          y < (thisWindow->mBottom + WND_RESIZE_BOTTOM_WIDTH))))
+    {
+        // Defer to XPLM's hand cursor if disabled, or when inside the XPLM-managed resize grab regions:
+        io.MouseDrawCursor = false;
+        return xplm_CursorDefault;
+    }
+    
+    // Have ImGui take over the mouse cursor for the rest:
+    io.MouseDrawCursor = true;
+    return xplm_CursorHidden;
 }
 
 int
 ImgWindow::HandleMouseWheelFuncCB(
-	XPLMWindowID         /*inWindowID*/,
-	int                  x,
-	int                  y,
-	int                  wheel,
-	int                  clicks,
-	void *               inRefcon)
+    XPLMWindowID         /*inWindowID*/,
+    int                  x,
+    int                  y,
+    int                  wheel,
+    int                  clicks,
+    void *               inRefcon)
 {
-	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
-	
-	// If this is an overlay window that cannot be moved, ignore mouse wheel events.
-	if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay &&
-		!thisWindow->bCanMove)
-		return 0;  // (ignore mouse-wheel for immovable overlays)
-	
-	ImGui::SetCurrentContext(thisWindow->mImGuiContext);
-	ImGuiIO& io = ImGui::GetIO();
+    auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
 
-	float outX, outY;
-	thisWindow->translateToImguiSpace(x, y, outX, outY);
-	io.MousePos = ImVec2(outX, outY);
-	switch (wheel) {
-	case 0:
-		io.MouseWheel += static_cast<float>(clicks);
-		break;
-	case 1:
-		io.MouseWheelH += static_cast<float>(clicks);
-		break;
-	default:
-		// unknown wheel
-		break;
-	}
-	return 1;
+    // If this is an overlay window that cannot be moved, ignore mouse wheel events.
+    if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay &&
+        !thisWindow->bCanMove)
+        return 0;  // (ignore mouse-wheel for immovable overlays)
+    
+    ImGui::SetCurrentContext(thisWindow->mImGuiContext);
+    ImGuiIO& io = ImGui::GetIO();
+
+    float outX, outY;
+    thisWindow->translateToImguiSpace(x, y, outX, outY);
+    io.MousePos = ImVec2(outX, outY);
+    switch (wheel) {
+    case 0:
+        io.MouseWheel += static_cast<float>(clicks);
+        break;
+    case 1:
+        io.MouseWheelH += static_cast<float>(clicks);
+        break;
+    default:
+        // unknown wheel
+        break;
+    }
+    return 1;
 }
 
 int
 ImgWindow::HandleRightClickFuncCB(XPLMWindowID /* inWindowID */, int x, int y, XPLMMouseStatus inMouse, void *inRefcon)
 {
-	auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
-	
-	// If this is an overlay window that cannot be moved, ignore right-clicks altogether.
-	//FIXME: is this the right thing to do?  We could allow right-clicks for context menus, but not allow dragging...
-	if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay &&
-		!thisWindow->bCanMove)
-		return 0;   // (always ignore right-clicks for overlay layers)
-	
-	return thisWindow->HandleMouseClickGeneric(x, y, inMouse, 1);
+    auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
+    
+    // If this is an overlay window that cannot be moved, ignore right-clicks altogether.
+    //FIXME: is this the right thing to do?  We could allow right-clicks for context menus, but not allow dragging...
+    if (thisWindow->mPreferredLayer == xplm_WindowLayerFlightOverlay &&
+        !thisWindow->bCanMove)
+        return 0;   // (always ignore right-clicks for overlay layers)
+    
+    return thisWindow->HandleMouseClickGeneric(x, y, inMouse, 1);
 }
 
 
 void
 ImgWindow::SetWindowTitle(const std::string &title)
 {
-	mWindowTitle = title;
-	XPLMSetWindowTitle(mWindowID, mWindowTitle.c_str());
+    mWindowTitle = title;
+    XPLMSetWindowTitle(mWindowID, mWindowTitle.c_str());
 }
 
 void
 ImgWindow::SetVisible(bool inIsVisible)
 {
-	if (inIsVisible)
-		moveForVR();
-	if (GetVisible() == inIsVisible) {
-		// if the state is already correct, no-op.
-		return;
-	}
-	if (inIsVisible) {
-		if (!onShow()) {
-			// chance to early abort.
-			return;
-		}
-	}
-	XPLMSetWindowIsVisible(mWindowID, inIsVisible);
+    if (inIsVisible)
+        moveForVR();
+    if (GetVisible() == inIsVisible) {
+        // if the state is already correct, no-op.
+        return;
+    }
+    if (inIsVisible) {
+        if (!onShow()) {
+            // chance to early abort.
+            return;
+        }
+    }
+    XPLMSetWindowIsVisible(mWindowID, inIsVisible);
 }
 
 void
 ImgWindow::moveForVR()
 {
-	// if we're trying to display the window, check the state of the VR flag
-	// - if we're VR enabled, explicitly move the window to the VR world.
-	if (XPLMGetDatai(gVrEnabledRef)) {
-			XPLMSetWindowPositioningMode(mWindowID, xplm_WindowVR, 0);
-		} else {
-			if (IsInVR()) {
-				XPLMSetWindowPositioningMode(mWindowID, mPreferredLayer, -1);
-			}
-		}
+    // if we're trying to display the window, check the state of the VR flag
+    // - if we're VR enabled, explicitly move the window to the VR world.
+    if (XPLMGetDatai(gVrEnabledRef)) {
+        XPLMSetWindowPositioningMode(mWindowID, xplm_WindowVR, 0);
+    } else {
+        if (IsInVR()) {
+            XPLMSetWindowPositioningMode(mWindowID, mPreferredLayer, -1);
+        }
+    }
 }
 
 bool
 ImgWindow::GetVisible() const
 {
-	return XPLMGetWindowIsVisible(mWindowID) != 0;
+    return XPLMGetWindowIsVisible(mWindowID) != 0;
 }
 
 
 bool
 ImgWindow::onShow()
 {
-	return true;
+    return true;
 }
 
 void
@@ -1003,8 +1023,8 @@ ImgWindow::HasWindowDragArea (int* pL, int* pT,
     
     // is a valid drag area defined?
     return
-    dragLeft  >= 0          && dragTop    >= 0 &&
-    dragRight >  dragLeft   && dragBottom >= dragTop;
+        dragLeft  >= 0          && dragTop    >= 0 &&
+        dragRight >  dragLeft   && dragBottom >= dragTop;
 }
 
 bool
@@ -1020,15 +1040,15 @@ ImgWindow::IsInsideWindowDragArea (int x, int y) const
     
     // inside the defined drag area?
     return
-    dragLeft <= x && x <= dragRight &&
-    dragTop  <= y && y <= dragBottom;
+        dragLeft <= x && x <= dragRight &&
+        dragTop  <= y && y <= dragBottom;
 }
 
 void
 ImgWindow::SafeDelete()
 {
-	sPendingDestruction.push(this);
-	if (sSelfDestructHandler == nullptr) {
+    sPendingDestruction.push(this);
+    if (sSelfDestructHandler == nullptr) {
         XPLMCreateFlightLoop_t flParams{
             sizeof(flParams),
             xplm_FlightLoop_Phase_BeforeFlightModel,
@@ -1036,8 +1056,8 @@ ImgWindow::SafeDelete()
             nullptr,
         };
         sSelfDestructHandler = XPLMCreateFlightLoop(&flParams);
-	}
-	XPLMScheduleFlightLoop(sSelfDestructHandler, -1, 1);
+    }
+    XPLMScheduleFlightLoop(sSelfDestructHandler, -1, 1);
 }
 
 std::queue<ImgWindow *>  ImgWindow::sPendingDestruction;
