@@ -38,9 +38,10 @@
 #include <XPLMDisplay.h>
 #include <XPLMGraphics.h>
 
+#include "imgui_internal.h"
+
 #if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19000)
 #define IMGUI_V190_REFACTOR
-#include "imgui_internal.h"
 static ImGuiKey vpXPLMKeyToImGuiKey(int inVirtualKey) {
     switch (inVirtualKey) {
         case XPLM_VK_TAB: return ImGuiKey_Tab;
@@ -291,7 +292,7 @@ ImgWindow::ImgWindow(
       mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexData->GetTexID());
 
     }
-#endif
+#endif /* IMGUI_V190_REFACTOR */
 
     // disable OSX-like keyboard behaviours always - we don't have the keymapping for it.
     io.ConfigMacOSXBehaviors = false;
@@ -301,7 +302,7 @@ ImgWindow::ImgWindow(
 #if defined(__APPLE__) || defined(__MACH__)
     io.ConfigMacOSXBehaviors = true;
 #endif
-#endif
+#endif /* IMGUI_V190_REFACTOR */
 
     // try to inhibit a few resize/move behaviours that won't play nice with our window control.
     io.ConfigWindowsResizeFromEdges = false;
@@ -429,7 +430,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         // (Note: very inexpensive with early-out returns in common case.)
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
     }
-#endif
+#endif /* IMGUI_V190_REFACTOR */
 
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     ImGuiIO& io = ImGui::GetIO();
@@ -555,6 +556,9 @@ ImgWindow::updateImgui()
     if (FrameRatePeriod > 0.0f) {
         io.DeltaTime = XPLMGetDataf(gFrameRatePeriodRef);
     }
+    if (io.DeltaTime <= 0.0f) {
+        io.DeltaTime = 1.0f / 60.0f;  // ensure cursors blink and stuff
+    }
     io.DisplaySize = ImVec2(win_width, win_height);
     // in boxels, we're always scale 1, 1.
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
@@ -584,6 +588,14 @@ ImgWindow::updateImgui()
 
     // finally, handle window focus.
     int hasKeyboardFocus = XPLMHasKeyboardFocus(mWindowID);
+
+#ifdef IMGUI_V190_REFACTOR
+    if (hasKeyboardFocus != bLastKeyboardFocused) {
+        bLastKeyboardFocused = (hasKeyboardFocus != 0);
+        io.AddFocusEvent(bLastKeyboardFocused);
+    }
+#endif /* IMGUI_V190_REFACTOR */
+
     if (io.WantTextInput && !hasKeyboardFocus) {
         XPLMTakeKeyboardFocus(mWindowID);
     }
@@ -594,8 +606,6 @@ ImgWindow::updateImgui()
         for (auto &key : io.KeysDown) {
             key = false;
         }
-#else
-        io.AddFocusEvent(false);
 #endif /* IMGUI_V190_REFACTOR */
     }
     mFirstRender = false;
@@ -769,89 +779,91 @@ ImgWindow::HandleKeyFuncCB(
     auto *thisWindow = reinterpret_cast<ImgWindow *>(inRefcon);
     ImGui::SetCurrentContext(thisWindow->mImGuiContext);
     ImGuiIO& io = ImGui::GetIO();
-    if (io.WantCaptureKeyboard) {
 
-        // Loosing focus? That's not exactly something ImGui allows us to do...
-        // we try convincing ImGui to let it go by sending an [Esc] key
-        if (blosingFocus) {
-#ifndef IMGUI_V190_REFACTOR
-            io.KeysDown[int(XPLM_VK_ESCAPE)] = true;
-#else
-            io.AddFocusEvent(false); // tell ImGui it lost focus
-            io.AddKeyEvent(ImGuiKey_Escape, true);
-            io.AddKeyEvent(ImGuiKey_Escape, false);
+    // Loosing focus? That's not exactly something ImGui allows us to do...
+    // we try convincing ImGui to let it go by sending an [Esc] key for the legacy version, or by sending a focus-lost event for the modern version.
+    if (blosingFocus) {
+#ifdef IMGUI_V190_REFACTOR
+        io.AddFocusEvent(false); // tell ImGui it lost focus
 #endif /* IMGUI_V190_REFACTOR */
+        if (ImGui::GetCurrentContext()) {
+            // Clear any active ID, to prevent ImGui from thinking it still has focus:
+            ImGui::ClearActiveID();
         }
-        else
-        {
-            // Hack for the Backspace key in VR:
-            // Apparently, the virtual VR keyboard sends both the Up and the Down
-            // event within the same drawing cycle, which would overwrite
-            // io.KeyDown[XPLM_VK_BACK] with false again before we could pass on true.
-            // Also see https://forums.x-plane.org/index.php?/forums/topic/147139-dear-imgui-x-plane/&do=findComment&comment=2032062
-            // though I am following a different solution:
-            // So we ignore the "up" event (release key) here, and do the actual
-            // release only after the next drawing cycle (flag bResetBackspace).
-            // (And this little delay doesn't hurt in non-VR either, so we don't even test for VR.)
+
+        return;  // don't process any further key events if we're losing focus
+    }
+
+    if (io.WantCaptureKeyboard) {
+        // Hack for the Backspace key in VR:
+        // Apparently, the virtual VR keyboard sends both the Up and the Down
+        // event within the same drawing cycle, which would overwrite
+        // io.KeyDown[XPLM_VK_BACK] with false again before we could pass on true.
+        // Also see https://forums.x-plane.org/index.php?/forums/topic/147139-dear-imgui-x-plane/&do=findComment&comment=2032062
+        // though I am following a different solution:
+        // So we ignore the "up" event (release key) here, and do the actual
+        // release only after the next drawing cycle (flag bResetBackspace).
+        // (And this little delay doesn't hurt in non-VR either, so we don't even test for VR.)
 
 #ifndef IMGUI_V190_REFACTOR
-            // If Backspace is _released_ ...
-            if (inVirtualKey == XPLM_VK_BACK && !(inFlags & xplm_DownFlag)) {
-                thisWindow->bResetBackspace = true; // have it reset only later in DrawWindowCB
-            }
-            else
-                // in all normal cases: save the up/down flag as it comes from XP
-                io.KeysDown[int(inVirtualKey)] = (inFlags & xplm_DownFlag) == xplm_DownFlag;
-            io.KeyShift = (inFlags & xplm_ShiftFlag) == xplm_ShiftFlag;
-            io.KeyAlt = (inFlags & xplm_OptionAltFlag) == xplm_OptionAltFlag;
-            io.KeyCtrl = (inFlags & xplm_ControlFlag) == xplm_ControlFlag;
+        // If Backspace is _released_ ...
+        if (inVirtualKey == XPLM_VK_BACK && !(inFlags & xplm_DownFlag)) {
+            thisWindow->bResetBackspace = true; // have it reset only later in DrawWindowCB
+        }
+        else {
+            // in all normal cases: save the up/down flag as it comes from XP
+            io.KeysDown[int(inVirtualKey)] = (inFlags & xplm_DownFlag) == xplm_DownFlag;
+        }
+        
+        io.KeyShift = (inFlags & xplm_ShiftFlag) == xplm_ShiftFlag;
+        io.KeyAlt = (inFlags & xplm_OptionAltFlag) == xplm_OptionAltFlag;
+        io.KeyCtrl = (inFlags & xplm_ControlFlag) == xplm_ControlFlag;
 
-            // inKey will only includes printable characters,
-            // but also those created with key combinations like @ or {}
-            if ((inFlags & xplm_DownFlag) == xplm_DownFlag &&
-                inKey > '\0')
-            {
-                char smallStr[2] = { inKey, 0 };
-                io.AddInputCharactersUTF8(smallStr);
-            }
+        // inKey will only includes printable characters,
+        // but also those created with key combinations like @ or {}
+        if ((inFlags & xplm_DownFlag) == xplm_DownFlag &&
+            inKey > '\0')
+        {
+            char smallStr[2] = { inKey, 0 };
+            io.AddInputCharactersUTF8(smallStr);
+        }
 #else
-            bool isDown = (inFlags & xplm_DownFlag) == xplm_DownFlag;
-            ImGuiKey key = vpXPLMKeyToImGuiKey(inVirtualKey);
+        bool isDown = (inFlags & xplm_DownFlag) == xplm_DownFlag;
+        ImGuiKey key = vpXPLMKeyToImGuiKey(inVirtualKey);
 
-            // Sync modifiers *first*.
-            // (We send these regardless of whether it's a key down or up, to ensure ImGui's internal modifier bitmask is current.)
-            bool shift = (inFlags & xplm_ShiftFlag) != 0;
-            bool alt = (inFlags & xplm_OptionAltFlag) != 0; // 'Option' on macOS (though no special handling needed).
-            bool ctrl = (inFlags & xplm_ControlFlag) != 0; // 'Super' on macOS (see below).
+        // Sync modifiers *first*.
+        // (We send these regardless of whether it's a key down or up, to ensure ImGui's internal modifier bitmask is current.)
+        bool shift = (inFlags & xplm_ShiftFlag) != 0;
+        bool alt = (inFlags & xplm_OptionAltFlag) != 0; // 'Option' on macOS (though no special handling needed).
+        bool ctrl = (inFlags & xplm_ControlFlag) != 0; // 'Super' on macOS (see below).
 
-            // Sync all basic modifiers via the Event System (modern way).
-            io.AddKeyEvent(ImGuiMod_Shift, shift != 0);
-            io.AddKeyEvent(ImGuiMod_Alt,   alt != 0);
+        // Sync all basic modifiers via the Event System (modern way).
+        io.AddKeyEvent(ImGuiMod_Shift, shift != 0);
+        io.AddKeyEvent(ImGuiMod_Alt,   alt != 0);
 #if defined(__APPLE__) || defined(__MACH__)
-            // On macOS: re-map both 'Ctrl' and 'Cmd' to 'Super'.
-            // (X-Plane's 'Ctrl' and 'Cmd' are indistinguishable, and both need to appear as 'Super' here instead.)
-            io.AddKeyEvent(ImGuiMod_Super, ctrl != 0);
-            io.AddKeyEvent(ImGuiMod_Ctrl,  false); // 'Super' subsumes and thus cancels 'Ctrl' in X-Plane!
+        // On macOS: re-map both 'Ctrl' and 'Cmd' to 'Super'.
+        // (X-Plane's 'Ctrl' and 'Cmd' are indistinguishable, and both need to appear as 'Super' here instead.)
+        io.AddKeyEvent(ImGuiMod_Super, ctrl != 0);
+        io.AddKeyEvent(ImGuiMod_Ctrl,  false); // 'Super' subsumes and thus cancels 'Ctrl' in X-Plane!
 #else
-            io.AddKeyEvent(ImGuiMod_Ctrl,  ctrl != 0);
+        io.AddKeyEvent(ImGuiMod_Ctrl,  ctrl != 0);
 #endif
 
-            // If backspace is _released_ ...
-            if (inVirtualKey == XPLM_VK_BACK && !isDown) {
-                thisWindow->bResetBackspace = true; // have it reset only later in DrawWindowCB
-            }
-            else if (key != ImGuiKey_None) {
-                io.AddKeyEvent(key, isDown); // send the actual key
-            }
-
-            // Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).
-            bool isShortcutDown = ctrl || alt;
-            if (isDown && (unsigned char)inKey >= 32 && !isShortcutDown)
-            {
-                io.AddInputCharacter((unsigned char)inKey);
-            }
-#endif /* IMGUI_V190_REFACTOR */
+        // If backspace is _released_ ...
+        if (inVirtualKey == XPLM_VK_BACK && !isDown) {
+            thisWindow->bResetBackspace = true; // have it reset only later in DrawWindowCB
         }
+        else if (key != ImGuiKey_None) {
+            io.AddKeyEvent(key, isDown); // send the actual key
+        }
+
+        // Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).
+        bool isShortcutDown = ctrl || alt;
+        if (isDown && (unsigned char)inKey >= 32 && !isShortcutDown)
+        {
+            io.AddInputCharacter((unsigned char)inKey);
+        }
+#endif /* IMGUI_V190_REFACTOR */
     }
 }
 

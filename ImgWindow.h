@@ -387,7 +387,12 @@ private:
     /** Last (processed) mouse drag pos while moving/resizing */
     int lastMouseDragX  = -1;
     int lastMouseDragY  = -1;
-    
+   
+#ifdef IMGUI_V190_REFACTOR
+private:
+    bool bLastKeyboardFocused = false;  // last known keyboard focus state
+#endif /* IMGUI_V190_REFACTOR */
+
 protected:
     /** What are we dragging right now? */
     struct DragTy {
