@@ -151,6 +151,16 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         // 4. Link
         atlas->TexData->SetTexID ((ImTextureID)(uintptr_t)textureID);
     }
+    else
+    {
+        if (atlas->TexData && atlas->TexData->GetTexRef().GetTexID() != 0)
+        {
+            GLuint currentAtlasId = static_cast<GLuint>((intptr_t)atlas->TexData->GetTexRef().GetTexID());
+            if (textureID != currentAtlasId) {                
+                textureID = currentAtlasId; // Catch up to the active pipeline instantly!
+            }
+        }
+    }
 }
 #endif /* IMGUI_V190_REFACTOR */
 
@@ -416,7 +426,7 @@ ImgWindow::boxelsToNative(int x, int y, int &outX, int &outY)
 }
 
 /*
- * NB:  This is a modified version of the imGui OpenGL2 renderer - however, because
+ * NB: This is a modified version of the imGui OpenGL2 renderer - however, because
  *     we need to play nice with the X-Plane GL state management, we cannot use
  *     the upstream one.
  */
@@ -424,6 +434,12 @@ ImgWindow::boxelsToNative(int x, int y, int &outX, int &outY)
 void
 ImgWindow::RenderImGui(ImDrawData *draw_data)
 {
+    // Implement a mechanism to hold off on rendering any frames (across all windows) when sBlankoutUntilCycle is set to a future cycle number.
+    // (This can be very useful to avoid flicker during a reload of one or more windows that have lots of fonts that need to be loaded.  Setting this to XPLMCycleNumber() + 4 is a nice middle ground to ensure smooth, flicker-free reloads.)
+    if (XPLMGetCycleNumber() < ImgWindow::sBlankoutUntilCycle) {
+        return;  // Skip rendering this frame.
+    }
+    
 #ifdef IMGUI_V190_REFACTOR
     if (mFontAtlas && mFontAtlas->getAtlas()) {
         // rebuild and upload *only* if the atlas is actually out of date (e.g., dynamic font size or style changes, etc.)
@@ -873,8 +889,8 @@ ImgWindow::HandleKeyFuncCB(
         }
 
         // Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).
-        bool isShortcutDown = ctrl || alt;
-        if (isDown && (unsigned char)inKey >= 32 && !isShortcutDown)
+        bool isAnyModifierActive = ctrl || alt || io.KeySuper || io.KeyCtrl;  // (don't check Shift!)
+        if (isDown && (unsigned char)inKey >= 32 && !isAnyModifierActive)
         {
             io.AddInputCharacter((unsigned char)inKey);
         }

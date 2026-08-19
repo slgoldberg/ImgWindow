@@ -83,6 +83,13 @@ public:
      */
     static std::shared_ptr<ImgFontAtlas> sFontAtlas;
 
+    /** sBlankoutUntilCycle is a global XPLM cycle number until which all
+     * windows will skip rendering.  This is useful for plugins that want to
+     * temporarily blank out all ImGui windows for a cycle or two, e.g., to
+     * avoid flicker during a plugin reload.
+     */
+    inline static int sBlankoutUntilCycle = 0;
+
     virtual ~ImgWindow();
     
     /** Gets the current window geometry */
@@ -383,11 +390,11 @@ private:
     int dragTop     = -1;
     int dragRight   = -1;       // right > left
     int dragBottom  = -1;       // bottom > top!
-    
+
     /** Last (processed) mouse drag pos while moving/resizing */
     int lastMouseDragX  = -1;
     int lastMouseDragY  = -1;
-   
+
 #ifdef IMGUI_V190_REFACTOR
 private:
     bool bLastKeyboardFocused = false;  // last known keyboard focus state
