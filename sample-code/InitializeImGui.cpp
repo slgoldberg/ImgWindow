@@ -50,8 +50,7 @@
 
 #include "ImgWindow.h"   /* won't correctly load in-situ (just sample code) */
 
-// Fonts downloaded and converted in the "fonts" directory are normally 14px,
-// with "senior" versions at baseline 16px:
+// Fonts downloaded and converted in the "fonts" directory are normally 14px:
 constexpr int SYSTEM_FONT_SIZE = 14;     // roughly equivalent size for Roboto
 
 #define BASELINE_FONT_SIZE    ( SYSTEM_FONT_SIZE )
@@ -382,10 +381,18 @@ bool InitializeImGui ()
 /// we can force it to re-load when calling InitializeImGui().
 void RemoveImGui ()
 {
-    // Clear away our "Font Atlas" that may have been previously loaded, for
-    // example if the user changes the all-important "senior citizen mode"
-    // to be on or off, we need to completely re-build it, so this lets us
-    // remove it so it can be re-built readily (by simply toggling ABC off/on):
+    // Clear away our "Font Atlas" that may have been previously loaded for a
+    // clean shut-down:
+    // (Note: we may want to do this without completely shutting down, e.g., to
+    // reload all fonts at a different baseline font size. That would need to
+    // be a parameter to the above function, but it is possible. Depending on
+    // how your code is organized you'll probably want to close all windows
+    // that use this atlas first, run the above function again to (re-)load the
+    // fonts at the new size, and then re-create (re-open) all previously-open
+    // windows with the higher baseline font size. Of course, you can also just
+    // load and resize fonts inside ImGui, without needing to do this, but at
+    // least you have this option!  For example, A-Better-Camera does this for
+    // users who toggle "Senior Citizen mode" on or off.)
 
 #ifdef IMGUI_V190_REFACTOR             /* needed with ImGui v1.9x and later: */
     if (ImGui::GetCurrentContext() != NULL)

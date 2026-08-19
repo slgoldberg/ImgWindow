@@ -827,7 +827,7 @@ ImgWindow::HandleKeyFuncCB(
             char smallStr[2] = { inKey, 0 };
             io.AddInputCharactersUTF8(smallStr);
         }
-#else
+#else /* IMGUI_V190_REFACTOR */
         bool isDown = (inFlags & xplm_DownFlag) == xplm_DownFlag;
         ImGuiKey key = vpXPLMKeyToImGuiKey(inVirtualKey);
 
@@ -837,16 +837,31 @@ ImgWindow::HandleKeyFuncCB(
         bool alt = (inFlags & xplm_OptionAltFlag) != 0; // 'Option' on macOS (though no special handling needed).
         bool ctrl = (inFlags & xplm_ControlFlag) != 0; // 'Super' on macOS (see below).
 
-        // Sync all basic modifiers via the Event System (modern way).
-        io.AddKeyEvent(ImGuiMod_Shift, shift != 0);
-        io.AddKeyEvent(ImGuiMod_Alt,   alt != 0);
+        // Sync platform-common basic modifiers via the Event System (modern way).
+        io.AddKeyEvent(ImGuiMod_Shift, shift);
+        io.AddKeyEvent(ImGuiMod_Alt,   alt);
+        
+        // Sync legacy structural booleans to avoid known Windows race condition single-frame sync lag with stb_textedit.)
+        io.KeyShift = shift;
+        io.KeyAlt = alt;
+        
 #if defined(__APPLE__) || defined(__MACH__)
         // On macOS: re-map both 'Ctrl' and 'Cmd' to 'Super'.
         // (X-Plane's 'Ctrl' and 'Cmd' are indistinguishable, and both need to appear as 'Super' here instead.)
-        io.AddKeyEvent(ImGuiMod_Super, ctrl != 0);
+        io.AddKeyEvent(ImGuiMod_Super, ctrl);
         io.AddKeyEvent(ImGuiMod_Ctrl,  false); // 'Super' subsumes and thus cancels 'Ctrl' in X-Plane!
+        
+        // Match legacy structural mappings for macOS:
+        io.KeySuper = ctrl;
+        io.KeyCtrl =  false;  // 'Super' subsumes and thus cancels 'Ctrl' in X-Plane!
+
 #else
-        io.AddKeyEvent(ImGuiMod_Ctrl,  ctrl != 0);
+        io.AddKeyEvent(ImGuiMod_Ctrl,  ctrl);
+        io.AddKeyEvent(ImGuiMod_Super, false); // 'Super' is not used on non-macOS platforms (so don't let it somehow leak through).
+        
+        // Match legacy structural mappings for Windows/Linux:
+        io.KeyCtrl = ctrl;
+        io.KeySuper = false;
 #endif
 
         // If backspace is _released_ ...
