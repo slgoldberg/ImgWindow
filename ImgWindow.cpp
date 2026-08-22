@@ -106,7 +106,8 @@ static XPLMDataRef gFrameRatePeriodRef  = nullptr;
 std::shared_ptr<ImgFontAtlas> ImgWindow::sFontAtlas;
 
 #ifdef IMGUI_V190_REFACTOR
-// Helper to safely rebuild the atlas if it gets dirty at runtime
+// Helper to safely rebuild the atlas if it gets dirty at runtime.
+// (IMPORTANT: This is required for ImGui v1.92+ since the font atlas is now self-managed, to preserve the semantics of XPLM windows created with ImgWindow on older versions of ImGui where the font atlas is shared across all such windows. This means it should "just work" to swap your legacy ImGui implementation for ImGui v1.92 or later, without having to change your code.)
 void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
 {
     // Check 1: Is the atlas dirty? (e.g. User added a dynamic font)
@@ -194,7 +195,8 @@ ImgWindow::ImgWindow(
     auto &io = ImGui::GetIO();
 
 #ifdef IMGUI_V190_REFACTOR
-    // use "modern" self-managed font atlas.
+    // Use "modern" self-managed font atlas to provide the same atlas semantics as the legacy code below, but in a way that is compatible with ImGui v1.92+.
+    // (IMPORTANT: the font atlas is shared across all XPLM windows created from ImgWindow or ImgWindow-derived classes.)
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
 
     // Just-in-time atlas build & verification:
@@ -583,8 +585,6 @@ ImgWindow::updateImgui()
     // Just-in-time rebuild:
     // If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
     // (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
-    // FIXME: Should this move to happen on a flight loop callback instead of every frame?
-    // (We don't want to rebuild the atlas in the middle of a frame, but we also don't want to rebuild it every frame if nothing changed.)
     if (mFontAtlas && mFontAtlas->getAtlas()) {
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
     }
@@ -607,8 +607,8 @@ ImgWindow::updateImgui()
 
 #ifdef IMGUI_V190_REFACTOR
     if (hasKeyboardFocus != bLastKeyboardFocused) {
-        bLastKeyboardFocused = (hasKeyboardFocus != 0);
-        io.AddFocusEvent(bLastKeyboardFocused);
+        bLastKeyboardFocused = hasKeyboardFocus;
+        io.AddFocusEvent(bLastKeyboardFocused != 0);
     }
 #endif /* IMGUI_V190_REFACTOR */
 

@@ -360,17 +360,12 @@ private:
     int mLeft;
     int mRight;
 
-    XPLMWindowLayer mPreferredLayer;
-
     /** Shall window be locked in place, e.g. invisible full-screen root container? */
     bool bCanMove = true;
 
-    /** Shall window allow ImGui to manage the mouse cursor inside windows? */
-    bool bUseImgCursors = false;
-    
     /** Shall reset the backspace key? (see HandleKeyFuncCB for details) */
     bool bResetBackspace = false;
-    
+
     /** Set if `xplm_WindowDecorationSelfDecoratedResizable`,
      *  ie. we need to handle resizing ourselves: X-Plane provides
      *  the "hand" mouse icon but as we catch mouse events X-Plane
@@ -378,7 +373,12 @@ private:
      *  discouraged.
      *  @see https://developer.x-plane.com/sdk/XPLMHandleMouseClick_f/ */
     const bool bHandleWndResize;
-    
+
+    XPLMWindowLayer mPreferredLayer;
+
+    /** Shall window allow ImGui to manage the mouse cursor inside windows? */
+    bool bUseImgCursors = false;
+
     /** Resize limits. There's no way to query XP, so we need to keep track ourself */
     int minWidth    = 100;
     int minHeight   = 100;
@@ -397,7 +397,7 @@ private:
 
 #ifdef IMGUI_V190_REFACTOR
 private:
-    bool bLastKeyboardFocused = false;  // last known keyboard focus state
+    int bLastKeyboardFocused = 0;  // last known keyboard focus state from XPLMHasKeyboardFocus
 #endif /* IMGUI_V190_REFACTOR */
 
 protected:
