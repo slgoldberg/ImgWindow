@@ -370,7 +370,7 @@ bool InitializeImGui ()
     ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
     (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
      FA_FONT_SIZE(mediumMonoFontSize), &mergeConfig, icon_ranges.Data);
-    
+
 // ----------------------------------------------------------------------------
 
     // Callers can now use ImGui::PushFont() with the 8 loaded fonts above.
@@ -394,12 +394,26 @@ void RemoveImGui ()
     // least you have this option!  For example, A-Better-Camera does this for
     // users who toggle "Senior Citizen mode" on or off.)
 
-#ifdef IMGUI_V190_REFACTOR             /* needed with ImGui v1.9x and later: */
-    if (ImGui::GetCurrentContext() != NULL)
+#ifdef IMGUI_V190_REFACTOR             /* needed with ImGui v1.92 and later: */
+    if (ImGui::GetCurrentContext() != NULL) {
+        // Disconnect the ImgWindow version of the shared atlas link from the
+        // active context context to avoid double deletion: (!!)
+        // (Note: this is needed in all cases with ImGui v1.92 and later, not
+        // just when reloading, if ImgWindow uses the shared font atlas.)
         ImGui::GetIO().Fonts = NULL;  // don't let ImGui keep using font atlas!
-#endif
+    }
+#endif /* IMGUI_V190_REFACTOR */
 
     if (ImgWindow::sFontAtlas)
         ImgWindow::sFontAtlas.reset(); // release our singleton to delete atlas
-}
 
+    // Force all ImgWindow instances to skip ImGui rendering altogether for
+    // the next few cycles, so the caller can call InitializeImGui() and set
+    // up one or more new ImgWindow instances, without the user seeing texture
+    // flicker or other artifacts as the font atlas is re-created and re-bound
+    // to X-Plane textures:
+    // (You can certainly remove this if you never plan to do a full reload
+    // of the font atlas and all ImgWindow instances; but it's a good idea to
+    // leave it in for safety.)
+    ImgWindow::sBlankoutUntilCycle = XPLMGetCycleNumber() + 4;
+}

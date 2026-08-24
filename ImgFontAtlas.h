@@ -95,6 +95,9 @@ public:
 
     // Custom replacement function for extracting the font atlas pixel data in v1.92+
     static bool GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo);
+
+    // Keep native trackers updated during runtime re-bakes.
+   void updateTextureTracking(int textureID);
 #endif
 
 protected:

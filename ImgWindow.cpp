@@ -150,7 +150,12 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
 
         // 4. Link
-        atlas->TexData->SetTexID ((ImTextureID)(uintptr_t)textureID);
+        // ... to the atlas's internal tracker, so ImGui can use it for rendering.
+        atlas->TexData->SetTexID((ImTextureID)(uintptr_t)textureID);
+        if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
+            // ... to our custom wrapper, so it can automatically delete the texture on destruction.
+            ImgWindow::sFontAtlas->updateTextureTracking((int)textureID);
+        }
     }
     else
     {

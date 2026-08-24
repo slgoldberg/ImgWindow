@@ -167,5 +167,10 @@ ImgFontAtlas::GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& 
 
     return (outInfo.pixels != nullptr && outInfo.width > 0 && outInfo.height > 0);
 }
-#endif
 
+void ImgFontAtlas::updateTextureTracking(int textureID)
+{
+    mGLTextureNum = textureID;
+    mTextureBound = (textureID != 0);  // Active if valid, cleared if 0
+}
+#endif
