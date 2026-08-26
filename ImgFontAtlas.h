@@ -38,10 +38,19 @@
 #include "SystemGL.h"
 #include <imgui.h>
 
-
+/* ImGui version checks and refactor macros.
+ * IMGUI_V190_REFACTOR defined for ImGui v1.90.0 and above (keyboard API refactor).
+ * IMGUI_V192_REFACTOR defined for ImGui v1.92.0 and above (font atlas refactor).
+ */
 #if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19000)
 #define IMGUI_V190_REFACTOR
+
+#if IMGUI_VERSION_NUM >= 19200
+#define IMGUI_V192_REFACTOR
 #endif
+
+#endif
+/* End ImGui version checks and refactor macros. */
 
 /** Construct an empty font atlas we can use later
  *
@@ -85,7 +94,7 @@ public:
 
     ImFontAtlas *getAtlas();
 
-#ifdef IMGUI_V190_REFACTOR
+#ifdef IMGUI_V192_REFACTOR
     struct strct_texture_info {
         unsigned char* pixels = nullptr;
         int width = 0;
@@ -98,7 +107,7 @@ public:
 
     // Keep native trackers updated during runtime re-bakes.
    void updateTextureTracking(int textureID);
-#endif
+#endif /* IMGUI_V192_REFACTOR */
 
 protected:
     ImFontAtlas *mOurAtlas;

@@ -118,7 +118,7 @@ ImgFontAtlas::bindTexture()
 
     XPLMGenerateTextureNumbers(&mGLTextureNum, 1);
 
-#ifndef IMGUI_V190_REFACTOR
+#ifndef IMGUI_V192_REFACTOR
     unsigned char *pixData = nullptr;
     int width, height;
     mOurAtlas->GetTexDataAsRGBA32(&pixData, &width, &height);
@@ -132,7 +132,7 @@ ImgFontAtlas::bindTexture()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
-#ifndef IMGUI_V190_REFACTOR
+#ifndef IMGUI_V192_REFACTOR
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
     mOurAtlas->SetTexID((void *)((intptr_t)mGLTextureNum));
 #else
@@ -143,7 +143,7 @@ ImgFontAtlas::bindTexture()
     mTextureBound = true;
 }
 
-#ifdef IMGUI_V190_REFACTOR
+#ifdef IMGUI_V192_REFACTOR
 bool
 ImgFontAtlas::GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo)
 {
@@ -173,4 +173,4 @@ void ImgFontAtlas::updateTextureTracking(int textureID)
     mGLTextureNum = textureID;
     mTextureBound = (textureID != 0);  // Active if valid, cleared if 0
 }
-#endif
+#endif /* IMGUI_V192_REFACTOR */

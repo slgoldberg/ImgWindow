@@ -40,8 +40,21 @@
 
 #include "imgui_internal.h"
 
+/* ImGui version checks and refactor macros.
+ * IMGUI_V190_REFACTOR defined for ImGui v1.90.0 and above (keyboard API refactor).
+ * IMGUI_V192_REFACTOR defined for ImGui v1.92.0 and above (font atlas refactor).
+ */
 #if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19000)
 #define IMGUI_V190_REFACTOR
+
+#if IMGUI_VERSION_NUM >= 19200
+#define IMGUI_V192_REFACTOR
+#endif
+
+#endif
+/* End ImGui version checks and refactor macros. */
+
+#ifdef IMGUI_V190_REFACTOR
 static ImGuiKey vpXPLMKeyToImGuiKey(int inVirtualKey) {
     switch (inVirtualKey) {
         case XPLM_VK_TAB: return ImGuiKey_Tab;
@@ -105,7 +118,7 @@ static XPLMDataRef gFrameRatePeriodRef  = nullptr;
 
 std::shared_ptr<ImgFontAtlas> ImgWindow::sFontAtlas;
 
-#ifdef IMGUI_V190_REFACTOR
+#ifdef IMGUI_V192_REFACTOR
 // Helper to safely rebuild the atlas if it gets dirty at runtime.
 // (IMPORTANT: This is required for ImGui v1.92+ since the font atlas is now self-managed, to preserve the semantics of XPLM windows created with ImgWindow on older versions of ImGui where the font atlas is shared across all such windows. This means it should "just work" to swap your legacy ImGui implementation for ImGui v1.92 or later, without having to change your code.)
 void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
@@ -168,7 +181,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         }
     }
 }
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
 
 ImgWindow::ImgWindow(
     int left,
@@ -199,7 +212,7 @@ ImgWindow::ImgWindow(
     ImGui::SetCurrentContext(mImGuiContext);
     auto &io = ImGui::GetIO();
 
-#ifdef IMGUI_V190_REFACTOR
+#ifdef IMGUI_V192_REFACTOR
     // Use "modern" self-managed font atlas to provide the same atlas semantics as the legacy code below, but in a way that is compatible with ImGui v1.92+.
     // (IMPORTANT: the font atlas is shared across all XPLM windows created from ImgWindow or ImgWindow-derived classes.)
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
@@ -223,7 +236,7 @@ ImgWindow::ImgWindow(
             }
         }
     }
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
 
     static bool first_init=false;
     if (!first_init) {
@@ -235,11 +248,14 @@ ImgWindow::ImgWindow(
         first_init=true;
     }
 
-#ifndef IMGUI_V190_REFACTOR
+#ifndef IMGUI_V192_REFACTOR
 #ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
     // we render ourselves, we don't use the DrawListsFunc
     io.RenderDrawListsFn = nullptr;
 #endif
+#endif /* IMGUI_V192_REFACTOR */
+
+#ifndef IMGUI_V190_REFACTOR
     // set up the Keymap
     io.KeyMap[ImGuiKey_Tab] = XPLM_VK_TAB;
     io.KeyMap[ImGuiKey_LeftArrow] = XPLM_VK_LEFT;
@@ -269,7 +285,7 @@ ImgWindow::ImgWindow(
     auto &style = ImGui::GetStyle();
     style.WindowRounding = 0;
 
-#ifndef IMGUI_V190_REFACTOR
+#ifndef IMGUI_V192_REFACTOR
     // bind the font
     if (mFontAtlas) {
         mFontTexture = static_cast<GLuint>(reinterpret_cast<intptr_t>(io.Fonts->TexID));
@@ -306,10 +322,9 @@ ImgWindow::ImgWindow(
     // Sync texture ID:
     // if CheckAndRebuildAtlas() above did its job, mFontTexture is set; if the shared atlas was already built, grab the ID here.
     if (io.Fonts->TexData->GetTexID() != 0) {
-      mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexData->GetTexID());
-
+        mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexData->GetTexID());
     }
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
 
     // disable OSX-like keyboard behaviours always - we don't have the keymapping for it.
     io.ConfigMacOSXBehaviors = false;
@@ -348,7 +363,7 @@ ImgWindow::ImgWindow(
 ImgWindow::~ImgWindow()
 {
     ImGui::SetCurrentContext(mImGuiContext);
-#ifdef IMGUI_V190_REFACTOR
+#ifdef IMGUI_V192_REFACTOR
     ImGuiIO& io = ImGui::GetIO();
     if (io.Fonts)
     {
@@ -367,7 +382,7 @@ ImgWindow::~ImgWindow()
         // 3. NOW it is safe to sever the link (prevent double free):
         io.Fonts = NULL;
     }
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
     if (!mFontAtlas) {
         // if we didn't have an explicit font atlas, destroy the texture.
         glDeleteTextures(1, &mFontTexture);
@@ -447,13 +462,13 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         return;  // Skip rendering this frame.
     }
     
-#ifdef IMGUI_V190_REFACTOR
+#ifdef IMGUI_V192_REFACTOR
     if (mFontAtlas && mFontAtlas->getAtlas()) {
         // rebuild and upload *only* if the atlas is actually out of date (e.g., dynamic font size or style changes, etc.)
         // (Note: very inexpensive with early-out returns in common case.)
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
     }
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
 
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     ImGuiIO& io = ImGui::GetIO();
@@ -489,15 +504,15 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         const ImDrawList* cmd_list = draw_data->CmdLists[n];
         const ImDrawVert* vtx_buffer = cmd_list->VtxBuffer.Data;
         const ImDrawIdx* idx_buffer = cmd_list->IdxBuffer.Data;
-#ifndef IMGUI_V190_REFACTOR
+#ifndef IMGUI_V192_REFACTOR
         glVertexPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, pos)));
         glTexCoordPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, uv)));
         glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + IM_OFFSETOF(ImDrawVert, col)));
-#else /* IMGUI_V190_REFACTOR: */
+#else /* IMGUI_V192_REFACTOR: */
         glVertexPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, pos)));
         glTexCoordPointer(2, GL_FLOAT, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, uv)));
         glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(ImDrawVert), (const GLvoid*)((const char*)vtx_buffer + offsetof(ImDrawVert, col)));
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
 
         for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
         {
@@ -505,11 +520,11 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
             if (pcmd->UserCallback) {
                 pcmd->UserCallback(cmd_list, pcmd);
             } else {
-#ifndef IMGUI_V190_REFACTOR
+#ifndef IMGUI_V192_REFACTOR
                 XPLMBindTexture2d((int)(intptr_t)pcmd->TextureId, 0);
 #else
                 XPLMBindTexture2d((int)(intptr_t)pcmd->GetTexID(), 0);
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
 
                 // Scissors work in viewport space - must translate the coordinates from ImGui -> Boxels, then Boxels -> Native.
                 //FIXME: it must be possible to apply the scale+transform manually to the projection matrix so we don't need to doublestep.
@@ -586,14 +601,14 @@ ImgWindow::updateImgui()
     // in boxels, we're always scale 1, 1.
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 
-#ifdef IMGUI_V190_REFACTOR
+#ifdef IMGUI_V192_REFACTOR
     // Just-in-time rebuild:
     // If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
     // (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
     if (mFontAtlas && mFontAtlas->getAtlas()) {
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
     }
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
 
     ImGui::NewFrame();
 

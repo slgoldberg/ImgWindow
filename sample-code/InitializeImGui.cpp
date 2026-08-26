@@ -394,7 +394,7 @@ void RemoveImGui ()
     // least you have this option!  For example, A-Better-Camera does this for
     // users who toggle "Senior Citizen mode" on or off.)
 
-#ifdef IMGUI_V190_REFACTOR             /* needed with ImGui v1.92 and later: */
+#ifdef IMGUI_V192_REFACTOR             /* needed with ImGui v1.92 and later: */
     if (ImGui::GetCurrentContext() != NULL) {
         // Disconnect the ImgWindow version of the shared atlas link from the
         // active context context to avoid double deletion: (!!)
@@ -402,7 +402,7 @@ void RemoveImGui ()
         // just when reloading, if ImgWindow uses the shared font atlas.)
         ImGui::GetIO().Fonts = NULL;  // don't let ImGui keep using font atlas!
     }
-#endif /* IMGUI_V190_REFACTOR */
+#endif /* IMGUI_V192_REFACTOR */
 
     if (ImgWindow::sFontAtlas)
         ImgWindow::sFontAtlas.reset(); // release our singleton to delete atlas
