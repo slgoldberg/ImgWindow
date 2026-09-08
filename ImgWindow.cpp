@@ -187,12 +187,16 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
                 std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
                 for (int i = 0; i < outInfo.width * outInfo.height; i++) {
                     unsigned char* p = &lin_pixels[i * 4];
-                    // Thin out the font coverage mask for linear blending
-                    p[3] = (unsigned char)(powf(p[3] / 255.0f, 1.5f) * 255.0f + 0.5f);
+                    // X-Plane expects straight alpha (RGB must be pure white).
+                    p[0] = 255;
+                    p[1] = 255;
+                    p[2] = 255;
+                    // Linear blending makes anti-aliasing look thin. 
+                    // (Apply an inverse-gamma boost to thicken the font edges back up.)
+                    p[3] = (unsigned char)(powf(p[3] / 255.0f, 1.2f) * 255.0f + 0.5f);
                 }
                 textureID = ImgPanelGraphics::CreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
             }
-
             // 4. Link
             // ... to the atlas's internal tracker, so ImGui can use it for rendering.
             atlas->TexData->SetTexID((ImTextureID)(intptr_t)textureID);
@@ -623,61 +627,98 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
 
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     if (ImgPanelGraphics::IsAvailable()) {
-    static bool s_logged_backend = false;
-    if (!s_logged_backend) {
-        XPLMDebugString("ImgWindow: Rendering via XPLM 4.40 Panel Graphics\n");
-        s_logged_backend = true;
-    }
+        static bool s_logged_backend = false;
+        if (!s_logged_backend) {
+            XPLMDebugString("ImgWindow: Rendering via XPLM 4.40 Panel Graphics\n");
+            s_logged_backend = true;
+        }
 
-    if (mFontTexture == nullptr || draw_data->CmdListsCount == 0)
-        return;
+        if (mFontTexture == nullptr || draw_data->CmdListsCount == 0)
+            return;
 
-    // Render command lists
-    for (int n = 0; n < draw_data->CmdListsCount; n++)
-    {
-        const ImDrawList* cmd_list = draw_data->CmdLists[n];
-        
-        XPLMMesh_t mesh;
-        mesh.vertex_count = cmd_list->VtxBuffer.Size;
-        mesh.vertices = (const float*)cmd_list->VtxBuffer.Data;
-        mesh.index_count = cmd_list->IdxBuffer.Size;
-        static_assert(sizeof(ImDrawIdx) == 2, "X-Plane 12 Panel Graphics API strictly requires 16-bit ImGui indices.");
-        mesh.indices = (const uint16_t*)cmd_list->IdxBuffer.Data;
-        
-        std::vector<XPLMDrawCall_t> draw_calls;
-        draw_calls.reserve(cmd_list->CmdBuffer.Size);
+        // For panel graphics, correct sRGB to a softened linear space.
+        static ImU32 srgb2linear[256];
+        static ImU32 alpha_trim[256]; // NEW: Gentle trim for heavy backdrops
+        static bool lut_init = false;
+        if (!lut_init) {
+            for (int i = 0; i < 256; i++) {
+                float f = i / 255.0f;
+                // RGB Curve
+                ImU32 val = (ImU32)(powf(f, 1.35f) * 255.0f + 0.5f);
+                ImU32 floor = i / 4; 
+                if (i > 0 && val < floor) val = floor; 
+                if (i > 0 && val == 0) val = 1; 
+                srgb2linear[i] = val;
 
-        for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
+                // Alpha Curve: Softens mid-level opacity so backdrops aren't too heavy
+                alpha_trim[i] = (ImU32)(powf(f, 1.2f) * 255.0f + 0.5f);
+            }
+            lut_init = true;
+        }
+
+        // Render command lists
+        for (int n = 0; n < draw_data->CmdListsCount; n++)
         {
-            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
-            if (pcmd->UserCallback) {
-                if (!draw_calls.empty()) {
-                    ImgPanelGraphics::DrawCalls(&mesh, draw_calls.size(), draw_calls.data());
-                    draw_calls.clear();
+            const ImDrawList* cmd_list = draw_data->CmdLists[n];
+
+            // Convert vertex colors in-place
+            ImDrawVert* vtx_data = const_cast<ImDrawVert*>(cmd_list->VtxBuffer.Data);
+            for (int i = 0; i < cmd_list->VtxBuffer.Size; i++) {
+                ImU32& col = vtx_data[i].col;
+                ImU32 r = (col >> IM_COL32_R_SHIFT) & 0xFF;
+                ImU32 g = (col >> IM_COL32_G_SHIFT) & 0xFF;
+                ImU32 b = (col >> IM_COL32_B_SHIFT) & 0xFF;
+                ImU32 a = (col >> IM_COL32_A_SHIFT) & 0xFF;
+                
+                r = srgb2linear[r];
+                g = srgb2linear[g];
+                b = srgb2linear[b];
+                a = alpha_trim[a];  // Apply the alpha trim here
+                
+                col = (r << IM_COL32_R_SHIFT) | (g << IM_COL32_G_SHIFT) | (b << IM_COL32_B_SHIFT) | (a << IM_COL32_A_SHIFT);
+            }
+
+            XPLMMesh_t mesh;
+            mesh.vertex_count = cmd_list->VtxBuffer.Size;
+            mesh.vertices = (const float*)cmd_list->VtxBuffer.Data;
+            mesh.index_count = cmd_list->IdxBuffer.Size;
+            static_assert(sizeof(ImDrawIdx) == 2, "X-Plane 12 Panel Graphics API strictly requires 16-bit ImGui indices.");
+            mesh.indices = (const uint16_t*)cmd_list->IdxBuffer.Data;
+            
+            std::vector<XPLMDrawCall_t> draw_calls;
+            draw_calls.reserve(cmd_list->CmdBuffer.Size);
+
+            for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
+            {
+                const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+                if (pcmd->UserCallback) {
+                    if (!draw_calls.empty()) {
+                        ImgPanelGraphics::DrawCalls(&mesh, draw_calls.size(), draw_calls.data());
+                        draw_calls.clear();
+                    }
+                    pcmd->UserCallback(cmd_list, pcmd);
+                } else {
+                    XPLMDrawCall_t dc;
+    #ifndef IMGUI_V192_REFACTOR
+                    dc.tex_ref = (void*)(intptr_t)pcmd->TextureId;
+    #else
+                    dc.tex_ref = (void*)(intptr_t)pcmd->GetTexID();
+    #endif
+                    dc.scissors[0] = pcmd->ClipRect.x;
+                    dc.scissors[1] = pcmd->ClipRect.y;
+                    dc.scissors[2] = pcmd->ClipRect.z;
+                    dc.scissors[3] = pcmd->ClipRect.w;
+                    dc.idx_offset = pcmd->IdxOffset;
+                    dc.element_count = pcmd->ElemCount;
+                    dc.vtx_offset = pcmd->VtxOffset;
+                    draw_calls.push_back(dc);
                 }
-                pcmd->UserCallback(cmd_list, pcmd);
-            } else {
-                XPLMDrawCall_t dc;
-#ifndef IMGUI_V192_REFACTOR
-                dc.tex_ref = (void*)(intptr_t)pcmd->TextureId;
-#else
-                dc.tex_ref = (void*)(intptr_t)pcmd->GetTexID();
-#endif
-                dc.scissors[0] = pcmd->ClipRect.x;
-                dc.scissors[1] = pcmd->ClipRect.y;
-                dc.scissors[2] = pcmd->ClipRect.z;
-                dc.scissors[3] = pcmd->ClipRect.w;
-                dc.idx_offset = pcmd->IdxOffset;
-                dc.element_count = pcmd->ElemCount;
-                dc.vtx_offset = pcmd->VtxOffset;
-                draw_calls.push_back(dc);
+            }
+            
+            if (!draw_calls.empty()) {
+                ImgPanelGraphics::DrawCalls(&mesh, draw_calls.size(), draw_calls.data());
             }
         }
-        
-        if (!draw_calls.empty()) {
-            ImgPanelGraphics::DrawCalls(&mesh, draw_calls.size(), draw_calls.data());
-        }
-    }
     } else
 #endif
     {

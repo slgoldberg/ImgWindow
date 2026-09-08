@@ -35,9 +35,7 @@
 #include <cmath>
 #include <vector>
 #include "ImgFontAtlas.h"
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-#include "ImgPanelGraphicsBridge.h"
-#else
+#if !defined(IMGWINDOW_USE_PANEL_GRAPHICS)
 #include <XPLMGraphics.h>
 #endif
 
