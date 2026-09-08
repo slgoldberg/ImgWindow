@@ -35,8 +35,8 @@
 #include <cmath>
 #include <vector>
 #include "ImgFontAtlas.h"
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS) && defined(XPLM440)
-#include <XPLMPanelGraphics.h>
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+#include "ImgPanelGraphicsBridge.h"
 #else
 #include <XPLMGraphics.h>
 #endif
@@ -58,7 +58,12 @@ ImgFontAtlas::~ImgFontAtlas()
     if (mTextureBound) {
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
         if (mTextureRef) {
-            XPLMDestroyTexture(mTextureRef);
+            if (ImgPanelGraphics::IsAvailable()) {
+                ImgPanelGraphics::DestroyTexture(mTextureRef);
+            } else {
+                GLuint glTexNum = (GLuint)(intptr_t)mTextureRef;
+                glDeleteTextures(1, &glTexNum);
+            }
             mTextureRef = nullptr;
         }
 #else
@@ -134,17 +139,45 @@ ImgFontAtlas::bindTexture()
         return;
 
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    strct_texture_info outInfo;
-    GetCustomAtlasTextureData(mOurAtlas, outInfo);
-    
-    if (outInfo.pixels && outInfo.width > 0 && outInfo.height > 0) {
-        std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
-        for (int i = 0; i < outInfo.width * outInfo.height; i++) {
-            unsigned char* p = &lin_pixels[i * 4];
-            p[3] = (unsigned char)(powf(p[3] / 255.0f, 2.2f) * 255.0f + 0.5f);
+    if (ImgPanelGraphics::IsAvailable()) {
+        strct_texture_info outInfo;
+        GetCustomAtlasTextureData(mOurAtlas, outInfo);
+        
+        if (outInfo.pixels && outInfo.width > 0 && outInfo.height > 0) {
+            std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
+            for (int i = 0; i < outInfo.width * outInfo.height; i++) {
+                unsigned char* p = &lin_pixels[i * 4];
+                p[3] = (unsigned char)(powf(p[3] / 255.0f, 2.2f) * 255.0f + 0.5f);
+            }
+            mTextureRef = ImgPanelGraphics::CreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
+            mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)mTextureRef);
         }
-        mTextureRef = XPLMCreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
-        mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)mTextureRef);
+    } else {
+        int gl_tex = 0;
+        XPLMGenerateTextureNumbers(&gl_tex, 1);
+
+#ifndef IMGUI_V192_REFACTOR
+        unsigned char *pixData = nullptr;
+        int width, height;
+        mOurAtlas->GetTexDataAsRGBA32(&pixData, &width, &height);
+#else
+        strct_texture_info outInfo;
+        GetCustomAtlasTextureData(mOurAtlas, outInfo);
+#endif
+
+        XPLMBindTexture2d(gl_tex, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
+#ifndef IMGUI_V192_REFACTOR
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
+        mOurAtlas->SetTexID((void *)((intptr_t)gl_tex));
+#else
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
+        mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)gl_tex);
+#endif
+        mTextureRef = (void*)(intptr_t)gl_tex;
     }
 #else
     XPLMGenerateTextureNumbers(&mGLTextureNum, 1);
