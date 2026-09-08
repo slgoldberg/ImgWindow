@@ -48,6 +48,11 @@
 
 #include "ImgFontAtlas.h"
 
+// Enforce constraint that IMGWINDOW_USE_PANEL_GRAPHICS requires IMGUI_V192_REFACTOR (modern dynamic font atlas support).
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS) && !defined(IMGUI_V192_REFACTOR)
+    #error "IMGWINDOW_USE_PANEL_GRAPHICS requires IMGUI_V192_REFACTOR (modern dynamic font atlas support)."
+#endif
+
 /** ImgWindow is a Window for creating dear imgui widgets within.
  *
  * There's a few traps to be aware of when using dear imgui with X-Plane:
@@ -188,6 +193,17 @@ public:
      */
     bool IsInsideWindowDragArea (int x, int y) const;
     
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
+     *  windows, starting from when the window is first rendered.
+     * @param enableDelay Whether to enable the ghosting delay (off by default)
+     * @param frameCount Number of frames to delay, defaulting to 2.
+     */
+    void setTextureBakeDelay(bool enableDelay, int frameCount = 2) {
+        mGhostFramesRemaining = enableDelay ? frameCount : 0;
+    }
+#endif
+    
 protected:
     /** mFirstRender can be checked during buildInterface() to see if we're
      * being rendered for the first time or not.  This is particularly
@@ -198,6 +214,10 @@ protected:
      * calls once and once only.
      */
     bool mFirstRender;
+    
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    int mGhostFramesRemaining = 0;  // no delay unless setTextureBakeDelay() is called immediately after creation.
+#endif
 
     /** Construct a window with the specified bounds
      *
@@ -329,6 +349,12 @@ private:
     static std::queue<ImgWindow *>  sPendingDestruction;
     static XPLMFlightLoopID         sSelfDestructHandler;
 
+    static float FontAtlasRebuildFLCB(float inElapsedSinceLastCall,
+                                      float inElapsedTimeSinceLastFlightLoop,
+                                      int inCounter,
+                                      void *inRefcon);
+    static XPLMFlightLoopID         sFontAtlasRebuildHandler;
+
     int HandleMouseClickGeneric(
         int x, int y,
         XPLMMouseStatus inMouse,
@@ -353,7 +379,11 @@ private:
 
     XPLMWindowID mWindowID;
     ImGuiContext *mImGuiContext;
-    GLuint mFontTexture;
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    void* mFontTexture = nullptr;
+#else
+    GLuint mFontTexture = 0;
+#endif
 
     int mTop;
     int mBottom;

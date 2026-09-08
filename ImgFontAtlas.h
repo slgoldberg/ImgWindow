@@ -106,13 +106,21 @@ public:
     static bool GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& outInfo);
 
     // Keep native trackers updated during runtime re-bakes.
-   void updateTextureTracking(int textureID);
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    void updateTextureTracking(void* textureID);
+#else
+    void updateTextureTracking(int textureID);
+#endif
 #endif /* IMGUI_V192_REFACTOR */
 
 protected:
     ImFontAtlas *mOurAtlas;
     bool        mTextureBound;
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    void*       mTextureRef;
+#else
     int         mGLTextureNum;
+#endif
 };
 
 #endif //IMGFONTATLAS_H
