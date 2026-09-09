@@ -304,7 +304,7 @@ bool InitializeImGui ()
     int boldLargeFontSize = BASELINE_FONT_SIZE + 2;               // just +2 px
     strncpy(mainConfig.Name, "Roboto-Bold-700-16px*", 40);
 //  mainConfig.GlyphOffset = { 0.f, -1.5f };
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF(
+    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
                                           (gf_roboto_bold_compressed_data,
                                            gf_roboto_bold_compressed_size,
                                            boldLargeFontSize, &mainConfig);
