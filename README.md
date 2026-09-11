@@ -13,10 +13,10 @@ This was originally the public XSquawkBox Public (xsb_public) repository,
 which contained several components, including ImgWindow and its dependencies.
 
 This is the new home, forked from Chris Collins' original repository by
-Steve Goldberg (slgoldberg), and focused down to just ImgWindow and
-ImgFontAtlas, essentially.
+Steven L. Goldberg (slgoldberg), and focused down to just ImgWindow and
+ImgFontAtlas, with some added sample code including various font examples.
 
-If users need the other public sources from xsb_public, please see the
+If users need the other public sources from `xsb_public`, please see the
 original repository from which this was forked. Going forward, please
 submit any Pull Requests to slgoldberg on *this* repository to contribute
 improvements back for ImgWindow or ImgFontAtlas.
@@ -29,8 +29,8 @@ carried forward herein.
 
 There are no other licensed dependencies included, as this repository is
 solely focused on providing developers a way to use ImgWindow to bring
-ImGui to XPLM Modern Windows -- and to the modern X-Plane "Panel Graphics"
-API available in the X-Plane v12.4.4 SDK and later.
+ImGui to XPLM Modern Windows -- and/or to the modern X-Plane **Panel Graphics
+API**, available in the XPLM v4.4 SDK (starting with X-Plane v12.4.4).
 
 ## Prerequisites
 
@@ -89,38 +89,25 @@ Setting the `-DIMGWINDOW_USE_PANEL_GRAPHICS` macro acts as a "Prefer Panel Graph
 | ImGui Version | `IMGWINDOW_USE_PANEL_GRAPHICS` Defined? | SDK Version | Resulting Rendering Backend |
 | --- | --- | --- | --- |
 | **>= 1.92.x** | ❌ No | Any | **Legacy OpenGL** (Works perfectly on XP11 & XP12) |
-| **>= 1.92.x** | ✅ Yes | `<= XPLM430` | **Panel Graphics** natively on XP12.4.4+ (Automatic **fallback to OpenGL on older XP versions** at runtime!) |
-| **>= 1.92.x** | ✅ Yes | `>= XPLM440` | **Panel Graphics** natively on XP12.4.4+ (Plugin **will ONLY load** on newer XP versions, **not on older** ones!) |
+| **>= 1.92.x** | ✅ Yes | `<= XPLM430` | **Panel Graphics** natively on XP12.4.4+ (Runs on XP11 & XP12 via **auto-fallback to OpenGL** on older XP versions!) |
+| **>= 1.92.x** | ✅ Yes | `>= XPLM440` | **Panel Graphics** natively on XP12.4.4+ (Plugin **will not load** on older versions of X-Plane!) |
 
 **CMake Example to enable Panel Graphics:**
 
 ```cmake
 add_definitions(-DIMGWINDOW_USE_PANEL_GRAPHICS)
 
-# Note: we recommend *against* defining this, unless you absolutely require
+#add_definitions(-DXPLM440=1)	# OPTIONAL (restricts plugins to v12.4.4b1+!)
+# Note: we recommend *against* defining `XPLM440`, unless you absolutely require
 # panel graphics or other features from the v4.4 SDK in other code! (Because
 # ImgWindow doesn't need it! It will bind to it dynamically if it's available
-# if you define IMGWINDOW_USE_PANEL_GRAPHICS above. This means "use panel
+# if you define `IMGWINDOW_USE_PANEL_GRAPHICS` above. This means "use panel
 # graphics if available in the currently-running version of X-Plane.)
-#add_definitions(-DXPLM440=1)	# OPTIONAL (restricts plugins to v12.4.4b1+!)
 ```
 
-### Basic Automatic Perceptual Color Correction (pending improved support)
+---
 
-X-Plane 12's Panel Graphics uses a Linear color space with Straight Alpha blending, whereas legacy OpenGL uses sRGB. Without intervention, UI elements designed for OpenGL look terrible in Panel Graphics: white text blooms, mid-tone yellows turn neon orange, and translucent black overlays crush to pitch black.
-
-We assume that anyone testing this version of `ImgWindow` with Panel Graphics will already have a previous `OpenGL`-based user interface written in ImGui. So, we have enabled this color work-around (described next) by default, with no way to opt out. Don't worry; the next pass will include a way to opt out and/or to go the other way!
-
-#### Temporary work-around currently in place:
-
-To preserve legacy UI code, `ImgWindow` now includes an **automatic perceptual color correction pass** when rendering via Panel Graphics. We apply a fine-tuned gamma curve (approx `1.35`) and an alpha trim to the vertex buffers and font atlases. This means the hex colors, alpha values, and `ImGui::PushStyleColor()` commands you tuned for OpenGL will look ~90% identical in Panel Graphics automatically -- no UI refactoring required for previously OpenGL-developed plugin colors and opacities.
-
-#### Future improvements to perceptual color correction work-around:
-
-Aside from hoping that a longer-term, more general solution will present itself outside `ImgWindow`'s direct purview, there is a short-term plan to make this correction work-around **opt-in** (whereas, right now, there's no way to opt in or out -- it's on for all colors and transparency values set to be rendered in Panel Graphics).  In the next iteration, there should be a way to also go "the other way", in addition to it all being off by default. You'll likely just set another build definition, but stand by for more on that in the near term.
-
-
-### ⚠️  THE GOLDEN RULE of Panel Graphics: No Instantiation in Draw Callbacks
+### Important ⚠️ GOLDEN RULE of Panel Graphics: No Instantiation in Draw Callbacks
 
 In legacy OpenGL, it was common practice to "lazily instantiate" windows directly inside a draw callback (e.g., `if (!myWindow) myWindow = new ImgWindow(...)`). **Under Vulkan/Metal, this will instantly crash X-Plane with an abort trap if it is called from within any draw callback!**
 
@@ -134,7 +121,7 @@ Separate your *intent* to show a window from the actual *execution* of its creat
 
 *Note: Calling `setVisibility(false)` inside a draw callback remains perfectly safe, as this only flips an internal ImGui state flag and does not destroy GPU resources.*
 
-It's worth noting that, internally, `ImgWindow` actually does this for you for loading new textures on the fly, on demand!  Whereas the `OpenGL` path through `ImgWindow` will (and should!) load textures in the draw callback, whenever a rendering path goes through panel graphics, `ImgWindow` maintains its own shared font atlas "dirty-bit" checking flight-loop callback, to load any missing glyphs every simulator frame. (This does, unfortunately, mean you may see some flashing of text in the first frame or two after the initial load, but .. that's just how it is. Though it's of limited use, `ImgWindow` does provide some simplistic "bake delay" functionality, as described next, to help improve visual polish:
+It's worth noting that, internally, `ImgWindow` actually does this for you for loading new textures on the fly, on demand!  Whereas the `OpenGL` path through `ImgWindow` will (and should!) load textures in the draw callback, whenever a rendering path goes through panel graphics, `ImgWindow` maintains its own shared font atlas "dirty-bit" checking flight-loop callback, to load any missing glyphs every simulator frame. (This does, unfortunately, mean you may see some flashing of text in the first frame or two after the initial load, but .. that's just how it is.) Though it's of limited use, `ImgWindow` does provide some simplistic "bake delay" functionality, as described next, to help improve visual polish:
 
 ### Visual Polish: Texture Bake Delay (Ghosting)
 
@@ -142,20 +129,19 @@ Because X-Plane 12's VRAM texture uploads are asynchronous under Vulkan/Metal, h
 
 To mitigate this, `ImgWindow` includes an optional **Texture Bake Delay** that can be set when an `ImgWindow` instance is created.
 
-By default, this feature is **OFF**. Transient windows like momentary alerts or popup logs will render immediately (0-frame latency) so data remains perfectly synced with the user's action. However, for large, complex windows where visual polish is more important than millisecond latency, you can opt-in to ghosting.
+By default, this feature is **OFF**. Transient windows like momentary alerts or popup logs will render immediately (0-frame latency) so data remains perfectly synced with the user's action. However, for large, complex windows where visual polish is more important than millisecond latency, you can opt-in to ghosting, though your mileage may vary, so no guarantees are made that this will actually make a big difference.
+
+To enable this for a given instance of `ImgWindow` or a derived class, simply insert a call to the setter for the bake delay, **immediately after** constructing the window (within the same cycle; if you defer this, it may not have any effect).  For example, if you have a specific derived class for which you always want it, then you could put this within the body of your derived class` constructor:
 
 ```cpp
 // Holds the window transparent for 2 frames (default) upon creation
 myHeavyWindow->setTextureBakeDelay(true); 
 
 // Or specify a custom frame delay for exceptionally heavy textures
-myHeavyWindow->setTextureBakeDelay(true, 4); 
-
+myHeavyWindow->setTextureBakeDelay(true, 4);
 ```
 
-### Roadmap: Coming Next (ColorSpace Intent API)
-
-Currently, the perceptual color correction assumes your UI was authored for sRGB OpenGL. In our next major update, we will introduce a `ColorSpaceIntent` API. This will allow developers who are authoring UI natively for Panel Graphics to explicitly tell `ImgWindow` that their colors are already Linear, preventing the framework from double-applying gamma correction, while allowing a reverse-LUT to scale their Linear colors backward if the plugin falls back to OpenGL.
+The reason this feature is configured via a setter, and not via a constructor parameter, is that (a) it's not a core semantic element of the `ImgWindow` class (it's just a practical adjustment knob you can use), and (b) the constructor is already bloated, and adding this would further that bloat, when the bake delay is really only useful for windows with largely varied font styling in a single visible region. (I.e., in cases where the incremental baking of the textures creates a visual effect that is off-putting to end users.)
 
 ---
 
@@ -179,7 +165,6 @@ For example, let's say you want to have `ImgWindow` within your own source code 
 % cd /path/to/project_sources
 % git rm -rf third-party/ImgWindow             # (ONLY if it already existed!)
 % git commit -m "Remove embedded ImgWindow code to replace with submodule"
-
 ```
 
 To set up the "submodule" connection within your project:
@@ -188,7 +173,6 @@ To set up the "submodule" connection within your project:
 % cd /path/to/project_sources
 % git submodule add https://github.com/slgoldberg/ImgWindow third-party/ImgWindow
 % git commit -m "Replace embedded ImgWindow from slgoldberg's fork"
-
 ```
 
 **Users** of your repository will need to pull the sources into that submodule directory once they clone or fork it locally:
@@ -196,7 +180,6 @@ To set up the "submodule" connection within your project:
 ```bash
 % cd /path/to/cloned_project        
 % git submodule update --init --recursive
-
 ```
 
 To update the submodule any time:
@@ -207,52 +190,50 @@ To update the submodule any time:
 % cd /path/to/project_sources
 % git add third-party/ImgWindow
 % git commit -m "Update embedded ImgWindow from slgoldberg's fork"
-
 ```
 
 ## Contributing to this project
 
-Pull Requests (PRs) are welcome, though it's usually better to start by contacting the owner (Steve) via private message (PM) to the [X-Plane.org forum](https://forums.x-plane.org). Send a private message to `@slgoldberg` on that forum, and introduce yourself and explain what you're hoping to accomplish.
+Pull Requests (PRs) are welcome, though it's usually better to start by contacting the owner (Steve Goldberg) via private message (PM) to the [X-Plane.org forum](https://forums.x-plane.org). Send a private message to `@slgoldberg` on that forum, and introduce yourself and explain what you're hoping to accomplish.
 
 In general, to contribute code here, the best place to start is by "`fork`ing" this `ImgWindow` repository, which lets you make changes locally which makes it trivial for owner(s) of the forked repository to see your proposed changes even before you submit a formal Pull Request (PR).
 
 ### Forking, testing, and managing changes in advance of a Pull Request:
 
-To create your own "`fork`" of `ImgWindow` to start the process, simply click the "**Fork**" button on the main [web page](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/slgoldberg/ImgWindow) for [`ImgWindow` at github.com](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/slgoldberg/ImgWindow), then use your favorite method to clone that locally.
+To create your own "`fork`" of `ImgWindow` to start the process, simply click the "**Fork**" button on the main [web page](https://github.com/slgoldberg/ImgWindow) for [`ImgWindow` at github.com](https://github.com/slgoldberg/ImgWindow), then use your favorite method to clone that locally.
 
 Once you have your local fork, do all your work *within* that local fork. There are two paths forward from here:
 
 1. **Standalone changes.**
-If you *just* want to make minor changes such as fix typos or add a line or two, just make all your changes in place, and push those back to your `master` branch on the upstream repository (i.e., on GitHub).
+If you _only_ want to make minor changes, such as fix typos or add a line or two, then make all your changes in place and push them back to your `master` branch on the upstream repository (i.e., on GitHub).
 2. **Testing and iterating on changes in context with your plugin using `ImgWindow`.**
 This assumes your plugin's source code defines `ImgWindow` as a "`submodule`". First, change your plugin's source project by **renaming** your `ImgWindow` directory so that it can readily be "redirected" to different targets:
+
 ```bash
 % cd /path/to/plugin_project
 % git mv third-party/ImgWindow third-party/ImgWindow_GITHUB
 % ln -s third-party/ImgWindow_GITHUB third-party/ImgWindow
 % git add third-party/ImgWindow    
 % git commit -m "Add layer of indirection using symbolic link to ImgWindow"
-
 ```
 
-
 Finally, for testing, you start by making changes to your `ImgWindow` clone project, within *its* source tree. Update your `third-party/ImgWindow` symbolic link to point to *this* directory where you're working on your fork:
+
 ```bash
 % cd /path/to/plugin_project
 % rm third-party/ImgWindow   
-% ln -s /path/to/ImgWindow_fork third-party/ImgWindow  
-
+% ln -s /path/to/ImgWindow_fork third-party/ImgWindow
 ```
 
-
 After you make a change locally in the `ImgWindow` fork's local files, test those changes by switching over to your **plugin**'s project repository and build and run it in X-Plane!
+
 Once you have a final, working set of changes to `ImgWindow`:
+
 ```bash
 % cd /path/to/ImgWindow_fork
 % git add .       
 % git commit -m "Clear descriptions since the PR will show these"
-% git push           
-
+% git push
 ```
 
 ---
@@ -261,4 +242,4 @@ Once you have a final, working set of changes to `ImgWindow`:
 
 If anything is wrong or missing from this README, please either fix it and send us a PR, or let us know.
 
-This file was last updated in *September, 2026* by Steve.
+This file was last updated in *September, 2026* by Steven L. Goldberg.

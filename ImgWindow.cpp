@@ -183,15 +183,21 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
                 ImgPanelGraphics::DestroyTexture(textureID);
                 textureID = nullptr;
             }
+            // Sanitize texture RGB to accommodate anti-aliasing in light of straight-alpha blending
             if (outInfo.pixels && outInfo.width > 0 && outInfo.height > 0) {
                 std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
+                
+                // N.B.: ImGui's font atlas generator can sometimes leave RGB values as black (0,0,0) in otherwise fully transparent areas.
+                // Because X-Plane Panel Graphics uses straight alpha blending, those black pixels would bleed into the semi-transparent,
+                // anti-aliased edges of the fonts, creating horrific muddy/black halos around the text.
+                // By forcing every pixel's RGB to pure white (255), we guarantee such textures act strictly as pure opacity masks,
+                // so the text color comes 100% from the vertex color.
+                // (This loop only runs ONCE when the font atlas is rebuilt, so the CPU cost is negligible. It does NOT run every frame!)
                 for (int i = 0; i < outInfo.width * outInfo.height; i++) {
                     unsigned char* p = &lin_pixels[i * 4];
-                    // X-Plane expects straight alpha (RGB must be pure white).
                     p[0] = 255;
                     p[1] = 255;
                     p[2] = 255;
-                    // (Alpha correction is now globally handled via ApplyColorSpaceCorrection on vertex colors)
                 }
                 textureID = ImgPanelGraphics::CreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
             }
@@ -284,11 +290,6 @@ ImgWindow::ImgWindow(
     // Recommended by ImGui in imconfig.h:
     // Check to make sure the current data structures this file is using are matching the ones imgui.cpp is using.
     IMGUI_CHECKVERSION();
-#endif
-
-#if defined(IMGWINDOW_ENABLE_COLOR_SPACE_API)
-// TEST HACK: If we need to test this in the future, we can force the color space intent here for testing purposes: (TODO: remove before committing)
-//mColorSpaceIntent = ColorSpaceIntent::Modern_Linear;
 #endif
 
     ImFontAtlas *iFontAtlas = nullptr;
@@ -593,66 +594,6 @@ ImgWindow::boxelsToNative(int x, int y, int &outX, int &outY)
     outY = static_cast<int>((ndc[1] * 0.5f + 0.5f) * mViewport[3] + mViewport[1]);
 }
 
-/*
- * NB: This is a modified version of the imGui OpenGL2 renderer - however, because
- *     we need to play nice with the X-Plane GL state management, we cannot use
- *     the upstream one.
- */
-
-#if defined(IMGWINDOW_ENABLE_COLOR_SPACE_API)
-void ImgWindow::ApplyColorSpaceCorrection(ImDrawVert* vertices, int vtx_count, ColorSpaceIntent intent, bool isPanelGraphics)
-{
-    if (intent == ColorSpaceIntent::Legacy_sRGB && !isPanelGraphics) return;
-    if (intent == ColorSpaceIntent::Modern_Linear && isPanelGraphics) return;
-
-    static ImU32 srgb_to_linear_lut[256];
-    static ImU32 srgb_to_linear_alpha[256];
-    static ImU32 linear_to_srgb_lut[256];
-    static ImU32 linear_to_srgb_alpha[256];
-    static bool luts_init = false;
-
-    if (!luts_init) {
-        for (int i = 0; i < 256; i++) {
-            float f = i / 255.0f;
-            
-            // Forward (sRGB -> Linear)
-            // (RGB at 1.25f for deep blacks. Alpha perfectly linear (1.0f) to preserve opacity sliders)
-            ImU32 fwd_val = (ImU32)(powf(f, 1.25f) * 255.0f + 0.5f);
-            ImU32 fwd_floor = i / 4; 
-            if (i > 0 && fwd_val < fwd_floor) fwd_val = fwd_floor; 
-            if (i > 0 && fwd_val == 0) fwd_val = 1; 
-            srgb_to_linear_lut[i] = fwd_val;
-            srgb_to_linear_alpha[i] = (ImU32)(powf(f, 1.0f) * 255.0f + 0.5f);
-
-            // Reverse (Linear -> sRGB)
-            ImU32 rev_val = (ImU32)(powf(f, 1.0f / 1.25f) * 255.0f + 0.5f);
-            linear_to_srgb_lut[i] = rev_val;
-            linear_to_srgb_alpha[i] = (ImU32)(powf(f, 1.0f / 1.0f) * 255.0f + 0.5f);
-        }
-        luts_init = true;
-    }
-
-    bool to_linear = (intent == ColorSpaceIntent::Legacy_sRGB && isPanelGraphics);
-    const ImU32* active_lut_rgb = to_linear ? srgb_to_linear_lut : linear_to_srgb_lut;
-    const ImU32* active_lut_alpha = to_linear ? srgb_to_linear_alpha : linear_to_srgb_alpha;
-
-    for (int i = 0; i < vtx_count; i++) {
-        ImU32& col = vertices[i].col;
-        ImU32 r = (col >> IM_COL32_R_SHIFT) & 0xFF;
-        ImU32 g = (col >> IM_COL32_G_SHIFT) & 0xFF;
-        ImU32 b = (col >> IM_COL32_B_SHIFT) & 0xFF;
-        ImU32 a = (col >> IM_COL32_A_SHIFT) & 0xFF;
-        
-        r = active_lut_rgb[r];
-        g = active_lut_rgb[g];
-        b = active_lut_rgb[b];
-        a = active_lut_alpha[a];
-        
-        col = (r << IM_COL32_R_SHIFT) | (g << IM_COL32_G_SHIFT) | (b << IM_COL32_B_SHIFT) | (a << IM_COL32_A_SHIFT);
-    }
-}
-#endif
-
 void
 ImgWindow::RenderImGui(ImDrawData *draw_data)
 {
@@ -685,17 +626,6 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
     bool isPanelGraphics = false;
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     isPanelGraphics = ImgPanelGraphics::IsAvailable();
-#endif
-
-#if defined(IMGWINDOW_ENABLE_COLOR_SPACE_API)
-    // Apply color space correction globally across all command lists (if needed).
-    for (int n = 0; n < draw_data->CmdListsCount; n++) {
-        ImDrawList* cmd_list = draw_data->CmdLists[n];
-        ApplyColorSpaceCorrection(cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size, mColorSpaceIntent, isPanelGraphics);
-    }
-#endif
-
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     if (ImgPanelGraphics::IsAvailable()) {
         static bool s_logged_backend = false;
         if (!s_logged_backend) {
