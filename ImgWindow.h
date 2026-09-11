@@ -80,6 +80,13 @@
 class
 ImgWindow {
 public:
+#if defined(IMGWINDOW_ENABLE_COLOR_SPACE_API)
+    enum class ColorSpaceIntent {
+        Legacy_sRGB,
+        Modern_Linear
+    };
+#endif
+
     /** sFontAtlas is the global shared font-atlas.
      *
      * If you want to share fonts between windows, this needs to be set before
@@ -141,6 +148,11 @@ public:
      * @return true if the window is visible, false otherwise.
     */
     bool GetVisible() const;
+
+#if defined(IMGWINDOW_ENABLE_COLOR_SPACE_API)
+    void SetColorSpaceIntent(ColorSpaceIntent intent) { mColorSpaceIntent = intent; }
+    ColorSpaceIntent GetColorSpaceIntent() const { return mColorSpaceIntent; }
+#endif
     
     /** Is Window popped out */
     bool IsPoppedOut () const { return XPLMWindowIsPoppedOut(mWindowID) != 0; }
@@ -306,6 +318,12 @@ protected:
     { bUseImgCursors = inIsEnabled; }
 
 private:
+#if defined(IMGWINDOW_ENABLE_COLOR_SPACE_API)
+    ColorSpaceIntent mColorSpaceIntent = ColorSpaceIntent::Legacy_sRGB;
+
+    static void ApplyColorSpaceCorrection(ImDrawVert* vertices, int vtx_count, ColorSpaceIntent intent, bool isPanelGraphics);
+#endif
+
     std::shared_ptr<ImgFontAtlas> mFontAtlas;
 
     static void DrawWindowCB(XPLMWindowID inWindowID, void *inRefcon);
