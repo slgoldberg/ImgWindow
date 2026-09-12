@@ -623,9 +623,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         io.DisplayFramebufferScale.y != 1.0)
         draw_data->ScaleClipRects(io.DisplayFramebufferScale);
 
-    bool isPanelGraphics = false;
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    isPanelGraphics = ImgPanelGraphics::IsAvailable();
     if (ImgPanelGraphics::IsAvailable()) {
         static bool s_logged_backend = false;
         if (!s_logged_backend) {
