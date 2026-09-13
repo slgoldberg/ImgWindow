@@ -193,16 +193,16 @@ public:
      */
     bool IsInsideWindowDragArea (int x, int y) const;
     
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
      *  windows, starting from when the window is first rendered.
+     *  (Note: This only has effect for Panel Graphics windows. It is
+     *  ignored entirely for all OpenGL-based windows as it's irrelevant.
+     *  But the setting can still be called without harm to avoid plugin
+     *  authors needing to check for Panel Graphics availability themselves.)
      * @param enableDelay Whether to enable the ghosting delay (off by default)
      * @param frameCount Number of frames to delay, defaulting to 2.
      */
-    void setTextureBakeDelay(bool enableDelay, int frameCount = 2) {
-        mGhostFramesRemaining = enableDelay ? frameCount : 0;
-    }
-#endif
+    void SetTextureBakeDelay(bool enableDelay, int frameCount = 2);
     
 protected:
     /** mFirstRender can be checked during buildInterface() to see if we're
@@ -216,7 +216,7 @@ protected:
     bool mFirstRender;
     
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    int mGhostFramesRemaining = 0;  // no delay unless setTextureBakeDelay() is called immediately after creation.
+    int mGhostFramesRemaining = 0;  // no delay unless SetTextureBakeDelay() is called immediately after creation.
 #endif
 
     /** Construct a window with the specified bounds

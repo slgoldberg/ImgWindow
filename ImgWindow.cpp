@@ -1336,6 +1336,22 @@ ImgWindow::IsInsideWindowDragArea (int x, int y) const
         dragTop  <= y && y <= dragBottom;
 }
 
+void ImgWindow::SetTextureBakeDelay(bool enableDelay, int frameCount) {
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    // Texture bake delay only makes sense for Panel Graphics windows...
+    if (!ImgPanelGraphics::IsAvailable()) {
+        return;  // Ignore the request entirely for OpenGL windows.
+    }
+    mGhostFramesRemaining = enableDelay ? frameCount : 0;
+#else
+    // Logically, this method isn't useful whatsoever without Panel Graphics.
+    // We thus ignore the request here, since it has no effect for OpenGL.
+    // (This is provided the caller doesn't need to know whether Panel Graphics is being used or not.)
+    (void)enableDelay;
+    (void)frameCount;
+#endif
+}
+
 void
 ImgWindow::SafeDelete()
 {
