@@ -34,10 +34,14 @@
 
 #include <cmath>
 #include <vector>
-#include "ImgFontAtlas.h"
-#if !defined(IMGWINDOW_USE_PANEL_GRAPHICS)
 #include <XPLMGraphics.h>
-#endif
+#include "ImgFontAtlas.h"
+
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+namespace ImgPanelGraphics {
+    bool IsAvailable();
+}
+#endif // IMGWINDOW_USE_PANEL_GRAPHICS
 
 ImgFontAtlas::ImgFontAtlas():
     mOurAtlas(nullptr),

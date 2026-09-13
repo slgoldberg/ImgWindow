@@ -151,6 +151,9 @@ public:
     /** Is Window inside the sim? */
     bool IsInsideSim () const { return !IsPoppedOut() && !IsInVR(); }
     
+    /** Is Window using XPLM v4.4+'s Panel Graphics API instead of OpenGL? */
+    bool IsUsingPanelGraphics () const;
+    
     /** Set the positioning mode
      * @see https://developer.x-plane.com/sdk/XPLMDisplay/#XPLMWindowPositioningMode */
     void SetWindowPositioningMode (XPLMWindowPositioningMode inPosMode,

@@ -1,4 +1,3 @@
-#include <cmath>
 /*
  * ImgWindow.cpp
  *
@@ -33,13 +32,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <cmath>
+
 #include "ImgWindow.h"
 
 #include <XPLMDataAccess.h>
 #include <XPLMDisplay.h>
-#if !defined(IMGWINDOW_USE_PANEL_GRAPHICS)
 #include <XPLMGraphics.h>
-#endif
 
 #include "imgui_internal.h"
 
@@ -1281,6 +1280,15 @@ ImgWindow::GetVisible() const
     return XPLMGetWindowIsVisible(mWindowID) != 0;
 }
 
+bool
+ImgWindow::IsUsingPanelGraphics () const
+{
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    return ImgPanelGraphics::IsAvailable();
+#else
+    return false;
+#endif
+}
 
 bool
 ImgWindow::onShow()
