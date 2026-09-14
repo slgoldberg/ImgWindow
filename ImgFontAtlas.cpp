@@ -37,12 +37,6 @@
 #include <XPLMGraphics.h>
 #include "ImgFontAtlas.h"
 
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-namespace ImgPanelGraphics {
-    bool IsAvailable();
-}
-#endif // IMGWINDOW_USE_PANEL_GRAPHICS
-
 ImgFontAtlas::ImgFontAtlas():
     mOurAtlas(nullptr),
     mTextureBound(false),

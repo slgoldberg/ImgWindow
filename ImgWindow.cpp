@@ -32,10 +32,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <cmath>
-
 #include "ImgWindow.h"
 
+#include <cmath>
+#include <XPLMUtilities.h>
 #include <XPLMDataAccess.h>
 #include <XPLMDisplay.h>
 #include <XPLMGraphics.h>

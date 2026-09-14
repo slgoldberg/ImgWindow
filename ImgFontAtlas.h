@@ -123,4 +123,102 @@ protected:
 #endif
 };
 
+/** Define the structures we need for our panel graphics "bridge" support.
+ *  This allows us to support dynamic binding to the panel graphics library
+ *  if it's available, and to fall back to the standard OpenGL rendering if
+ *  not -- but only if the user has defined IMGWINDOW_USE_PANEL_GRAPHICS.
+ */
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+
+#include <XPLMDisplay.h> // Localized dependency for the spoofed window structs
+
+#if !defined(XPLM440)
+
+// Define required types if NOT compiling against SDK v4.4!
+
+#include <stdint.h>
+
+// Note that these definitions below come directly from the XPLM v4.4 SDK
+// header files, and are only used if the user has defined
+// IMGWINDOW_USE_PANEL_GRAPHICS but is compiling against an older SDK, so
+// that the code can still compile and link against the older SDK, and
+// dynamically bind to the panel graphics library if it's available at
+// runtime.
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum {
+    xplm_WindowContentTypeOpenGL             = 0,
+    xplm_WindowContentTypePanelGraphics      = 1,
+    xplm_WindowContentTypeBrowser            = 2
+} XPLMWindowContentType;
+
+typedef struct {
+     void *                    tex_ref;
+     float                     scissors[4];
+     int                       idx_offset;
+     int                       element_count;
+     int                       vtx_offset;
+} XPLMDrawCall_t;
+
+typedef struct {
+     float                     x;
+     float                     y;
+     float                     s;
+     float                     t;
+} XPLMTextureVertex_t;
+
+typedef struct {
+     int                       vertex_count;
+     const float *             vertices;
+     int                       index_count;
+     const uint16_t*           indices;
+} XPLMMesh_t;
+
+// Spoofed struct to allow creation of Panel Graphics windows
+// on older SDKs that don't have the new fields.
+// This precisely mirrors the layout of XPLMCreateWindow_t in SDK 4.40 on 64-bit systems.
+struct SpoofedXPLMCreateWindow_t_440 {
+    int                       structSize;
+    int                       left;
+    int                       top;
+    int                       right;
+    int                       bottom;
+    int                       visible;
+    XPLMDrawWindow_f          drawWindowFunc;
+    XPLMHandleMouseClick_f    handleMouseClickFunc;
+    XPLMHandleKey_f           handleKeyFunc;
+    XPLMHandleCursor_f        handleCursorFunc;
+    XPLMHandleMouseWheel_f    handleMouseWheelFunc;
+    void*                     refcon;
+    XPLMWindowDecoration      decorateAsFloatingWindow;
+    XPLMWindowLayer           layer;
+    XPLMHandleMouseClick_f    handleRightClickFunc;
+    XPLMWindowContentType     windowContentType;
+    void*                     browserLoadFinishedFunc;
+    void*                     browserLoadErrorFunc;
+};
+
+#ifdef __cplusplus
+}
+#endif
+
+#else // XPLM440 is defined
+#include <XPLMPanelGraphics.h>
+#endif // !defined(XPLM440)
+
+namespace ImgPanelGraphics {
+    // True if runtime supports Panel Graphics
+    bool IsAvailable();
+
+    // Dynamically loaded Panel Graphics API wrappers
+    void* CreateTexture(const unsigned char* rgba_image, int width, int height);
+    void DestroyTexture(void* tex_ref);
+    void DrawCalls(const XPLMMesh_t* inMesh, int inCount, const XPLMDrawCall_t inDrawCalls[]);
+}
+
+#endif // IMGWINDOW_USE_PANEL_GRAPHICS
+
 #endif //IMGFONTATLAS_H
