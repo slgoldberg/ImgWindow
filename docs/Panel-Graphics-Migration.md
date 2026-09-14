@@ -43,10 +43,10 @@ bool ImgWindow::IsUsingPanelGraphics() const;
 
 If you are migrating an older plugin, you can easily stub out crashing OpenGL textures using a macro until you are ready to rewrite your texture generation for Panel Graphics:
 ```cpp
-// Example macro to hide legacy OpenGL textures from Vulkan
+// Example macro to hide legacy OpenGL textures when rendering ImGui using Panel Graphics:
 #define HIDE_FROM_PG(x) if (!this->IsUsingPanelGraphics()) { x }
 
-// Usage in UI:
+// Example usage in your ImGui user interface code:
 HIDE_FROM_PG(
     ImGui::Image((void*)(intptr_t)myLegacyGLTextureId, ImVec2(100, 100));
 )
@@ -68,12 +68,18 @@ To mitigate this, `ImgWindow` includes an optional **Texture Bake Delay**. This 
 **YMMV (Your Mileage May Vary):** Depending on your hardware and the complexity of your font atlas, this delay may or may not make a visually significant difference. It is provided strictly as a tuning knob for developers trying to smooth out off-putting text flashing during initial window loads.
 
 To enable the delay, call the setter **immediately after** constructing the window (within the same flight loop cycle). If you defer the call, it will have no effect.
+(If you want such a delay for all instances of a particular subclass derived from `ImgWindow`, then you simply call `setTextureBakeDelay(true)` from within the class' constructor, since it is always run after the main `ImgWindow::ImgWindow()` constructor is run, thus setting the "bake delay" so it takes effect before you return from creating the window.)
+
+**Example** (for a single, specific window, just after you've created it, but before you return control to XPLM):
 
 ```cpp
-// Hold the window transparent for 2 frames (default) upon creation
+// Immediately after creating the window, e.g.:
+MyImgWindowSubclass *myHeavyWindow = new MyImgWindowSubclass(...);
+
+// Hold the window transparent for 2 frames (default) upon creation:
 myHeavyWindow->setTextureBakeDelay(true); 
 
-// Or specify a custom frame delay for exceptionally heavy textures
-myHeavyWindow->setTextureBakeDelay(true, 4);
+// Or specify a custom frame delay for exceptionally heavy textures:
+myHeavyWindow->setTextureBakeDelay(true, 5);  // 5-frame initial delay
 ```
 *(Note: This setting is ignored completely if the window falls back to legacy OpenGL, so you do not need to wrap it in an `IsUsingPanelGraphics()` check.)*
