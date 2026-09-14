@@ -43,6 +43,7 @@ v1.92.x). Later versions may work fine, but no guarantees are made.
 ## Components in this Repository
 
 * `ImgWindow` and `ImgFontAtlas` - Wrappers for the [dear imgui](https://github.com/ocornut/imgui) Immediate Mode GUI library
+* **Dynamic X-Plane 12.4.4+ Panel Graphics support (Vulkan/Metal)** with automatic legacy OpenGL fallback.
 
 ## No longer supported (see original repository):
 
@@ -61,87 +62,15 @@ We are actively looking for developers to test the new Panel Graphics bridging s
 
 ## Modern Panel Graphics Support (Vulkan / Metal)
 
-`ImgWindow` now features support for X-Plane's modern **Panel Graphics API** (introduced in the XPLM v4.4 SDK). This allows your plugin to render UI natively through X-Plane's Vulkan/Metal graphics pipeline, completely bypassing legacy OpenGL context bridges.  **However**, you do not need to _build_ with the `XPLM440` SDK enabled in order to _use_ Panel Graphics!  (Read on for more details on how `ImgWindow` will automatically detect whether it has been loaded into X-Plane v12.4.4b1 or later, in which case it will dynamically bind to the v4.4 SDK from an earlier SDK, so that -- if you're on an older version of X-Plane -- it can fall back to `OpenGL` instead!)
+`ImgWindow` now features _optional_ support for X-Plane's modern **Panel Graphics API** (introduced in the XPLM v4.4 SDK). This allows your plugin to render UI natively through X-Plane's Vulkan/Metal graphics pipeline, completely bypassing the legacy OpenGL rendering pipeline.
 
-The transition to the ImGui-friendly XPLM Panel Graphics API brings **improved performance**, and **future-proofs** your plugin -- but modern graphics APIs are strictly asynchronous and highly unforgiving of legacy OpenGL paradigms. If you are opting into this rendering path, **you must strictly adhere to the new lifecycle rules below, if you enable Panel Graphics support when building with `ImgWindow`.**
+The transition to the newly-optimized, custom ImGui rendering engine using X-Plane's **Panel Graphics API** brings substantially **improved performance**. This transition also **future-proofs** your plugin against the eventual deprecation of OpenGL support. `ImgWindow` handles this seamlessly if it's configured to use Panel Graphics: it automatically detects the host simulator's capabilities at runtime, and routes your UI to the modern Panel Graphics (direct Vulkan/Metal) backend on X-Plane 12.4.4+, while gracefully falling back to standard OpenGL on older versions.  You may of course also choose to stay with OpenGL in all cases; it's simply a matter of a single build configuration flag change! (See the [Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md) for details.)
 
-### Backwards Compatibility & The Opt-In Strategy
+**With the dynamic Panel Graphics "bridge" optionally provided by `ImgWindow`, there is no need to maintain two separate codebases or force your plugin's users to upgrade X-Plane.** 
 
-The most important feature of this update is **100% backwards compatibility**. In the first case, legacy plugins (e.g., LiveTraffic) that are already using an older version of `ImgWindow` should be able to just drop this new version in and use it *as-is*, without any changes to their code -- even if they are still using ImGui v1.8x!
+⚠️ **However, migrating to Panel Graphics requires specific changes to how you manage custom textures and window lifecycles.** Modern graphics APIs are strictly asynchronous and highly unforgiving of legacy OpenGL paradigms.
 
-**"Opportunistic" Panel Graphics support is an explicit opt-in** using the `-DIMGWINDOW_USE_PANEL_GRAPHICS` flag in your build rules (as a compiler flag when building the files needed for `ImgWindow`). Because X-Plane 12's Panel Graphics **requires** ImGui's modern font atlas rendering, your build options depend entirely on which version of ImGui you are using:
-
-#### 1. Older ImGui (Pre-v1.92.x)
-
-If your project uses an older version of ImGui, **do not** define `-DIMGWINDOW_USE_PANEL_GRAPHICS`. It will generate a build error. Legacy ImGui versions lack the self-managed font atlas required for asynchronous Vulkan/Metal uploads.
-
-| ImGui Version | `IMGWINDOW_USE_PANEL_GRAPHICS` Defined? | SDK Version | Resulting Rendering Backend |
-| --- | --- | --- | --- |
-| **< 1.92.x** | ❌ No | Any (XPLM300+) | **Legacy OpenGL** (Works perfectly on XP11 & XP12) |
-| **< 1.92.x** | ✅ Yes | Any | **Build Error** (Incompatible with legacy ImGui font API) |
-
-#### 2. Newer ImGui (v1.92.x or later)
-
-If you have updated to ImGui 1.92.x or newer, you unlock the ability to opt into Panel Graphics.
-
-Setting the `-DIMGWINDOW_USE_PANEL_GRAPHICS` macro acts as a "Prefer Panel Graphics" flag. If the user loads your plugin into X-Plane 12.4.4+ (which contains the XPLM v4.4 SDK, even if you didn't explicitly enable it!), all your ImGui graphics and fonts will render directly via Vulkan/Metal via Panel Graphics' custom support for ImGui drawing. If the user of such a binary built without *requiring* `XPLM440` loads your plugin into an older version of X-Plane v12 -- or even as far back as X-Plane v11.10 -- `ImgWindow` will gracefully and automatically **fall back to standard OpenGL** on all such platforms.
-
-| ImGui Version | `IMGWINDOW_USE_PANEL_GRAPHICS` Defined? | SDK Version | Resulting Rendering Backend |
-| --- | --- | --- | --- |
-| **>= 1.92.x** | ❌ No | Any | **Legacy OpenGL** (Works perfectly on XP11 & XP12) |
-| **>= 1.92.x** | ✅ Yes | `<= XPLM430` | **Panel Graphics** natively on XP12.4.4+ (Runs on XP11 & XP12 via **auto-fallback to OpenGL** on older XP versions!) |
-| **>= 1.92.x** | ✅ Yes | `>= XPLM440` | **Panel Graphics** natively on XP12.4.4+ (Plugin **will not load** on older versions of X-Plane!) |
-
-**CMake Example to enable Panel Graphics:**
-
-```cmake
-add_definitions(-DIMGWINDOW_USE_PANEL_GRAPHICS)
-
-#add_definitions(-DXPLM440=1)	# OPTIONAL (restricts plugins to v12.4.4b1+!)
-# Note: we recommend *against* defining `XPLM440`, unless you absolutely require
-# panel graphics or other features from the v4.4 SDK in other code! (Because
-# ImgWindow doesn't need it! It will bind to it dynamically if it's available
-# if you define `IMGWINDOW_USE_PANEL_GRAPHICS` above. This means "use panel
-# graphics if available in the currently-running version of X-Plane.)
-```
-
----
-
-### Important ⚠️ GOLDEN RULE of Panel Graphics: No Instantiation in Draw Callbacks
-
-In legacy OpenGL, it was common practice to "lazily instantiate" windows directly inside a draw callback (e.g., `if (!myWindow) myWindow = new ImgWindow(...)`). **Under Vulkan/Metal, this will instantly crash X-Plane with an abort trap if it is called from within any draw callback!**
-
-Modern rendering relies on tightly controlled GPU command buffers. You absolutely cannot allocate or destroy GPU textures (which `ImgWindow` must do upon creation and destruction) while a render pass is actively recording.
-
-**The Solution: Use Latches and the Flight Loop**
-Separate your *intent* to show a window from the actual *execution* of its creation.
-
-1. When your plugin decides a window needs to open, set a boolean flag (e.g., `g_wants_alert_window = true`).
-2. Inside a standard **Flight Loop Callback** (which runs safely on the main thread outside of the render pass), check that flag, instantiate the `ImgWindow`, and clear the flag.
-
-*Note: Calling `setVisibility(false)` inside a draw callback remains perfectly safe, as this only flips an internal ImGui state flag and does not destroy GPU resources.*
-
-It's worth noting that, internally, `ImgWindow` actually does this for you for loading new textures on the fly, on demand!  Whereas the `OpenGL` path through `ImgWindow` will (and should!) load textures in the draw callback, whenever a rendering path goes through panel graphics, `ImgWindow` maintains its own shared font atlas "dirty-bit" checking flight-loop callback, to load any missing glyphs every simulator frame. (This does, unfortunately, mean you may see some flashing of text in the first frame or two after the initial load, but .. that's just how it is.) Though it's of limited use, `ImgWindow` does provide some simplistic "bake delay" functionality, as described next, to help improve visual polish:
-
-### Visual Polish: Texture Bake Delay (Ghosting)
-
-Because X-Plane 12's VRAM texture uploads are asynchronous under Vulkan/Metal, heavy windows with complex font atlases may exhibit visual jitter, or texture pop-in, for the first few frames as the GPU bakes the new glyphs in the background.
-
-To mitigate this, `ImgWindow` includes an optional **Texture Bake Delay** that can be set when an `ImgWindow` instance is created.
-
-By default, this feature is **OFF**. Transient windows like momentary alerts or popup logs will render immediately (0-frame latency) so data remains perfectly synced with the user's action. However, for large, complex windows where visual polish is more important than millisecond latency, you can opt-in to ghosting, though your mileage may vary, so no guarantees are made that this will actually make a big difference.
-
-To enable this for a given instance of `ImgWindow` or a derived class, simply insert a call to the setter for the bake delay, **immediately after** constructing the window (within the same cycle; if you defer this, it may not have any effect).  For example, if you have a specific derived class for which you always want it, then you could put this within the body of your derived class` constructor:
-
-```cpp
-// Holds the window transparent for 2 frames (default) upon creation
-myHeavyWindow->setTextureBakeDelay(true); 
-
-// Or specify a custom frame delay for exceptionally heavy textures
-myHeavyWindow->setTextureBakeDelay(true, 4);
-```
-
-The reason this feature is configured via a setter, and not via a constructor parameter, is that (a) it's not a core semantic element of the `ImgWindow` class (it's just a practical adjustment knob you can use), and (b) the constructor is already bloated, and adding this would further that bloat, when the bake delay is really only useful for windows with largely varied font styling in a single visible region. (I.e., in cases where the incremental baking of the textures creates a visual effect that is off-putting to end users.)
+👉 **[Read the Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md)** for complete instructions on enabling this using a build flag, as well as practical issues for first-time Panel Graphics users, such as avoiding invalid texture CTDs and safely managing window instantiation.
 
 ---
 

@@ -435,7 +435,7 @@ ImgWindow::ImgWindow(
     io.ConfigWindowsMoveFromTitleBarOnly = true;
 
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    if (ImgPanelGraphics::IsAvailable()) {
+    if (IsUsingPanelGraphics()) {
 #if defined(XPLM440)
         XPLMCreateWindow_t windowParams = {0};
         windowParams.structSize = sizeof(XPLMCreateWindow_t);
@@ -522,7 +522,7 @@ ImgWindow::~ImgWindow()
         // if we didn't have an explicit font atlas, destroy the texture.
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
         if (mFontTexture) {
-            if (ImgPanelGraphics::IsAvailable()) {
+            if (IsUsingPanelGraphics()) {
                 ImgPanelGraphics::DestroyTexture(mFontTexture);
             } else {
                 GLuint glTextureID = (GLuint)(intptr_t)mFontTexture;
@@ -607,7 +607,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         // rebuild and upload *only* if the atlas is actually out of date (e.g., dynamic font size or style changes, etc.)
         // (Note: very inexpensive with early-out returns in common case.)
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-        if (!ImgPanelGraphics::IsAvailable()) {
+        if (!IsUsingPanelGraphics()) {
             CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
         }
 #else
@@ -623,7 +623,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         draw_data->ScaleClipRects(io.DisplayFramebufferScale);
 
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    if (ImgPanelGraphics::IsAvailable()) {
+    if (IsUsingPanelGraphics()) {
         static bool s_logged_backend = false;
         if (!s_logged_backend) {
             XPLMDebugString("ImgWindow: Rendering via XPLM v4.4 Panel Graphics\n");
@@ -814,7 +814,7 @@ ImgWindow::updateImgui()
     // (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
     if (mFontAtlas && mFontAtlas->getAtlas()) {
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-        if (!ImgPanelGraphics::IsAvailable()) {
+        if (!IsUsingPanelGraphics()) {
             CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
         }
 #else
@@ -1347,7 +1347,7 @@ ImgWindow::IsInsideWindowDragArea (int x, int y) const
 void ImgWindow::SetTextureBakeDelay(bool enableDelay, int frameCount) {
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     // Texture bake delay only makes sense for Panel Graphics windows...
-    if (!ImgPanelGraphics::IsAvailable()) {
+    if (!IsUsingPanelGraphics()) {
         return;  // Ignore the request entirely for OpenGL windows.
     }
     mGhostFramesRemaining = enableDelay ? frameCount : 0;
