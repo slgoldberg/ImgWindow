@@ -170,6 +170,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     {
         // 1. Force full rebuild
         atlas->TexIsBuilt = false; 
+        atlas->Build(); // Explicitly rasterize fonts and securely set TexIsBuilt=true
 
         // 2. CPU Rasterize (RGBA32 for stability)
         ImgFontAtlas::strct_texture_info outInfo;
