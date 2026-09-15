@@ -32,13 +32,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "ImgFontAtlas.h"
+#include <cmath>
+#include <vector>
 #include <XPLMGraphics.h>
+#include "ImgFontAtlas.h"
 
 ImgFontAtlas::ImgFontAtlas():
     mOurAtlas(nullptr),
     mTextureBound(false),
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    mTextureRef(nullptr)
+#else
     mGLTextureNum(0)
+#endif
 {
     mOurAtlas = new ImFontAtlas;
 }
@@ -46,8 +52,20 @@ ImgFontAtlas::ImgFontAtlas():
 ImgFontAtlas::~ImgFontAtlas()
 {
     if (mTextureBound) {
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+        if (mTextureRef) {
+            if (ImgPanelGraphics::IsAvailable()) {
+                ImgPanelGraphics::DestroyTexture(mTextureRef);
+            } else {
+                GLuint glTexNum = (GLuint)(intptr_t)mTextureRef;
+                glDeleteTextures(1, &glTexNum);
+            }
+            mTextureRef = nullptr;
+        }
+#else
         GLuint glTexNum = (GLuint)mGLTextureNum;
         glDeleteTextures(1, &glTexNum);
+#endif
         mTextureBound = false;
     }
     delete mOurAtlas;
@@ -116,6 +134,48 @@ ImgFontAtlas::bindTexture()
     if (mTextureBound)
         return;
 
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    if (ImgPanelGraphics::IsAvailable()) {
+        strct_texture_info outInfo;
+        GetCustomAtlasTextureData(mOurAtlas, outInfo);
+        
+        if (outInfo.pixels && outInfo.width > 0 && outInfo.height > 0) {
+            std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
+            for (int i = 0; i < outInfo.width * outInfo.height; i++) {
+                unsigned char* p = &lin_pixels[i * 4];
+                p[3] = (unsigned char)(powf(p[3] / 255.0f, 2.2f) * 255.0f + 0.5f);
+            }
+            mTextureRef = ImgPanelGraphics::CreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
+            mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)mTextureRef);
+        }
+    } else {
+        int gl_tex = 0;
+        XPLMGenerateTextureNumbers(&gl_tex, 1);
+
+#ifndef IMGUI_V192_REFACTOR
+        unsigned char *pixData = nullptr;
+        int width, height;
+        mOurAtlas->GetTexDataAsRGBA32(&pixData, &width, &height);
+#else
+        strct_texture_info outInfo;
+        GetCustomAtlasTextureData(mOurAtlas, outInfo);
+#endif
+
+        XPLMBindTexture2d(gl_tex, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
+#ifndef IMGUI_V192_REFACTOR
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
+        mOurAtlas->SetTexID((void *)((intptr_t)gl_tex));
+#else
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
+        mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)gl_tex);
+#endif
+        mTextureRef = (void*)(intptr_t)gl_tex;
+    }
+#else
     XPLMGenerateTextureNumbers(&mGLTextureNum, 1);
 
 #ifndef IMGUI_V192_REFACTOR
@@ -137,7 +197,8 @@ ImgFontAtlas::bindTexture()
     mOurAtlas->SetTexID((void *)((intptr_t)mGLTextureNum));
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
-    mOurAtlas->TexData->SetTexID(mGLTextureNum);
+    mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)mGLTextureNum);
+#endif
 #endif
 
     mTextureBound = true;
@@ -168,9 +229,17 @@ ImgFontAtlas::GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& 
     return (outInfo.pixels != nullptr && outInfo.width > 0 && outInfo.height > 0);
 }
 
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+void ImgFontAtlas::updateTextureTracking(void* textureID)
+{
+    mTextureRef = textureID;
+    mTextureBound = (textureID != nullptr);
+}
+#else
 void ImgFontAtlas::updateTextureTracking(int textureID)
 {
     mGLTextureNum = textureID;
     mTextureBound = (textureID != 0);  // Active if valid, cleared if 0
 }
+#endif
 #endif /* IMGUI_V192_REFACTOR */
