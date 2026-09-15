@@ -2,7 +2,7 @@
 
 With the release of X-Plane 12.4.4b1, Laminar Research introduced the **Panel Graphics API** (XPLM v4.4), routing UI rendering through a modern Vulkan/Metal backend. 
 
-`ImgWindow` now provides a **dynamic, backward-compatible bridge** to this new pipeline. You can inject ImGui directly into the modern Panel Graphics pipeline on XP12.4.4+ while simultaneously maintaining 100% backward compatibility with older OpenGL-based versions of X-Plane (XP11.10 through early XP12). 
+`ImgWindow` now provides a **dynamic, backward-compatible bridge** to this new pipeline. You can inject ImGui directly into the modern Panel Graphics rendering pipeline on X-Plane v12.4.4+ while simultaneously maintaining **100% backward compatibility** with any OpenGL-based versions of X-Plane starting with v11.10 onward (including all versions of v12 as well).
 
 There is no need to maintain two separate codebases or force your users to upgrade X-Plane. The framework detects the host simulator's capabilities at runtime and routes the ImGui draw data accordingly.
 
