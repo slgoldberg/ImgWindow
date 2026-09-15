@@ -12,8 +12,8 @@ You control how `ImgWindow` interacts with Panel Graphics entirely through CMake
 
 | Build Flags | Rendering Pipeline | Simulator Compatibility |
 | :--- | :--- | :--- |
-| <nobr>`-DIMGWINDOW_USE_PANEL_GRAPHICS`</nobr> | **Dynamic Bridge (Recommended).** Uses Panel Graphics if XPLM 4.4 is detected at runtime. Falls back to legacy OpenGL otherwise. | **Maximum.** X-Plane 11.10+ through X-Plane 12.4.4+ |
-| <nobr>`-DIMGWINDOW_USE_PANEL_GRAPHICS`</nobr><br> `-DXPLM440=1` | **Strict Panel Graphics.** Forces modern rendering and strips the OpenGL fallback logic. | **Modern Only.** X-Plane 12.4.4 and newer. Will not load on older versions. |
+| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code> | **Dynamic Bridge (Recommended).** Uses Panel Graphics if XPLM 4.4 is detected at runtime. Falls back to legacy OpenGL otherwise. | **Maximum.** X-Plane 11.10+ through X-Plane 12.4.4+ |
+| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code><br> `-DXPLM440=1` | **Strict Panel Graphics.** Forces modern rendering and strips the OpenGL fallback logic. | **Modern Only.** X-Plane 12.4.4 and newer. Will not load on older versions. |
 | *(None)* | **Strict OpenGL.** Ignores Panel Graphics entirely and forces legacy OpenGL rendering. | **Standard.** X-Plane 11.10+ through current. |
 
 **To enable the recommended Dynamic Bridge in CMake:**
