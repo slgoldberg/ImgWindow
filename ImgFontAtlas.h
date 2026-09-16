@@ -130,14 +130,12 @@ protected:
  */
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
 
-#include <XPLMDisplay.h> // Localized dependency for the spoofed window structs
-
 #if !defined(XPLM440)
 
-// Define required types if NOT compiling against SDK v4.4!
-
 #include <stdint.h>
+#include <XPLMDisplay.h> // Localized dependency for the spoofed window structs
 
+// Define required types if NOT compiling against SDK v4.4!
 // Note that these definitions below come directly from the XPLM v4.4 SDK
 // header files, and are only used if the user has defined
 // IMGWINDOW_USE_PANEL_GRAPHICS but is compiling against an older SDK, so
