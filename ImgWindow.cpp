@@ -168,12 +168,6 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
 
     if (need_rebuild)
     {
-        // 1. Force full rebuild
-        atlas->TexIsBuilt = false; 
-        unsigned char* _dummy_pixels;
-        int _dummy_width, _dummy_height;
-        atlas->GetTexDataAsRGBA32(&_dummy_pixels, &_dummy_width, &_dummy_height); // Securely trigger internal ImGui build process and set TexIsBuilt=true
-
         // 2. CPU Rasterize (RGBA32 for stability)
         ImgFontAtlas::strct_texture_info outInfo;
         ImgFontAtlas::GetCustomAtlasTextureData(atlas, outInfo);
