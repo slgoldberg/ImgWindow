@@ -212,11 +212,13 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
                 glTextureID = (GLuint)texNum;
             }
 
-            XPLMBindTexture2d((int)glTextureID, 0);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
+            if (outInfo.pixels) {
+                XPLMBindTexture2d((int)glTextureID, 0);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
+            }
 
             // 4. Link
             textureID = (void*)(intptr_t)glTextureID;
@@ -233,11 +235,13 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
             textureID = (GLuint)texNum;
         }
 
-        XPLMBindTexture2d((int)textureID, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
+        if (outInfo.pixels) {
+            XPLMBindTexture2d((int)textureID, 0);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
+        }
 
         // 4. Link
         // ... to the atlas's internal tracker, so ImGui can use it for rendering.
@@ -247,6 +251,11 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
             ImgWindow::sFontAtlas->updateTextureTracking((int)textureID);
         }
 #endif
+        // 5. Safely mark as built to prevent infinite FLCB rebuild loops.
+        // We only do this if we actually extracted valid pixels (meaning ImGui actually built it).
+        if (outInfo.pixels) {
+            atlas->TexIsBuilt = true;
+        }
     }
     else
     {
