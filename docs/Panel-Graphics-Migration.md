@@ -46,23 +46,20 @@ The `ImgPanelGraphics` namespace solves this by dynamically looking up the Vulka
 
 Because graphics pipelines are strict, you must determine which pipeline is active before allocating graphics memory. Use the global `ImgPanelGraphics::IsAvailable()` method to branch your initialization logic.
 
-**Crucial:** Do not allocate Vulkan/Metal textures inside an active drawing callback (like `ImgWindow::buildInterface()`). Allocate them during your plugin's initialization (`XPluginEnable`) or in a dedicated pre-drawing flight loop callback (i.e., in code that is only executed once, or when a texture needs to be lazily created). (This is discussed in more detail below.)
+**Crucial:** Do not allocate Vulkan/Metal textures inside an active drawing callback (like `ImgWindow::buildInterface()`). Allocate them during your plugin's initialization (`XPluginEnable`) or in a dedicated pre-drawing flight loop callback (i.e., in code that is only executed once, or when a texture needs to be lazily created).
 
 #### B. Loading Custom Textures
 
-**IMPORTANT:** Some plugins use `ImGui::Image()`, for example, to explicitly inject previously-loaded GPU textures into their `Dear ImGui` interfaces. Other plugins stay clear and only use fonts, which are handled entirely by the framework. **If you are using Panel Graphics, and your plugin loads custom textures via `ImgUI::Image()`, then you need to read this _before_ you enable `-DIMGWINDOW_USE_PANEL_GRAPHICS`** -- especially if you intend to support a mixed mode release using Panel Graphics textures on v12.4.4 or later, and OpenGL textures on older versions as far back as XP11.10!  In fact, whether you force the build to only run on `XPLM440` or not, you should _always_ use our proxy `ImgPanelGraphics::CreateTexture()` API wrapper to call the XPLM v4.4 SDK's `XPLMCreateTexture()` function!  (I.e., you should _not_ call it directly when building textures for ImGui via `ImgWindow`.) Read on for a full explanation and example...
+**IMPORTANT:** Some plugins use `ImGui::Image()`, for example, to explicitly inject previously-loaded GPU textures into their `Dear ImGui` interfaces. Other plugins stay clear and only use fonts, which are handled entirely by the framework. **If you are using Panel Graphics, and your plugin loads custom textures via `ImgUI::Image()`, then you need to read this _before_ you enable `-DIMGWINDOW_USE_PANEL_GRAPHICS`** -- especially if you intend to support a mixed mode release using Panel Graphics textures on v12.4.4 or later, and OpenGL textures on older versions as far back as XP11.10!  In fact, whether you force the build to only run on `XPLM440` or not, you should _always_ use our proxy `ImgPanelGraphics::CreateTexture()` API wrapper to call the XPLM v4.4 SDK's `XPLMCreateTexture()` function! 
 
-##### Always FORCE 4 channels (RGBA) when loading images for compatibility with Panel Graphics
-
-When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graphics API strictly requires a 4-channel RGBA8 buffer. If you feed it a 3-channel RGB buffer, the simulator will instantly crash due to a buffer overrun!  _(To be clear: don't pass 3 or 0 as the final parameter to `stbi_load()`, for example -- instead, **explicitly pass 4** as the final parameter!  See example below.)_
-
-Here is the standard pattern for safely loading custom textures based on whether `ImgWindow` is rendering your ImGui code through OpenGL vs. Panel Graphics by way of `ImgPanelGraphics::IsAvailable()`:
+##### Always FORCE 4 channels (RGBA) when loading images
+When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graphics API strictly requires a 4-channel RGBA8 buffer. If you feed it a 3-channel RGB buffer, the simulator will instantly crash due to a buffer overrun!  _(To be clear: don't pass 3 or 0 as the final parameter to `stbi_load()`—**explicitly pass 4**)._
 
 ```cpp
 // 1. Define your texture handle globally or in your plugin class
 ImTextureID myCustomTexture = nullptr;
 
-// 2. Load the texture (Run this in XPluginEnable or a setup Flight Loop)
+// 2. Load the texture (Run this on the MAIN THREAD only)
 void LoadMyCustomTexture(const char* filepath) {
     int width, height, channels;
     
@@ -95,10 +92,7 @@ void LoadMyCustomTexture(const char* filepath) {
 *Note on Alpha Blending:* Panel Graphics relies on straight alpha blending. If your image has fully transparent areas with black RGB values (0, 0, 0, 0), it may cause dark halos around semi-transparent edges. Ensure your assets are exported with a white matte, or manually sanitize the RGB channels of fully transparent pixels before calling `ImgPanelGraphics::CreateTexture()`.
 
 ##### Don't forget to clean up!
-
-When your plugin is disabled, calling your `XPluginDisable()`, or when a texture is no longer needed, you must use the same matching `ImgPanelGraphics::DestroyTexture()` **proxy** method for the corresponding `XPLMDestroyTexture()` function from the v4.4 SDK (again, whether or not you explicitly require `XPLM440` in your build configuration)!  As with the warning above, **do not** call the native `XPLMDestroyTexture()` function directly since it won't exist if you didn't build with `XPLM440`, and even if you did, you'd have to change the code if you ever changed your mind and removed the requirement for `XPLM440` so that you could achieve backwards-compatibility.
-
-Below is the analagous "delete" sample code for the above "create" example:
+When a texture is no longer needed, you must use the same matching `ImgPanelGraphics::DestroyTexture()` **proxy** method. 
 
 ```cpp
 void UnloadMyCustomTexture() {
@@ -109,14 +103,13 @@ void UnloadMyCustomTexture() {
             GLuint glTextureId = (GLuint)(intptr_t)myCustomTexture;
             glDeleteTextures(1, &glTextureId);
         }
-        myCustomTexture = nullptr;
+        myCustomTexture = nullptr; // Always reset handles!
     }
 }
 ```
 
 #### C. Drawing Custom Textures
-
-Once your texture is loaded and cast to an `ImTextureID`, rendering it inside your window's `ImgWindow::buildInterface()` method is completely agnostic. Both pipelines automatically join back together here.
+Once your texture is loaded and cast to an `ImTextureID`, rendering it inside your window's `ImgWindow::buildInterface()` method is completely agnostic:
 
 ```cpp
 void MyWindow::buildInterface() {
@@ -130,32 +123,40 @@ void MyWindow::buildInterface() {
 
 ### 4. Developer Caveats & Required Code Changes
 
-While `ImgWindow` automatically handles the rendering pipeline abstraction, it **cannot** automatically translate custom OpenGL state managed by your plugin. If you use custom textures or spawn windows dynamically, you must account for the following constraints.
+While `ImgWindow` automatically handles the rendering pipeline abstraction, it **cannot** automatically translate custom OpenGL state managed by your plugin. Transitioning from synchronous OpenGL to asynchronous Vulkan/Metal introduces strict new rules for your plugin architecture.
 
-#### Caveat A: Custom Textures & `ImGui::Image()`
-The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL texture IDs. If your UI code generates custom textures via `glGenTextures()` and passes those raw GL integer IDs into `ImGui::Image()`, **X-Plane will instantly crash (CTD)** if that specific window is being rendered via Panel Graphics.
+#### Caveat A: Strict Main-Thread Execution (No Background Allocation)
+The X-Plane SDK enforces a strict **Serialization Rule**. All core XPLM API calls must occur sequentially on X-Plane's main thread. 
+*   **The Trap:** If you use background threads (e.g., `std::thread`, `std::async`) for asynchronous texture loading, you **cannot** call `ImgPanelGraphics::CreateTexture()` from that background thread. Doing so will generate an invalid cross-thread handle or fatally crash the Vulkan driver. Legacy OpenGL drivers occasionally permitted off-thread allocation, but Panel Graphics strictly forbids it.
+*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, save them to a struct and use a flag or a flight loop callback to hand those bytes back to the **main X-Plane thread**, where you will actually call `CreateTexture`.
 
-**The Fix:** As outlined in Section 3 above, you should ideally upgrade your texture generation to use the `ImgPanelGraphics::IsAvailable()`, `ImgPanelGraphics::CreateTexture()`, and `ImgPanelGraphics::DestroyTexture()` proxy functions (the latter two only being valid if the former is `true`!).
+#### Caveat B: Deferred Texture Destruction (Asynchronous Garbage Collection)
+Under Panel Graphics, all draw operations are deferred. `ImgWindow` submits your UI draw lists to a Vulkan command queue to be rendered later by the GPU.
+*   **The Trap:** If you navigate away from a UI screen and synchronously call `ImgPanelGraphics::DestroyTexture()` on its custom images, you will free that VRAM while the GPU is still trying to read it to process the previous frame's queue. This will trigger an instant `SIGSEGV` crash.
+*   **The Fix:** Application-side texture destruction must be deferred. Create a simple "garbage collection" array in your plugin. When an image is no longer needed, push its handle into the array alongside the current `XPLMGetCycleNumber()`. In a background flight loop, safely call `DestroyTexture` only on handles that are at least 2 or 3 cycles old.
 
-However, if you are migrating an older plugin and need to temporarily prevent legacy OpenGL textures from crashing your modern windows, you must branch your *draw logic* inside your override of `buildInterface()` using the bool getter function, `ImgWindow::IsUsingPanelGraphics()`.
+#### Caveat C: The Uninitialized Handle / Null Pointer Trap
+In legacy OpenGL, attempting to bind texture ID `0` would safely unbind the texture, often just drawing a blank white square. Vulkan and Metal are not forgiving.
+*   **The Trap:** If you pass a garbage memory address (an uninitialized handle) or a `nullptr` directly into Vulkan, the driver will instantly crash.
+*   **The Fix:** Ensure every single `ImTextureID` variable in your plugin is explicitly initialized to `nullptr` or `0` upon creation. (The `ImgWindow` framework now internally guards against passing `nullptr` references to the GPU, but it cannot protect you against random, uninitialized memory addresses.)
 
-In that case, you can temporarily stub out any crashing OpenGL textures using a macro until you are ready to rewrite your texture generation for Panel Graphics. This way, you can at least confirm that the rest of your ImGui rendering is properly using the Panel Graphics API (i.e., for fonts and standard UI elements):
+#### Caveat D: Custom Textures & `ImGui::Image()` Legacy Conversion
+The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL texture IDs. If your UI code generates custom textures via `glGenTextures()` and passes those raw GL integer IDs into `ImGui::Image()`, **X-Plane will instantly crash** if that specific window is being rendered via Panel Graphics.
+
+**The Fix:** Upgrade your texture generation to use the `ImgPanelGraphics::IsAvailable()` proxy functions. If you need to temporarily prevent legacy OpenGL textures from crashing modern windows while you migrate, branch your draw logic using `ImgWindow::IsUsingPanelGraphics()`:
+
 ```cpp
-// Example macro to hide legacy OpenGL textures while testing ImGui via Panel Graphics:
 #define HIDE_FROM_PG(x) if (!this->IsUsingPanelGraphics()) { x }
 
-// Example usage in your ImGui user interface code:
 HIDE_FROM_PG(
     ImGui::Image((void*)(intptr_t)myLegacyGLTextureId, ImVec2(100, 100));
 )
 ```
 
-#### Caveat B: No "Lazy" Window Creation in Draw Callbacks
-Under the legacy OpenGL pipeline, it was technically possible (though ill-advised) to lazily instantiate a new XPLM Window (e.g., calling `XPLMCreateWindowEx`) from *within* an active drawing callback. 
-
-**This is strictly forbidden under Panel Graphics.** Attempting to create a new window while the Panel Graphics rendering pipeline is mid-execution will trigger a hard assert in Laminar's engine and instantly crash the simulator.
-
-**The Fix:** Window creation must happen outside of the draw cycle. If your UI logic determines a new window is needed during a draw callback, set a boolean flag (latch). Then, check that flag inside a standard XPLM Flight Loop callback (e.g., `xplm_FlightLoop_Phase_BeforeFlightModel`), create the window there, and clear the flag.
+#### Caveat E: No "Lazy" Window Creation in Draw Callbacks
+Under OpenGL, it was technically possible to lazily instantiate a new XPLM Window (`XPLMCreateWindowEx`) from *within* an active drawing callback. 
+**This is strictly forbidden under Panel Graphics.** Attempting to create a new window while the pipeline is mid-execution will trigger a hard assert in Laminar's engine and instantly crash the simulator.
+**The Fix:** Window creation must happen outside of the draw cycle. Set a boolean flag during your draw cycle, and construct the window inside a standard `xplm_FlightLoop_Phase_BeforeFlightModel` callback instead.
 
 ---
 
@@ -168,11 +169,6 @@ To mitigate this, `ImgWindow` includes an optional **Texture Bake Delay**. This 
 **YMMV (Your Mileage May Vary):** Depending on your hardware and the complexity of your font atlas, this delay may or may not make a visually significant difference. It is provided strictly as a tuning knob for developers trying to smooth out off-putting text flashing during initial window loads.
 
 To enable the delay, call the setter **immediately after** constructing the window (within the same flight loop cycle). If you defer the call, it will have no effect.
-(If you want such a delay for all instances of a particular subclass derived from `ImgWindow`, then you simply call `SetTextureBakeDelay(true)` from within the class' constructor, since it is always run after the main `ImgWindow::ImgWindow()` constructor is run, thus setting the "bake delay" so it takes effect before you return from creating the window.)
-
-**_Caveat:_** This method should **not** be _required_ at all, so you can safely ignore this section entirely. It's only here for visual polish once things are working, if you find you have any windows that are so font-laden that they end up looking strange to users when they are first opened!  **There is no _requirement_ in Panel Graphics to "bake" your font textures (or any textures, for that matter).**
-
-**Example** (for a single, specific window, just after you've created it, but before you return control to XPLM):
 
 ```cpp
 // Immediately after creating the window, e.g.:
@@ -180,11 +176,8 @@ MyImgWindowSubclass *myHeavyWindow = new MyImgWindowSubclass(...);
 
 // Hold the window transparent for 2 frames (default) upon creation:
 myHeavyWindow->SetTextureBakeDelay(true); 
-
-// Or specify a custom frame delay for exceptionally heavy textures:
-myHeavyWindow->SetTextureBakeDelay(true, 5);  // 5-frame initial delay
 ```
-*(Note: This setting is ignored completely if the window falls back to legacy OpenGL, so you do not need to wrap it in an `IsUsingPanelGraphics()` check.)*
+*(Note: This setting is ignored completely if the window falls back to legacy OpenGL).*
 
 ---
 

@@ -44,6 +44,7 @@ v1.92.x). Later versions may work fine, but no guarantees are made.
 
 * `ImgWindow` and `ImgFontAtlas` - Wrappers for the [dear imgui](https://github.com/ocornut/imgui) Immediate Mode GUI library
 * **Dynamic X-Plane 12.4.4+ Panel Graphics support (Vulkan/Metal)** with automatic legacy OpenGL fallback.
+* `ImgPanelGraphics` - Dynamic runtime symbol proxy namespace for zero-dependency backward compatibility.
 
 ## No longer supported (see original repository):
 
@@ -54,23 +55,32 @@ the goal of this `ImgWindow`-focused project to support `XSquawkBox` anymore.
 
 ---
 
-## Call for Testers! (September, 2026)
+## Community Testing & Status (September, 2026)
 
-We are actively looking for developers to test the new Panel Graphics bridging support across different platforms (Windows, Mac, Linux) and build environments. If you maintain a plugin that uses `ImgWindow`, please try dropping in this latest update and running it in legacy OpenGL mode *and* native Panel Graphics mode. Report any issues, blown-out colors, or build failures on the issue tracker!
+The new dynamic Panel Graphics bridge has been verified stable across **Windows, macOS (Metal), and Linux (Vulkan)** in both legacy OpenGL fallback mode and native XPLM 4.4 Panel Graphics mode. 
+
+If you maintain a plugin that uses `ImgWindow`, you can safely drop in this update to modernize your rendering pipeline. We continue to welcome developer feedback, edge-case testing, and contributions via the issue tracker and pull requests!
 
 ---
 
 ## Modern Panel Graphics Support (Vulkan / Metal)
 
-`ImgWindow` now features _optional_ support for X-Plane's modern **Panel Graphics API** (introduced in the XPLM v4.4 SDK). This allows your plugin to render UI natively through X-Plane's Vulkan/Metal graphics pipeline, completely bypassing the legacy OpenGL rendering pipeline.
+`ImgWindow` features full, production-ready support for X-Plane's modern **Panel Graphics API** (introduced in the XPLM v4.4 SDK / X-Plane 12.4.4+). This allows your plugin to render UI natively through X-Plane's Vulkan/Metal graphics pipeline, bypassing legacy OpenGL completely.
 
-The transition to the newly-optimized, custom ImGui rendering engine using X-Plane's **Panel Graphics API** brings substantially **improved performance**. This transition also **future-proofs** your plugin against the eventual deprecation of OpenGL support. `ImgWindow` handles this seamlessly if it's configured to use Panel Graphics: it automatically detects the host simulator's capabilities at runtime, and routes your UI to the modern Panel Graphics (direct Vulkan/Metal) backend on X-Plane 12.4.4+, while gracefully falling back to standard OpenGL on older versions.  You may of course also choose to stay with OpenGL in all cases; it's simply a matter of a single build configuration flag change! (See the [Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md) for details.)
+The transition to native **Panel Graphics** brings substantially **improved rendering performance**, eliminates OpenGL context overhead, and **future-proofs** your plugin against the eventual deprecation of OpenGL. 
 
-**With the dynamic Panel Graphics "bridge" optionally provided by `ImgWindow`, there is no need to maintain two separate codebases or force your plugin's users to upgrade X-Plane.** 
+### Why Use `ImgWindow` for Panel Graphics?
+* **Zero-Downtime Backward Compatibility:** With our dynamic bridge (`ImgPanelGraphics`), a single binary will run on modern Vulkan/Metal on X-Plane 12.4.4+ while seamlessly falling back to OpenGL on X-Plane 11.10 through 12.4.3. You do **not** need to build separate plugin binaries or force users to update their simulator.
+* **Internal Lifecycle & Atlas Safeguards:** The framework automatically manages the shared font atlas across multi-window environments, guards against Vulkan null-descriptor pipeline crashes, and coordinates background atlas rebuilds outside of drawing callbacks.
 
-⚠️ **However, migrating to Panel Graphics requires specific changes to how you manage custom textures and window lifecycles.** Modern graphics APIs are strictly asynchronous and highly unforgiving of legacy OpenGL paradigms.
+### ⚠️ Strict Architectural Rules for Plugin Developers
+While `ImgWindow` makes rendering seamless, modern graphics APIs are strictly asynchronous and highly unforgiving of legacy OpenGL paradigms. If your plugin loads custom UI textures or manages windows dynamically, you must adhere to three fundamental rules:
 
-👉 **[Read the Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md)** for complete instructions on enabling this using a build flag, as well as practical issues for first-time Panel Graphics users, such as avoiding invalid texture CTDs and safely managing window instantiation.
+1. **Main-Thread GPU Allocations Only:** All calls to `ImgPanelGraphics::CreateTexture()` must execute on X-Plane's main serialization thread. Background worker threads can decode files (`stbi_load`), but raw pixel buffers must be dispatched back to the main thread before allocating GPU memory.
+2. **Deferred Texture Destruction:** Vulkan/Metal draw calls are deferred and queued. Calling `ImgPanelGraphics::DestroyTexture()` synchronously the moment a UI screen closes will destroy memory while the GPU is still drawing it, triggering an instant `SIGSEGV`. Plugins must defer texture cleanup by 2–3 flight loop cycles via a garbage collection queue.
+3. **Mandatory 4-Channel RGBA Buffers:** Panel Graphics strictly requires 32-bit RGBA image buffers. Loading 3-channel RGB images will cause instant memory overrun crashes in the Vulkan driver.
+
+👉 **[Read the Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md)** for complete CMake build configurations, step-by-step migration examples for `ImGui::Image()`, and architectural guides on avoiding invalid texture crashes.
 
 ---
 
@@ -100,7 +110,7 @@ To set up the "submodule" connection within your project:
 
 ```bash
 % cd /path/to/project_sources
-% git submodule add https://github.com/slgoldberg/ImgWindow third-party/ImgWindow
+% git submodule add [https://github.com/slgoldberg/ImgWindow](https://github.com/slgoldberg/ImgWindow) third-party/ImgWindow
 % git commit -m "Replace embedded ImgWindow from slgoldberg's fork"
 ```
 
