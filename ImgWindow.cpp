@@ -175,12 +175,12 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         // 3. GPU Upload
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
         if (ImgPanelGraphics::IsAvailable()) {
-            if (textureID != nullptr) {
-                ImgPanelGraphics::DestroyTexture(textureID);
-                textureID = nullptr;
-            }
             // Sanitize texture RGB to accommodate anti-aliasing in light of straight-alpha blending
             if (outInfo.pixels && outInfo.width > 0 && outInfo.height > 0) {
+                if (textureID != nullptr) {
+                    ImgPanelGraphics::DestroyTexture(textureID);
+                }
+                
                 std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
                 
                 // N.B.: ImGui's font atlas generator can sometimes leave RGB values as black (0,0,0) in otherwise fully transparent areas.
