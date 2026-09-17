@@ -666,6 +666,12 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
     #else
                     dc.tex_ref = (void*)(intptr_t)pcmd->GetTexID();
     #endif
+                    
+                    // CRITICAL GUARD: Vulkan will segfault if tex_ref is null.
+                    if (dc.tex_ref == nullptr) {
+                        continue;
+                    }
+
                     dc.scissors[0] = pcmd->ClipRect.x;
                     dc.scissors[1] = pcmd->ClipRect.y;
                     dc.scissors[2] = pcmd->ClipRect.z;
@@ -1415,9 +1421,9 @@ float ImgWindow::FontAtlasRebuildFLCB(float inElapsedSinceLastCall,
         return -1.0f;  // Skip rendering this frame.
     }
     
-    // Check if the font atlas needs rebuilding before the draw phase begins.
-    // If it's dirty, CheckAndRebuildAtlas will recreate the XPLMCreateTexture resource safely.
-    if (sFontAtlas && sFontAtlas->getAtlas()) {
+    // ONLY run the background atlas rebuild if we are using Panel Graphics!
+    // Legacy OpenGL MUST rebuild during the draw callback (updateImgui) to have a valid GL context.
+    if (ImgPanelGraphics::IsAvailable() && sFontAtlas && sFontAtlas->getAtlas()) {
         // We pass a dummy ID reference because the shared atlas texture ID tracker 
         // handles the actual updates underneath inside CheckAndRebuildAtlas.
         void* dummyTexID = nullptr;
