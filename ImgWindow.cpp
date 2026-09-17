@@ -143,7 +143,9 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     //   if (!glIsTexture((GLuint)(uintptr_t)atlas->TexID.GetTexID())) need_rebuild = true;
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     if (!need_rebuild) {
-        if (ImgPanelGraphics::IsAvailable()) {
+        if (atlas->TexData == nullptr) {
+            need_rebuild = true;
+        } else if (ImgPanelGraphics::IsAvailable()) {
             if ((void*)(intptr_t)atlas->TexData->GetTexRef().GetTexID() == nullptr) {
                 need_rebuild = true;
             }
@@ -156,9 +158,13 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         }
     }
 #else
-    if (!need_rebuild && atlas->TexData->GetTexRef().GetTexID()) {
-        if (!glIsTexture((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID()))
+    if (!need_rebuild) {
+        if (atlas->TexData == nullptr) {
             need_rebuild = true;
+        } else if (atlas->TexData->GetTexRef().GetTexID()) {
+            if (!glIsTexture((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID()))
+                need_rebuild = true;
+        }
     }
 #endif
     if (!need_rebuild && atlas->Fonts.Size > 0) {
@@ -1417,7 +1423,10 @@ float ImgWindow::FontAtlasRebuildFLCB(float inElapsedSinceLastCall,
     if (sFontAtlas && sFontAtlas->getAtlas()) {
         // We pass a dummy ID reference because the shared atlas texture ID tracker 
         // handles the actual updates underneath inside CheckAndRebuildAtlas.
-        void* dummyTexID = (void*)(intptr_t)sFontAtlas->getAtlas()->TexData->GetTexRef().GetTexID();
+        void* dummyTexID = nullptr;
+        if (sFontAtlas->getAtlas()->TexData) {
+            dummyTexID = (void*)(intptr_t)sFontAtlas->getAtlas()->TexData->GetTexRef().GetTexID();
+        }
         CheckAndRebuildAtlas(sFontAtlas->getAtlas(), dummyTexID);
     }
     return -1.0f; // Call every frame
