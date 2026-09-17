@@ -178,11 +178,11 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         ImgFontAtlas::strct_texture_info outInfo;
         ImgFontAtlas::GetCustomAtlasTextureData(atlas, outInfo);
 
-        // 3. GPU Upload
+        // 3. GPU Upload & Link
+        if (outInfo.pixels && outInfo.width > 0 && outInfo.height > 0)
+        {
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-        if (ImgPanelGraphics::IsAvailable()) {
-            // Sanitize texture RGB to accommodate anti-aliasing in light of straight-alpha blending
-            if (outInfo.pixels && outInfo.width > 0 && outInfo.height > 0) {
+            if (ImgPanelGraphics::IsAvailable()) {
                 if (textureID != nullptr) {
                     ImgPanelGraphics::DestroyTexture(textureID);
                 }
@@ -202,61 +202,41 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
                     p[2] = 255;
                 }
                 textureID = ImgPanelGraphics::CreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
-            }
-            // 4. Link
-            // ... to the atlas's internal tracker, so ImGui can use it for rendering.
-            atlas->TexData->SetTexID((ImTextureID)(intptr_t)textureID);
-            if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
-                ImgWindow::sFontAtlas->updateTextureTracking(textureID);
-            }
-        } else {
-            // OpenGL fallback logic, but working with textureID as a void*
-            GLuint glTextureID = (GLuint)(intptr_t)textureID;
-            if (glTextureID == 0 || !glIsTexture(glTextureID)) {
-                int texNum = 0;
-                XPLMGenerateTextureNumbers(&texNum, 1);
-                glTextureID = (GLuint)texNum;
-            }
+                
+                // 4. Link
+                if (atlas->TexData) {
+                    atlas->TexData->SetTexID((ImTextureID)(intptr_t)textureID);
+                }
+                if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
+                    ImgWindow::sFontAtlas->updateTextureTracking(textureID);
+                }
+            } else
+#endif
+            {
+                // OpenGL fallback logic
+                GLuint glTextureID = (GLuint)(intptr_t)textureID;
+                if (glTextureID == 0 || !glIsTexture(glTextureID)) {
+                    int texNum = 0;
+                    XPLMGenerateTextureNumbers(&texNum, 1);
+                    glTextureID = (GLuint)texNum;
+                }
 
-            if (outInfo.pixels) {
                 XPLMBindTexture2d((int)glTextureID, 0);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
+
+                // 4. Link
+                textureID = (void*)(intptr_t)glTextureID;
+                if (atlas->TexData) {
+                    atlas->TexData->SetTexID((ImTextureID)(uintptr_t)glTextureID);
+                }
+                if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
+                    ImgWindow::sFontAtlas->updateTextureTracking(textureID);
+                }
             }
-
-            // 4. Link
-            textureID = (void*)(intptr_t)glTextureID;
-            atlas->TexData->SetTexID((ImTextureID)(uintptr_t)glTextureID);
-            if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
-                ImgWindow::sFontAtlas->updateTextureTracking(textureID);
-            }
         }
-#else
-        // If texture ID is 0 or invalid, generate a new one.
-        if (textureID == 0 || !glIsTexture(textureID)) {
-            int texNum = 0;
-            XPLMGenerateTextureNumbers(&texNum, 1);
-            textureID = (GLuint)texNum;
-        }
-
-        if (outInfo.pixels) {
-            XPLMBindTexture2d((int)textureID, 0);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
-        }
-
-        // 4. Link
-        // ... to the atlas's internal tracker, so ImGui can use it for rendering.
-        atlas->TexData->SetTexID((ImTextureID)(uintptr_t)textureID);
-        if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
-            // ... to our custom wrapper, so it can automatically delete the texture on destruction.
-            ImgWindow::sFontAtlas->updateTextureTracking((int)textureID);
-        }
-#endif
         // 5. Safely mark as built to prevent infinite FLCB rebuild loops.
         // We only do this if we actually extracted valid pixels (meaning ImGui actually built it).
         if (outInfo.pixels) {
