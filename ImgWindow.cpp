@@ -228,6 +228,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
 
                 // 4. Link
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
                 textureID = (void*)(intptr_t)glTextureID;
                 if (atlas->TexData) {
                     atlas->TexData->SetTexID((ImTextureID)(uintptr_t)glTextureID);
@@ -235,6 +236,15 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
                 if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
                     ImgWindow::sFontAtlas->updateTextureTracking(textureID);
                 }
+#else
+                textureID = glTextureID;
+                if (atlas->TexData) {
+                    atlas->TexData->SetTexID((ImTextureID)(uintptr_t)glTextureID);
+                }
+                if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
+                    ImgWindow::sFontAtlas->updateTextureTracking((int)textureID);
+                }
+#endif
             }
         }
         // 5. Safely mark as built to prevent infinite FLCB rebuild loops.
@@ -402,11 +412,11 @@ ImgWindow::ImgWindow(
     // Sync texture ID:
     // if CheckAndRebuildAtlas() above did its job, mFontTexture is set; if the shared atlas was already built, grab the ID here.
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    if ((void*)(intptr_t)io.Fonts->TexData->GetTexID() != nullptr) {
+    if (io.Fonts->TexData && (void*)(intptr_t)io.Fonts->TexData->GetTexID() != nullptr) {
         mFontTexture = (void*)(intptr_t)io.Fonts->TexData->GetTexID();
     }
 #else
-    if (io.Fonts->TexData->GetTexID() != 0) {
+    if (io.Fonts->TexData && io.Fonts->TexData->GetTexID() != 0) {
         mFontTexture = static_cast<GLuint>((intptr_t)io.Fonts->TexData->GetTexID());
     }
 #endif
@@ -808,6 +818,13 @@ ImgWindow::updateImgui()
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
         if (!ImgPanelGraphics::IsAvailable()) {
             CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
+        } else {
+            // Panel Graphics handles rebuilding asynchronously in FontAtlasRebuildFLCB,
+            // but we MUST sync our local mFontTexture to the active backend texture ID here
+            // to prevent ~ImgWindow() from double-freeing a destroyed texture upon exit.
+            if (mFontAtlas->getAtlas()->TexData) {
+                mFontTexture = (void*)(intptr_t)mFontAtlas->getAtlas()->TexData->GetTexRef().GetTexID();
+            }
         }
 #else
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
