@@ -459,7 +459,7 @@ ImgWindow::ImgWindow(
         windowParams.decorateAsFloatingWindow = decoration;
         windowParams.layer = layer;
         windowParams.handleRightClickFunc = HandleRightClickFuncCB;
-        windowParams.windowContentType = xplm_WindowContentTypePanelGraphics;
+        windowParams.contentType = xplm_WindowContentTypePanelGraphics;
         
         mWindowID = XPLMCreateWindowEx(reinterpret_cast<XPLMCreateWindow_t*>(&windowParams));
         

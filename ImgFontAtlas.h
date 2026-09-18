@@ -194,7 +194,10 @@ struct SpoofedXPLMCreateWindow_t_440 {
     XPLMWindowDecoration      decorateAsFloatingWindow;
     XPLMWindowLayer           layer;
     XPLMHandleMouseClick_f    handleRightClickFunc;
-    XPLMWindowContentType     windowContentType;
+    union {
+        XPLMWindowContentType     windowContentType; // Old name (SDK 12.4.0d4)
+        XPLMWindowContentType     contentType;       // New name (SDK 12.4.0b1)
+    };
     void*                     browserLoadFinishedFunc;
     void*                     browserLoadErrorFunc;
 };
