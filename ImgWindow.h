@@ -48,6 +48,11 @@
 
 #include "ImgFontAtlas.h"
 
+// Enforce constraint that IMGWINDOW_USE_PANEL_GRAPHICS requires IMGUI_V192_REFACTOR (modern dynamic font atlas support).
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS) && !defined(IMGUI_V192_REFACTOR)
+    #error "IMGWINDOW_USE_PANEL_GRAPHICS requires IMGUI_V192_REFACTOR (modern dynamic font atlas support)."
+#endif
+
 /** ImgWindow is a Window for creating dear imgui widgets within.
  *
  * There's a few traps to be aware of when using dear imgui with X-Plane:
@@ -146,6 +151,9 @@ public:
     /** Is Window inside the sim? */
     bool IsInsideSim () const { return !IsPoppedOut() && !IsInVR(); }
     
+    /** Is Window using XPLM v4.4+'s Panel Graphics API instead of OpenGL? */
+    bool IsUsingPanelGraphics () const;
+    
     /** Set the positioning mode
      * @see https://developer.x-plane.com/sdk/XPLMDisplay/#XPLMWindowPositioningMode */
     void SetWindowPositioningMode (XPLMWindowPositioningMode inPosMode,
@@ -188,6 +196,17 @@ public:
      */
     bool IsInsideWindowDragArea (int x, int y) const;
     
+    /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
+     *  windows, starting from when the window is first rendered.
+     *  (Note: This only has effect for Panel Graphics windows. It is
+     *  ignored entirely for all OpenGL-based windows as it's irrelevant.
+     *  But the setting can still be called without harm to avoid plugin
+     *  authors needing to check for Panel Graphics availability themselves.)
+     * @param enableDelay Whether to enable the ghosting delay (off by default)
+     * @param frameCount Number of frames to delay, defaulting to 2.
+     */
+    void SetTextureBakeDelay(bool enableDelay, int frameCount = 2);
+    
 protected:
     /** mFirstRender can be checked during buildInterface() to see if we're
      * being rendered for the first time or not.  This is particularly
@@ -198,6 +217,10 @@ protected:
      * calls once and once only.
      */
     bool mFirstRender;
+    
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    int mGhostFramesRemaining = 0;  // no delay unless SetTextureBakeDelay() is called immediately after creation.
+#endif
 
     /** Construct a window with the specified bounds
      *
@@ -329,6 +352,12 @@ private:
     static std::queue<ImgWindow *>  sPendingDestruction;
     static XPLMFlightLoopID         sSelfDestructHandler;
 
+    static float FontAtlasRebuildFLCB(float inElapsedSinceLastCall,
+                                      float inElapsedTimeSinceLastFlightLoop,
+                                      int inCounter,
+                                      void *inRefcon);
+    static XPLMFlightLoopID         sFontAtlasRebuildHandler;
+
     int HandleMouseClickGeneric(
         int x, int y,
         XPLMMouseStatus inMouse,
@@ -353,7 +382,11 @@ private:
 
     XPLMWindowID mWindowID;
     ImGuiContext *mImGuiContext;
-    GLuint mFontTexture;
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+    void* mFontTexture = nullptr;
+#else
+    GLuint mFontTexture = 0;
+#endif
 
     int mTop;
     int mBottom;
@@ -414,5 +447,5 @@ protected:
         operator bool() const { return wnd || left || top || right || bottom; }
     } dragWhat;
 };
-
+ 
 #endif // #ifndef IMGWINDOW_H
