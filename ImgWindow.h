@@ -40,6 +40,9 @@
 #include <climits>
 #include <string>
 #include <memory>
+#include <vector>
+#include <algorithm>
+#include <utility>
 
 #include <XPLMDisplay.h>
 #include <XPLMProcessing.h>
@@ -196,6 +199,7 @@ public:
      */
     bool IsInsideWindowDragArea (int x, int y) const;
     
+#ifdef IMGUI_V192_REFACTOR
     /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
      *  windows, starting from when the window is first rendered.
      *  (Note: This only has effect for Panel Graphics windows. It is
@@ -205,9 +209,20 @@ public:
      * @param enableDelay Whether to enable the ghosting delay (off by default)
      * @param frameCount Number of frames to delay, defaulting to 2.
      */
+    /** Add a custom plugin texture to the deferred garbage collection queue */
+    void TrashCustomTexture(ImTextureID texture);
+    
+    /** Process pending textures for deferred destruction */
+    void ProcessGarbageQueue();
+#endif /* IMGUI_V192_REFACTOR */
+
     void SetTextureBakeDelay(bool enableDelay, int frameCount = 2);
     
 protected:
+    // Deferred Texture Lifecycle Management (Phase 6)
+    // Pair: {Texture Handle, Frames Remaining Until Safe Deletion}
+    std::vector<std::pair<ImTextureID, int>> mGarbageQueue;
+
     /** mFirstRender can be checked during buildInterface() to see if we're
      * being rendered for the first time or not.  This is particularly
      * important for windows that use Columns as SetColumnWidth() should only

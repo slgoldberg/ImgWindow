@@ -902,6 +902,11 @@ ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
 
     thisWindow->RenderImGui(ImGui::GetDrawData());
 
+#ifdef IMGUI_V192_REFACTOR
+    // Process asynchronous deferred custom texture destruction
+    thisWindow->ProcessGarbageQueue();
+#endif /* IMGUI_V192_REFACTOR */
+
     // Give subclasses a chance to do something after all rendering
     thisWindow->afterRendering();
 
@@ -1390,6 +1395,88 @@ ImgWindow::SafeDelete()
     }
     XPLMScheduleFlightLoop(sSelfDestructHandler, -1, 1);
 }
+
+#ifdef IMGUI_V192_REFACTOR
+void ImgWindow::TrashCustomTexture(ImTextureID texture) {
+    if (texture) {
+        // Prevent duplicate entries. If it's already in the queue, just leave it.
+        auto it = std::find_if(mGarbageQueue.begin(), mGarbageQueue.end(),
+                               [texture](const std::pair<ImTextureID, int>& item) {
+                                   return item.first == texture;
+                               });
+        
+        if (it == mGarbageQueue.end()) {
+            // Push with a 3-frame cooldown to guarantee it clears the Vulkan/Metal deferred queue
+            mGarbageQueue.push_back({texture, 3});
+        }
+    }
+}
+
+void ImgWindow::ProcessGarbageQueue() {
+    if (mGarbageQueue.empty()) return;
+
+    std::vector<ImTextureID> active_textures;
+
+    // 1. Collect actively referenced textures across ALL viewports (Docking Support)
+#ifdef IMGUI_HAS_VIEWPORT
+    ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+    for (int i = 0; i < platform_io.Viewports.Size; i++) {
+        ImDrawData* draw_data = platform_io.Viewports[i]->DrawData;
+        if (draw_data && draw_data->Valid) {
+            for (int n = 0; n < draw_data->CmdListsCount; n++) {
+                const ImDrawList* cmd_list = draw_data->CmdLists[n];
+                for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+                    active_textures.push_back(cmd_list->CmdBuffer[cmd_i].GetTexID());
+                }
+            }
+        }
+    }
+#else
+    ImDrawData* draw_data = ImGui::GetDrawData();
+    if (draw_data && draw_data->Valid) {
+        for (int n = 0; n < draw_data->CmdListsCount; n++) {
+            const ImDrawList* cmd_list = draw_data->CmdLists[n];
+            for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
+                active_textures.push_back(cmd_list->CmdBuffer[cmd_i].GetTexID());
+            }
+        }
+    }
+#endif
+
+    // 2. Sort active textures to enable fast O(log N) binary search
+    std::sort(active_textures.begin(), active_textures.end());
+
+    // 3. Process the garbage queue using the erase-remove idiom
+    mGarbageQueue.erase(std::remove_if(mGarbageQueue.begin(), mGarbageQueue.end(), [&](std::pair<ImTextureID, int>& item) {
+        
+        // Check if the texture is still actively in the CPU draw list
+        if (std::binary_search(active_textures.begin(), active_textures.end(), item.first)) {
+            item.second = 3; // Reset cooldown! It was drawn this frame.
+            return false;    // Keep in queue
+        }
+
+        // Texture has cleared CPU. Decrement Vulkan frame cooldown.
+        item.second--;
+        if (item.second > 0) {
+            return false; // Still cooling down, keep in queue
+        }
+
+        // Texture has cleared both CPU and GPU queues. Safe to destroy!
+#ifdef IMGWINDOW_USE_PANEL_GRAPHICS
+        if (ImgPanelGraphics::IsAvailable()) {
+            ImgPanelGraphics::DestroyTexture((void*)(intptr_t)item.first);
+        } else {
+            GLuint glTextureId = (GLuint)(intptr_t)item.first;
+            glDeleteTextures(1, &glTextureId);
+        }
+#else
+        GLuint glTextureId = (GLuint)(intptr_t)item.first;
+        glDeleteTextures(1, &glTextureId);
+#endif
+        return true; // Remove from queue
+    }), mGarbageQueue.end());
+}
+#endif /* IMGUI_V192_REFACTOR */
 
 std::queue<ImgWindow *>  ImgWindow::sPendingDestruction;
 XPLMFlightLoopID         ImgWindow::sSelfDestructHandler = nullptr;
