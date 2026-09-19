@@ -181,6 +181,14 @@ myHeavyWindow->SetTextureBakeDelay(true);
 
 ---
 
+## Unified Texture Garbage Collection
+
+This is **temporary** -- we will replace this and clean up for release.
+
+For now, please read this separate document: [Unified Texture Garbage Collection](./Unified-Texture-Garbage-Collection.md)
+
+---
+
 ### Call for Errata or Omissions
 
 As with the main [README](../README.md), please feel free to submit a PR or feedback directly to the author if you are interested in improving this document, correcting any inaccuracies or outright errors, and/or adding more relevant examples, tools, documentation, or references.
