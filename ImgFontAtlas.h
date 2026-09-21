@@ -216,7 +216,7 @@ namespace ImgPanelGraphics {
 
     // Dynamically loaded Panel Graphics API wrappers
     void* CreateTexture(const unsigned char* rgba_image, int width, int height);
-    void DestroyTexture(void* tex_ref);
+    void DestroyTexture(void* tex_ref); //TODO: Should we annotate this for users to recommend they use ImgWindow::SafeDeleteTexture() instead??
     void DrawCalls(const XPLMMesh_t* inMesh, int inCount, const XPLMDrawCall_t inDrawCalls[]);
 }
 
