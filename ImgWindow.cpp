@@ -56,6 +56,11 @@
 #endif
 /* End ImGui version checks and refactor macros. */
 
+/* Fallback for ImDrawCallback_ResetRenderState if not defined by the user's ImGui version */
+#ifndef ImDrawCallback_ResetRenderState
+#define ImDrawCallback_ResetRenderState (ImDrawCallback)(-8)
+#endif
+
 #ifdef IMGUI_V190_REFACTOR
 static ImGuiKey vpXPLMKeyToImGuiKey(int inVirtualKey) {
     switch (inVirtualKey) {
