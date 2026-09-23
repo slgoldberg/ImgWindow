@@ -3,23 +3,38 @@
 The sources in this repository are shared with the greater X-Plane developer
 community in the hope that it may save somebody a headache some day.
 
-This repository ONLY contains the files needed for the `ImgWindow` class
-and the `ImgFontAtlas` wrapper for binding to ImGui v1.84 through v1.92.x,
-and has been updated to completely hide the core changes in ImGui v1.92.x
-to provide simple migration from older versions of ImGui vis-a-vis fonts
-and keyboard API changes in ImGui, requiring no code changes for either.
+This was originally the public XSquawkBox Public (`xsb_public`) repository, which contained several components, including `ImgWindow` and its dependencies. But it has been heavily expanded to add some critically important improvements for using **Dear ImGui** in C++ X-Plane plugins. 
 
-This was originally the public XSquawkBox Public (xsb_public) repository,
-which contained several components, including ImgWindow and its dependencies.
+Here are the major additions to the framework:
 
-This is the new home, forked from Chris Collins' original repository by
-Steven L. Goldberg (slgoldberg), and focused down to just ImgWindow and
-ImgFontAtlas, with some added sample code including various font examples.
++ **Full support for major Dear ImGui API changes** (while keeping ImGui v1.8x compatibility):
+  
+  - **`ImGui v1.90` Keyboard event processing:**<br>
+  This is a completely transparent rewrite under the hood. XPLM Window API's keyboard handling remains identical from your plugin's perspective, but it fully supports ImGui's v1.90 keyboard IO refactor. You still get full "editing shortcuts" (Ctrl+C/V, Shift+arrow selections) working perfectly across Windows, Linux, and macOS.
+  
+  - **`ImGui v1.92` Font Atlas changes:**<br>
+  The new `ImFontAtlas` features (like dynamic loading) are fully supported. Crucially, the `ImgFontAtlas` wrapper painstakingly preserves the _exact_ same "shared atlas" semantics that earlier versions used. You can still construct a single shared atlas at plugin-enable time, and it will fill in missing glyphs automatically.
+  
+    _**N.B.:** We did this so your code shouldn't have to change at all. We intentionally hide ImGui's new per-window atlas management (which would needlessly complicate 98% of X-Plane plugins). ImgWindow just auto-detects your ImGui version at compile time and does the heavy lifting for you._
 
-If users need the other public sources from `xsb_public`, please see the
-original repository from which this was forked. Going forward, please
-submit any Pull Requests to slgoldberg on *this* repository to contribute
-improvements back for ImgWindow or ImgFontAtlas.
++ **A dynamic "Panel Graphics Bridge":**<br>
+  If you're using ImGui v1.92+, you can finally take advantage of the modern X-Plane 12.4.4+ **Panel Graphics API** (Vulkan/Metal) _without_ forcing your plugin to require `XPLM440=1`!
+  
+  > [!NOTE]
+  > _**N.B.:** This is a critical build choice! If you just define `IMGWINDOW_USE_PANEL_GRAPHICS` in your build, the framework automatically uses dynamic bindings to render via Panel Graphics on XP12.4.4+, but gracefully falls back to legacy OpenGL on older simulators. If you define `XPLM440=1` instead, you will hard-break backwards compatibility with older versions of X-Plane and OpenGL. Don't do that unless you genuinely only want to support the bleeding edge. Read the [Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md) for the gory details._
+
++ **Right-drag window moving:**<br>
+An opt-in feature allowing the framework to move in-simulator windows automatically if the user right-clicks and drags anywhere on the window (saving them from hunting for a tiny drag region).
+
++ **Cursor invalidation on blur:**<br>
+Automatically invalidates the cursor position when the window loses focus, ensuring it updates correctly when the user clicks back in.
+
++ **Optional Per-Window Custom ImGui Cursors:**<br>
+Opt-in support for dynamic ImGui mouse cursors. If enabled, the plugin can change the mouse cursor based on what ImGui is hovering over (e.g., an I-beam over text inputs, or a pointing finger over buttons). These were always part of the ImGui API, but ImgWindow used to ignore them. Now, it ensures the cursor is properly handed off between X-Plane and ImGui.
+
++ And more...
+
+_(Note: This repository is maintained by Steven L. Goldberg (`slgoldberg`) and was forked from Chris Collins' original `xsb_public` repository. Going forward, this fork **only** contains the source files needed for `ImgWindow` and `ImgFontAtlas`. If you need the other legacy utility code from the original project -- specifically `WavFile` or `XOGLUtils` -- please see the original repository instead. Going forward, please submit any Pull Requests or other feedback, directly on **this** repository, which can be found at <http://github.com/slgoldberg/ImgWindow>. **Read below** for detailed usage information, as well as an important migration guide for the new **Panel Graphics** support if you are planning to enable it for your plugin.)_
 
 ## Licensing Note
 
@@ -42,9 +57,10 @@ v1.92.x). Later versions may work fine, but no guarantees are made.
 
 ## Components in this Repository
 
-* `ImgWindow` and `ImgFontAtlas` - Wrappers for the [dear imgui](https://github.com/ocornut/imgui) Immediate Mode GUI library
-* **Dynamic X-Plane 12.4.4+ Panel Graphics support (Vulkan/Metal)** with automatic legacy OpenGL fallback.
-* `ImgPanelGraphics` - Dynamic runtime symbol proxy namespace for zero-dependency backward compatibility.
+* `ImgWindow` and `ImgFontAtlas` - Wrappers for the [Dear ImGui](https://github.com/ocornut/imgui) immediate mode GUI library.
+* **Dynamic X-Plane 12.4.4+ Panel Graphics support** - Enable your build to render ImGui via **Panel Graphics** _or_ **OpenGL fallback**, depending on which version of X-Plane it is loaded on! (I.e., build a single backward-compatible binary for each target platform.)
+  - _Note: this includes an option to build with the entire v4.4 SDK, **only** supporting Panel Graphics on X-Plane v12.4.4 and later (**without** backwards compatibility support for OpenGL rendering)._
+* `ImgPanelGraphics::` - Dynamic runtime symbol proxy namespace for zero-dependency backward compatibility (!!). Details within.
 
 ## No longer supported (see original repository):
 
@@ -57,9 +73,11 @@ the goal of this `ImgWindow`-focused project to support `XSquawkBox` anymore.
 
 ## Community Testing & Status (September, 2026)
 
-The new dynamic Panel Graphics bridge has been verified stable across **Windows, macOS (Metal), and Linux (Vulkan)** in both legacy OpenGL fallback mode and native XPLM 4.4 Panel Graphics mode. 
+The new dynamic Panel Graphics bridge has been verified stable across **Windows, macOS (Metal), and Linux (Vulkan)** in both legacy OpenGL fallback mode and native XPLM 4.4 Panel Graphics mode, as well as the fully functional, hybrid "bridge" mode where *both* `OpenGL` *and* `Panel Graphics` are supported (based on the current running version of X-Plane). Detailed documentation is included and provides simple ways for plugin authors to migrate to using the new Panel Graphics support, among other things.
 
 If you maintain a plugin that uses `ImgWindow`, you can safely drop in this update to modernize your rendering pipeline. We continue to welcome developer feedback, edge-case testing, and contributions via the issue tracker and pull requests!
+
+The area we are most interested in finding other plugins to test for us -- besides the basic bridge functionality to choose between Panel Graphics and OpenGL -- is plugins that manage custom **textures**, because this can be a difficult problem due to new constraints imposed by the architecture of Panel Graphics.  With the support of `ImgWindow::SafeDeleteTexture()` for example, we believe we can mitigate most of these issues through either proxies or in this case, an extension to `ImgWindow` itself, to make this entirely safe and robust -- saving developers many painful hours of creating entire new subsystems just to manage the safe deletion of custom textures (referenced by `ImTextureID`s)!  Read more below and on the referenced user guide.
 
 ---
 
@@ -77,7 +95,7 @@ The transition to native **Panel Graphics** brings substantially **improved rend
 While `ImgWindow` makes rendering seamless, modern graphics APIs are strictly asynchronous and highly unforgiving of legacy OpenGL paradigms. If your plugin loads custom UI textures or manages windows dynamically, you must adhere to three fundamental rules:
 
 1. **Main-Thread GPU Allocations Only:** All calls to `ImgPanelGraphics::CreateTexture()` must execute on X-Plane's main serialization thread. Background worker threads can decode files (`stbi_load`), but raw pixel buffers must be dispatched back to the main thread before allocating GPU memory.
-2. **Deferred Texture Destruction:** Vulkan/Metal draw calls are deferred and queued. Calling `ImgPanelGraphics::DestroyTexture()` synchronously the moment a UI screen closes will destroy memory while the GPU is still drawing it, triggering an instant `SIGSEGV`. Plugins must defer texture cleanup by 2–3 flight loop cycles via a garbage collection queue.
+2. **Deferred Texture Destruction:** Vulkan/Metal draw calls are deferred and queued. Calling `ImgPanelGraphics::DestroyTexture()` synchronously the moment a UI screen closes will destroy memory while the GPU is still drawing it, triggering an instant `SIGSEGV`. Plugins must defer texture cleanup. To abstract this, `ImgWindow` provides the `SafeDeleteTexture()` method, which uses an active draw-list deep scan and a 3-frame cooldown to safely dispose of textures in the background.
 3. **Mandatory 4-Channel RGBA Buffers:** Panel Graphics strictly requires 32-bit RGBA image buffers. Loading 3-channel RGB images will cause instant memory overrun crashes in the Vulkan driver.
 
 👉 **[Read the Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md)** for complete CMake build configurations, step-by-step migration examples for `ImGui::Image()`, and architectural guides on avoiding invalid texture crashes.
@@ -110,7 +128,7 @@ To set up the "submodule" connection within your project:
 
 ```bash
 % cd /path/to/project_sources
-% git submodule add [https://github.com/slgoldberg/ImgWindow](https://github.com/slgoldberg/ImgWindow) third-party/ImgWindow
+% git submodule add https://github.com/slgoldberg/ImgWindow third-party/ImgWindow
 % git commit -m "Replace embedded ImgWindow from slgoldberg's fork"
 ```
 

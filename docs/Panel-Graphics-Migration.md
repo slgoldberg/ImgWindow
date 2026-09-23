@@ -214,7 +214,7 @@ myCustomTex = nullptr;  // Always null out your own pointers!
 
 #### How It Works Behind the Scenes
 1. **Unified API:** It works seamlessly regardless of whether you are running the modern Panel Graphics pipeline or the legacy OpenGL fallback. _(Note: this API is not supported if you are using an older versions of ImGui before v1.92!)_
-2. **Smart Synchronization:** The framework queries ImGui's internal CPU draw lists. It waits until the texture is no longer being actively drawn in *any* viewport. _N.B.: `ImGui::SafeDeleteTexture()` does **not** depend on ImGui's `ImTextureStatus` enum values for this, because it is unfortunately only applicable to CPU state. ImgWindow's safe deletion synchronization is much safer and more effective, especially in the context of our Vulkan cooldown support, described next._
+2. **Smart Synchronization:** The framework queries ImGui's internal CPU draw lists. It waits until the texture is no longer being actively drawn in *any* viewport. _N.B.: `ImgWindow::SafeDeleteTexture()` does **not** depend on ImGui's `ImTextureStatus` enum values for this, because it is unfortunately only applicable to CPU state. ImgWindow's safe deletion synchronization is much safer and more effective, especially in the context of our Vulkan cooldown support, described next._
 3. **Vulkan Cooldown:** Once the texture clears the CPU, the framework applies a strict 3-frame cooldown to guarantee the GPU command queues have completely flushed before silently destroying the texture in the background.
 
 ---
