@@ -1422,6 +1422,21 @@ void ImgWindow::SafeDeleteTexture(ImTextureID texture) {
 
 #ifdef IMGWINDOW_USE_PANEL_GRAPHICS
     if (ImgPanelGraphics::IsAvailable()) {
+        // --- EAGER FLCB STARTUP ---
+        // If a developer deletes a texture BEFORE they open their first window,
+        // the FLCB won't be running to empty the queue. We must eagerly start it here!
+        if (sFontAtlasRebuildHandler == nullptr) {
+            XPLMCreateFlightLoop_t flParams = {
+                sizeof(XPLMCreateFlightLoop_t),
+                xplm_FlightLoop_Phase_BeforeFlightModel,
+                FontAtlasRebuildFLCB,
+                nullptr
+            };
+            sFontAtlasRebuildHandler = XPLMCreateFlightLoop(&flParams);
+            XPLMScheduleFlightLoop(sFontAtlasRebuildHandler, -1.0f, 1);
+        }
+        // --------------------------
+
         // Defer destruction to the next flight loop (Vulkan requirement)
         s_vulkanDisposalQueue.push_back((void*)(intptr_t)texture);
         return;
