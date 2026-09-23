@@ -201,7 +201,7 @@ public:
     
 #ifdef IMGUI_V192_REFACTOR
     /** Add a custom plugin texture to the deferred safe disposal queue */
-    void SafeDeleteTexture(ImTextureID texture);
+    static void SafeDeleteTexture(ImTextureID texture);
 #endif /* IMGUI_V192_REFACTOR */
 
     /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
@@ -217,9 +217,6 @@ public:
     
 protected:
     bool mIsPendingDestruction = false;
-    // Deferred Texture Lifecycle Management (Phase 6)
-    // Pair: {Texture Handle, Frames Remaining Until Safe Deletion}
-    std::vector<std::pair<ImTextureID, int>> mSafeDisposalQueue;
 
     /** mFirstRender can be checked during buildInterface() to see if we're
      * being rendered for the first time or not.  This is particularly
@@ -387,15 +384,6 @@ private:
     void translateImguiToBoxel(float inX, float inY, int &outX, int &outY);
 
     void translateToImguiSpace(int inX, int inY, float &outX, float &outY);
-
-#ifdef IMGUI_V192_REFACTOR
-    /** Process pending textures for deferred destruction.
-     *  (This is only meant to be called by the ImgWindow class itself,
-     *  since there are restrictions on where it is allowed in Panel
-     *  Graphics, in particular. So subclasses should be ignorant to it.)
-     */
-    void DeleteExpiredTextures();
-#endif /* IMGUI_V192_REFACTOR */
 
     float mModelView[16], mProjection[16];
     int mViewport[4];

@@ -95,10 +95,10 @@ void LoadMyCustomTexture(const char* filepath) {
 When a texture is no longer needed, you no longer have to manually branch the destruction or build flight loops to protect Vulkan queues. Just hand the texture to the ImgWindow garbage collector:
 
 ```cpp
-void UnloadMyCustomTexture(ImgWindow* myWindow) {
+void UnloadMyCustomTexture() {
     if (myCustomTexture) {
         // Let the framework safely manage the Vulkan deferred execution queue!
-        myWindow->SafeDeleteTexture(myCustomTexture);
+        ImgWindow::SafeDeleteTexture(myCustomTexture);
         myCustomTexture = nullptr; // Always reset handles!
     }
 }
@@ -130,7 +130,7 @@ The X-Plane SDK enforces a strict **Serialization Rule**. All core XPLM API call
 Under Panel Graphics, all draw operations are deferred. ImgWindow submits your UI draw lists to a Vulkan command queue to be rendered later by the GPU.
 
 *   **The Trap:** If you navigate away from a UI screen and synchronously call `ImgPanelGraphics::DestroyTexture()` on its custom images, you will free that VRAM while the GPU is still trying to read it to process the previous frame's queue. This will trigger an instant SIGSEGV crash.
-*   **The Fix:** Application-side texture destruction must be deferred. **You no longer need to build your own flight-loop arrays for this.** ImgWindow now features a built-in garbage collector. Simply pass your expired texture handles to `thisWindow->SafeDeleteTexture(myTextureId)`. The framework will perform a deep-scan to ensure ImGui is done with it, wait the required 3-frame Vulkan cooldown, and automatically destroy it in the background.
+*   **The Fix:** Application-side texture destruction must be deferred. **You no longer need to build your own flight-loop arrays for this.** Simply pass your expired texture handles to `ImgWindow::SafeDeleteTexture(myTextureId)`. The framework will automatically defer the destruction to the next X-Plane flight loop phase to safely clear the Vulkan pipeline.
 
 #### Caveat C: The Uninitialized Handle / Null Pointer Trap
 In legacy OpenGL, attempting to bind texture ID `0` would safely unbind the texture, often just drawing a blank white square. Vulkan and Metal are not forgiving.
@@ -208,14 +208,13 @@ When you are done with a custom texture (e.g., a user closes a window, or you ar
 // below -- i.e., ImgWindow::SafeDeleteTexture().
 
 // New way (100% safe!):
-myWindow->SafeDeleteTexture(myCustomTex);  // Expects an ImTextureID
+ImgWindow::SafeDeleteTexture(myCustomTex);  // Expects an ImTextureID
 myCustomTex = nullptr;  // Always null out your own pointers!
 ```
 
 #### How It Works Behind the Scenes
-1. **Unified API:** It works seamlessly regardless of whether you are running the modern Panel Graphics pipeline or the legacy OpenGL fallback. _(Note: this API is not supported if you are using an older versions of ImGui before v1.92!)_
-2. **Smart Synchronization:** The framework queries ImGui's internal CPU draw lists. It waits until the texture is no longer being actively drawn in *any* viewport. _N.B.: `ImgWindow::SafeDeleteTexture()` does **not** depend on ImGui's `ImTextureStatus` enum values for this, because it is unfortunately only applicable to CPU state. ImgWindow's safe deletion synchronization is much safer and more effective, especially in the context of our Vulkan cooldown support, described next._
-3. **Vulkan Cooldown:** Once the texture clears the CPU, the framework applies a strict 3-frame cooldown to guarantee the GPU command queues have completely flushed before silently destroying the texture in the background.
+1. **Unified API:** It works seamlessly regardless of whether you are running the modern Panel Graphics pipeline or the legacy OpenGL fallback. _(Note: this API is not supported if you are using an older version of ImGui before v1.92!)_
+2. **Flight Loop Deferral:** The framework automatically catches the texture and schedules its destruction for the next X-Plane flight loop cycle. Because the flight loop executes on the main thread outside of the drawing phase, this perfectly satisfies Vulkan's asynchronous requirements without any complex cooldown logic.
 
 ---
 
