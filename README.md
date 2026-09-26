@@ -91,12 +91,13 @@ The transition to native **Panel Graphics** brings substantially **improved rend
 * **Zero-Downtime Backward Compatibility:** With our dynamic bridge (`ImgPanelGraphics`), a single binary will run on modern Vulkan/Metal on X-Plane 12.4.4b3+ while seamlessly falling back to OpenGL on X-Plane 11.10 through early betas of 12.4.4 (b1 and b2). You do **not** need to build separate plugin binaries or force users to update their simulator.
 * **Internal Lifecycle & Atlas Safeguards:** The framework automatically manages the shared font atlas across multi-window environments and guards against Vulkan null-descriptor pipeline crashes.
 
-### ⚠️ Strict Architectural Rules for Plugin Developers
-While `ImgWindow` makes rendering seamless, modern graphics APIs have strict requirements compared to legacy OpenGL paradigms. If your plugin loads custom UI textures or manages windows dynamically, you must adhere to three fundamental rules:
+### 🛠️ Developing with `ImgWindow` (X-Plane 12.4.4b3+)
+Because Laminar Research relaxed the strict Panel Graphics phase restrictions in X-Plane 12.4.4b3, developing for modern Vulkan/Metal now feels exactly like legacy OpenGL! You can safely create and destroy textures or manage windows directly inside your draw callbacks without manually managing deferred flight-loops.
 
-1. **Main-Thread GPU Allocations Only:** All calls to `ImgWindow::CreateCustomTexture()` must execute on X-Plane's main serialization thread. Background worker threads can decode files (`stbi_load`), but raw pixel buffers must be dispatched back to the main thread before allocating GPU memory.
-2. **Synchronous Texture Management & The Unified API:** Thanks to API relaxations in X-Plane 12.4.4b3, X-Plane now handles GPU memory deferral natively. This means it is fully safe to create and destroy textures synchronously, even inside drawing callbacks! To abstract the complexity of supporting both backends, always use the unified `ImgWindow::CreateCustomTexture()` and `ImgWindow::DestroyCustomTexture()` wrappers instead of managing raw `GLuint` or Vulkan handles yourself.
-3. **Mandatory 4-Channel RGBA Buffers:** Panel Graphics strictly requires 32-bit RGBA image buffers. Loading 3-channel RGB images will cause instant memory overrun crashes in the Vulkan driver.
+Just keep these two simple rules in mind:
+
+1. **Use the Unified Texture API:** To abstract the complexity of supporting both Panel Graphics and the legacy OpenGL fallback, always use the unified `ImgWindow::CreateCustomTexture()` and `ImgWindow::DestroyCustomTexture()` wrappers instead of managing raw `GLuint` handles yourself. These are 100% safe to call synchronously on the main thread (including inside draw callbacks!).
+2. **Mandatory 4-Channel RGBA Buffers:** Panel Graphics strictly requires 32-bit RGBA image buffers. Loading 3-channel RGB images will cause instant memory overrun crashes in the Vulkan driver.
 
 👉 **[Read the Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md)** for complete CMake build configurations, step-by-step migration examples for `ImGui::Image()`, and architectural guides on avoiding invalid texture crashes.
 

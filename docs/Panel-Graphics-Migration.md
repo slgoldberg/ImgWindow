@@ -110,7 +110,7 @@ While `ImgWindow` automatically handles the rendering pipeline abstraction, it *
 #### Caveat A: Strict Main-Thread Execution (No Background Allocation)
 The X-Plane SDK enforces a strict **Serialization Rule**. All core XPLM API calls must occur sequentially on X-Plane's main thread. 
 *   **The Trap:** If you use background threads (e.g., `std::thread`, `std::async`) for asynchronous texture loading, you **cannot** call `ImgPanelGraphics::CreateTexture()` from that background thread. Doing so will generate an invalid cross-thread handle or fatally crash the Vulkan driver. Legacy OpenGL drivers occasionally permitted off-thread allocation, but Panel Graphics strictly forbids it.
-*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, save them to a struct and use a flag or a flight loop callback to hand those bytes back to the **main X-Plane thread**, where you will actually call `CreateTexture`.
+*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, hand them back to the **main X-Plane thread** (e.g., during your next window draw or flight-loop callback) where you will actually call `CreateTexture`.
 
 #### Caveat B: Synchronous Texture Management (X-Plane 12.4.4b3+)
 In earlier betas, Panel Graphics required manual flight-loop deferral to prevent destroying textures while the GPU was still reading them. This was a nightmare for plugin developers.
@@ -133,11 +133,6 @@ HIDE_FROM_PG(
     ImGui::Image((void*)(intptr_t)myLegacyGLTextureId, ImVec2(100, 100));
 )
 ```
-
-#### Caveat E: No "Lazy" Window Creation in Draw Callbacks
-Under OpenGL, it was technically possible to lazily instantiate a new XPLM Window (`XPLMCreateWindowEx`) from *within* an active drawing callback. 
-**This is strictly forbidden under Panel Graphics.** Attempting to create a new window while the pipeline is mid-execution will trigger a hard assert in Laminar's engine and instantly crash the simulator.
-**The Fix:** Window creation must happen outside of the draw cycle. Set a boolean flag during your draw cycle, and construct the window inside a standard `xplm_FlightLoop_Phase_BeforeFlightModel` callback instead.
 
 ---
 
