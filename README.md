@@ -77,25 +77,25 @@ The new dynamic Panel Graphics bridge has been verified stable across **Windows,
 
 If you maintain a plugin that uses `ImgWindow`, you can safely drop in this update to modernize your rendering pipeline. We continue to welcome developer feedback, edge-case testing, and contributions via the issue tracker and pull requests!
 
-The area we are most interested in finding other plugins to test for us -- besides the basic bridge functionality to choose between Panel Graphics and OpenGL -- is plugins that manage custom **textures**, because this can be a difficult problem due to new constraints imposed by the architecture of Panel Graphics.  With the support of `ImgWindow::SafeDeleteTexture()` for example, we believe we can mitigate most of these issues through either proxies or in this case, an extension to `ImgWindow` itself, to make this entirely safe and robust -- saving developers many painful hours of creating entire new subsystems just to manage the safe deletion of custom textures (referenced by `ImTextureID`s)!  Read more below and on the referenced user guide.
+The area we are most interested in finding other plugins to test for us -- besides the basic bridge functionality to choose between Panel Graphics and OpenGL -- is plugins that manage custom **textures**, because this can be a difficult problem due to the differing architectural requirements of Panel Graphics versus legacy OpenGL.  With the support of `ImgWindow::CreateCustomTexture()` and `ImgWindow::DestroyCustomTexture()` for example, we mitigate these issues by providing a unified texture multiplexing API. This allows developers to seamlessly create and destroy textures that work across both backends without having to write separate `#ifdef` pipelines, saving hours of development time. Read more below and on the referenced user guide.
 
 ---
 
 ## Modern Panel Graphics Support (Vulkan / Metal)
 
-`ImgWindow` features full, production-ready support for X-Plane's modern **Panel Graphics API** (introduced in the XPLM v4.4 SDK / X-Plane 12.4.4+). This allows your plugin to render UI natively through X-Plane's Vulkan/Metal graphics pipeline, bypassing legacy OpenGL completely.
+`ImgWindow` features full, production-ready support for X-Plane's modern **Panel Graphics API** (introduced in the XPLM v4.4 SDK / X-Plane 12.4.4b3+). This allows your plugin to render UI natively through X-Plane's Vulkan/Metal graphics pipeline, bypassing legacy OpenGL completely.
 
 The transition to native **Panel Graphics** brings substantially **improved rendering performance**, eliminates OpenGL context overhead, and **future-proofs** your plugin against the eventual deprecation of OpenGL. 
 
 ### Why Use `ImgWindow` for Panel Graphics?
-* **Zero-Downtime Backward Compatibility:** With our dynamic bridge (`ImgPanelGraphics`), a single binary will run on modern Vulkan/Metal on X-Plane 12.4.4+ while seamlessly falling back to OpenGL on X-Plane 11.10 through 12.4.3. You do **not** need to build separate plugin binaries or force users to update their simulator.
-* **Internal Lifecycle & Atlas Safeguards:** The framework automatically manages the shared font atlas across multi-window environments, guards against Vulkan null-descriptor pipeline crashes, and coordinates background atlas rebuilds outside of drawing callbacks.
+* **Zero-Downtime Backward Compatibility:** With our dynamic bridge (`ImgPanelGraphics`), a single binary will run on modern Vulkan/Metal on X-Plane 12.4.4b3+ while seamlessly falling back to OpenGL on X-Plane 11.10 through early betas of 12.4.4 (b1 and b2). You do **not** need to build separate plugin binaries or force users to update their simulator.
+* **Internal Lifecycle & Atlas Safeguards:** The framework automatically manages the shared font atlas across multi-window environments and guards against Vulkan null-descriptor pipeline crashes.
 
 ### ⚠️ Strict Architectural Rules for Plugin Developers
-While `ImgWindow` makes rendering seamless, modern graphics APIs are strictly asynchronous and highly unforgiving of legacy OpenGL paradigms. If your plugin loads custom UI textures or manages windows dynamically, you must adhere to three fundamental rules:
+While `ImgWindow` makes rendering seamless, modern graphics APIs have strict requirements compared to legacy OpenGL paradigms. If your plugin loads custom UI textures or manages windows dynamically, you must adhere to three fundamental rules:
 
-1. **Main-Thread GPU Allocations Only:** All calls to `ImgPanelGraphics::CreateTexture()` must execute on X-Plane's main serialization thread. Background worker threads can decode files (`stbi_load`), but raw pixel buffers must be dispatched back to the main thread before allocating GPU memory.
-2. **Deferred Texture Destruction:** Vulkan/Metal draw calls are deferred and queued. Calling `ImgPanelGraphics::DestroyTexture()` synchronously the moment a UI screen closes will destroy memory while the GPU is still drawing it, triggering an instant `SIGSEGV`. Plugins must defer texture cleanup. To abstract this, `ImgWindow` provides the `SafeDeleteTexture()` method, which safely defers texture disposal to the next X-Plane flight loop phase.
+1. **Main-Thread GPU Allocations Only:** All calls to `ImgWindow::CreateCustomTexture()` must execute on X-Plane's main serialization thread. Background worker threads can decode files (`stbi_load`), but raw pixel buffers must be dispatched back to the main thread before allocating GPU memory.
+2. **Synchronous Texture Management & The Unified API:** Thanks to API relaxations in X-Plane 12.4.4b3, X-Plane now handles GPU memory deferral natively. This means it is fully safe to create and destroy textures synchronously, even inside drawing callbacks! To abstract the complexity of supporting both backends, always use the unified `ImgWindow::CreateCustomTexture()` and `ImgWindow::DestroyCustomTexture()` wrappers instead of managing raw `GLuint` or Vulkan handles yourself.
 3. **Mandatory 4-Channel RGBA Buffers:** Panel Graphics strictly requires 32-bit RGBA image buffers. Loading 3-channel RGB images will cause instant memory overrun crashes in the Vulkan driver.
 
 👉 **[Read the Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md)** for complete CMake build configurations, step-by-step migration examples for `ImGui::Image()`, and architectural guides on avoiding invalid texture crashes.

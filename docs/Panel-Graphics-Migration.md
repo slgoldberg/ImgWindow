@@ -68,37 +68,23 @@ void LoadMyCustomTexture(const char* filepath) {
     
     if (!rgba_pixels) return;
 
-    if (ImgPanelGraphics::IsAvailable()) {
-        // MODERN PIPELINE: Vulkan / Metal
-        void* panelTexHandle = ImgPanelGraphics::CreateTexture(rgba_pixels, width, height);
-        myCustomTexture = (ImTextureID)(intptr_t)panelTexHandle;
-    } else {
-        // LEGACY PIPELINE: OpenGL Fallback
-        GLuint glTextureId = 0;
-        glGenTextures(1, &glTextureId);
-        glBindTexture(GL_TEXTURE_2D, glTextureId);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_pixels);
-        
-        myCustomTexture = (ImTextureID)(intptr_t)glTextureId;
-    }
+    // Unified Multiplexing API: Let ImgWindow abstract the backends!
+    myCustomTexture = ImgWindow::CreateCustomTexture(rgba_pixels, width, height);
     
     stbi_image_free(rgba_pixels);
 }
 ```
 
-*Note on Alpha Blending:* Panel Graphics relies on straight alpha blending. If your image has fully transparent areas with black RGB values (0, 0, 0, 0), it may cause dark halos around semi-transparent edges. Ensure your assets are exported with a white matte, or manually sanitize the RGB channels of fully transparent pixels before calling `ImgPanelGraphics::CreateTexture()`.
+*Note on Alpha Blending:* Panel Graphics relies on straight alpha blending. If your image has fully transparent areas with black RGB values (0, 0, 0, 0), it may cause dark halos around semi-transparent edges. Ensure your assets are exported with a white matte, or manually sanitize the RGB channels of fully transparent pixels before calling `ImgWindow::CreateCustomTexture()`.
 
 ##### Don't forget to clean up!
-When a texture is no longer needed, you no longer have to manually branch the destruction or build flight loops to protect Vulkan queues. Just hand the texture to the ImgWindow garbage collector:
+Thanks to X-Plane 12.4.4b3 handling memory deferral natively, you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely:
 
 ```cpp
 void UnloadMyCustomTexture() {
     if (myCustomTexture) {
-        // Let the framework safely manage the Vulkan deferred execution queue!
-        ImgWindow::SafeDeleteTexture(myCustomTexture);
+        // Safe to call synchronously anywhere!
+        ImgWindow::DestroyCustomTexture(myCustomTexture);
         myCustomTexture = nullptr; // Always reset handles!
     }
 }
@@ -126,11 +112,9 @@ The X-Plane SDK enforces a strict **Serialization Rule**. All core XPLM API call
 *   **The Trap:** If you use background threads (e.g., `std::thread`, `std::async`) for asynchronous texture loading, you **cannot** call `ImgPanelGraphics::CreateTexture()` from that background thread. Doing so will generate an invalid cross-thread handle or fatally crash the Vulkan driver. Legacy OpenGL drivers occasionally permitted off-thread allocation, but Panel Graphics strictly forbids it.
 *   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, save them to a struct and use a flag or a flight loop callback to hand those bytes back to the **main X-Plane thread**, where you will actually call `CreateTexture`.
 
-#### Caveat B: Deferred Texture Destruction (Asynchronous Garbage Collection)
-Under Panel Graphics, all draw operations are deferred. ImgWindow submits your UI draw lists to a Vulkan command queue to be rendered later by the GPU.
-
-*   **The Trap:** If you navigate away from a UI screen and synchronously call `ImgPanelGraphics::DestroyTexture()` on its custom images, you will free that VRAM while the GPU is still trying to read it to process the previous frame's queue. This will trigger an instant SIGSEGV crash.
-*   **The Fix:** Application-side texture destruction must be deferred. **You no longer need to build your own flight-loop arrays for this.** Simply pass your expired texture handles to `ImgWindow::SafeDeleteTexture(myTextureId)`. The framework will automatically defer the destruction to the next X-Plane flight loop phase to safely clear the Vulkan pipeline.
+#### Caveat B: Synchronous Texture Management (X-Plane 12.4.4b3+)
+In earlier betas, Panel Graphics required manual flight-loop deferral to prevent destroying textures while the GPU was still reading them. This was a nightmare for plugin developers.
+*   **The Fix:** As of X-Plane 12.4.4b3, Laminar Research now natively handles all memory deferral under the hood! You may safely call `ImgWindow::DestroyCustomTexture(myTextureId)` synchronously anywhere in your plugin, including right inside your draw callbacks, without triggering a `SIGSEGV` crash. ImgWindow has deprecated its internal garbage collector in favor of this native SDK behavior.
 
 #### Caveat C: The Uninitialized Handle / Null Pointer Trap
 In legacy OpenGL, attempting to bind texture ID `0` would safely unbind the texture, often just drawing a blank white square. Vulkan and Metal are not forgiving.
@@ -186,35 +170,24 @@ myHeavyWindow->SetTextureBakeDelay(true);
 > * **Not Font Atlases:** The framework automatically manages ImGui's font textures for you. 
 > * **Not World Textures:** X-Plane's scenery, aircraft liveries, and `.obj` textures are entirely managed by Laminar's native texture paging system. You don't need to worry about those here!
 
-**The Problem:**
-Under X-Plane 12's modern Vulkan and Metal pipelines, all rendering is deferred via command queues. If you close a UI window and synchronously destroy a custom texture (via `XPLMDestroyTexture` or `glDeleteTextures`), you free the VRAM while the GPU is still processing the previous frame's queue. This results in an instant `SIGSEGV` crash.
+**The Problem (Before X-Plane 12.4.4b3):**
+Under X-Plane 12's modern Vulkan and Metal pipelines, rendering is deferred via command queues. In early betas, if you closed a UI window and synchronously destroyed a custom texture, you freed the VRAM while the GPU was still processing the previous frame's queue. This resulted in an instant `SIGSEGV` crash, forcing developers to build complex flight-loop cooldown queues.
 
-Previously, developers had to build their own custom flight-loop arrays to manually defer texture deletion by 2–3 cycles.
-
-**The Solution:**
-ImgWindow now provides a native, framework-level safe disposal queue to safely manage the lifecycle of custom plugin-owned textures. Instead of managing flight loops or branching your code for OpenGL vs. Panel Graphics, you simply hand the texture to the framework.
+**The Solution (X-Plane 12.4.4b3+):**
+Laminar Research updated the SDK to natively handle GPU memory deferral! You may now safely create and destroy textures synchronously, directly inside your draw callbacks. To make this easy across both OpenGL and Panel Graphics, ImgWindow provides a **Unified Multiplexing API**.
 
 #### How to Use It
-When you are done with a custom texture (e.g., a user closes a window, or you are swapping an image), pass the `ImTextureID` to the new framework method:
+When you are done with a custom texture, simply pass the `ImTextureID` to the unified framework method. This method automatically routes to `ImgPanelGraphics::DestroyTexture` or `glDeleteTextures` depending on your active backend!
 
 ```cpp
-// Old way (crash prone, or requires manual deferral via flight-loop cb):
-// Either:
-//     XPLMDestroyTexture(myCustomTex);  // DON'T USE THIS DIRECTLY!
-// or:
-//     ImgPanelGraphics::DestroyTexture(myCustomTex);  // NOR THIS!
-// (The latter is how you *should* do it but for this requirement for deferred
-// deletion when using panel graphics. So, we recommend you use the new way,
-// below -- i.e., ImgWindow::SafeDeleteTexture().
-
-// New way (100% safe!):
-ImgWindow::SafeDeleteTexture(myCustomTex);  // Expects an ImTextureID
+// 100% safe to call synchronously on the main thread:
+ImgWindow::DestroyCustomTexture(myCustomTex);
 myCustomTex = nullptr;  // Always null out your own pointers!
 ```
 
 #### How It Works Behind the Scenes
-1. **Unified API:** It works seamlessly regardless of whether you are running the modern Panel Graphics pipeline or the legacy OpenGL fallback. _(Note: this API is not supported if you are using an older version of ImGui before v1.92!)_
-2. **Flight Loop Deferral:** The framework automatically catches the texture and schedules its destruction for the next X-Plane flight loop cycle. Because the flight loop executes on the main thread outside of the drawing phase, this perfectly satisfies Vulkan's asynchronous requirements without any complex cooldown logic.
+1. **Unified API:** It works seamlessly regardless of whether you are running the modern Panel Graphics pipeline or the legacy OpenGL fallback. No more `#ifdef` pipelines in your plugin code!
+2. **Native SDK Deferral:** Because X-Plane 12.4.4b3 now natively protects VRAM deferral under the hood, ImgWindow no longer runs background flight-loop garbage collectors, significantly reducing CPU overhead.
 
 ---
 

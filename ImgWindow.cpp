@@ -124,7 +124,6 @@ static XPLMDataRef gProjectionMatrixRef = nullptr;
 static XPLMDataRef gFrameRatePeriodRef  = nullptr;
 
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-static std::vector<void*> s_vulkanDisposalQueue;
 #endif
 
 std::shared_ptr<ImgFontAtlas> ImgWindow::sFontAtlas;
@@ -472,16 +471,6 @@ ImgWindow::ImgWindow(
         
         mWindowID = XPLMCreateWindowEx(reinterpret_cast<XPLMCreateWindow_t*>(&windowParams));
         
-        if (sFontAtlasRebuildHandler == nullptr) {
-            XPLMCreateFlightLoop_t flParams = {
-                sizeof(XPLMCreateFlightLoop_t),
-                xplm_FlightLoop_Phase_BeforeFlightModel,
-                FontAtlasRebuildFLCB,
-                nullptr
-            };
-            sFontAtlasRebuildHandler = XPLMCreateFlightLoop(&flParams);
-            XPLMScheduleFlightLoop(sFontAtlasRebuildHandler, -1.0f, 1);
-        }
     } else 
 #endif
     {
@@ -617,13 +606,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
     if (mFontAtlas && mFontAtlas->getAtlas()) {
         // rebuild and upload *only* if the atlas is actually out of date (e.g., dynamic font size or style changes, etc.)
         // (Note: very inexpensive with early-out returns in common case.)
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-        if (!ImgPanelGraphics::IsAvailable()) {
-            CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
-        }
-#else
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
-#endif
     }
 #endif /* IMGUI_V192_REFACTOR */
 
@@ -643,6 +626,12 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
 
         if (mFontTexture == nullptr || draw_data->CmdListsCount == 0)
             return;
+
+        int left, top, right, bottom;
+        XPLMGetWindowGeometry(mWindowID, &left, &top, &right, &bottom);
+        ImgPanelGraphics::TransformPush();
+        ImgPanelGraphics::TransformTranslate((float)left, (float)top);
+        ImgPanelGraphics::TransformScale(1.0f, -1.0f);
 
         // Render command lists
         for (int n = 0; n < draw_data->CmdListsCount; n++)
@@ -700,6 +689,8 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
                 ImgPanelGraphics::DrawCalls(&mesh, draw_calls.size(), draw_calls.data());
             }
         }
+        
+        ImgPanelGraphics::TransformPop();
     } else
 #endif
     {
@@ -838,20 +829,7 @@ ImgWindow::updateImgui()
     // If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
     // (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
     if (mFontAtlas && mFontAtlas->getAtlas()) {
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-        if (!ImgPanelGraphics::IsAvailable()) {
-            CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
-        } else {
-            // Panel Graphics handles rebuilding asynchronously in FontAtlasRebuildFLCB,
-            // but we MUST sync our local mFontTexture to the active backend texture ID here
-            // to prevent ~ImgWindow() from double-freeing a destroyed texture upon exit.
-            if (mFontAtlas->getAtlas()->TexData) {
-                mFontTexture = (void*)(intptr_t)mFontAtlas->getAtlas()->TexData->GetTexRef().GetTexID();
-            }
-        }
-#else
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
-#endif
     }
 #endif /* IMGUI_V192_REFACTOR */
 
@@ -1416,41 +1394,45 @@ ImgWindow::SafeDelete()
     XPLMScheduleFlightLoop(sSelfDestructHandler, -1, 1);
 }
 
-#ifdef IMGUI_V192_REFACTOR
-void ImgWindow::SafeDeleteTexture(ImTextureID texture) {
-    if (!texture) return;
+ImTextureID ImgWindow::CreateCustomTexture(const unsigned char* pixels, int width, int height) {
+    if (!pixels || width <= 0 || height <= 0) return nullptr;
+    
+#ifdef IMGWINDOW_USE_PANEL_GRAPHICS
+    if (ImgPanelGraphics::IsAvailable()) {
+        void* tex_ref = ImgPanelGraphics::CreateTexture(pixels, width, height);
+        return (ImTextureID)(intptr_t)tex_ref;
+    }
+#endif
+    
+    // Legacy OpenGL Fallback
+    int gl_tex = 0;
+    XPLMGenerateTextureNumbers(&gl_tex, 1);
+    XPLMBindTexture2d(gl_tex, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    
+    return (ImTextureID)(intptr_t)gl_tex;
+}
+
+void ImgWindow::DestroyCustomTexture(ImTextureID textureID) {
+    if (!textureID) return;
 
 #ifdef IMGWINDOW_USE_PANEL_GRAPHICS
     if (ImgPanelGraphics::IsAvailable()) {
-        // --- EAGER FLCB STARTUP ---
-        // If a developer deletes a texture BEFORE they open their first window,
-        // the FLCB won't be running to empty the queue. We must eagerly start it here!
-        if (sFontAtlasRebuildHandler == nullptr) {
-            XPLMCreateFlightLoop_t flParams = {
-                sizeof(XPLMCreateFlightLoop_t),
-                xplm_FlightLoop_Phase_BeforeFlightModel,
-                FontAtlasRebuildFLCB,
-                nullptr
-            };
-            sFontAtlasRebuildHandler = XPLMCreateFlightLoop(&flParams);
-            XPLMScheduleFlightLoop(sFontAtlasRebuildHandler, -1.0f, 1);
-        }
-        // --------------------------
-
-        // Defer destruction to the next flight loop (Vulkan requirement)
-        s_vulkanDisposalQueue.push_back((void*)(intptr_t)texture);
+        ImgPanelGraphics::DestroyTexture((void*)(intptr_t)textureID);
         return;
     }
 #endif
-    // For legacy OpenGL, it is safe to destroy synchronously.
-    GLuint glTextureId = (GLuint)(intptr_t)texture;
+
+    // Legacy OpenGL Fallback
+    GLuint glTextureId = (GLuint)(intptr_t)textureID;
     glDeleteTextures(1, &glTextureId);
 }
-#endif /* IMGUI_V192_REFACTOR */
 
 std::queue<ImgWindow *>  ImgWindow::sPendingDestruction;
 XPLMFlightLoopID         ImgWindow::sSelfDestructHandler = nullptr;
-XPLMFlightLoopID         ImgWindow::sFontAtlasRebuildHandler = nullptr;
 
 float
 ImgWindow::SelfDestructCallback(float /*inElapsedSinceLastCall*/,
@@ -1466,40 +1448,6 @@ ImgWindow::SelfDestructCallback(float /*inElapsedSinceLastCall*/,
     return 0;
 }
 
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-float ImgWindow::FontAtlasRebuildFLCB(float inElapsedSinceLastCall,
-                                      float inElapsedTimeSinceLastFlightLoop,
-                                      int inCounter,
-                                      void *inRefcon)
-{
-    // Before anything, check whether we are still in the "blankout" period.
-    // (If so, skip this frame and wait for the next one.)
-    if (XPLMGetCycleNumber() < ImgWindow::sBlankoutUntilCycle) {
-        return -1.0f;  // Skip rendering this frame.
-    }
-    
-    // Process Vulkan safe disposal queue safely outside the draw loop
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    for (void* tex : s_vulkanDisposalQueue) {
-        ImgPanelGraphics::DestroyTexture(tex);
-    }
-    s_vulkanDisposalQueue.clear();
-#endif
-    
-    // ONLY run the background atlas rebuild if we are using Panel Graphics!
-    // Legacy OpenGL MUST rebuild during the draw callback (updateImgui) to have a valid GL context.
-    if (ImgPanelGraphics::IsAvailable() && sFontAtlas && sFontAtlas->getAtlas()) {
-        // We pass a dummy ID reference because the shared atlas texture ID tracker 
-        // handles the actual updates underneath inside CheckAndRebuildAtlas.
-        void* dummyTexID = nullptr;
-        if (sFontAtlas->getAtlas()->TexData) {
-            dummyTexID = (void*)(intptr_t)sFontAtlas->getAtlas()->TexData->GetTexRef().GetTexID();
-        }
-        CheckAndRebuildAtlas(sFontAtlas->getAtlas(), dummyTexID);
-    }
-    return -1.0f; // Call every frame
-}
-
 /** Support dynamic binding to the panel graphics library.
  *  This allows us to use the panel graphics library if requested when it
  *  is available, or to fall back to the standard OpenGL rendering if
@@ -1512,6 +1460,11 @@ namespace ImgPanelGraphics {
     static void* (*s_CreateTexture)(const unsigned char*, int, int) = nullptr;
     static void (*s_DestroyTexture)(void*) = nullptr;
     static void (*s_DrawCalls)(const XPLMMesh_t*, int, const XPLMDrawCall_t*) = nullptr;
+    
+    static void (*s_TransformPush)() = nullptr;
+    static void (*s_TransformPop)() = nullptr;
+    static void (*s_TransformTranslate)(float, float) = nullptr;
+    static void (*s_TransformScale)(float, float) = nullptr;
 
     static bool s_initialized = false;
     static bool s_available = false;
@@ -1523,9 +1476,32 @@ namespace ImgPanelGraphics {
         s_CreateTexture = (void* (*)(const unsigned char*, int, int)) XPLMFindSymbol("XPLMCreateTexture");
         s_DestroyTexture = (void (*)(void*)) XPLMFindSymbol("XPLMDestroyTexture");
         s_DrawCalls = (void (*)(const XPLMMesh_t*, int, const XPLMDrawCall_t*)) XPLMFindSymbol("XPLMDrawCalls");
+        
+        s_TransformPush = (void (*)()) XPLMFindSymbol("XPLMTransformPush");
+        s_TransformPop = (void (*)()) XPLMFindSymbol("XPLMTransformPop");
+        s_TransformTranslate = (void (*)(float, float)) XPLMFindSymbol("XPLMTransformTranslate");
+        s_TransformScale = (void (*)(float, float)) XPLMFindSymbol("XPLMTransformScale");
 
-        if (s_CreateTexture && s_DestroyTexture && s_DrawCalls) {
-            s_available = true;
+        if (s_CreateTexture && s_DestroyTexture && s_DrawCalls && s_TransformPush && s_TransformPop && s_TransformTranslate && s_TransformScale) {
+            // Verify that we're running within the latest v4.4 (b3+) SDK, or else fall back to legacy OpenGL.
+            // (Breaking Panel Graphics API changes happened after v12.4.4b2,
+            // which has a numeric internal version of 124412. So the final
+            // version of the SDK will be with internal X-Plane version
+            // is > 124412.)
+            XPLMDataRef versionRef = XPLMFindDataRef("sim/version/xplane_internal_version");
+            int xpVersion = versionRef ? XPLMGetDatai(versionRef) : 0;
+            bool hasSafePanelGraphicsVersion = (xpVersion > 124412);
+
+            // Only enable Panel Graphics if we have a safe version, else fall back to legacy OpenGL.
+            if (hasSafePanelGraphicsVersion) {
+                // Fully safe to use Panel Graphics!
+                s_available = true;
+            } else {
+                // SDK v4.4b1/b2 detected: unsafe destruction deferral; force OpenGL fallback with special log entry to alert the user.
+                //FIXME: Consider throwing a fatal error here (or an assert) if XPLM440+ is required by the build configuration. (In that case, we should probably honor the contract to *only* use Panel Graphics, and not fall back to OpenGL.)
+                XPLMDebugString("ImgWindow WARNING: X-Plane Panel Graphics API detected, but requires X-Plane 12.4.4b3 or later. Falling back to legacy OpenGL to prevent instability.\n");
+                s_available = false;
+            }
         }
     }
 
@@ -1545,6 +1521,22 @@ namespace ImgPanelGraphics {
 
     void DrawCalls(const XPLMMesh_t* inMesh, int inCount, const XPLMDrawCall_t inDrawCalls[]) {
         if (s_DrawCalls) s_DrawCalls(inMesh, inCount, inDrawCalls);
+    }
+    
+    void TransformPush() {
+        if (s_TransformPush) s_TransformPush();
+    }
+    
+    void TransformPop() {
+        if (s_TransformPop) s_TransformPop();
+    }
+    
+    void TransformTranslate(float x, float y) {
+        if (s_TransformTranslate) s_TransformTranslate(x, y);
+    }
+    
+    void TransformScale(float x, float y) {
+        if (s_TransformScale) s_TransformScale(x, y);
     }
 }
 

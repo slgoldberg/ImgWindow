@@ -199,10 +199,11 @@ public:
      */
     bool IsInsideWindowDragArea (int x, int y) const;
     
-#ifdef IMGUI_V192_REFACTOR
-    /** Add a custom plugin texture to the deferred safe disposal queue */
-    static void SafeDeleteTexture(ImTextureID texture);
-#endif /* IMGUI_V192_REFACTOR */
+    /** Unified API to create and destroy custom textures dynamically 
+     *  using either Panel Graphics (if available) or OpenGL fallback.
+     */
+    static ImTextureID CreateCustomTexture(const unsigned char* pixels, int width, int height);
+    static void DestroyCustomTexture(ImTextureID textureID);
 
     /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
      *  windows, starting from when the window is first rendered.
@@ -362,11 +363,6 @@ private:
     static std::queue<ImgWindow *>  sPendingDestruction;
     static XPLMFlightLoopID         sSelfDestructHandler;
 
-    static float FontAtlasRebuildFLCB(float inElapsedSinceLastCall,
-                                      float inElapsedTimeSinceLastFlightLoop,
-                                      int inCounter,
-                                      void *inRefcon);
-    static XPLMFlightLoopID         sFontAtlasRebuildHandler;
 
     int HandleMouseClickGeneric(
         int x, int y,

@@ -213,11 +213,18 @@ struct SpoofedXPLMCreateWindow_t_440 {
 namespace ImgPanelGraphics {
     // True if runtime supports Panel Graphics
     bool IsAvailable();
+    
 
     // Dynamically loaded Panel Graphics API wrappers
     void* CreateTexture(const unsigned char* rgba_image, int width, int height);
-    void DestroyTexture(void* tex_ref); //TODO: Should we annotate this for users to recommend they use ImgWindow::SafeDeleteTexture() instead??
+    void DestroyTexture(void* tex_ref);
     void DrawCalls(const XPLMMesh_t* inMesh, int inCount, const XPLMDrawCall_t inDrawCalls[]);
+    
+    // XPLM v4.4 (b3+) Transform API
+    void TransformPush();
+    void TransformPop();
+    void TransformTranslate(float x, float y);
+    void TransformScale(float x, float y);
 }
 
 #endif // IMGWINDOW_USE_PANEL_GRAPHICS
