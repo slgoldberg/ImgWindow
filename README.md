@@ -20,8 +20,8 @@ Here are the major additions to the framework:
 + **A dynamic "Panel Graphics Bridge":**<br>
   If you're using ImGui v1.92+, you can finally take advantage of the modern X-Plane 12.4.4+ **Panel Graphics API** (Vulkan/Metal) _without_ forcing your plugin to require `XPLM440=1`!
   
-  > [!NOTE]
-  > _**N.B.:** This is a critical build choice! If you just define `IMGWINDOW_USE_PANEL_GRAPHICS` in your build, the framework automatically uses dynamic bindings to render via Panel Graphics on XP12.4.4+, but gracefully falls back to legacy OpenGL on older simulators. If you define `XPLM440=1` instead, you will hard-break backwards compatibility with older versions of X-Plane and OpenGL. Don't do that unless you genuinely only want to support the bleeding edge. Read the [Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md) for the gory details._
+> [!NOTE]
+> _**N.B.:** This is a critical build choice! If you just define `IMGWINDOW_USE_PANEL_GRAPHICS` in your build, the framework automatically uses dynamic bindings to render via Panel Graphics on XP12.4.4+, but gracefully falls back to legacy OpenGL on older simulators. If you define `XPLM440=1` instead, you will hard-break backwards compatibility with older versions of X-Plane and OpenGL. Don't do that unless you genuinely only want to support the bleeding edge. Read the [Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md) for the gory details._
 
 + **Right-drag window moving:**<br>
 An opt-in feature allowing the framework to move in-simulator windows automatically if the user right-clicks and drags anywhere on the window (saving them from hunting for a tiny drag region).
