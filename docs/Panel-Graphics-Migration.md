@@ -32,25 +32,44 @@ When your plugin initializes its first ImGui window, `ImgWindow` will log its ro
 
 ---
 
-### 3. Panel Graphics & Custom Textures (`ImgPanelGraphics`)
+### 3. Panel Graphics & Custom Textures
 
 To support the modern Vulkan/Metal rendering pipeline introduced in X-Plane 12, this framework includes a dedicated proxy namespace: `ImgPanelGraphics`.
 
-#### Why a Proxy Namespace?
+#### A. The Proxy Namespace (Do-It-Yourself)
 
-If you compile a plugin using the native `XPLMCreateTexture` functions from the v4.4 SDK, the operating system linker will create a hard dependency on those symbols. If a user attempts to run your plugin in X-Plane 11, the OS will fail to load the plugin entirely because those symbols do not exist.
+If you compile a plugin using the native `XPLM` functions (like `XPLMCreateTexture`) from the v4.4 SDK, the operating system linker creates a hard dependency on those symbols. If a user attempts to run your plugin in older simulators like X-Plane 11, the OS will fail to load the plugin entirely because those symbols do not exist in the older binary.
 
-The `ImgPanelGraphics` namespace solves this by dynamically looking up the Vulkan/Metal functions at runtime. By routing your custom texture and draw calls through this namespace, your plugin will seamlessly utilize modern Panel Graphics on X-Plane 12, while gracefully falling back to OpenGL on older simulators—**without requiring you to compile against the v4.4 SDK.**
+The `ImgPanelGraphics` namespace solves this by dynamically looking up the Vulkan/Metal functions at runtime. If you want to manually manage your own Panel Graphics rendering, you should **never** call the raw XPLM versions directly. Instead, you should always route your calls through our proxies:
+* `ImgPanelGraphics::CreateTexture`
+* `ImgPanelGraphics::DestroyTexture`
+* `ImgPanelGraphics::TransformPush`
+* `ImgPanelGraphics::TransformPop`
+* `ImgPanelGraphics::TransformTranslate`
+* `ImgPanelGraphics::TransformScale`
 
-#### A. Checking Availability
+*(Note: We purposefully do not expose a proxy for `XPLMDrawCalls` here, as the framework strictly manages the ImGui vertex buffer submissions internally).*
 
-Because graphics pipelines are strict, you must determine which pipeline is active before allocating graphics memory. Use the global `ImgPanelGraphics::IsAvailable()` method to branch your initialization logic.
+If you choose to use these proxies directly, and you intend to support either Panel Graphics _or_ OpenGL rendering pipelines (of course, only one or the other, based on the build parameters and/or the runtime environment), you must manually _multiplex_ your plugin's calls based on `ImgPanelGraphics::IsAvailable()` (or the convenience method, `ImgWindow::IsUsingPanelGraphics()` that returns the same boolean result). For example, instead of replacing your legacy OpenGL texture creation logic (if your plugin needed such) with a direct call to `XPLMCreateTexture()`, foregoing the legacy support, you might use the `ImgPanelGraphics::` proxy instead -- for example:
 
-**Crucial:** Do not allocate Vulkan/Metal textures inside an active drawing callback (like `ImgWindow::buildInterface()`). Allocate them during your plugin's initialization (`XPluginEnable`) or in a dedicated pre-drawing flight loop callback (i.e., in code that is only executed once, or when a texture needs to be lazily created).
+```cpp
+if (ImgPanelGraphics::IsAvailable()) {
+    myPanelGraphicsHandle = ImgPanelGraphics::CreateTexture(pixels, w, h);
+} else {
+    // legacy OpenGL fallback
+    glGenTextures(1, &myLegacyGLHandle);
+}
+```
 
-#### B. Loading Custom Textures
+But for an even simpler way to do this, `ImgWindow` provides a unified API to do this "the easy way", detailed below.
 
-**IMPORTANT:** Some plugins use `ImGui::Image()`, for example, to explicitly inject previously-loaded GPU textures into their `Dear ImGui` interfaces. Other plugins stay clear and only use fonts, which are handled entirely by the framework. **If you are using Panel Graphics, and your plugin loads custom textures via `ImgUI::Image()`, then you need to read this _before_ you enable `-DIMGWINDOW_USE_PANEL_GRAPHICS`** -- especially if you intend to support a mixed mode release using Panel Graphics textures on v12.4.4 or later, and OpenGL textures on older versions as far back as XP11.10!  In fact, whether you force the build to only run on `XPLM440` or not, you should _always_ use our proxy `ImgPanelGraphics::CreateTexture()` API wrapper to call the XPLM v4.4 SDK's `XPLMCreateTexture()` function! 
+#### B. The Unified API (The Easy Way)
+
+If your plugin loads custom textures to inject into `Dear ImGui` (e.g., using `ImGui::Image()`), writing boilerplate `if/else` multiplexing blocks everywhere as described above can be quite tedious. Among other things, just managing the return values that are of different types can cause serious issues. (For example, OpenGL texture handles of type `GLuint` will instantly crash the simulator if you attempt to load such handles within a Panel Graphics window!)
+
+To make it so you can have your plugin support _either_ backend (OpenGL _or_ Panel Graphics) completely painlessly, we have pre-baked the two most common use cases directly into the framework. This way, you can skip the manual proxy methods entirely for these two cases, and just use our unified helpers: `ImgWindow::CreateCustomTexture()` and `ImgWindow::DestroyCustomTexture()`. (Of course, you are in no way _required_ to use these; they're just available if you would like to use them, i.e. to reduce unnecessary boilerplate for such common cases.)
+
+These multiplexers automatically determine the active rendering pipeline (Panel Graphics vs. OpenGL), and create the correct type of texture for you **under the hood** -- safely returning an agnostic `ImTextureID` that you can pass directly to ImGui!  These common IDs can be used regardless of whether ImGui is rendering via Panel Graphics, or using OpenGL on older versions of X-Plane that don't support Panel Graphics. Basically, it lets developers focus on the *what* in ImGui terms, not the *how* in low-level rendering pipeline terms.
 
 ##### Always FORCE 4 channels (RGBA) when loading images
 When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graphics API strictly requires a 4-channel RGBA8 buffer. If you feed it a 3-channel RGB buffer, the simulator will instantly crash due to a buffer overrun!  _(To be clear: don't pass 3 or 0 as the final parameter to `stbi_load()`—**explicitly pass 4**)._
@@ -124,7 +143,7 @@ In legacy OpenGL, attempting to bind texture ID `0` would safely unbind the text
 #### Caveat D: Custom Textures & `ImGui::Image()` Legacy Conversion
 The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL texture IDs. If your UI code generates custom textures via `glGenTextures()` and passes those raw GL integer IDs into `ImGui::Image()`, **X-Plane will instantly crash** if that specific window is being rendered via Panel Graphics.
 
-**The Fix:** Upgrade your texture generation to use the `ImgPanelGraphics::IsAvailable()` proxy functions. If you need to temporarily prevent legacy OpenGL textures from crashing modern windows while you migrate, branch your draw logic using `ImgWindow::IsUsingPanelGraphics()`:
+**The Fix:** Upgrade your texture generation to use the unified `ImgWindow::CreateCustomTexture()` API. If you have legacy UI components that you cannot migrate yet, you can temporarily prevent their OpenGL textures from crashing modern windows by branching your draw logic using `ImgWindow::IsUsingPanelGraphics()`:
 
 ```cpp
 #define HIDE_FROM_PG(x) if (!this->IsUsingPanelGraphics()) { x }
