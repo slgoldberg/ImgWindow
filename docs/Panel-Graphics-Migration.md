@@ -68,7 +68,7 @@ If you want to manually manage your own Panel Graphics rendering, you should **n
 | `ImgPanelGraphics::TransformPop` | &rarr; | `XPLMTransformPop` |
 | `ImgPanelGraphics::TransformTranslate` | &rarr; | `XPLMTransformTranslate` |
 | `ImgPanelGraphics::TransformScale` | &rarr; | `XPLMTransformScale` |
-|  _n/a_* | <span style="color: gray;">&rarr;</span> | `XPLMDrawCalls` |
+| &nbsp;_n/a_* | <span style="color: gray;">&rarr;</span> | `XPLMDrawCalls` |
 
 *\* We purposefully do not expose a proxy for `XPLMDrawCalls`, as the framework strictly manages the ImGui vertex buffer submissions internally.*
 
