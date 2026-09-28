@@ -48,6 +48,7 @@ The `ImgWindow` framework automatically manages ImGui's font textures for you wi
 X-Plane's scenery, aircraft liveries, and `.obj` textures are managed natively.
 
 **Does your plugin load custom textures?**
+
 &nbsp;&rarr;&nbsp;If you answered _"yes"_, then you will need to **migrate your texture code** to support Panel Graphics.
 
 First, the **good news**:
@@ -92,7 +93,7 @@ if (ImgPanelGraphics::IsAvailable()) {
 
 But for an even simpler way to do this, `ImgWindow` provides a unified API to do this "the easy way", detailed below.
 
-#### B. Through the ImgWindow Unified Texture API _("The Easy Way")_
+#### B. Through the `ImgWindow` Unified Texture API _("The Easy Way")_
 
 If your plugin loads custom textures to inject into `Dear ImGui` (e.g., using `ImGui::Image()`), writing boilerplate `if/else` multiplexing blocks everywhere as described above can be quite tedious. Among other things, just managing the return values that are of different types can cause serious issues. (For example, OpenGL texture handles of type `GLuint` will instantly crash the simulator if you attempt to load such handles within a Panel Graphics window!)
 
@@ -101,7 +102,7 @@ To make it so you can have your plugin support _either_ backend (OpenGL _or_ Pan
 These multiplexers automatically determine the active rendering pipeline (Panel Graphics vs. OpenGL), and create the correct type of texture for you **under the hood** -- safely returning an agnostic `ImTextureID` that you can pass directly to ImGui!  These common IDs can be used regardless of whether ImGui is rendering via Panel Graphics, or using OpenGL on older versions of X-Plane that don't support Panel Graphics. Basically, it lets developers focus on the *what* in ImGui terms, not the *how* in low-level rendering pipeline terms.
 
 ##### 1. Creating the Texture (Force 4 Channels!)
-When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graphics API strictly requires a 4-channel RGBA8 buffer. If you feed it a 3-channel RGB buffer, the simulator will instantly crash due to a buffer overrun!  _(To be clear: don't pass 3 or 0 as the final parameter to `stbi_load()`—**explicitly pass 4**)._
+When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graphics API strictly requires a 4-channel RGBA8 buffer. If you feed it a 3-channel RGB buffer, the simulator will instantly crash due to a buffer overrun!  _(To be clear: don't pass 3 or 0 as the final parameter to `stbi_load()` -- **explicitly pass 4**)._
 
 ```cpp
 // 1. Define your texture handle globally or in your plugin class
