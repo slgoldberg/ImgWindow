@@ -21,7 +21,8 @@ Here are the major additions to the framework:
   If you're using ImGui v1.92+, you can finally take advantage of the modern X-Plane 12.4.4+ **Panel Graphics API** (Vulkan/Metal) _without_ forcing your plugin to require `XPLM440=1`!
   
 > [!NOTE]
-> _**N.B.:** This is a critical build choice! If you just define `IMGWINDOW_USE_PANEL_GRAPHICS` in your build, the framework automatically uses dynamic bindings to render via Panel Graphics on XP12.4.4+, but gracefully falls back to legacy OpenGL on older simulators. If you define `XPLM440=1` instead, you will hard-break backwards compatibility with older versions of X-Plane and OpenGL. Don't do that unless you genuinely only want to support the bleeding edge. Read the [Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md) for the gory details._
+> This is a **critical build choice!**
+> If you just define `IMGWINDOW_USE_PANEL_GRAPHICS` in your build, the framework automatically uses dynamic bindings to render via Panel Graphics on XP12.4.4+, but gracefully falls back to legacy OpenGL on older simulators. If you define `XPLM440=1` instead, you will hard-break backwards compatibility with older versions of X-Plane and OpenGL. Don't do that unless you genuinely only want to support the bleeding edge. Read the [Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md) for the gory details.
 
 + **Right-drag window moving:**<br>
 An opt-in feature allowing the framework to move in-simulator windows automatically if the user right-clicks and drags anywhere on the window (saving them from hunting for a tiny drag region).
@@ -52,8 +53,7 @@ API**, available in the XPLM v4.4 SDK (starting with X-Plane v12.4.4).
 Components in this library assume the availability of the X-Plane XPLM3 or
 later SDK, and rely on the developer including these files within their own
 build projects for any X-Plane plugins that use ImGui, which must also be
-installed (no less than ImGui v1.84 WIP, and currently no more than ImGui
-v1.92.x). Later versions may work fine, but no guarantees are made.
+installed (no less than ImGui v1.84 WIP, with native support for the new `ImFontAtlas` API in ImGui v1.92+). Later versions may work fine, but no guarantees are made.
 
 ## Components in this Repository
 

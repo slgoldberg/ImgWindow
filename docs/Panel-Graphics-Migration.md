@@ -1,19 +1,24 @@
 ## `ImgWindow` & Panel Graphics: Migration Guide
 
-With the release of X-Plane 12.4.4b1, Laminar Research introduced the **Panel Graphics API** (XPLM v4.4), routing UI rendering through a modern Vulkan/Metal backend. 
+With the release of X-Plane 12.4.4b1, Laminar Research introduced the **Panel Graphics API** (XPLM v4.4), routing UI rendering through a modern Vulkan/Metal backend.
 
 `ImgWindow` now provides a **dynamic, backward-compatible bridge** to this new pipeline. You can inject ImGui directly into the modern Panel Graphics rendering pipeline on X-Plane v12.4.4+ while simultaneously maintaining **100% backward compatibility** with any OpenGL-based versions of X-Plane starting with v11.10 onward (including all versions of v12 as well).
 
 There is no need to maintain two separate codebases or force your users to upgrade X-Plane. The framework detects the host simulator's capabilities at runtime and routes the ImGui draw data accordingly.
 
+> [!NOTE]
+> **Beta Warning:** The XPLM Panel Graphics API is currently a moving target. Laminar Research recently introduced breaking phase relaxations in **X-Plane 12.4.4b3** that are fully supported by this version of `ImgWindow`. 
+> 
+> Because of these breaking changes, native Panel Graphics support is physically locked out on the earlier `b1` and `b2` betas to prevent crashes. If you run a dynamic bridge plugin on `b1` or `b2`, it will safely fall back to legacy OpenGL. Throughout this document, any unqualified references to "X-Plane 12.4.4" assume you are targeting the final release API introduced in `b3`.
+
 ### 1. Build Configurations
 
-You control how `ImgWindow` interacts with Panel Graphics entirely through CMake compiler definitions. 
+You control how `ImgWindow` interacts with Panel Graphics entirely through compiler definition flags. For the purposes of documenting the specific compiler flags and their behavior (i.e., in the table below and referenced throughout this document), we will assume they are defined using `CMake` configuration directives.
 
 | Build Flags | Rendering Pipeline | Simulator Compatibility |
 | :--- | :--- | :--- |
 | <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code> | **Dynamic Bridge (Recommended).** Uses Panel Graphics if XPLM 4.4 is detected at runtime. Falls back to legacy OpenGL otherwise. | **Maximum.** X-Plane 11.10+ through X-Plane 12.4.4+ |
-| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code><br> `-DXPLM440=1` | **Strict Panel Graphics.** Forces modern rendering and strips the OpenGL fallback logic. | **Modern Only.** X-Plane 12.4.4 and newer. Will not load on older versions. |
+| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code><br> <code>&#8209;DXPLM440=1</code> | **Strict Panel Graphics.** Forces modern rendering and strips the OpenGL fallback logic. | **Modern Only.** X-Plane 12.4.4 and newer. Will not load on older versions. |
 | *(None)* | **Strict OpenGL.** Ignores Panel Graphics entirely and forces legacy OpenGL rendering. | **Standard.** X-Plane 11.10+ through current. |
 
 **To enable the recommended Dynamic Bridge in CMake:**
@@ -32,15 +37,29 @@ When your plugin initializes its first ImGui window, `ImgWindow` will log its ro
 
 ---
 
-### 3. Panel Graphics & Custom Textures
+### 3. Custom Textures (e.g., `ImGui::Image`)
 
-To support the modern Vulkan/Metal rendering pipeline introduced in X-Plane 12, this framework includes a dedicated proxy namespace: `ImgPanelGraphics`.
+> [!NOTE]
+> **What "custom textures" are we talking about here?**
+> This section is *only* for custom 2D images you want to draw inside your ImGui windows (like plugin icons, custom gauges, or photos), rendered in your UI using `ImGui::Image()`.
+> * **Not Font Atlases:** The `ImgWindow` framework automatically manages ImGui's font textures for you with its `ImgFontAtlas` service.
+> * **Not World Textures:** X-Plane's scenery, aircraft liveries, and `.obj` textures are managed natively.
+
+Does your plugin load custom textures? If so, you will need to migrate your texture code to support Panel Graphics. 
+
+First, the good news: any rumors you heard about Panel Graphics requiring complex flight-loops to safely create or destroy textures are officially outdated. As of `12.4.4b3`, you can keep your existing synchronous code structure! You can safely create and destroy textures right inside your draw callbacks.
+
+However, you **must** use the new Panel Graphics API to allocate those textures. If you want your plugin to maintain backward compatibility with legacy OpenGL, you will need to explicitly check which pipeline is active and multiplex your calls. You have two choices for how to do this:
 
 #### A. The Proxy Namespace (Do-It-Yourself)
 
+To support this backward compatibility, the framework introduces a dedicated proxy namespace called `ImgPanelGraphics`.
+
 If you compile a plugin using the native `XPLM` functions (like `XPLMCreateTexture`) from the v4.4 SDK, the operating system linker creates a hard dependency on those symbols. If a user attempts to run your plugin in older simulators like X-Plane 11, the OS will fail to load the plugin entirely because those symbols do not exist in the older binary.
 
-The `ImgPanelGraphics` namespace solves this by dynamically looking up the Vulkan/Metal functions at runtime. If you want to manually manage your own Panel Graphics rendering, you should **never** call the raw XPLM versions directly. Instead, you should always route your calls through our proxies:
+This namespace solves the problem by dynamically looking up the Vulkan/Metal functions at runtime. It seamlessly adapts to your build configuration: if you build a backward-compatible plugin (the default), it safely accesses Panel Graphics features only when available; if you explicitly build against the strict v4.4 SDK (which drops legacy OpenGL support), it routes directly. 
+
+If you want to manually manage your own Panel Graphics rendering, you should **never** call the raw XPLM versions directly. Instead, you should always route your calls through our proxies:
 * `ImgPanelGraphics::CreateTexture`
 * `ImgPanelGraphics::DestroyTexture`
 * `ImgPanelGraphics::TransformPush`
@@ -128,19 +147,15 @@ While `ImgWindow` automatically handles the rendering pipeline abstraction, it *
 
 #### Caveat A: Strict Main-Thread Execution (No Background Allocation)
 The X-Plane SDK enforces a strict **Serialization Rule**. All core XPLM API calls must occur sequentially on X-Plane's main thread. 
-*   **The Trap:** If you use background threads (e.g., `std::thread`, `std::async`) for asynchronous texture loading, you **cannot** call `ImgPanelGraphics::CreateTexture()` from that background thread. Doing so will generate an invalid cross-thread handle or fatally crash the Vulkan driver. Legacy OpenGL drivers occasionally permitted off-thread allocation, but Panel Graphics strictly forbids it.
-*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, hand them back to the **main X-Plane thread** (e.g., during your next window draw or flight-loop callback) where you will actually call `CreateTexture`.
+*   **The Trap:** If you use background threads (e.g., `std::thread`, `std::async`) for asynchronous texture loading, you **cannot** call `ImgWindow::CreateCustomTexture()` from that background thread. Doing so will generate an invalid cross-thread handle or fatally crash the Vulkan driver. Legacy OpenGL drivers occasionally permitted off-thread allocation, but Panel Graphics strictly forbids it.
+*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, hand them back to the **main X-Plane thread** (e.g., during your next window draw or flight-loop callback) where you will actually call `ImgWindow::CreateCustomTexture()`.
 
-#### Caveat B: Synchronous Texture Management (X-Plane 12.4.4b3+)
-In earlier betas, Panel Graphics required manual flight-loop deferral to prevent destroying textures while the GPU was still reading them. This was a nightmare for plugin developers.
-*   **The Fix:** As of X-Plane 12.4.4b3, Laminar Research now natively handles all memory deferral under the hood! You may safely call `ImgWindow::DestroyCustomTexture(myTextureId)` synchronously anywhere in your plugin, including right inside your draw callbacks, without triggering a `SIGSEGV` crash. ImgWindow has deprecated its internal garbage collector in favor of this native SDK behavior.
-
-#### Caveat C: The Uninitialized Handle / Null Pointer Trap
+#### Caveat B: The Uninitialized Handle / Null Pointer Trap
 In legacy OpenGL, attempting to bind texture ID `0` would safely unbind the texture, often just drawing a blank white square. Vulkan and Metal are not forgiving.
 *   **The Trap:** If you pass a garbage memory address (an uninitialized handle) or a `nullptr` directly into Vulkan, the driver will instantly crash.
 *   **The Fix:** Ensure every single `ImTextureID` variable in your plugin is explicitly initialized to `nullptr` or `0` upon creation. (The `ImgWindow` framework now internally guards against passing `nullptr` references to the GPU, but it cannot protect you against random, uninitialized memory addresses.)
 
-#### Caveat D: Custom Textures & `ImGui::Image()` Legacy Conversion
+#### Caveat C: Custom Textures & `ImGui::Image()` Legacy Conversion
 The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL texture IDs. If your UI code generates custom textures via `glGenTextures()` and passes those raw GL integer IDs into `ImGui::Image()`, **X-Plane will instantly crash** if that specific window is being rendered via Panel Graphics.
 
 **The Fix:** Upgrade your texture generation to use the unified `ImgWindow::CreateCustomTexture()` API. If you have legacy UI components that you cannot migrate yet, you can temporarily prevent their OpenGL textures from crashing modern windows by branching your draw logic using `ImgWindow::IsUsingPanelGraphics()`:
@@ -173,37 +188,6 @@ MyImgWindowSubclass *myHeavyWindow = new MyImgWindowSubclass(...);
 myHeavyWindow->SetTextureBakeDelay(true); 
 ```
 *(Note: This setting is ignored completely if the window falls back to legacy OpenGL).*
-
----
-
-### Unified Safe Texture Disposal
-
-> [!NOTE]
-> **What textures are we talking about?**
-> This guide is *only* for custom 2D images you want to draw inside your ImGui windows (like plugin icons, custom gauges, or photos). 
-> * **Not Font Atlases:** The framework automatically manages ImGui's font textures for you. 
-> * **Not World Textures:** X-Plane's scenery, aircraft liveries, and `.obj` textures are entirely managed by Laminar's native texture paging system. You don't need to worry about those here!
-
-**The Problem (Before X-Plane 12.4.4b3):**
-Under X-Plane 12's modern Vulkan and Metal pipelines, rendering is deferred via command queues. In early betas, if you closed a UI window and synchronously destroyed a custom texture, you freed the VRAM while the GPU was still processing the previous frame's queue. This resulted in an instant `SIGSEGV` crash, forcing developers to build complex flight-loop cooldown queues.
-
-**The Solution (X-Plane 12.4.4b3+):**
-Laminar Research updated the SDK to natively handle GPU memory deferral! You may now safely create and destroy textures synchronously, directly inside your draw callbacks. To make this easy across both OpenGL and Panel Graphics, ImgWindow provides a **Unified Multiplexing API**.
-
-#### How to Use It
-When you are done with a custom texture, simply pass the `ImTextureID` to the unified framework method. This method automatically routes to `ImgPanelGraphics::DestroyTexture` or `glDeleteTextures` depending on your active backend!
-
-```cpp
-// 100% safe to call synchronously on the main thread:
-ImgWindow::DestroyCustomTexture(myCustomTex);
-myCustomTex = nullptr;  // Always null out your own pointers!
-```
-
-#### How It Works Behind the Scenes
-1. **Unified API:** It works seamlessly regardless of whether you are running the modern Panel Graphics pipeline or the legacy OpenGL fallback. No more `#ifdef` pipelines in your plugin code!
-2. **Native SDK Deferral:** Because X-Plane 12.4.4b3 now natively protects VRAM deferral under the hood, ImgWindow no longer runs background flight-loop garbage collectors, significantly reducing CPU overhead.
-
----
 
 ### Call for Errata or Omissions
 
