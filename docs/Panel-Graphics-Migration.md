@@ -68,9 +68,9 @@ If you want to manually manage your own Panel Graphics rendering, you should **n
 | `ImgPanelGraphics::TransformPop` | &rarr; | `XPLMTransformPop` |
 | `ImgPanelGraphics::TransformTranslate` | &rarr; | `XPLMTransformTranslate` |
 | `ImgPanelGraphics::TransformScale` | &rarr; | `XPLMTransformScale` |
-| &nbsp;_n/a_* | <span style="color: gray;">&rarr;</span> | `XPLMDrawCalls` |
+| _&nbsp;n/a<sup>*</sup>_ | <span style="color: gray;">&rarr;</span> | `XPLMDrawCalls` |
 
-*\* We purposefully do not expose a proxy for `XPLMDrawCalls`, as the framework strictly manages the ImGui vertex buffer submissions internally.*
+_<sup>*</sup>We purposefully do not expose a proxy for `XPLMDrawCalls`, as the framework strictly manages the ImGui vertex buffer submissions internally._
 
 If you choose to use these proxies directly, and you intend to support either Panel Graphics _or_ OpenGL rendering pipelines (of course, only one or the other, based on the build parameters and/or the runtime environment), you must manually _multiplex_ your plugin's calls based on `ImgPanelGraphics::IsAvailable()` (or the convenience method, `ImgWindow::IsUsingPanelGraphics()` that returns the same boolean result). For example, instead of replacing your legacy OpenGL texture creation logic (if your plugin needed such) with a direct call to `XPLMCreateTexture()`, foregoing the legacy support, you might use the `ImgPanelGraphics::` proxy instead -- for example:
 
@@ -93,7 +93,7 @@ To make it so you can have your plugin support _either_ backend (OpenGL _or_ Pan
 
 These multiplexers automatically determine the active rendering pipeline (Panel Graphics vs. OpenGL), and create the correct type of texture for you **under the hood** -- safely returning an agnostic `ImTextureID` that you can pass directly to ImGui!  These common IDs can be used regardless of whether ImGui is rendering via Panel Graphics, or using OpenGL on older versions of X-Plane that don't support Panel Graphics. Basically, it lets developers focus on the *what* in ImGui terms, not the *how* in low-level rendering pipeline terms.
 
-##### Always FORCE 4 channels (RGBA) when loading images
+##### 1. Creating the Texture (Force 4 Channels!)
 When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graphics API strictly requires a 4-channel RGBA8 buffer. If you feed it a 3-channel RGB buffer, the simulator will instantly crash due to a buffer overrun!  _(To be clear: don't pass 3 or 0 as the final parameter to `stbi_load()`—**explicitly pass 4**)._
 
 ```cpp
@@ -118,7 +118,18 @@ void LoadMyCustomTexture(const char* filepath) {
 
 *Note on Alpha Blending:* Panel Graphics relies on straight alpha blending. If your image has fully transparent areas with black RGB values (0, 0, 0, 0), it may cause dark halos around semi-transparent edges. Ensure your assets are exported with a white matte, or manually sanitize the RGB channels of fully transparent pixels before calling `ImgWindow::CreateCustomTexture()`.
 
-##### Don't forget to clean up!
+##### 2. Drawing the Texture
+Once your texture is loaded and cast to an `ImTextureID`, rendering it inside your window's `ImgWindow::buildInterface()` method is completely agnostic:
+
+```cpp
+void MyWindow::buildInterface() {
+    if (myCustomTexture != nullptr) {
+        ImGui::Image(myCustomTexture, ImVec2(256.0f, 256.0f));
+    }
+}
+```
+
+##### 3. Cleaning Up
 Thanks to X-Plane 12.4.4b3 handling memory deferral natively, you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely:
 
 ```cpp
@@ -126,18 +137,7 @@ void UnloadMyCustomTexture() {
     if (myCustomTexture) {
         // Safe to call synchronously anywhere!
         ImgWindow::DestroyCustomTexture(myCustomTexture);
-        myCustomTexture = nullptr; // Always reset handles!
-    }
-}
-```
-
-#### C. Drawing Custom Textures
-Once your texture is loaded and cast to an `ImTextureID`, rendering it inside your window's `ImgWindow::buildInterface()` method is completely agnostic:
-
-```cpp
-void MyWindow::buildInterface() {
-    if (myCustomTexture != nullptr) {
-        ImGui::Image(myCustomTexture, ImVec2(256.0f, 256.0f));
+        myCustomTexture = nullptr; // Always null out your own pointers!
     }
 }
 ```
