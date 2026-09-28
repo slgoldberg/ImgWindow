@@ -41,7 +41,7 @@ When your plugin initializes its first ImGui window, `ImgWindow` will log its ro
 
 > [!NOTE]
 > **What _"custom textures"_ are we talking about here?**<br>
-> This section is *only* for custom 2D images you want to draw inside your ImGui windows (like plugin icons, custom gauges, or photos), using functions like `ImGui::Image()`, `ImGui::ImageButton()`, ImGui calls taking an `ImTextureID` parameter.
+> This section is *only* for custom 2D images you want to draw inside your ImGui windows (like plugin icons, custom gauges, or photos), using functions like `ImGui::Image()`, `ImGui::ImageButton()`, and any other ImGui calls taking an `ImTextureID` parameter.
 > * **Not _"Font Atlas"_ textures:**
 The `ImgWindow` framework automatically manages ImGui's font textures for you with its `ImgFontAtlas` service.
 > * **Not _"World" (scenery)_ textures:**
@@ -138,12 +138,14 @@ void MyWindow::buildInterface() {
 ```
 
 ##### 3. Cleaning Up
-Thanks to X-Plane 12.4.4 handling memory deferral _natively_ (as of v12.4.4b3), you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely:
+Thanks to X-Plane 12.4.4 handling memory deferral _natively_ (as of v12.4.4b3), you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely. 
+
+*(Note: Just like creating textures, destroying them is an XPLM SDK call under the hood. You must **never** call `ImgWindow::DestroyCustomTexture()` from a background worker thread!)*
 
 ```cpp
 void UnloadMyCustomTexture() {
     if (myCustomTexture) {
-        // Safe to call synchronously anywhere!
+        // Safe to call synchronously on the MAIN THREAD!
         ImgWindow::DestroyCustomTexture(myCustomTexture);  // the easy way :-)
         myCustomTexture = nullptr; // Always null out your own pointers!
     }
