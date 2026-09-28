@@ -41,7 +41,7 @@ When your plugin initializes its first ImGui window, `ImgWindow` will log its ro
 
 > [!NOTE]
 > **What "custom textures" are we talking about here?**
-> This section is *only* for custom 2D images you want to draw inside your ImGui windows (like plugin icons, custom gauges, or photos), rendered in your UI using `ImGui::Image()`.
+> This section is *only* for custom 2D images you want to draw inside your ImGui windows (like plugin icons, custom gauges, or photos), using functions like `ImGui::Image()`, `ImGui::ImageButton()`, or any other ImGui API that requires an `ImTextureID`.
 > * **Not Font Atlases:** The `ImgWindow` framework automatically manages ImGui's font textures for you with its `ImgFontAtlas` service.
 > * **Not World Textures:** X-Plane's scenery, aircraft liveries, and `.obj` textures are managed natively.
 
@@ -60,14 +60,17 @@ If you compile a plugin using the native `XPLM` functions (like `XPLMCreateTextu
 This namespace solves the problem by dynamically looking up the Vulkan/Metal functions at runtime. It seamlessly adapts to your build configuration: if you build a backward-compatible plugin (the default), it safely accesses Panel Graphics features only when available; if you explicitly build against the strict v4.4 SDK (which drops legacy OpenGL support), it routes directly. 
 
 If you want to manually manage your own Panel Graphics rendering, you should **never** call the raw XPLM versions directly. Instead, you should always route your calls through our proxies:
-* `ImgPanelGraphics::CreateTexture`
-* `ImgPanelGraphics::DestroyTexture`
-* `ImgPanelGraphics::TransformPush`
-* `ImgPanelGraphics::TransformPop`
-* `ImgPanelGraphics::TransformTranslate`
-* `ImgPanelGraphics::TransformScale`
+| 🟢 Always Call This: | | 🔴 NEVER Call This (Raw XPLM): |
+| :--- | :---: | :--- |
+| `ImgPanelGraphics::CreateTexture` | &rarr; | `XPLMCreateTexture` |
+| `ImgPanelGraphics::DestroyTexture` | &rarr; | `XPLMDestroyTexture` |
+| `ImgPanelGraphics::TransformPush` | &rarr; | `XPLMTransformPush` |
+| `ImgPanelGraphics::TransformPop` | &rarr; | `XPLMTransformPop` |
+| `ImgPanelGraphics::TransformTranslate` | &rarr; | `XPLMTransformTranslate` |
+| `ImgPanelGraphics::TransformScale` | &rarr; | `XPLMTransformScale` |
+| _N/A_* | <span style="color: gray;">&rarr;</span> | `XPLMDrawCalls` |
 
-*(Note: We purposefully do not expose a proxy for `XPLMDrawCalls` here, as the framework strictly manages the ImGui vertex buffer submissions internally).*
+*\* We purposefully do not expose a proxy for `XPLMDrawCalls`, as the framework strictly manages the ImGui vertex buffer submissions internally.*
 
 If you choose to use these proxies directly, and you intend to support either Panel Graphics _or_ OpenGL rendering pipelines (of course, only one or the other, based on the build parameters and/or the runtime environment), you must manually _multiplex_ your plugin's calls based on `ImgPanelGraphics::IsAvailable()` (or the convenience method, `ImgWindow::IsUsingPanelGraphics()` that returns the same boolean result). For example, instead of replacing your legacy OpenGL texture creation logic (if your plugin needed such) with a direct call to `XPLMCreateTexture()`, foregoing the legacy support, you might use the `ImgPanelGraphics::` proxy instead -- for example:
 
