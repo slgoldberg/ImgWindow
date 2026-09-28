@@ -68,7 +68,7 @@ If you want to manually manage your own Panel Graphics rendering, you should **n
 | `ImgPanelGraphics::TransformPop` | &rarr; | `XPLMTransformPop` |
 | `ImgPanelGraphics::TransformTranslate` | &rarr; | `XPLMTransformTranslate` |
 | `ImgPanelGraphics::TransformScale` | &rarr; | `XPLMTransformScale` |
-| _N/A_* | <span style="color: gray;">&rarr;</span> | `XPLMDrawCalls` |
+|  _n/a_* | <span style="color: gray;">&rarr;</span> | `XPLMDrawCalls` |
 
 *\* We purposefully do not expose a proxy for `XPLMDrawCalls`, as the framework strictly manages the ImGui vertex buffer submissions internally.*
 
@@ -146,22 +146,24 @@ void MyWindow::buildInterface() {
 
 ### 4. Developer Caveats & Required Code Changes
 
-While `ImgWindow` automatically handles the rendering pipeline abstraction, it **cannot** automatically translate custom OpenGL state managed by your plugin. Transitioning from synchronous OpenGL to asynchronous Vulkan/Metal introduces strict new rules for your plugin architecture.
+While `ImgWindow` automatically abstracts away most of the rendering pipeline multiplexing (OpenGL vs. Panel Graphics), there are a few important caveats where the abstraction is weaker. In the following cases, you **must** modify your code to prevent crashes:
 
 #### Caveat A: Strict Main-Thread Execution (No Background Allocation)
-The X-Plane SDK enforces a strict **Serialization Rule**. All core XPLM API calls must occur sequentially on X-Plane's main thread. 
-*   **The Trap:** If you use background threads (e.g., `std::thread`, `std::async`) for asynchronous texture loading, you **cannot** call `ImgWindow::CreateCustomTexture()` from that background thread. Doing so will generate an invalid cross-thread handle or fatally crash the Vulkan driver. Legacy OpenGL drivers occasionally permitted off-thread allocation, but Panel Graphics strictly forbids it.
-*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, hand them back to the **main X-Plane thread** (e.g., during your next window draw or flight-loop callback) where you will actually call `ImgWindow::CreateCustomTexture()`.
+The X-Plane SDK enforces a strict **Serialization Rule**: all XPLM API calls must occur sequentially on X-Plane's main thread. 
+*   **The Trap:** Because legacy OpenGL is a separate library, some developers got away with allocating textures on background threads. However, Panel Graphics texture allocation is an *XPLM SDK feature*. If you try to call `ImgWindow::CreateCustomTexture()` from a background thread (`std::thread`, `std::async`), the XPLM SDK will immediately assert and crash the simulator.
+*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, hand the raw buffer back to the **main X-Plane thread** (e.g., during your next window draw or flight-loop callback) where you will safely call `ImgWindow::CreateCustomTexture()`.
 
-#### Caveat B: The Uninitialized Handle / Null Pointer Trap
-In legacy OpenGL, attempting to bind texture ID `0` would safely unbind the texture, often just drawing a blank white square. Vulkan and Metal are not forgiving.
-*   **The Trap:** If you pass a garbage memory address (an uninitialized handle) or a `nullptr` directly into Vulkan, the driver will instantly crash.
-*   **The Fix:** Ensure every single `ImTextureID` variable in your plugin is explicitly initialized to `nullptr` or `0` upon creation. (The `ImgWindow` framework now internally guards against passing `nullptr` references to the GPU, but it cannot protect you against random, uninitialized memory addresses.)
+#### Caveat B: The Uninitialized Handle Trap
+In legacy OpenGL, attempting to bind an uninitialized or garbage texture handle might simply fail silently or draw a blank white square. Panel Graphics is not forgiving.
+*   **The Trap:** If you pass a random, uninitialized memory address (e.g., garbage data from an uninitialized variable) into Panel Graphics, the driver will instantly crash when trying to dereference it.
+*   **The Fix:** Ensure every single `ImTextureID` variable in your plugin is explicitly initialized to `nullptr` (or `0`). If a texture is explicitly null, the `ImgWindow` framework will safely ignore it and protect the GPU. However, the framework cannot magically detect the difference between a valid texture handle and random garbage memory. **You must null-initialize your pointers!**
 
 #### Caveat C: Custom Textures & `ImGui::Image()` Legacy Conversion
 The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL texture IDs. If your UI code generates custom textures via `glGenTextures()` and passes those raw GL integer IDs into `ImGui::Image()`, **X-Plane will instantly crash** if that specific window is being rendered via Panel Graphics.
 
-**The Fix:** Upgrade your texture generation to use the unified `ImgWindow::CreateCustomTexture()` API. If you have legacy UI components that you cannot migrate yet, you can temporarily prevent their OpenGL textures from crashing modern windows by branching your draw logic using `ImgWindow::IsUsingPanelGraphics()`:
+**The Fix:** Upgrade your texture generation to use the unified `ImgWindow::CreateCustomTexture()` API so it seamlessly multiplexes between both backends.
+
+**Incremental Migration:** Alternatively, if you aren't ready to refactor all your OpenGL textures right now, but still want to test Panel Graphics, you can temporarily hide those specific legacy `ImGui::Image` calls when Panel Graphics is active. By using the `IsUsingPanelGraphics()` method on your `ImgWindow` subclass, you can safely branch your draw logic:
 
 ```cpp
 #define HIDE_FROM_PG(x) if (!this->IsUsingPanelGraphics()) { x }
@@ -175,20 +177,23 @@ HIDE_FROM_PG(
 
 ### 5. Visual Polish: Texture Bake Delay (Ghosting)
 
-Because X-Plane 12's VRAM texture uploads are asynchronous under Vulkan/Metal, heavy windows with complex font atlases may exhibit visual jitter or texture pop-in for the first few frames as the GPU bakes the new glyphs in the background.
+Because X-Plane 12's VRAM texture uploads take time under the modern graphics pipeline, heavy windows with complex font atlases may exhibit visual jitter or texture pop-in for the first few frames as the GPU bakes the new glyphs under the hood.
 
-To mitigate this, `ImgWindow` includes an optional **Texture Bake Delay**. This feature holds the window entirely transparent for a specified number of frames immediately after creation, masking the asynchronous upload.
+To mitigate this, `ImgWindow` includes an optional **Texture Bake Delay**. This feature holds the window entirely transparent for a specified number of frames immediately after creation, masking the texture upload process.
 
 **YMMV (Your Mileage May Vary):** Depending on your hardware and the complexity of your font atlas, this delay may or may not make a visually significant difference. It is provided strictly as a tuning knob for developers trying to smooth out off-putting text flashing during initial window loads.
 
-To enable the delay, call the setter **immediately after** constructing the window (within the same flight loop cycle). If you defer the call, it will have no effect.
+To enable the delay, call the setter **immediately after** constructing the window (within the same flight loop cycle), or place it directly inside your derived window class's constructor. If you defer the call, it will have no effect.
 
 ```cpp
-// Immediately after creating the window, e.g.:
-MyImgWindowSubclass *myHeavyWindow = new MyImgWindowSubclass(...);
+// Option 1: Inside your derived window class constructor
+MyHeavyWindow::MyHeavyWindow(...) : ImgWindow(...) {
+    this->SetTextureBakeDelay(true); // Hold transparent for 2 frames (default)
+}
 
-// Hold the window transparent for 2 frames (default) upon creation:
-myHeavyWindow->SetTextureBakeDelay(true); 
+// Option 2: Immediately after instantiation
+MyHeavyWindow *win = new MyHeavyWindow(...);
+win->SetTextureBakeDelay(true); 
 ```
 *(Note: This setting is ignored completely if the window falls back to legacy OpenGL).*
 
