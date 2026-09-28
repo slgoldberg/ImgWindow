@@ -40,18 +40,25 @@ When your plugin initializes its first ImGui window, `ImgWindow` will log its ro
 ### 3. Custom Textures (e.g., `ImGui::Image`)
 
 > [!NOTE]
-> **What "custom textures" are we talking about here?**
-> This section is *only* for custom 2D images you want to draw inside your ImGui windows (like plugin icons, custom gauges, or photos), using functions like `ImGui::Image()`, `ImGui::ImageButton()`, or any other ImGui API that requires an `ImTextureID`.
-> * **Not Font Atlases:** The `ImgWindow` framework automatically manages ImGui's font textures for you with its `ImgFontAtlas` service.
-> * **Not World Textures:** X-Plane's scenery, aircraft liveries, and `.obj` textures are managed natively.
+> **What _"custom textures"_ are we talking about here?**<br>
+> This section is *only* for custom 2D images you want to draw inside your ImGui windows (like plugin icons, custom gauges, or photos), using functions like `ImGui::Image()`, `ImGui::ImageButton()`, ImGui calls taking an `ImTextureID` parameter.
+> * **Not _"Font Atlas"_ textures:**
+The `ImgWindow` framework automatically manages ImGui's font textures for you with its `ImgFontAtlas` service.
+> * **Not _"World" (scenery)_ textures:**
+X-Plane's scenery, aircraft liveries, and `.obj` textures are managed natively.
 
-Does your plugin load custom textures? If so, you will need to migrate your texture code to support Panel Graphics. 
+**Does your plugin load custom textures?**
+&nbsp;&rarr;&nbsp;If you answered _"yes"_, then you will need to **migrate your texture code** to support Panel Graphics.
 
-First, the good news: any rumors you heard about Panel Graphics requiring complex flight-loops to safely create or destroy textures are officially outdated. As of `12.4.4b3`, you can keep your existing synchronous code structure! You can safely create and destroy textures right inside your draw callbacks.
+First, the **good news**:
 
-However, you **must** use the new Panel Graphics API to allocate those textures. If you want your plugin to maintain backward compatibility with legacy OpenGL, you will need to explicitly check which pipeline is active and multiplex your calls. You have two choices for how to do this:
+Any discussion you heard previously about Panel Graphics requiring complex flight-loop refactoring to safely create or destroy textures outside the `draw` callback is now officially _outdated_ (and invalid). As of `XPLM v4.4b3` (and presumably the final release), which starts with `X-Plane 12.4.4b3`, you can **keep your existing synchronous code structure!** I.e., you can safely create and destroy textures right inside your draw callbacks if you like. Panel Graphics will provide an almost identical developer experience to the OpenGL pipeline.
 
-#### A. The Proxy Namespace (Do-It-Yourself)
+However, you **must** use the new Panel Graphics API to allocate those textures, since you cannot send OpenGL texture handles through the Panel Graphics pipeline without a hard crash!
+
+And when you do so -- if you want your plugin to maintain backward compatibility with legacy OpenGL -- you will need to explicitly check which pipeline is active and multiplex your calls. You have two choices for how to do this:
+
+#### A. Directly, Using the Proxy Namespace _(The "Do-It-Yourself" Way)_
 
 To support this backward compatibility, the framework introduces a dedicated proxy namespace called `ImgPanelGraphics`.
 
@@ -85,7 +92,7 @@ if (ImgPanelGraphics::IsAvailable()) {
 
 But for an even simpler way to do this, `ImgWindow` provides a unified API to do this "the easy way", detailed below.
 
-#### B. The Unified API (The Easy Way)
+#### B. Through the ImgWindow Unified Texture API _("The Easy Way")_
 
 If your plugin loads custom textures to inject into `Dear ImGui` (e.g., using `ImGui::Image()`), writing boilerplate `if/else` multiplexing blocks everywhere as described above can be quite tedious. Among other things, just managing the return values that are of different types can cause serious issues. (For example, OpenGL texture handles of type `GLuint` will instantly crash the simulator if you attempt to load such handles within a Panel Graphics window!)
 
@@ -130,13 +137,13 @@ void MyWindow::buildInterface() {
 ```
 
 ##### 3. Cleaning Up
-Thanks to X-Plane 12.4.4b3 handling memory deferral natively, you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely:
+Thanks to X-Plane 12.4.4 handling memory deferral _natively_ (as of v12.4.4b3), you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely:
 
 ```cpp
 void UnloadMyCustomTexture() {
     if (myCustomTexture) {
         // Safe to call synchronously anywhere!
-        ImgWindow::DestroyCustomTexture(myCustomTexture);
+        ImgWindow::DestroyCustomTexture(myCustomTexture);  // the easy way :-)
         myCustomTexture = nullptr; // Always null out your own pointers!
     }
 }
