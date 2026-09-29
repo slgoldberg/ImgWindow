@@ -17,13 +17,16 @@ You control how `ImgWindow` interacts with Panel Graphics entirely through compi
 
 | Build Flags | Rendering Pipeline | Simulator Compatibility |
 | :--- | :--- | :--- |
-| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code> | **Dynamic Bridge (Recommended).** Uses Panel Graphics if XPLM 4.4 is detected at runtime. Falls back to legacy OpenGL otherwise. | **Maximum.** X-Plane 11.10+ through X-Plane 12.4.4+ |
-| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code><br> <code>&#8209;DXPLM440=1</code> | **Strict Panel Graphics.** Forces modern rendering and strips the OpenGL fallback logic. | **Modern Only.** X-Plane 12.4.4 and newer. Will not load on older versions. |
+| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code><br>~~XPLM440~~&nbsp;_must&nbsp;**NOT**&nbsp;be&nbsp;defined_ | **Dynamic Bridge (Recommended).** Uses Panel Graphics if XPLM 4.4 is detected at runtime. Falls back to legacy OpenGL otherwise. | **Maximum.** X-Plane 11.10+ through X-Plane 12.4.4+ |
+| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code><br> <code>&#8209;DXPLM440=1</code>&nbsp;defined | **Strict Panel Graphics.** Forces modern rendering and strips the OpenGL fallback logic. *(See Caveat below regarding X-Plane 11)* | **Modern Only.** X-Plane 12.4.4 and newer. |
 | *(None)* | **Strict OpenGL.** Ignores Panel Graphics entirely and forces legacy OpenGL rendering. | **Standard.** X-Plane 11.10+ through current. |
 
 **To enable the recommended Dynamic Bridge in CMake:**
 ```cmake
 add_definitions(-DIMGWINDOW_USE_PANEL_GRAPHICS)
+# IMPORTANT: Ensure you do NOT define XPLM440 anywhere in your CMakeLists!
+# Laminar's headers check `#if defined(XPLM440)`. Defining it at all (even as XPLM440=0)
+# will break the dynamic bridge and force Strict Panel Graphics mode.
 ```
 *(Note: Be sure to run a `make clean` or clear your CMake cache after altering these definitions to ensure precompiled headers are rebuilt correctly).*
 
@@ -158,15 +161,21 @@ void UnloadMyCustomTexture() {
 
 While `ImgWindow` automatically abstracts away most of the rendering pipeline multiplexing (OpenGL vs. Panel Graphics), there are a few important caveats where the abstraction is weaker. In the following cases, you **must** modify your code to prevent crashes:
 
+---
+
 #### Caveat A: Strict Main-Thread Execution (No Background Allocation)
 The X-Plane SDK enforces a strict **Serialization Rule**: all XPLM API calls must occur sequentially on X-Plane's main thread. 
 *   **The Trap:** Because legacy OpenGL is a separate library, some developers got away with allocating textures on background threads. However, Panel Graphics texture allocation is an *XPLM SDK feature*. If you try to call `ImgWindow::CreateCustomTexture()` from a background thread (`std::thread`, `std::async`), the XPLM SDK will immediately assert and crash the simulator.
 *   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, hand the raw buffer back to the **main X-Plane thread** (e.g., during your next window draw or flight-loop callback) where you will safely call `ImgWindow::CreateCustomTexture()`.
 
+---
+
 #### Caveat B: The Uninitialized Handle Trap
 In legacy OpenGL, attempting to bind an uninitialized or garbage texture handle might simply fail silently or draw a blank white square. Panel Graphics is not forgiving.
 *   **The Trap:** If you pass a random, uninitialized memory address (e.g., garbage data from an uninitialized variable) into Panel Graphics, the driver will instantly crash when trying to dereference it.
 *   **The Fix:** Ensure every single `ImTextureID` variable in your plugin is explicitly initialized to `nullptr` (or `0`). If a texture is explicitly null, the `ImgWindow` framework will safely ignore it and protect the GPU. However, the framework cannot magically detect the difference between a valid texture handle and random garbage memory. **You must null-initialize your pointers!**
+
+---
 
 #### Caveat C: Custom Textures & `ImGui::Image()` Legacy Conversion
 The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL texture IDs. If your UI code generates custom textures via `glGenTextures()` and passes those raw GL integer IDs into `ImGui::Image()`, **X-Plane will instantly crash** if that specific window is being rendered via Panel Graphics.
@@ -182,6 +191,15 @@ HIDE_FROM_PG(
     ImGui::Image((void*)(intptr_t)myLegacyGLTextureId, ImVec2(100, 100));
 )
 ```
+
+---
+
+#### Caveat D: The Boilerplate CMake Trap (`XPLM440`)
+It is common practice for developers to blindly append the latest SDK version to their compiler flags, e.g.:<br>
+<code>&#8209;DXPLM200=1 &#8209;DXPLM210=1 ... &#8209;DXPLM430=1 &#8209;DXPLM440=1</code><br>
+**&rarr; Do not do this** if you want the Dynamic Bridge (fallback to OpenGL, Panel Graphics for new versions)!
+*   **The Trap:** If you define `XPLM440` (or even `XPLM440=0`!), then `ImgWindow` is forced to compile its `XPLMCreateWindow_t` struct to the size defined in the XPLM v4.4 SDK! If this plugin is loaded into X-Plane 11 or even earlier versions of X-Plane 12 that don't support Panel Graphics, the `ImgWindow` dynamic bridge will correctly fall back to legacy OpenGL, but it will attempt to pass the massive v4.4 SDK's window-creation struct to an older SDK that has no idea how to read it. (While X-Plane's forward-compatibility may allow this "Frankenstein" window to spawn, it is unsupported behavior.)
+*   **The Fix:** If you want zero-downtime backwards compatibility, define <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code> and stop at `-DXPLM430=1`. Do *not* define `XPLM440`. Only define `XPLM440` if you are explicitly abandoning X-Plane 11 through 12.4.3, and dropping support for all legacy users.
 
 ---
 
@@ -206,6 +224,8 @@ MyHeavyWindow *win = new MyHeavyWindow(...);
 win->SetTextureBakeDelay(true); 
 ```
 *(Note: This setting is ignored completely if the window falls back to legacy OpenGL).*
+
+---
 
 ### Call for Errata or Omissions
 

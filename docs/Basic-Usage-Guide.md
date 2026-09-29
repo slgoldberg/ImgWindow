@@ -2,28 +2,34 @@
 
 Welcome to the `ImgWindow` framework! This guide covers the basic usage model for integrating [Dear ImGui](https://github.com/ocornut/imgui) into your C++ X-Plane plugins using XPLM's modern window API.
 
-While this framework supports a powerful "dynamic bridge" to seamlessly multiplex rendering between legacy OpenGL and X-Plane 12's modern Panel Graphics pipeline, this guide focuses on the fundamental architecture: **how to actually build and manage ImGui windows.**
+To future-proof UI development, Laminar Research introduced the **Panel Graphics** API in X-Plane 12.4.4. This is a modern, general-purpose graphics framework allowing developers to draw 2D interfaces directly through X-Plane's native Vulkan or Metal rendering pipelines, eventually replacing the legacy OpenGL architecture.
+
+While this framework supports a powerful "dynamic bridge" to seamlessly multiplex your UI rendering between legacy OpenGL (on older sims) and the new Panel Graphics pipeline (on XP12.4.4+), this guide focuses strictly on the fundamental architecture: **how to actually build and manage ImGui windows.**
+
+> 🚀 **Already familiar with the basics?**
+> If your plugin already uses `ImgWindow` for legacy OpenGL rendering and you just want to upgrade to Vulkan/Metal, skip this guide and jump straight to the **[Panel Graphics Migration Guide](Panel-Graphics-Migration.md)**!
 
 ---
 
 ## 1. The Core Architecture
 
-At its core, `Dear ImGui` is renderer-agnostic. It doesn't know how to draw to a screen; it simply records your UI commands into **"draw lists"** (arrays of vertices, indices, and draw commands). 
+At its core, `Dear ImGui` is renderer-agnostic. It doesn't know how to draw to a screen; it simply records your UI commands into **"draw lists"** (geometry such as vertices, draw commands, and custom texture IDs) that form the content flowing through the X-Plane 2D rendering pipeline.
 
 The `ImgWindow` framework's job is to:
-1. Provide a native X-Plane window (`XPLMCreateWindowEx`).
-2. Intercept X-Plane mouse and keyboard events and feed them into ImGui.
-3. Take the resulting ImGui **draw lists** and safely render them into the active X-Plane graphics pipeline (whether that is OpenGL or Vulkan/Metal Panel Graphics).
+1. Provide one or more native X-Plane windows (`XPLMCreateWindowEx`).
+2. Intercept X-Plane mouse, cursor position, and keyboard events using the standard callbacks set in the `XPLMCreateWindow_t` descriptor (which `ImgWindow` manages and shunts straight into ImGui's IO system).
+3. Take the resulting ImGui **draw lists** and safely render them into the active X-Plane graphics pipeline.
+    * *Note: The framework is configured at **compile time** using build flags. You can force classic OpenGL, force Panel Graphics, or enable the "dynamic bridge" to automatically use the best backend available at runtime. See the [Migration Guide](Panel-Graphics-Migration.md) for build configurations.*
 
 To use the framework, you only need to interact with two main components:
 1. **`ImgFontAtlas`**: A shared service to load fonts and bake them into the GPU.
-2. **`ImgWindow`**: The base class you must subclass to define your specific UI windows.
+2. **`ImgWindow`**: The base class you must subclass to define your specific UI windows. *(Note: You can instantiate as many unique subclasses and windows as you need!)*
 
 ---
 
 ## 2. Managing Fonts (`ImgFontAtlas`)
 
-Before you can render any text in ImGui, ImGui needs a "font atlas"—a single large texture containing all the glyphs for the fonts you want to use.
+Before you can render any text in ImGui, ImGui needs a "font atlas" -- a single large texture containing all the glyphs for the fonts you want to use.
 
 ### Why do we have an `ImgFontAtlas` wrapper class?
 In a standard desktop app, ImGui manages its own font atlas. However, inside X-Plane, we must strictly control how and when that texture is baked and uploaded to the GPU (especially to support both OpenGL and Vulkan rendering pipelines). 
