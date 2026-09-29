@@ -1395,7 +1395,7 @@ ImgWindow::SafeDelete()
 }
 
 ImTextureID ImgWindow::CreateCustomTexture(const unsigned char* pixels, int width, int height) {
-    if (!pixels || width <= 0 || height <= 0) return nullptr;
+    if (!pixels || width <= 0 || height <= 0) return (ImTextureID)nullptr;
     
 #ifdef IMGWINDOW_USE_PANEL_GRAPHICS
     if (ImgPanelGraphics::IsAvailable()) {
@@ -1448,6 +1448,7 @@ ImgWindow::SelfDestructCallback(float /*inElapsedSinceLastCall*/,
     return 0;
 }
 
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
 /** Support dynamic binding to the panel graphics library.
  *  This allows us to use the panel graphics library if requested when it
  *  is available, or to fall back to the standard OpenGL rendering if
