@@ -148,6 +148,29 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     // Check 3: Is the last font unbaked? (e.g. Partial build)
     bool need_rebuild = !atlas->TexIsBuilt;
 
+    // --- V1.92 STEALTH MODE LIFECYCLE FIX ---
+    // Because we are using a SHARED atlas that spans ImGui contexts in "stealth" mode,
+    // ImGui's internal new-frame machinery completely ignores our atlas.
+    // (We must manually trigger the synchronous CPU build and update the frame state
+    // to prevent CPU memory leaks from un-freed texture buffers and dirty-flag thrashing.)
+    static int sLastUpdatedFrame = -1;
+    int currentFrame = ImGui::GetFrameCount();
+    if (sLastUpdatedFrame != currentFrame) {
+        if (!atlas->TexIsBuilt) {
+            // Force ImGui to synchronously build the CPU texture buffers right now.
+            // We temporarily strip the RendererHasTextures flag so it actually builds the glyphs, then re-add it after.
+            ImGuiIO& io = ImGui::GetIO();
+            io.BackendFlags &= ~ImGuiBackendFlags_RendererHasTextures;
+            extern void ImFontAtlasBuildMain(ImFontAtlas* atlas);
+            ImFontAtlasBuildMain(atlas);
+            io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+        }
+
+        // Finally, clear the dirty lock and free old texture buffers from CPU memory and record the last frame we did this so we only do it once per ImGui frame (across all ImGui contexts).
+        ImFontAtlasUpdateNewFrame(atlas, currentFrame, false);
+        sLastUpdatedFrame = currentFrame;
+    }
+
     // if (!need_rebuild && atlas->TexID.GetTexID()) {
     //   if (!glIsTexture((GLuint)(uintptr_t)atlas->TexID.GetTexID())) need_rebuild = true;
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
