@@ -42,6 +42,11 @@
 
 #include "imgui_internal.h"
 
+// Define this temporarily to test Panel Graphics on X-Plane 12.4.4b2.
+// It skips Y-axis transforms (since b2 double-flips) and disables texture destruction/lazy-loading to prevent crashes.
+#define TEST_B3_ON_B2
+
+
 /* ImGui version checks and refactor macros.
  * IMGUI_V190_REFACTOR defined for ImGui v1.90.0 and above (keyboard API refactor).
  * IMGUI_V192_REFACTOR defined for ImGui v1.92.0 and above (font atlas refactor).
@@ -147,6 +152,39 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     // Check 3: Is the last font unbaked? (e.g. Partial build)
     bool need_rebuild = !atlas->TexIsBuilt;
 
+    // --- V1.92 STEALTH MODE LIFECYCLE FIX ---
+    // Because we are using a SHARED atlas that spans ImGui contexts in "stealth" mode,
+    // ImGui's internal new-frame machinery completely ignores our atlas.
+    // (We must manually trigger the synchronous CPU build and update the frame state
+    // to prevent CPU memory leaks from un-freed texture buffers and dirty-flag thrashing.)
+    static int sLastUpdatedFrame = -1;
+    int currentFrame = ImGui::GetFrameCount();
+    if (sLastUpdatedFrame != currentFrame) {
+        if (!atlas->TexIsBuilt) {
+            XPLMDebugString("ABC ImgWindow: Rasterizing fonts to CPU memory! (This should NOT spam!)\n");
+            
+            // Force ImGui to synchronously build the CPU texture buffers right now.
+            // We temporarily strip the RendererHasTextures flag so it actually builds the glyphs, then re-add it after.
+            ImGuiIO& io = ImGui::GetIO();
+            io.BackendFlags &= ~ImGuiBackendFlags_RendererHasTextures;
+            extern void ImFontAtlasBuildMain(ImFontAtlas* atlas);
+            ImFontAtlasBuildMain(atlas);
+            io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+
+#ifdef TEST_B3_ON_B2
+            // STEALTH MODE PROTECTION: Because ImGui doesn't know about this atlas, it won't lock it.
+            // We must manually prevent lazy-baking missing glyphs to stop mid-frame texture destruction!
+            for (ImFont* font : atlas->Fonts) {
+                font->Flags |= ImFontFlags_NoLoadGlyphs;
+            }
+#endif
+        }
+        
+        // Finally, clear the dirty lock and free old texture buffers from CPU memory and record the last frame we did this so we only do it once per ImGui frame (across all ImGui contexts).
+        ImFontAtlasUpdateNewFrame(atlas, currentFrame, false);
+        sLastUpdatedFrame = currentFrame;
+    }
+
     // if (!need_rebuild && atlas->TexID.GetTexID()) {
     //   if (!glIsTexture((GLuint)(uintptr_t)atlas->TexID.GetTexID())) need_rebuild = true;
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
@@ -175,13 +213,11 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
         }
     }
 #endif
-    if (!need_rebuild && atlas->Fonts.Size > 0) {
-        if (atlas->Fonts.back()->LastBaked == 0)
-            need_rebuild = true;
-    }
 
     if (need_rebuild)
     {
+        XPLMDebugString("ABC ImgWindow: Uploading new font atlas to GPU! (This should NOT spam!)\n");
+        
         // 2. CPU Rasterize (RGBA32 for stability)
         ImgFontAtlas::strct_texture_info outInfo;
         ImgFontAtlas::GetCustomAtlasTextureData(atlas, outInfo);
@@ -192,7 +228,12 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
             if (ImgPanelGraphics::IsAvailable()) {
                 if (textureID != nullptr) {
+#ifdef TEST_B3_ON_B2
+                    // Leak texture to avoid b2 draw-loop crash
+                    // ImgPanelGraphics::DestroyTexture(textureID);
+#else
                     ImgPanelGraphics::DestroyTexture(textureID);
+#endif
                 }
                 
                 std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
@@ -629,9 +670,13 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
 
         int left, top, right, bottom;
         XPLMGetWindowGeometry(mWindowID, &left, &top, &right, &bottom);
+        
+#ifndef TEST_B3_ON_B2
+        // Flip the coordinate system vertically to match ImGui's origin at the top-left corner.
         ImgPanelGraphics::TransformPush();
         ImgPanelGraphics::TransformTranslate((float)left, (float)top);
         ImgPanelGraphics::TransformScale(1.0f, -1.0f);
+#endif
 
         // Render command lists
         for (int n = 0; n < draw_data->CmdListsCount; n++)
@@ -690,7 +735,9 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
             }
         }
         
+#ifndef TEST_B3_ON_B2
         ImgPanelGraphics::TransformPop();
+#endif
     } else
 #endif
     {
@@ -1491,7 +1538,11 @@ namespace ImgPanelGraphics {
             // is > 124412.)
             XPLMDataRef versionRef = XPLMFindDataRef("sim/version/xplane_internal_version");
             int xpVersion = versionRef ? XPLMGetDatai(versionRef) : 0;
+#ifdef TEST_B3_ON_B2
+            bool hasSafePanelGraphicsVersion = true; // Force ON for b2 testing
+#else
             bool hasSafePanelGraphicsVersion = (xpVersion > 124412);
+#endif
 
             // Only enable Panel Graphics if we have a safe version, else fall back to legacy OpenGL.
             if (hasSafePanelGraphicsVersion) {
