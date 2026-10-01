@@ -199,23 +199,25 @@ public:
      */
     bool IsInsideWindowDragArea (int x, int y) const;
     
+#ifdef IMGUI_V192_REFACTOR
+    [[deprecated("SafeDeleteTexture is obsolete in Phase 6 Redux. X-Plane 12.4.4b3+ permits synchronous destruction. Please migrate to the new unified DestroyCustomTexture() method.")]]
+    void SafeDeleteTexture(ImTextureID texture) {
+        DestroyCustomTexture(texture);
+    }
+#endif /* IMGUI_V192_REFACTOR */
+
     /** Unified API to create and destroy custom textures dynamically 
      *  using either Panel Graphics (if available) or OpenGL fallback.
      */
     static ImTextureID CreateCustomTexture(const unsigned char* pixels, int width, int height);
     static void DestroyCustomTexture(ImTextureID textureID);
 
-    /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
-     *  windows, starting from when the window is first rendered.
-     *  (Note: This only has effect for Panel Graphics windows. It is
-     *  ignored entirely for all OpenGL-based windows as it's irrelevant.
-     *  But the setting can still be called without harm to avoid plugin
-     *  authors needing to check for Panel Graphics availability themselves.)
-     * @param enableDelay Whether to enable the ghosting delay (off by default)
-     * @param frameCount Number of frames to delay, defaulting to 2.
-     */
-    void SetTextureBakeDelay(bool enableDelay, int frameCount = 2);
-    
+    [[deprecated("Texture bake delays are no longer required. X-Plane 12.4.4b3+ synchronously builds textures instantly. This method is a no-op and can be safely removed.")]]
+    void SetTextureBakeDelay(bool enableDelay, int frameCount = 2) {
+        (void)enableDelay;
+        (void)frameCount;
+    }
+
 protected:
     bool mIsPendingDestruction = false;
 
@@ -228,10 +230,6 @@ protected:
      * calls once and once only.
      */
     bool mFirstRender;
-    
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    int mGhostFramesRemaining = 0;  // no delay unless SetTextureBakeDelay() is called immediately after creation.
-#endif
 
     /** Construct a window with the specified bounds
      *

@@ -887,13 +887,7 @@ ImgWindow::updateImgui()
 
     ImGui::NewFrame();
 
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    bool isGhosting = (mGhostFramesRemaining > 0);
-    if (isGhosting) {
-        // Hide everything while ImGui lays out the glyphs.
-        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
-    }
-#endif
+
 
     ImGui::SetNextWindowPos(ImVec2((float) 0.0, (float) 0.0), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(win_width, win_height), ImGuiCond_Always);
@@ -905,12 +899,7 @@ ImgWindow::updateImgui()
     buildInterface();
     ImGui::End();
 
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    if (isGhosting) {
-        ImGui::PopStyleVar();
-        mGhostFramesRemaining--;
-    }
-#endif
+
 
     // finally, handle window focus.
     int hasKeyboardFocus = XPLMHasKeyboardFocus(mWindowID);
@@ -1413,21 +1402,7 @@ ImgWindow::IsInsideWindowDragArea (int x, int y) const
         dragTop  <= y && y <= dragBottom;
 }
 
-void ImgWindow::SetTextureBakeDelay(bool enableDelay, int frameCount) {
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    // Texture bake delay only makes sense for Panel Graphics windows...
-    if (!ImgPanelGraphics::IsAvailable()) {
-        return;  // Ignore the request entirely for OpenGL windows.
-    }
-    mGhostFramesRemaining = enableDelay ? frameCount : 0;
-#else
-    // Logically, this method isn't useful whatsoever without Panel Graphics.
-    // We thus ignore the request here, since it has no effect for OpenGL.
-    // (This is provided the caller doesn't need to know whether Panel Graphics is being used or not.)
-    (void)enableDelay;
-    (void)frameCount;
-#endif
-}
+
 
 void
 ImgWindow::SafeDelete()
