@@ -1,4 +1,4 @@
-# ImgWindow Framework: Basic Usage Guide
+# ImgWindow Framework v2.0.0: Basic Usage Guide
 
 Welcome to the `ImgWindow` framework! This guide covers the basic usage model for integrating [Dear ImGui](https://github.com/ocornut/imgui) into your C++ X-Plane plugins using XPLM's modern window API.
 
@@ -113,5 +113,14 @@ Instead, always call **`SafeDelete()`**. This queues the window for destruction,
 ## What's Next?
 Once you understand the basic usage model, you can safely write your UI code without worrying about how X-Plane actually gets it onto the screen.
 
-If your plugin uses **Custom Textures** (e.g., drawing icons or photos using `ImGui::Image()`), or if you are interested in how this framework seamlessly bridges legacy OpenGL with X-Plane 12's modern Vulkan/Metal graphics pipeline, please read the [Panel Graphics Migration Guide](Panel-Graphics-Migration.md).
+If you are ready to scale up your plugin with custom fonts, FontAwesome icons, global styling, or auto-positioning widgets, be sure to
+>   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr;&nbsp; read the [Advanced Architecture Patterns Guide](Advanced-Architecture-Patterns.md).
 
+If your plugin uses **Custom Textures** (e.g., drawing icons or photos using `ImGui::Image()`), or if you are interested in how this framework seamlessly bridges legacy OpenGL with X-Plane 12's modern Vulkan/Metal graphics pipeline, please
+>   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr;&nbsp; read the [Panel Graphics Migration Guide](Panel-Graphics-Migration.md).
+
+To see real-world example initialization and tear-down functions, and/or some included font files that you're free to use if you like,
+>   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr;&nbsp;start with [Sample Code README](../sample-code/README.md).
+
+For more information on this repository's overall features and history, options for configuring your builds for ImGui, how to replace an older version of `ImgWindow` with a `git submodule`, and more, you can always
+>   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr;&nbsp; return to the main [Top-Level README](../README.md).

@@ -1,4 +1,32 @@
-## `ImgWindow` & Panel Graphics: Migration Guide
+# Migration Guide: `ImgWindow` v2.0
+
+Welcome to the `ImgWindow` v2.0 Migration Guide. With the release of X-Plane 12.4.4b3, Laminar fundamentally upgraded their Vulkan rendering pipeline, allowing us to drop several restrictive hacks and unify our APIs.
+
+Depending on what version of `ImgWindow` your plugin is currently using, choose your migration path below:
+
+---
+
+## Part 1: Upgrading from ImgWindow v1.3.0 (Panel Graphics Early Adopters)
+
+If you were an early adopter of `ImgWindow` v1.3.0 (which brought initial Panel Graphics support during the X-Plane 12.4.4b1 and b2 betas), you successfully navigated a highly restrictive, asynchronous rendering era under the authoritarian rule of King Laminar "bee-wan" and his son, Laminar "bee-too".
+
+Fortunately, Prince I-Am-GeeWin-Dough II (b3) has democratized the kingdom! A new polymorphic era of true happiness has arrived for the citizens of *Panelgraphica* and *Opengeel*, who can now live in peace and harmony thanks to the new Bridge of Synchrony!
+
+Because X-Plane 12.4.4b3 now natively handles deferred Vulkan command encoding, we have stripped out the complex Flight Loop Callback (FLCB) garbage collection queues. 
+
+### Required Code Changes for v2.0:
+1. **Texture Destruction:** The `SafeDeleteTexture()` method is officially deprecated.
+   * **Migration:** Replace all calls to `SafeDeleteTexture(tex)` with the new, unified `ImgWindow::DestroyCustomTexture(tex)` method. You can safely call this synchronously from the main thread!
+2. **Texture Bake Delays:** The `SetTextureBakeDelay()` method is officially deprecated. Panel Graphics now builds and binds textures instantly and synchronously.
+   * **Migration:** You can completely delete any calls to `SetTextureBakeDelay()`. (The method has been stubbed out as an inline no-op, so your code will still compile if you forget, but it is no longer doing anything).
+
+*That's it! Everything else from v1.3.0 works perfectly.*
+
+---
+
+## Part 2: Upgrading from earlier versions of ImgWindow (Legacy OpenGL)
+
+If you are migrating your plugin from an older version of the framework (Legacy OpenGL) to `v2.0` (which adds modern Panel Graphics support), this section covers everything you need to know to safely transition to the modern, hyper-performant backend—while retaining full backwards compatibility for your X-Plane 11 users!
 
 With the release of X-Plane 12.4.4b1, Laminar Research introduced the **Panel Graphics API** (XPLM v4.4), routing UI rendering through a modern Vulkan/Metal backend.
 
@@ -212,30 +240,6 @@ However, if you are defining `XPLM440` as a build requirement because you are us
 
 > [!NOTE]
 > **Only define `XPLM440` in your build configuration** if you explicitly intend to abandon X-Plane 11 through 12.4.4b2 compatibility, dropping support for users who don't or can't update to X-Plane v12.4.4b3 or later. But understand that you don't _need_ to abandon support if the _only_ v4.4 feature you need is Panel Graphics, since `ImgWindow` provides that for "free" when you define `IMGWINDOW_USE_PANEL_GRAPHICS`! (This provides the entire Panel Graphics API through the `ImgPanelGraphics::` namespaced proxy that lets you use the API if it's available, else it gracefully degrades to OpenGL rendering instead!)
-
----
-
-### 5. Visual Polish: Texture Bake Delay (Ghosting)
-
-Because X-Plane 12's VRAM texture uploads take time under the modern graphics pipeline, heavy windows with complex font atlases may exhibit visual jitter or texture pop-in for the first few frames as the GPU bakes the new glyphs under the hood.
-
-To mitigate this, `ImgWindow` includes an optional **Texture Bake Delay**. This feature holds the window entirely transparent for a specified number of frames immediately after creation, masking the texture upload process.
-
-**YMMV (Your Mileage May Vary):** Depending on your hardware and the complexity of your font atlas, this delay may or may not make a visually significant difference. It is provided strictly as a tuning knob for developers trying to smooth out off-putting text flashing during initial window loads.
-
-To enable the delay, call the setter **immediately after** constructing the window (within the same flight loop cycle), or place it directly inside your derived window class's constructor. If you defer the call, it will have no effect.
-
-```cpp
-// Option 1: Inside your derived window class constructor
-MyHeavyWindow::MyHeavyWindow(...) : ImgWindow(...) {
-    this->SetTextureBakeDelay(true); // Hold transparent for 2 frames (default)
-}
-
-// Option 2: Immediately after instantiation
-MyHeavyWindow *win = new MyHeavyWindow(...);
-win->SetTextureBakeDelay(true); 
-```
-*(Note: This setting is ignored completely if the window falls back to legacy OpenGL.)*
 
 ---
 

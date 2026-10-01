@@ -1,4 +1,4 @@
-# ImgWindow: ImGui wrapper for X-Plane Modern XPLM Window API with font support
+# ImgWindow v2.0.0: ImGui wrapper for X-Plane Modern XPLM Window API with font support
 
 The sources in this repository are shared with the greater X-Plane developer
 community in the hope that it may save somebody a headache some day.
@@ -74,9 +74,19 @@ the goal of this `ImgWindow`-focused project to support `XSquawkBox` anymore.
 
 ---
 
-## Community Testing & Status (September, 2026)
+## Community Testing & Status (October, 2026)
 
 The new dynamic Panel Graphics bridge has been verified stable across **Windows, macOS (Metal), and Linux (Vulkan)** in both legacy OpenGL fallback mode and native XPLM 4.4 Panel Graphics mode, as well as the fully functional, hybrid "bridge" mode where *both* `OpenGL` *and* `Panel Graphics` are supported (based on the current running version of X-Plane). Detailed documentation is included and provides simple ways for plugin authors to migrate to using the new Panel Graphics support, among other things.
+
+> [!NOTE] XPLM v4.4 is not yet final! _(1-October-2026)_<br>
+> As of this writing, Laminar Research has just announced a "breaking change" to the part of the Panel Graphics API that specifically supports `ImGui` rendering -- so, users of this framework should be aware of these changes so you are not surprised by this breaking change:
+>   * XPLM v4.4**_b3_** is coming out "any day now", and will be launched as X-Plane v12.4.4**_b3**_!
+>   * The "breaking change": the Panel Graphics ImGui drawing call will no longer directly translate coordinates from the legacy OpenGL world that's used by `ImGui`, and will instead rely on things being converted by the plugin!
+>      - `ImgWindow`'s support for this is locked and loaded in *THIS* version of the repository!
+>      - However, this means if you try to use X-Plane v12.4.4**_b1_** or **_b2_**, to save your sanity, even if you've asked for `ImgWindow` to *only* bind to the Panel Graphics pipeline, you will be redirected to the OpenGL pipeline instead!
+>      - But if you run this on v12.4.4**_b3_** when it's available, unless there's been some change we aren't aware of, this version *should* work just fine!
+>    * The other change in **_b3_** is only "upside": the Panel Graphics pipeline will no longer require you to restructure any of your code to only create or destroy textures or windows in the flight-loop callback! It will relax that requirement and -- though you still must _never_ call any XPLM function from a background thread (!!) -- your other calls can be done the same as they were with the OpenGL pipeline. This should reduce many hard crashes and make things much better all around.  As such, this version of `ImgWindow` no longer has a flight-loop callback garbage-collection for textures (i.e., we've removed the per-window method, `ImgWindow::SafeDeleteTexture()`).
+>      - Instead, we offer two very useful utility functions to "multiplex" your texture creation and destruction requests across either OpenGL *or* Panel Graphics, assuming you support both and have the "bridge" functionality enabled, in the form of **static** methods, `ImgWindow::CreateCustomTexture()`/`ImgWindow::DestroyCustomTexture()`. (Since the underlying API calls will be synchronous on both sides, the code can be structured much more simply as a trivial replacement for the OpenGL equivalent functions you used to call!) More detail is in the Migration Guide!
 
 If you maintain a plugin that uses `ImgWindow`, you can safely drop in this update to modernize your rendering pipeline. We continue to welcome developer feedback, edge-case testing, and contributions via the issue tracker and pull requests!
 
@@ -93,6 +103,14 @@ At a high level, using the framework requires only two core components:
 2. **`ImgWindow`**: The base class you must subclass. By overriding the `buildInterface()` method, you define your standard ImGui UI layout. The framework handles the rest—intercepting mouse/keyboard events and generating the draw lists for X-Plane.
 
 👉 **[Read the Basic Usage Guide](docs/Basic-Usage-Guide.md)** for a complete walkthrough of the architecture, code examples for creating your windows, and details on managing the shared font atlas.
+
+---
+
+## Advanced Architecture Patterns
+
+Once your plugin begins scaling up to multiple windows, complex tooltips, and bespoke symbol fonts, you'll need a more robust architecture. We have compiled a masterclass document on advanced patterns used by large-scale production plugins.
+
+👉 **[Read the Advanced Architecture Patterns Guide](docs/Advanced-Architecture-Patterns.md)** for detailed strategies on managing the ImGui lifecycle, `ImgFontAtlas` optimization (including FontAwesome VRAM reduction), and building smart auto-positioning widgets.
 
 ---
 
@@ -215,4 +233,4 @@ Once you have a final, working set of changes to `ImgWindow`:
 
 If anything is wrong or missing from this README, please either fix it and send us a PR, or let us know.
 
-This file was last updated in *September, 2026* by Steven L. Goldberg.
+This file was last updated in *October, 2026* by Steven L. Goldberg.
