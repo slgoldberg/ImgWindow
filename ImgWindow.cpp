@@ -205,10 +205,8 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
                 need_rebuild = true;
             }
         } else {
-            if (atlas->TexData->GetTexRef().GetTexID()) {
-                if (!glIsTexture((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID())) {
-                    need_rebuild = true;
-                }
+            if ((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID() == 0) {
+                need_rebuild = true;
             }
         }
     }
@@ -216,9 +214,8 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     if (!need_rebuild) {
         if (atlas->TexData == nullptr) {
             need_rebuild = true;
-        } else if (atlas->TexData->GetTexRef().GetTexID()) {
-            if (!glIsTexture((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID()))
-                need_rebuild = true;
+        } else if ((GLuint)(uintptr_t)atlas->TexData->GetTexRef().GetTexID() == 0) {
+            need_rebuild = true;
         }
     }
 #endif
