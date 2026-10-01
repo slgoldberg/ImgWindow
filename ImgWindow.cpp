@@ -165,7 +165,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     // (We must manually trigger the synchronous CPU build and update the frame state
     // to prevent CPU memory leaks from un-freed texture buffers and dirty-flag thrashing.)
     static int sLastUpdatedFrame = -1;
-    int currentFrame = ImGui::GetFrameCount();
+    int currentFrame = XPLMGetCycleNumber();
     if (sLastUpdatedFrame != currentFrame) {
         if (!atlas->TexIsBuilt) {
             // Force ImGui to synchronously build the CPU texture buffers right now.
@@ -184,7 +184,10 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
             }
 #endif
         }
-        // Finally, clear the dirty lock and free old texture buffers from CPU memory and record the last frame we did this so we only do it once per ImGui frame (across all ImGui contexts).
+        // Finally, clear the dirty lock and free old texture buffers from CPU memory.
+        // We use X-Plane's cycle number (which is globally monotonic) instead of ImGui's FrameCount,
+        // because each window context has its own independent FrameCount which would violate
+        // ImGui's strict monotonic assertion when switching between windows!
         ImFontAtlasUpdateNewFrame(atlas, currentFrame, false);
         sLastUpdatedFrame = currentFrame;
     }
