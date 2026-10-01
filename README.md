@@ -1,4 +1,4 @@
-# ImgWindow: ImGui wrapper for X-Plane Modern XPLM Window API with font support
+# ImgWindow v1.3.0: ImGui wrapper for X-Plane Modern XPLM Window API with font support
 
 The sources in this repository are shared with the greater X-Plane developer
 community in the hope that it may save somebody a headache some day.

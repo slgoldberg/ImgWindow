@@ -35,6 +35,11 @@
 #ifndef IMGWINDOW_H
 #define IMGWINDOW_H
 
+// Version format: MmmPP (Major, 2-digit Minor, 2-digit Patch)
+// e.g., v1.3.0 becomes 10300. v1.12.3 becomes 11203.
+#define IMGWINDOW_VERSION       "1.3.0"
+#define IMGWINDOW_VERSION_NUM   10300
+
 #include "SystemGL.h"
 
 #include <climits>

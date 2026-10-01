@@ -1,4 +1,4 @@
-## `ImgWindow` & Panel Graphics: Migration Guide
+## Migration Guide: ImgWindow v1.3.0 (with new XPLM "Panel Graphics" support)
 
 With the release of X-Plane 12.4.4b1, Laminar Research introduced the **Panel Graphics API** (XPLM v4.4), routing UI rendering through a modern Vulkan/Metal backend. 
 
