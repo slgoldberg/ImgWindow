@@ -168,8 +168,6 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     int currentFrame = ImGui::GetFrameCount();
     if (sLastUpdatedFrame != currentFrame) {
         if (!atlas->TexIsBuilt) {
-            XPLMDebugString("ABC ImgWindow: Rasterizing fonts to CPU memory! (This should NOT spam!)\n");
-            
             // Force ImGui to synchronously build the CPU texture buffers right now.
             // We temporarily strip the RendererHasTextures flag so it actually builds the glyphs, then re-add it after.
             ImGuiIO& io = ImGui::GetIO();
@@ -222,8 +220,6 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
 
     if (need_rebuild)
     {
-        XPLMDebugString("ABC ImgWindow: Uploading new font atlas to GPU! (This should NOT spam!)\n");
-        
         // 2. CPU Rasterize (RGBA32 for stability)
         ImgFontAtlas::strct_texture_info outInfo;
         ImgFontAtlas::GetCustomAtlasTextureData(atlas, outInfo);
