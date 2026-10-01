@@ -154,7 +154,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
     // (We must manually trigger the synchronous CPU build and update the frame state
     // to prevent CPU memory leaks from un-freed texture buffers and dirty-flag thrashing.)
     static int sLastUpdatedFrame = -1;
-    int currentFrame = ImGui::GetFrameCount();
+    int currentFrame = XPLMGetCycleNumber();
     if (sLastUpdatedFrame != currentFrame) {
         if (!atlas->TexIsBuilt) {
             // Force ImGui to synchronously build the CPU texture buffers right now.
