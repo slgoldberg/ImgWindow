@@ -200,8 +200,16 @@ public:
     bool IsInsideWindowDragArea (int x, int y) const;
     
 #ifdef IMGUI_V192_REFACTOR
-    /** Add a custom plugin texture to the deferred safe disposal queue */
-    static void SafeDeleteTexture(ImTextureID texture);
+    /** Add a custom plugin texture to the deferred safe disposal queue.
+     *  NOTE: This is NOT STATIC; it was incorrectly defined as static
+     *  previously, but it absolutely requires a valid instance of ImgWindow
+     *  in order to be invoked.
+     *  WARNING: This method will be DEPRECATED in the next update to support
+     *  XPLM v4.4b3, which is coming out soon. This is *only* for X-Plane
+     *  v12.4.4b1 or v12.4.4b2!  This function will become deprecated when
+     *  X-Plane v12.4.4b3 is released.
+     */
+    void SafeDeleteTexture(ImTextureID texture);
 #endif /* IMGUI_V192_REFACTOR */
 
     /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
