@@ -647,14 +647,6 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
     if (XPLMGetCycleNumber() < ImgWindow::sBlankoutUntilCycle) {
         return;  // Skip rendering this frame.
     }
-    
-#ifdef IMGUI_V192_REFACTOR
-    if (mFontAtlas && mFontAtlas->getAtlas()) {
-        // rebuild and upload *only* if the atlas is actually out of date (e.g., dynamic font size or style changes, etc.)
-        // (Note: very inexpensive with early-out returns in common case.)
-        CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
-    }
-#endif /* IMGUI_V192_REFACTOR */
 
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     ImGuiIO& io = ImGui::GetIO();
