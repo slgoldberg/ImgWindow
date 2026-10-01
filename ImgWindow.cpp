@@ -139,6 +139,8 @@ static XPLMDataRef gFrameRatePeriodRef  = nullptr;
 #endif
 
 std::shared_ptr<ImgFontAtlas> ImgWindow::sFontAtlas;
+// Tracks textures pending destruction and the cycle they were queued
+static std::vector<std::pair<ImTextureID, int>> s_TexturesPendingDestruction;
 
 #ifdef IMGUI_V192_REFACTOR
 // Helper to safely rebuild the atlas if it gets dirty at runtime.
@@ -233,12 +235,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, GLuint& textureID)
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
             if (ImgPanelGraphics::IsAvailable()) {
                 if (textureID != nullptr) {
-#ifdef IMGWINDOW_FORCE_B3_ON_B2
-                    // Leak texture to avoid b2 draw-loop crash
-                    // ImgPanelGraphics::DestroyTexture(textureID);
-#else
-                    ImgPanelGraphics::DestroyTexture(textureID);
-#endif
+                    ImgWindow::DestroyCustomTexture((ImTextureID)(intptr_t)textureID);
                 }
                 
                 std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
@@ -565,19 +562,10 @@ ImgWindow::~ImgWindow()
     }
 #endif /* IMGUI_V192_REFACTOR */
     if (!mFontAtlas) {
-        // if we didn't have an explicit font atlas, destroy the texture.
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+        // if we didn't have an explicit font atlas, destroy the texture safely using our queue.
         if (mFontTexture) {
-            if (ImgPanelGraphics::IsAvailable()) {
-                ImgPanelGraphics::DestroyTexture(mFontTexture);
-            } else {
-                GLuint glTextureID = (GLuint)(intptr_t)mFontTexture;
-                glDeleteTextures(1, &glTextureID);
-            }
+            ImgWindow::DestroyCustomTexture((ImTextureID)(intptr_t)mFontTexture);
         }
-#else
-        glDeleteTextures(1, &mFontTexture);
-#endif
     }
     ImGui::DestroyContext(mImGuiContext);
     XPLMDestroyWindow(mWindowID);
@@ -876,6 +864,28 @@ ImgWindow::updateImgui()
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
     }
 #endif /* IMGUI_V192_REFACTOR */
+
+    // 1. Process deferred texture destruction safely at the start of a new frame
+    if (!s_TexturesPendingDestruction.empty()) {
+        int currentCycle = XPLMGetCycleNumber();
+        
+        s_TexturesPendingDestruction.erase(std::remove_if(s_TexturesPendingDestruction.begin(), s_TexturesPendingDestruction.end(), [currentCycle](const std::pair<ImTextureID, int>& item) {
+            // Only destroy if the cycle that queued it has completely finished
+            if (item.second < currentCycle) {
+#ifdef IMGWINDOW_USE_PANEL_GRAPHICS
+                if (ImgPanelGraphics::IsAvailable()) {
+                    ImgPanelGraphics::DestroyTexture((void*)(intptr_t)item.first);
+                } else
+#endif
+                {
+                    GLuint glTextureId = (GLuint)(intptr_t)item.first;
+                    glDeleteTextures(1, &glTextureId);
+                }
+                return true; // Delete from queue
+            }
+            return false; // Keep in queue for now
+        }), s_TexturesPendingDestruction.end());
+    }
 
     ImGui::NewFrame();
 
@@ -1437,17 +1447,13 @@ ImTextureID ImgWindow::CreateCustomTexture(const unsigned char* pixels, int widt
 
 void ImgWindow::DestroyCustomTexture(ImTextureID textureID) {
     if (!textureID) return;
-
-#ifdef IMGWINDOW_USE_PANEL_GRAPHICS
-    if (ImgPanelGraphics::IsAvailable()) {
-        ImgPanelGraphics::DestroyTexture((void*)(intptr_t)textureID);
-        return;
+    
+    // Prevent double-queueing the exact same texture (which causes failValidation)
+    for (const auto& item : s_TexturesPendingDestruction) {
+        if (item.first == textureID) return;
     }
-#endif
 
-    // Legacy OpenGL Fallback
-    GLuint glTextureId = (GLuint)(intptr_t)textureID;
-    glDeleteTextures(1, &glTextureId);
+    s_TexturesPendingDestruction.push_back({textureID, XPLMGetCycleNumber()});
 }
 
 std::queue<ImgWindow *>  ImgWindow::sPendingDestruction;

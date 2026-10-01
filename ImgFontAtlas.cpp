@@ -36,6 +36,7 @@
 #include <vector>
 #include <XPLMGraphics.h>
 #include "ImgFontAtlas.h"
+#include "ImgWindow.h"
 
 ImgFontAtlas::ImgFontAtlas():
     mOurAtlas(nullptr),
@@ -54,17 +55,12 @@ ImgFontAtlas::~ImgFontAtlas()
     if (mTextureBound) {
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
         if (mTextureRef) {
-            if (ImgPanelGraphics::IsAvailable()) {
-                ImgPanelGraphics::DestroyTexture(mTextureRef);
-            } else {
-                GLuint glTexNum = (GLuint)(intptr_t)mTextureRef;
-                glDeleteTextures(1, &glTexNum);
-            }
+            ImgWindow::DestroyCustomTexture((ImTextureID)(intptr_t)mTextureRef);
             mTextureRef = nullptr;
         }
 #else
         GLuint glTexNum = (GLuint)mGLTextureNum;
-        glDeleteTextures(1, &glTexNum);
+        ImgWindow::DestroyCustomTexture((ImTextureID)(intptr_t)glTexNum);
 #endif
         mTextureBound = false;
     }
