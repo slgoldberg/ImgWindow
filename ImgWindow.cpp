@@ -445,10 +445,10 @@ ImgWindow::ImgWindow(
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     if (ImgPanelGraphics::IsAvailable()) {
 #if defined(XPLM440)
-        XPLMCreateWindow_t windowParams = {0};
+        XPLMCreateWindow_t windowParams = {};
         windowParams.structSize = sizeof(XPLMCreateWindow_t);
 #else
-        SpoofedXPLMCreateWindow_t_440 windowParams = {0};
+        SpoofedXPLMCreateWindow_t_440 windowParams = {};
         windowParams.structSize = sizeof(SpoofedXPLMCreateWindow_t_440);
 #endif
         windowParams.left = left;
