@@ -41,11 +41,7 @@
 ImgFontAtlas::ImgFontAtlas():
     mOurAtlas(nullptr),
     mTextureBound(false),
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    mTextureRef(nullptr)
-#else
-    mGLTextureNum(0)
-#endif
+    mTextureID((ImTextureID)0)
 {
     mOurAtlas = new ImFontAtlas;
 }
@@ -53,15 +49,10 @@ ImgFontAtlas::ImgFontAtlas():
 ImgFontAtlas::~ImgFontAtlas()
 {
     if (mTextureBound) {
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-        if (mTextureRef) {
-            ImgWindow::DestroyCustomTexture((ImTextureID)(intptr_t)mTextureRef);
-            mTextureRef = nullptr;
+        if (mTextureID != (ImTextureID)0) {
+            ImgWindow::DestroyCustomTexture(mTextureID);
+            mTextureID = (ImTextureID)0;
         }
-#else
-        GLuint glTexNum = (GLuint)mGLTextureNum;
-        ImgWindow::DestroyCustomTexture((ImTextureID)(intptr_t)glTexNum);
-#endif
         mTextureBound = false;
     }
     delete mOurAtlas;
@@ -141,8 +132,8 @@ ImgFontAtlas::bindTexture()
                 unsigned char* p = &lin_pixels[i * 4];
                 p[3] = (unsigned char)(powf(p[3] / 255.0f, 2.2f) * 255.0f + 0.5f);
             }
-            mTextureRef = ImgPanelGraphics::CreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
-            mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)mTextureRef);
+            mTextureID = (ImTextureID)(intptr_t)ImgPanelGraphics::CreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
+            mOurAtlas->TexData->SetTexID(mTextureID);
         }
     } else {
         int gl_tex = 0;
@@ -169,10 +160,11 @@ ImgFontAtlas::bindTexture()
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
         mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)gl_tex);
 #endif
-        mTextureRef = (void*)(intptr_t)gl_tex;
+        mTextureID = (ImTextureID)(intptr_t)gl_tex;
     }
 #else
-    XPLMGenerateTextureNumbers(&mGLTextureNum, 1);
+    int gl_tex = 0;
+    XPLMGenerateTextureNumbers(&gl_tex, 1);
 
 #ifndef IMGUI_V192_REFACTOR
     unsigned char *pixData = nullptr;
@@ -183,18 +175,19 @@ ImgFontAtlas::bindTexture()
     GetCustomAtlasTextureData(mOurAtlas, outInfo);
 #endif
 
-    XPLMBindTexture2d(mGLTextureNum, 0);
+    XPLMBindTexture2d(gl_tex, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
 #ifndef IMGUI_V192_REFACTOR
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
-    mOurAtlas->SetTexID((void *)((intptr_t)mGLTextureNum));
+    mOurAtlas->SetTexID((void *)((intptr_t)gl_tex));
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
-    mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)mGLTextureNum);
+    mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)gl_tex);
 #endif
+    mTextureID = (ImTextureID)(intptr_t)gl_tex;
 #endif
 
     mTextureBound = true;
@@ -225,17 +218,9 @@ ImgFontAtlas::GetCustomAtlasTextureData(ImFontAtlas* atlas, strct_texture_info& 
     return (outInfo.pixels != nullptr && outInfo.width > 0 && outInfo.height > 0);
 }
 
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-void ImgFontAtlas::updateTextureTracking(void* textureID)
+void ImgFontAtlas::updateTextureTracking(ImTextureID textureID)
 {
-    mTextureRef = textureID;
-    mTextureBound = (textureID != nullptr);
+    mTextureID = textureID;
+    mTextureBound = (textureID != (ImTextureID)0);
 }
-#else
-void ImgFontAtlas::updateTextureTracking(int textureID)
-{
-    mGLTextureNum = textureID;
-    mTextureBound = (textureID != 0);  // Active if valid, cleared if 0
-}
-#endif
 #endif /* IMGUI_V192_REFACTOR */

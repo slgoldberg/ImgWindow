@@ -101,8 +101,8 @@ This namespace solves the problem by dynamically looking up the Vulkan/Metal fun
 If you want to manually manage your own Panel Graphics rendering, you should **never** call the raw XPLM versions directly. Instead, you should always route your calls through our proxies:
 | 🟢 Always Call This: | | 🔴 NEVER Call This (Raw XPLM): |
 | :--- | :---: | :--- |
-| `ImgPanelGraphics::CreateTexture` | &rarr; | `XPLMCreateTexture` |
-| `ImgPanelGraphics::DestroyTexture` | &rarr; | `XPLMDestroyTexture` |
+| `ImgPanelGraphics::CreateTexture`<br>*or* `ImgWindow::CreateCustomTexture` | &rarr; | `XPLMCreateTexture` |
+| ~~`ImgPanelGraphics::DestroyTexture`~~<br>`ImgWindow::DestroyCustomTexture` | &rarr; | `XPLMDestroyTexture` |
 | `ImgPanelGraphics::TransformPush` | &rarr; | `XPLMTransformPush` |
 | `ImgPanelGraphics::TransformPop` | &rarr; | `XPLMTransformPop` |
 | `ImgPanelGraphics::TransformTranslate` | &rarr; | `XPLMTransformTranslate` |
@@ -122,7 +122,13 @@ if (ImgPanelGraphics::IsAvailable()) {
 }
 ```
 
-But for an even simpler way to do this, `ImgWindow` provides a unified API to do this "the easy way", detailed below.
+But for an even simpler way to do this, `ImgWindow` provides a unified API to do this "the easy way", detailed below. In particular, as explained below, you can basically replace the **entire** block above, with **one call* that handles exaclty the same cases, e.g.:
+```cpp
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+myImTextureID = ImgWindow::CreateCustomTexture(pixels, w, h);
+#endif
+```
+Read on into the next section for a full explanation...
 
 #### B. Through the `ImgWindow` Unified Texture API _("The Easy Way")_
 
@@ -209,7 +215,16 @@ In legacy OpenGL, attempting to bind an uninitialized or garbage texture handle 
 
 ---
 
-#### Caveat C: Custom Textures & `ImGui::Image()` Legacy Conversion
+#### Caveat C: Legacy OpenGL Types and Pointer Truncation (The 32-bit Trap)
+If you are migrating an existing OpenGL codebase, it is highly likely you stored your texture handles using legacy 32-bit integer types like `GLuint` or `XPLMTextureID`. You **must** refactor these to `ImTextureID`.
+
+*   **The Trap:** While `ImgWindow::CreateCustomTexture()` perfectly abstracts the backend, it returns an `ImTextureID`, which is a **64-bit pointer** (`void*`) on modern OSes. If you assign this return value to an old `GLuint` or `XPLMTextureID` variable, your C++ compiler will violently truncate the top 32 bits of the Vulkan pointer. When you later pass that truncated variable into `ImGui::Image()`, `ImgWindow` will hand the garbage pointer to X-Plane, which will instantly abort the simulator with: `Resource does not belong to your plugin`.
+
+*   **The Fix:** You are no longer writing OpenGL code; you are writing *ImGui* code! Search your entire codebase and replace any `GLuint`, `unsigned int`, or `XPLMTextureID` variables that store texture handles with `ImTextureID` (or `void*`). Your contract with the framework is strictly through `ImTextureID`.
+
+---
+
+#### Caveat D: Custom Textures & `ImGui::Image()` Legacy Conversion
 The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL texture IDs. If your UI code generates custom textures via `glGenTextures()` and passes those raw GL integer IDs into `ImGui::Image()`, **X-Plane will instantly crash** if that specific window is being rendered via Panel Graphics.
 
 **The Fix:** Upgrade your texture generation to use the unified `ImgWindow::CreateCustomTexture()` API so it seamlessly multiplexes between both backends.
@@ -226,7 +241,7 @@ HIDE_FROM_PG(
 
 ---
 
-#### Caveat D: The Boilerplate CMake Trap (`XPLM440`)
+#### Caveat E: The Boilerplate CMake Trap (`XPLM440`)
 It is common practice for developers to blindly append the latest SDK version to their compiler flags, e.g.:<br>
 <code>&#8209;DXPLM200=1 &#8209;DXPLM210=1 ... &#8209;DXPLM430=1 &#8209;DXPLM440=1</code><br>
 
@@ -247,4 +262,4 @@ However, if you are defining `XPLM440` as a build requirement because you are us
 
 As with the main [README](../README.md), please feel free to submit a PR or feedback directly to the author if you are interested in improving this document, correcting any inaccuracies or outright errors, and/or adding more relevant examples, tools, documentation, or references.
 
-This file was last updated in *September, 2026* by Steven L. Goldberg.
+This file was last updated in *October, 2026* by Steven L. Goldberg, for `ImgWindow v2.0.0`.

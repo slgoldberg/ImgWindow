@@ -101,7 +101,7 @@ public:
      * temporarily blank out all ImGui windows for a cycle or two, e.g., to
      * avoid flicker during a plugin reload.
      */
-    inline static int sBlankoutUntilCycle = 0;
+    static int sBlankoutUntilCycle;
 
     virtual ~ImgWindow();
     
@@ -216,6 +216,10 @@ public:
      */
     static ImTextureID CreateCustomTexture(const unsigned char* pixels, int width, int height);
     static void DestroyCustomTexture(ImTextureID textureID);
+
+    /** Flushes all pending texture destructions immediately. 
+     *  Must be called during XPluginStop/XPluginDisable to prevent VRAM leaks. */
+    static void Shutdown();
 
     [[deprecated("Texture bake delays are no longer required. X-Plane 12.4.4b3+ synchronously builds textures instantly. This method is a no-op and can be safely removed.")]]
     void SetTextureBakeDelay(bool enableDelay, int frameCount = 2) {
@@ -391,11 +395,7 @@ private:
 
     XPLMWindowID mWindowID;
     ImGuiContext *mImGuiContext;
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    void* mFontTexture = nullptr;
-#else
-    GLuint mFontTexture = 0;
-#endif
+    ImTextureID mFontTexture = (ImTextureID)0;
 
     int mTop;
     int mBottom;

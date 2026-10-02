@@ -48,10 +48,18 @@ void TeardownImGui() {
         ImgWindow::sFontAtlas.reset(); 
     }
 
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM > 19200) /* only on v1.92+ */
     // 2. Immediately sever ImGui's internal reference to prevent double-delete crashes
     if (ImGui::GetCurrentContext() != nullptr) {
         ImGui::GetIO().Fonts = NULL; 
     }
+#endif
+
+    // 3. Flush the queue to ensure the Font Atlas is actually deleted from VRAM!
+    // (Note: This is only strictly necessary during XPluginDisable. If you are 
+    // dynamically rebuilding the atlas while windows remain open, the framework 
+    // will automatically flush the old texture on the next frame.)
+    ImgWindow::Shutdown();
 }
 ```
 
