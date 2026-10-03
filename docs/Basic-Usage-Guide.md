@@ -157,10 +157,12 @@ By default, windows are created in the 2D layered window system (e.g., `xplm_Win
 
 *(Note: The framework checks the VR state automatically whenever you call `SetVisible(true)`. It does not continuously poll the VR state in the background. If you want an already-open 2D window to instantly teleport into VR the moment the user puts their headset on, your plugin will need to track the VR DataRef and explicitly toggle the window's visibility to trigger the transition!)*
 
-### 3.5 Safe Destruction
-Never use the standard C++ `delete` operator to destroy your window from inside an ImGui callback (like a button press). Doing so will destroy the object while ImGui is still actively processing its draw tree, causing an instant crash.
+### 3.5 Safe Window Destruction
+Never use the standard C++ `delete` operator to destroy your window instance (and thus the window itself) from inside an ImGui callback (like a button press which happens in a "draw" cycle callback). Doing so will destroy the object while ImGui is still actively processing its draw tree, causing an instant crash.
 
-Instead, always call **`SafeDelete()`**. This queues the window for destruction, deferring the actual deletion to a static XPLM Flight Loop Callback that safely destroys the window pointer in the `BeforeFlightModel` phase, entirely outside of the ImGui and X-Plane drawing loops.
+Instead, always call **`SafeDelete()`**, which is an `ImgWindow` helper method. This **queues the window instance for destruction**, deferring the actual deletion to a static XPLM Flight Loop Callback that safely destroys the window pointer in the `BeforeFlightModel` phase (entirely outside of the ImGui and X-Plane drawing loops).
+
+&rarr;&nbsp;_Note: don't confuse the `ImgWindow::SafeDelete()` helper method with the `ImgWindow::DestroyCustomTexture()` method! **They serve completely different purposes!**_
 
 ## What's Next?
 Once you understand the basic usage model, you can safely write your UI code without worrying about how X-Plane actually gets it onto the screen.
