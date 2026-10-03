@@ -1,6 +1,6 @@
-# Migration Guide: `ImgWindow` v2.0
+# Migration Guide: `ImgWindow v2`
 
-Welcome to the `ImgWindow` v2.0 Migration Guide. With the release of X-Plane 12.4.4b3, Laminar fundamentally upgraded their Vulkan rendering pipeline, allowing us to drop several restrictive hacks and unify our APIs.
+Welcome to the `ImgWindow v2` Migration Guide. With the release of X-Plane 12.4.4b3, Laminar fundamentally upgraded their Vulkan rendering pipeline, allowing us to drop several restrictive hacks and unify our APIs.
 
 Depending on what version of `ImgWindow` your plugin is currently using, choose your migration path below:
 
@@ -14,7 +14,7 @@ Fortunately, Prince I-Am-GeeWin-Dough II (b3) has democratized the kingdom! A ne
 
 Because X-Plane 12.4.4b3 now natively handles deferred Vulkan command encoding, we have stripped out the complex Flight Loop Callback (FLCB) garbage collection queues. 
 
-### Required Code Changes for v2.0:
+### Required Code Changes for v2:
 1. **Texture Destruction:** The `SafeDeleteTexture()` method is officially deprecated.
    * **Migration:** Replace all calls to `SafeDeleteTexture(tex)` with the new, unified `ImgWindow::DestroyCustomTexture(tex)` method. You can safely call this synchronously from the main thread!
 2. **Texture Bake Delays:** The `SetTextureBakeDelay()` method is officially deprecated. Panel Graphics now builds and binds textures instantly and synchronously.
@@ -26,7 +26,7 @@ Because X-Plane 12.4.4b3 now natively handles deferred Vulkan command encoding, 
 
 ## Part 2: Upgrading from earlier versions of ImgWindow (Legacy OpenGL)
 
-If you are migrating your plugin from an older version of the framework (Legacy OpenGL) to `v2.0` (which adds modern Panel Graphics support), this section covers everything you need to know to safely transition to the modern, hyper-performant backend—while retaining full backwards compatibility for your X-Plane 11 users!
+If you are migrating your plugin from an older version of the framework (Legacy OpenGL) to `v2` (which adds modern Panel Graphics support), this section covers everything you need to know to safely transition to the modern, hyper-performant backend—while retaining full backwards compatibility for your X-Plane 11 users!
 
 With the release of X-Plane 12.4.4b1, Laminar Research introduced the **Panel Graphics API** (XPLM v4.4), routing UI rendering through a modern Vulkan/Metal backend.
 
@@ -115,16 +115,20 @@ If you choose to use these proxies directly, and you intend to support either Pa
 
 ```cpp
 if (ImgPanelGraphics::IsAvailable()) {
+```cpp
+#ifdef IMGWINDOW_USE_PANEL_GRAPHICS
+if (ImgPanelGraphics::IsAvailable()) {
     myPanelGraphicsHandle = ImgPanelGraphics::CreateTexture(pixels, w, h);
-} else {
+} else 
+#endif
+{
     // legacy OpenGL fallback
     glGenTextures(1, &myLegacyGLHandle);
-}
-```
-
-But for an even simpler way to do this, `ImgWindow` provides a unified API to do this "the easy way", detailed below. In particular, as explained below, you can basically replace the **entire** block above, with **one call* that handles exaclty the same cases, e.g.:
+    // ... setup texture params ...
 ```cpp
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+// Look ma, no #ifdefs!
+myImTextureID = ImgWindow::CreateCustomTexture(pixels, w, h);
+```
 myImTextureID = ImgWindow::CreateCustomTexture(pixels, w, h);
 #endif
 ```
@@ -160,6 +164,11 @@ void LoadMyCustomTexture(const char* filepath) {
     stbi_image_free(rgba_pixels);
 }
 ```
+> [!WARNING]
+> 🔥 **CRITICAL TYPE WARNING: The 64-bit Vulkan Trap!** 🔥
+> If you are migrating an existing OpenGL codebase, you **must** declare `myCustomTexture` (and any variable that stores it) as an `ImTextureID`. 
+> 
+> You absolutely cannot store it in legacy 32-bit integer types like `GLuint`, `unsigned int`, or `XPLMTextureID` anymore. `CreateCustomTexture` returns a **64-bit pointer** (`void*`). If you assign it to a 32-bit `GLuint`, your C++ compiler will violently truncate the top half of the memory address. When you later pass that mangled variable into `ImGui::Image()`, X-Plane will instantly crash with `Resource does not belong to your plugin`. **You are no longer writing OpenGL code; your contract with the framework is strictly through `ImTextureID`!**
 
 *Note on Alpha Blending:* Panel Graphics relies on straight alpha blending. If your image has fully transparent areas with black RGB values (0, 0, 0, 0), it may cause dark halos around semi-transparent edges. Ensure your assets are exported with a white matte, or manually sanitize the RGB channels of fully transparent pixels before calling `ImgWindow::CreateCustomTexture()`.
 
@@ -262,4 +271,18 @@ However, if you are defining `XPLM440` as a build requirement because you are us
 
 As with the main [README](../README.md), please feel free to submit a PR or feedback directly to the author if you are interested in improving this document, correcting any inaccuracies or outright errors, and/or adding more relevant examples, tools, documentation, or references.
 
-This file was last updated in *October, 2026* by Steven L. Goldberg, for `ImgWindow v2.0.0`.
+This file was last updated in *October, 2026* by Steven L. Goldberg, for `ImgWindow v2`.
+
+---
+
+#### Caveat E: The 1-Frame Deferred Deletion & Teardown Leaks (`Shutdown`)
+Because X-Plane 12's modern Panel Graphics backend executes draw calls synchronously during your flight loop, it introduced a new timing hazard: if you destroy a texture handle (like your font atlas) while ImGui is still building its draw list, X-Plane's Vulkan backend will instantly crash when it attempts to draw the destroyed handle milliseconds later.
+
+*   **The Trap:** To prevent this crash, `ImgWindow v2` implements a **1-frame deferred deletion queue**. When you call `ImgWindow::DestroyCustomTexture()`, the texture isn't actually deleted immediately; it is placed in a queue and deleted during the *next* flight loop cycle. 
+However, if your plugin is being disabled or stopped (e.g., inside `XPluginDisable` or `XPluginStop`), the flight loop *stops running*. If you destroy the font atlas at shutdown, it gets put into the 1-frame queue, but the next frame never comes! This leaves orphaned textures in VRAM and can cause a driver crash when X-Plane tears down your plugin's graphics context.
+
+*   **The Fix:** You **must** manually flush the deferred deletion queue at the end of your plugin's lifecycle. Inside your `XPluginDisable` (or wherever you do your final ImGui teardown), immediately after you destroy the font atlas and ensure no other ImgWindow code will run, you must call:
+    ```cpp
+    ImgWindow::Shutdown();
+    ```
+    This instantly bypasses the 1-frame delay and wipes the queue clean, ensuring a safe exit.

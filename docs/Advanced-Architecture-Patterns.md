@@ -1,4 +1,4 @@
-# ImgWindow v2.0: Advanced Architecture Patterns
+# `ImgWindow v2`:  Advanced Architecture Patterns
 
 While the `ImgWindow` base class provides a 1-to-1 abstraction over X-Plane's modern window API, large-scale plugins often require more sophisticated architectural patterns to manage complex UIs, optimize VRAM, and keep their codebase DRY (Don't Repeat Yourself). 
 

@@ -1,11 +1,12 @@
-# ImgWindow v2.0.0: ImGui wrapper for X-Plane Modern XPLM Window API with font support
+# `ImgWindow v2`: ImGui wrapper for X-Plane Modern XPLM Window API with font support
 
 The sources in this repository are shared with the greater X-Plane developer
 community in the hope that it may save somebody a headache some day.
 
 This was originally the public XSquawkBox Public (`xsb_public`) repository, which contained several components, including `ImgWindow` and its dependencies. But it has been heavily expanded to add some critically important improvements for using **Dear ImGui** in C++ X-Plane plugins. 
 
-Here are the major additions to the framework:
+Here are the major additions to the framework since it was forked:
+---
 
 + **Full support for major Dear ImGui API changes** (while keeping ImGui v1.8x compatibility):
   
@@ -38,7 +39,9 @@ Opt-in support for dynamic ImGui mouse cursors. If enabled, the plugin can chang
 
 + And more...
 
-_(Note: This repository is maintained by Steven L. Goldberg (`slgoldberg`) and was forked from Chris Collins' original `xsb_public` repository. Going forward, this fork **only** contains the source files needed for `ImgWindow` and `ImgFontAtlas`. If you need the other legacy utility code from the original project -- specifically `WavFile` or `XOGLUtils` -- please see the original repository instead. Going forward, please submit any Pull Requests or other feedback, directly on **this** repository, which can be found at <http://github.com/slgoldberg/ImgWindow>. **Read below** for detailed usage information, as well as an important migration guide for the new **Panel Graphics** support if you are planning to enable it for your plugin.)_
+---
+
+This repository is maintained by **Steven L. Goldberg (`slgoldberg`)**, and was forked from Chris Collins' original `xsb_public` repository. Going forward, this fork **only** contains the source files needed for `ImgWindow` and `ImgFontAtlas`. If you need the other legacy utility code from the original project -- specifically `WavFile` or `XOGLUtils` -- please see the original repository instead. Going forward, please submit any Pull Requests or other feedback, directly on **this** repository, which can be found at &lt;https&#8203;://github.com/slgoldberg/ImgWindow&gt;. **Read below** for detailed usage information, as well as an important migration guide for the new **Panel Graphics** support if you are planning to enable it for your plugin.
 
 ## Licensing Note
 
@@ -78,21 +81,20 @@ the goal of this `ImgWindow`-focused project to support `XSquawkBox` anymore.
 
 The new dynamic Panel Graphics bridge has been verified stable across **Windows, macOS (Metal), and Linux (Vulkan)** in both legacy OpenGL fallback mode and native XPLM 4.4 Panel Graphics mode, as well as the fully functional, hybrid "bridge" mode where *both* `OpenGL` *and* `Panel Graphics` are supported (based on the current running version of X-Plane). Detailed documentation is included and provides simple ways for plugin authors to migrate to using the new Panel Graphics support, among other things.
 
-> [!NOTE] `XPLM v4.4` is not yet "final", but the likely candidate (`v4.4b3`) is now out!! _(1-October-2026)_<br>
-> As of this writing, Laminar Research has just released X-Plane 12.4.4b3, which includes a "breaking change" to the part of the Panel Graphics API that specifically supports `ImGui` rendering -- so, users of this framework should be aware of these changes so you are not surprised by this breaking change and possibly more in the near future:
->   * XPLM v4.4**_b3_** is now *out*, as of 1-October-2026. It is provided within X-Plane v12.4.4**_b3**_.
->   * The "breaking change": the Panel Graphics ImGui drawing call no longer translates y-coordinates from the legacy OpenGL world that's used by `ImGui`, and instead now requires plugins using ImGui to invert the y-axis themselves via a series of XPLM "transforms", lest the user see their graphics upside-down in a _weird_, unnatural way!
->      - `ImgWindow v2.0.0` (THIS RELEASE) correctly does this *for you* -- so you don't have to! In other words, support for X-Plane 12.4.4b3's "breaking changes" in the Panel Graphics API is **built into this framework**, with **graceful degradation** for users of X-Plane 12.4.4b1 and 12.4.4b2 to be served up using OpenGL instead since there's no middle solution for both Panel Graphics APIs at the same time!
->    * Developers: The XPLM v4.4b3 SDK mandates that we **deprecate** our previous `ImgWindow::SafeDeleteTexture()` function!
->      - Instead, you **must** delete any "custom" textures you create, by using the *new* `ImgWindow v2.0.0` static method, `ImgWindow::DestroyCustomTexture(texID)`!
->      - This function, as well as an optional `ImgWindow::CreateCustomTexture()`, both "multiplex" your texture-related creation/destruction requests across either OpenGL *or* Panel Graphics **automatically**, so you don't have to!
->      - Assuming you support both and have the "bridge" functionality enabled, in the form of these **static** methods, `ImgWindow::CreateCustomTexture()` and `ImgWindow::DestroyCustomTexture()`, you can place these calls *anywhere* (except you cannot create textures from within a background thread!)
->        * We provide **detailed guidance** on these restrictions in our other documentation, which is all linked below!
->  * This version (2.0.0) will replace the current `ImgWindow 1.3.0` on the `master` repository very soon -- you may be reading this in the master `ImgWindow` repository even now!  If so, this is it! Use it!
+> [!WARNING]
+> `XPLM v4.4` is not yet "final" though `XPLM v4.4b3` is the likely candidate. _(As of 1-October-2026)_<br>
+> X-Plane 12.4.4b3 is not the last beta release (according to Laminar Research) -- and until v12.4.4 is *final*, this release of `ImgWindow v2` is also not *final*.  So, developers should be aware:
+>   * The last-minute changes in XPLM v4.4b3 caused us to change our API, thus accelerating the version of this repository to become `ImgWindow v2.0.0` just a few days ago.
+>   * As a result, developers should very _carefully_ read the &rarr;[`ImgWindow v2` Migration Guide](Panel-Graphics-Migration.md) to learn of the changes from v1.3 to v2!
+>     - The short version:  The XPLM v4.4b3 SDK mandates that we **deprecate** our previous `ImgWindow::SafeDeleteTexture()` function. You are now **required** to call `ImgWindow::DestroyCustomTexture(texID)` instead! (You _must_ call this and you _must not_ call ~~`XPLMDestroyTexture()`~~ nor  ~~`ImgPanelGraphics::DestroyTexture()`~~!)
+>  * This version (2.0.0) will replace the current `ImgWindow v1.3` on the `master` repository very soon -- you may be reading this in the master `ImgWindow` repository even now!  If so, this is it! Use it!
 
 If you maintain a plugin that uses `ImgWindow`, you can safely drop in this update to modernize your rendering pipeline. We continue to welcome developer feedback, edge-case testing, and contributions via the issue tracker and pull requests!
 
 The area we are most interested in finding other plugins to test for us -- besides the basic bridge functionality to choose between Panel Graphics and OpenGL -- is plugins that manage custom **textures**, because this can be a difficult problem due to the differing architectural requirements of Panel Graphics versus legacy OpenGL.  With the support of `ImgWindow::CreateCustomTexture()` and `ImgWindow::DestroyCustomTexture()` for example, we mitigate these issues by providing a unified texture multiplexing API. This allows developers to seamlessly create and destroy textures that work across both backends without having to write separate `#ifdef` pipelines, saving hours of development time. Read more below and on the referenced user guide.
+
+> [!IMPORTANT]
+> **The 64-bit ImTextureID Trap:** If you use these unified texture APIs to migrate an older OpenGL plugin, you **must** refactor any variables holding texture IDs from `GLuint` (32-bit) to `ImTextureID` (64-bit pointer). Assigning the unified texture return value to an old 32-bit `GLuint` will silently truncate the pointer and instantly crash X-Plane 12 Vulkan! See the Migration Guide for full details.
 
 ---
 

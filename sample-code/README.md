@@ -1,4 +1,4 @@
-# Sample code and fonts for use with `ImgWindow` v2.0.0
+# Sample code and fonts for use with `ImgWindow v2`
 
 This folder contains example implementations and resources to help developers set up custom font atlases for `ImgWindow`-powered plugins.
 
