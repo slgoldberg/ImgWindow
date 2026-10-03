@@ -41,7 +41,9 @@ Our `ImgFontAtlas` class wraps ImGui's native atlas, intercepting the texture ge
 ### The Contract & Lifetime
 * **Do NOT subclass `ImgFontAtlas`:** The base class provides everything you need.
 * **Shared Instance:** `ImgWindow` uses a static scoped shared pointer (`std::shared_ptr<ImgFontAtlas>`) under the hood. This means you only need to create **one** font atlas for your entire plugin. All instances of your windows will automatically share this single font texture, saving massive amounts of VRAM.
-* **Initialization:** You must instantiate the font atlas and assign it to `ImgWindow::sFontAtlas` before your first window draws. However, **you do not need to call `bindTexture()` manually!** `ImgWindow` automatically calls it for you during the first frame's draw cycle to ensure X-Plane's graphics contexts are safely initialized and active. (Attempting to bind textures too early during plugin startup can corrupt X-Plane's state!)
+* **Creation & Initialization:** You must create a single `ImgFontAtlas` instance and assign it to the `ImgWindow::sFontAtlas` shared pointer **before** creating your first window. Immediately after assigning it, you must configure it by loading your required fonts (or the default font). 
+  - **The Lazy Upload:** While you configure the fonts in CPU memory early, the actual VRAM upload to the GPU is handled *lazily*. `ImgWindow` automatically binds the texture for you the moment your first window begins to draw. 
+  - **Best Practice:** We recommend wrapping this setup (instantiating the atlas, linking it to `sFontAtlas`, and loading fonts) inside a global `InitializeImGui()` function. You can safely call this from `XPluginStart` or `XPluginEnable` so your fonts are fully prepped before any window creation logic fires.
 
 ### Font Setup Example
 ```cpp
