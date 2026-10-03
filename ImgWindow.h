@@ -36,9 +36,9 @@
 #define IMGWINDOW_H
 
 // Version format: MmmPP (Major, 2-digit Minor, 2-digit Patch)
-// e.g., v1.3.0 becomes 10300. v1.12.3 becomes 11203.
-#define IMGWINDOW_VERSION       "1.3.0"
-#define IMGWINDOW_VERSION_NUM   10300
+// e.g., v2.0.0 becomes 20000. v1.12.3 becomes 11203.
+#define IMGWINDOW_VERSION       "2.0.0"
+#define IMGWINDOW_VERSION_NUM   20000
 
 #include "SystemGL.h"
 
@@ -101,7 +101,7 @@ public:
      * temporarily blank out all ImGui windows for a cycle or two, e.g., to
      * avoid flicker during a plugin reload.
      */
-    inline static int sBlankoutUntilCycle = 0;
+    static int sBlankoutUntilCycle;
 
     virtual ~ImgWindow();
     
@@ -205,6 +205,7 @@ public:
     bool IsInsideWindowDragArea (int x, int y) const;
     
 #ifdef IMGUI_V192_REFACTOR
+<<<<<<< HEAD
     /** Add a custom plugin texture to the deferred safe disposal queue.
      *  NOTE: This is NOT STATIC; it was incorrectly defined as static
      *  previously, but it absolutely requires a valid instance of ImgWindow
@@ -215,19 +216,30 @@ public:
      *  X-Plane v12.4.4b3 is released.
      */
     void SafeDeleteTexture(ImTextureID texture);
+=======
+    [[deprecated("SafeDeleteTexture is obsolete in Phase 6 Redux. X-Plane 12.4.4b3+ permits synchronous destruction. Please migrate to the new unified DestroyCustomTexture() method.")]]
+    void SafeDeleteTexture(ImTextureID texture) {
+        DestroyCustomTexture(texture);
+    }
+>>>>>>> feature/phase6-redux
 #endif /* IMGUI_V192_REFACTOR */
 
-    /** Opt-in to an n-frame ghosting delay to hide texture baking on heavy
-     *  windows, starting from when the window is first rendered.
-     *  (Note: This only has effect for Panel Graphics windows. It is
-     *  ignored entirely for all OpenGL-based windows as it's irrelevant.
-     *  But the setting can still be called without harm to avoid plugin
-     *  authors needing to check for Panel Graphics availability themselves.)
-     * @param enableDelay Whether to enable the ghosting delay (off by default)
-     * @param frameCount Number of frames to delay, defaulting to 2.
+    /** Unified API to create and destroy custom textures dynamically 
+     *  using either Panel Graphics (if available) or OpenGL fallback.
      */
-    void SetTextureBakeDelay(bool enableDelay, int frameCount = 2);
-    
+    static ImTextureID CreateCustomTexture(const unsigned char* pixels, int width, int height);
+    static void DestroyCustomTexture(ImTextureID textureID);
+
+    /** Flushes all pending texture destructions immediately. 
+     *  Must be called during XPluginStop/XPluginDisable to prevent VRAM leaks. */
+    static void Shutdown();
+
+    [[deprecated("Texture bake delays are no longer required. X-Plane 12.4.4b3+ synchronously builds textures instantly. This method is a no-op and can be safely removed.")]]
+    void SetTextureBakeDelay(bool enableDelay, int frameCount = 2) {
+        (void)enableDelay;
+        (void)frameCount;
+    }
+
 protected:
     bool mIsPendingDestruction = false;
 
@@ -240,10 +252,6 @@ protected:
      * calls once and once only.
      */
     bool mFirstRender;
-    
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    int mGhostFramesRemaining = 0;  // no delay unless SetTextureBakeDelay() is called immediately after creation.
-#endif
 
     /** Construct a window with the specified bounds
      *
@@ -375,11 +383,6 @@ private:
     static std::queue<ImgWindow *>  sPendingDestruction;
     static XPLMFlightLoopID         sSelfDestructHandler;
 
-    static float FontAtlasRebuildFLCB(float inElapsedSinceLastCall,
-                                      float inElapsedTimeSinceLastFlightLoop,
-                                      int inCounter,
-                                      void *inRefcon);
-    static XPLMFlightLoopID         sFontAtlasRebuildHandler;
 
     int HandleMouseClickGeneric(
         int x, int y,
@@ -405,11 +408,7 @@ private:
 
     XPLMWindowID mWindowID;
     ImGuiContext *mImGuiContext;
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-    void* mFontTexture = nullptr;
-#else
-    GLuint mFontTexture = 0;
-#endif
+    ImTextureID mFontTexture = (ImTextureID)0;
 
     int mTop;
     int mBottom;
