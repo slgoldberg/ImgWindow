@@ -114,8 +114,6 @@ _<sup>*</sup>We purposefully do not expose a proxy for `XPLMDrawCalls`, as the f
 If you choose to use these proxies directly, and you intend to support either Panel Graphics _or_ OpenGL rendering pipelines (of course, only one or the other, based on the build parameters and/or the runtime environment), you must manually _multiplex_ your plugin's calls based on `ImgPanelGraphics::IsAvailable()` (or the convenience method, `ImgWindow::IsUsingPanelGraphics()` that returns the same boolean result). For example, instead of replacing your legacy OpenGL texture creation logic (if your plugin needed such) with a direct call to `XPLMCreateTexture()`, foregoing the legacy support, you might use the `ImgPanelGraphics::` proxy instead -- for example:
 
 ```cpp
-if (ImgPanelGraphics::IsAvailable()) {
-```cpp
 #ifdef IMGWINDOW_USE_PANEL_GRAPHICS
 if (ImgPanelGraphics::IsAvailable()) {
     myPanelGraphicsHandle = ImgPanelGraphics::CreateTexture(pixels, w, h);
@@ -125,13 +123,16 @@ if (ImgPanelGraphics::IsAvailable()) {
     // legacy OpenGL fallback
     glGenTextures(1, &myLegacyGLHandle);
     // ... setup texture params ...
+}
+```
+
+Just by contrast, here is how you do the exact same thing "the easy way":
+
 ```cpp
 // Look ma, no #ifdefs!
 myImTextureID = ImgWindow::CreateCustomTexture(pixels, w, h);
 ```
-myImTextureID = ImgWindow::CreateCustomTexture(pixels, w, h);
-#endif
-```
+
 Read on into the next section for a full explanation...
 
 #### B. Through the `ImgWindow` Unified Texture API _("The Easy Way")_
