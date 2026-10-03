@@ -58,7 +58,11 @@
  * in an x-plane compatible manner.
  *
  */
+class ImgWindow;
+
 class ImgFontAtlas {
+    friend class ImgWindow;
+
 public:
     ImgFontAtlas();
 
@@ -88,10 +92,6 @@ public:
                                                  const ImFontConfig *font_cfg = NULL,
                                                  const unsigned short *glyph_ranges = NULL);              // 'compressed_font_data_base85' still owned by caller. Compress with binary_to_compressed_c.cpp with -base85 parameter.
 
-    //bindTexture creates and binds the font texture to OpenGL, ready for use.
-    //This should be called after all fonts are loaded, before any rendering occurs!
-    virtual void bindTexture();
-
     ImFontAtlas *getAtlas();
 
 #ifdef IMGUI_V192_REFACTOR
@@ -113,6 +113,11 @@ protected:
     ImFontAtlas *mOurAtlas;
     bool        mTextureBound;
     ImTextureID mTextureID;
+
+private:
+    // bindTexture uploads the font atlas pixels from CPU memory to X-Plane's VRAM (Vulkan/Metal or OpenGL).
+    // Note: ImgWindow calls this automatically during the first draw frame. Users of this framework *cannot* call this directly; it is exclusively managed by ImgWindow.
+    virtual void bindTexture();
 };
 
 /** Define the structures we need for our panel graphics "bridge" support.
