@@ -3,7 +3,7 @@
 //
 //  Steven L. Goldberg, 2026
 //
-//  This is an example of how to initialize ImGui for use in an X-Plane
+//  This is an EXAMPLE of how to initialize ImGui for use in an X-Plane
 //  plugin using the ImgWindow and ImgFontAtlas classes.  It is not a complete
 //  example, but it shows how to set up the font atlas and load fonts into it,
 //  including merging FontAwesome icons into each font, with offsets where we
@@ -22,18 +22,31 @@
 //  it, so that any window can use them via ImGui::PushFont() with the
 //  appropriate font index.
 //
-//  For full compatibility with XPLMReloadPlugins() or XPLMReloadThisPlugin(),
-//  the font atlas can be clealy destroyed and reset using RemoveImGui() which
-//  is at the end of this file, below.  (This will even allow you to
-//  dynamically clear and re-build the Font Atlas if you want to completely
-//  change fonts -- e.g., if you want to allow the user to select a different
-//  base font size, or a different font family, etc.  (Of course, this sample
-//  InitializeImGui() function doesn't handle all that -- it assumes a fixed
-//  set of fonts and default font size, around which it loads the combined
-//  fonts at the base size, with FontAwesome icons merged in.)
+//  You *must* call the companion TeardownImGui() function from either 
+//  XPluginStop() or XPluginDisable() (which depends on where you call 
+//  InitializeImGui()), whenever the plugin is shutting down or reloading
+//  (e.g., via XPLMReloadPlugins). Failure to do so may result in VRAM leaks
+//  if using Panel Graphics, or crashes due to the shared font atlas not being
+//  properly destroyed if using OpenGL or Panel Graphics.
 //
-//  Your mileage may vary. :-) This is just an example; no promises are made.
-//  (For a complete example of how to use ImGui in an X-Plane plugin with
+//  You will find an example of this function in the file "TeardownImGui.cpp".
+// 
+//  (There is another use case where you can, for example, call the
+//  TeardownImGui() function mid-flight, to completely rebuild the font atlas
+//  if you need to replace all your current fonts with others such as bigger
+//  font sizes as an accommodation to the user. In such a case, you may call
+//  TeardownImGui() to clear the current font atlas -- but you should *only*
+//  do this after dynamically closing *all* your existing ImgWindow instances!
+//  Calling TeardownImGui() will then clear the current font atlas and reset 
+//  the shared pointer. Once that is done, you can create a new atlas, load 
+//  all the fonts you need, attach the new atlas smart pointer to ImgWindow 
+//  (just as demonstrated above), and then reopen any windows you had open 
+//  before. This sequence of destroying, rebuilding, and reopening must all 
+//  be done synchronously, such as within a single flight-loop callback.)
+//
+//  --------------------------------------------------------------------------
+//
+//  For a complete example of how to use ImGui in an X-Plane plugin with
 //  ImgWindow and ImgFontAtlas, see the GitHub repository for "imgui4xp", at
 //  <https://github.com/sparker256/imgui4xp>.
 //
@@ -54,6 +67,17 @@
 constexpr int SYSTEM_FONT_SIZE = 14;     // roughly equivalent size for Roboto
 
 #define BASELINE_FONT_SIZE    ( SYSTEM_FONT_SIZE )
+
+// Define macros we can use for font banks that describe the bank, to be used
+// as indices into the font array for use with ImGui::PushFont():
+constexpr size_t IM_NORMAL_FONT      = 0;
+constexpr size_t IMG_TITLE_FONT      = 1;
+constexpr size_t IM_SMALLER_FONT     = 2;
+constexpr size_t IM_BOLD_FONT        = 3;
+constexpr size_t IM_BOLD_LARGER_FONT = 4;
+constexpr size_t IM_MONO_NORMAL_FONT = 5;
+constexpr size_t IM_ITALIC_FONT      = 6;
+constexpr size_t IM_MONO_MEDIUM_FONT = 7;
 
 // Load fonts from files generated via ImGui utility which converts TTF to
 // compressed C++ arrays, included in the "fonts" directory as .inc files:
@@ -373,47 +397,17 @@ bool InitializeImGui ()
 
 // ----------------------------------------------------------------------------
 
-    // Callers can now use ImGui::PushFont() with the 8 loaded fonts above.
+    // Callers can now use ImGui::PushFont() with the 8 loaded fonts above, by
+    // using the atlas array at the corresponding index for each font, e.g.:
+    // ImGui::PushFont(ImgWindow::sFontAtlas->Fonts[IM_ITALIC_FONT]);
+
     return true;
 }
 
-/// Remove the static data created by ImGui -- specifically, the Font Atlas, so
-/// we can force it to re-load when calling InitializeImGui().
-void RemoveImGui ()
-{
-    // Clear away our "Font Atlas" that may have been previously loaded for a
-    // clean shut-down:
-    // (Note: we may want to do this without completely shutting down, e.g., to
-    // reload all fonts at a different baseline font size. That would need to
-    // be a parameter to the above function, but it is possible. Depending on
-    // how your code is organized you'll probably want to close all windows
-    // that use this atlas first, run the above function again to (re-)load the
-    // fonts at the new size, and then re-create (re-open) all previously-open
-    // windows with the higher baseline font size. Of course, you can also just
-    // load and resize fonts inside ImGui, without needing to do this, but at
-    // least you have this option!  For example, A-Better-Camera does this for
-    // users who toggle "Senior Citizen mode" on or off.)
-
-#ifdef IMGUI_V192_REFACTOR             /* needed with ImGui v1.92 and later: */
-    if (ImGui::GetCurrentContext() != NULL) {
-        // Disconnect the ImgWindow version of the shared atlas link from the
-        // active context context to avoid double deletion: (!!)
-        // (Note: this is needed in all cases with ImGui v1.92 and later, not
-        // just when reloading, if ImgWindow uses the shared font atlas.)
-        ImGui::GetIO().Fonts = NULL;  // don't let ImGui keep using font atlas!
-    }
-#endif /* IMGUI_V192_REFACTOR */
-
-    if (ImgWindow::sFontAtlas)
-        ImgWindow::sFontAtlas.reset(); // release our singleton to delete atlas
-
-    // Force all ImgWindow instances to skip ImGui rendering altogether for
-    // the next few cycles, so the caller can call InitializeImGui() and set
-    // up one or more new ImgWindow instances, without the user seeing texture
-    // flicker or other artifacts as the font atlas is re-created and re-bound
-    // to X-Plane textures:
-    // (You can certainly remove this if you never plan to do a full reload
-    // of the font atlas and all ImgWindow instances; but it's a good idea to
-    // leave it in for safety.)
-    ImgWindow::sBlankoutUntilCycle = XPLMGetCycleNumber() + 4;
-}
+// IMPORTANT:
+//
+// TeardownImGui() is now in a separate file, "TeardownImGui.cpp"!
+//
+// It should be called from XPluginStop() or XPluginDisable(), depending on 
+// where you called InitializeImGui(), in order to completely clean up the
+// font atlas and other ImGui resources when they are no longer needed.

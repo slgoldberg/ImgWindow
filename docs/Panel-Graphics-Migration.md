@@ -276,7 +276,7 @@ This file was last updated in *October, 2026* by Steven L. Goldberg, for `ImgWin
 
 ---
 
-#### Caveat E: The 1-Frame Deferred Deletion & Teardown Leaks (`Shutdown`)
+#### Caveat F: The 1-Frame Deferred Deletion & Teardown Leaks (`Shutdown`)
 Because X-Plane 12's modern Panel Graphics backend executes draw calls synchronously during your flight loop, it introduced a new timing hazard: if you destroy a texture handle (like your font atlas) while ImGui is still building its draw list, X-Plane's Vulkan backend will instantly crash when it attempts to draw the destroyed handle milliseconds later.
 
 *   **The Trap:** To prevent this crash, `ImgWindow v2` implements a **1-frame deferred deletion queue**. When you call `ImgWindow::DestroyCustomTexture()`, the texture isn't actually deleted immediately; it is placed in a queue and deleted during the *next* flight loop cycle. 
@@ -286,4 +286,5 @@ However, if your plugin is being disabled or stopped (e.g., inside `XPluginDisab
     ```cpp
     ImgWindow::Shutdown();
     ```
-    This instantly bypasses the 1-frame delay and wipes the queue clean, ensuring a safe exit.
+    
+    This instantly bypasses the 1-frame delay and wipes the queue clean, ensuring a safe exit. *(For a complete, copy-pasteable example of a safe font atlas teardown block, see the "Safe Teardown Example" section in the [Basic Usage Guide](Basic-Usage-Guide.md)).*
