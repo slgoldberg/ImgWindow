@@ -205,9 +205,9 @@ public:
     bool IsInsideWindowDragArea (int x, int y) const;
     
 #ifdef IMGUI_V192_REFACTOR
-    [[deprecated("SafeDeleteTexture is obsolete in Phase 6 Redux. X-Plane 12.4.4b3+ permits synchronous destruction. Please migrate to the new unified DestroyCustomTexture() method.")]]
+    [[deprecated("SafeDeleteTexture is obsolete in Phase 6 Redux. X-Plane 12.4.4b3+ permits synchronous destruction. Please migrate to the new unified DeleteTexture() method.")]]
     void SafeDeleteTexture(ImTextureID texture) {
-        DestroyCustomTexture(texture);
+        DeleteTexture(texture);
     }
 #endif /* IMGUI_V192_REFACTOR */
 
