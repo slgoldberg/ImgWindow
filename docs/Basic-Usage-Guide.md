@@ -189,7 +189,7 @@ Never use the standard C++ `delete` operator to destroy your window instance (an
 
 Instead, always call **`SafeDelete()`**, which is an `ImgWindow` helper method. This **queues the window instance for destruction**, deferring the actual deletion to a static XPLM Flight Loop Callback that safely destroys the window pointer in the `BeforeFlightModel` phase (entirely outside of the ImGui and X-Plane drawing loops).
 
-&rarr;&nbsp;_Note: don't confuse the `ImgWindow::SafeDelete()` helper method with the `ImgWindow::DestroyCustomTexture()` method! **They serve completely different purposes!**_
+&rarr;&nbsp;_Note: don't confuse the `ImgWindow::SafeDelete()` helper method with the `ImgWindow::DeleteTexture()` method! **They serve completely different purposes!**_
 
 ## What's Next?
 Once you understand the basic usage model, you can safely write your UI code without worrying about how X-Plane actually gets it onto the screen.

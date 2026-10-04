@@ -213,7 +213,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, ImTextureID& textureID)
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
             if (ImgPanelGraphics::IsAvailable()) {
                 if (textureID != (ImTextureID)0) {
-                    ImgWindow::DestroyCustomTexture(textureID);
+                    ImgWindow::DeleteTexture(textureID);
                 }
                 
                 std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
@@ -518,7 +518,7 @@ ImgWindow::~ImgWindow()
     if (!mFontAtlas) {
         // if we didn't have an explicit font atlas, destroy the texture safely using our queue.
         if (mFontTexture) {
-            ImgWindow::DestroyCustomTexture(mFontTexture);
+            ImgWindow::DeleteTexture(mFontTexture);
         }
     }
     ImGui::DestroyContext(mImGuiContext);
@@ -1367,7 +1367,7 @@ ImgWindow::SafeDelete()
     XPLMScheduleFlightLoop(sSelfDestructHandler, -1, 1);
 }
 
-ImTextureID ImgWindow::CreateCustomTexture(const unsigned char* pixels, int width, int height) {
+ImTextureID ImgWindow::CreateTexture(const unsigned char* pixels, int width, int height) {
     if (!pixels || width <= 0 || height <= 0) return (ImTextureID)0;
     
 #ifdef IMGWINDOW_USE_PANEL_GRAPHICS
@@ -1389,7 +1389,7 @@ ImTextureID ImgWindow::CreateCustomTexture(const unsigned char* pixels, int widt
     return (ImTextureID)(intptr_t)gl_tex;
 }
 
-void ImgWindow::DestroyCustomTexture(ImTextureID textureID) {
+void ImgWindow::DeleteTexture(ImTextureID textureID) {
     if (!textureID) return;
     
     // Prevent double-queueing the exact same texture (which causes failValidation)

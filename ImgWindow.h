@@ -37,8 +37,8 @@
 
 // Version format: MmmPP (Major, 2-digit Minor, 2-digit Patch)
 // e.g., v2.0.0 becomes 20000. v1.12.3 becomes 11203.
-#define IMGWINDOW_VERSION       "2.0.1"
-#define IMGWINDOW_VERSION_NUM   20001
+#define IMGWINDOW_VERSION       "2.1.0"
+#define IMGWINDOW_VERSION_NUM   20100
 
 #include "SystemGL.h"
 
@@ -214,8 +214,20 @@ public:
     /** Unified API to create and destroy custom textures dynamically 
      *  using either Panel Graphics (if available) or OpenGL fallback.
      */
-    static ImTextureID CreateCustomTexture(const unsigned char* pixels, int width, int height);
-    static void DestroyCustomTexture(ImTextureID textureID);
+    static ImTextureID CreateTexture(const unsigned char* pixels, int width, int height);
+    static void DeleteTexture(ImTextureID textureID);
+
+    // -----------------------------------------------------------------------
+    // DEPRECATED ALIASES (Retained for API backwards compatibility for now)
+    // -----------------------------------------------------------------------
+    [[deprecated("Use CreateTexture() instead. The 'Custom' component of the method name is obsolete.")]]
+    static inline ImTextureID CreateCustomTexture(const unsigned char* pixels, int width, int height)
+    { return CreateTexture(pixels, width, height); }
+    // -----------------------------------------------------------------------
+    [[deprecated("Use DeleteTexture() instead. The 'Custom' component of the method name is obsolete.")]]
+    static inline void DestroyCustomTexture(ImTextureID textureID)
+    { DeleteTexture(textureID); }
+    // -----------------------------------------------------------------------
 
     /** Flushes all pending texture destructions immediately. 
      *  Must be called during XPluginStop/XPluginDisable to prevent VRAM leaks. */
