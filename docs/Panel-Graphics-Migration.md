@@ -16,7 +16,7 @@ Because X-Plane 12.4.4b3 now natively handles deferred Vulkan command encoding, 
 
 ### Required Code Changes for v2:
 1. **Texture Destruction:** The `SafeDeleteTexture()` method is officially deprecated.
-   * **Migration:** Replace all calls to `SafeDeleteTexture(tex)` with the new, unified `ImgWindow::DestroyCustomTexture(tex)` method. You can safely call this synchronously from the main thread!
+   * **Migration:** Replace all calls to `SafeDeleteTexture(tex)` with the new, unified `ImgWindow::DeleteTexture(tex)` method. You can safely call this synchronously from the main thread!
 2. **Texture Bake Delays:** The `SetTextureBakeDelay()` method is officially deprecated. Panel Graphics now builds and binds textures instantly and synchronously.
    * **Migration:** You can completely delete any calls to `SetTextureBakeDelay()`. (The method has been stubbed out as an inline no-op, so your code will still compile if you forget, but it is no longer doing anything).
 
@@ -101,8 +101,8 @@ This namespace solves the problem by dynamically looking up the Vulkan/Metal fun
 If you want to manually manage your own Panel Graphics rendering, you should **never** call the raw XPLM versions directly. Instead, you should always route your calls through our proxies:
 | 🟢 Always Call This: | | 🔴 NEVER Call This (Raw XPLM): |
 | :--- | :---: | :--- |
-| `ImgPanelGraphics::CreateTexture`<br>*or* `ImgWindow::CreateCustomTexture` | &rarr; | `XPLMCreateTexture` |
-| ~~`ImgPanelGraphics::DestroyTexture`~~<br>`ImgWindow::DestroyCustomTexture` | &rarr; | `XPLMDestroyTexture` |
+| `ImgPanelGraphics::CreateTexture`<br>*or* `ImgWindow::CreateTexture` | &rarr; | `XPLMCreateTexture` |
+| ~~`ImgPanelGraphics::DestroyTexture`~~<br>`ImgWindow::DeleteTexture` | &rarr; | `XPLMDestroyTexture` |
 | `ImgPanelGraphics::TransformPush` | &rarr; | `XPLMTransformPush` |
 | `ImgPanelGraphics::TransformPop` | &rarr; | `XPLMTransformPop` |
 | `ImgPanelGraphics::TransformTranslate` | &rarr; | `XPLMTransformTranslate` |
@@ -130,7 +130,7 @@ Just by contrast, here is how you do the exact same thing "the easy way":
 
 ```cpp
 // Look ma, no #ifdefs!
-myImTextureID = ImgWindow::CreateCustomTexture(pixels, w, h);
+myImTextureID = ImgWindow::CreateTexture(pixels, w, h);
 ```
 
 Read on into the next section for a full explanation...
@@ -139,7 +139,7 @@ Read on into the next section for a full explanation...
 
 If your plugin loads custom textures to inject into `Dear ImGui` (e.g., using `ImGui::Image()`), writing boilerplate `if/else` multiplexing blocks everywhere as described above can be quite tedious. Among other things, just managing the return values that are of different types can cause serious issues. (For example, OpenGL texture handles of type `GLuint` will instantly crash the simulator if you attempt to load such handles within a Panel Graphics window!)
 
-To make it so you can have your plugin support _either_ backend (OpenGL _or_ Panel Graphics) completely painlessly, we have pre-baked the two most common use cases directly into the framework. This way, you can skip the manual proxy methods entirely for these two cases, and just use our unified helpers: `ImgWindow::CreateCustomTexture()` and `ImgWindow::DestroyCustomTexture()`. (Of course, you are in no way _required_ to use these; they're just available if you would like to use them, i.e. to reduce unnecessary boilerplate for such common cases.)
+To make it so you can have your plugin support _either_ backend (OpenGL _or_ Panel Graphics) completely painlessly, we have pre-baked the two most common use cases directly into the framework. This way, you can skip the manual proxy methods entirely for these two cases, and just use our unified helpers: `ImgWindow::CreateTexture()` and `ImgWindow::DeleteTexture()`. (Of course, you are in no way _required_ to use these; they're just available if you would like to use them, i.e. to reduce unnecessary boilerplate for such common cases.)
 
 These multiplexers automatically determine the active rendering pipeline (Panel Graphics vs. OpenGL), and create the correct type of texture for you **under the hood** -- safely returning an agnostic `ImTextureID` that you can pass directly to ImGui!  These common IDs can be used regardless of whether ImGui is rendering via Panel Graphics, or using OpenGL on older versions of X-Plane that don't support Panel Graphics. Basically, it lets developers focus on the *what* in ImGui terms, not the *how* in low-level rendering pipeline terms.
 
@@ -148,10 +148,10 @@ When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graph
 
 ```cpp
 // 1. Define your texture handle globally or in your plugin class
-ImTextureID myCustomTexture = nullptr;
+ImTextureID myTexture = nullptr;
 
 // 2. Load the texture (Run this on the MAIN THREAD only)
-void LoadMyCustomTexture(const char* filepath) {
+void LoadMyTexture(const char* filepath) {
     int width, height, channels;
     
     // FORCE 4 channels (RGBA) to prevent Vulkan/Metal buffer overruns
@@ -160,26 +160,26 @@ void LoadMyCustomTexture(const char* filepath) {
     if (!rgba_pixels) return;
 
     // Unified Multiplexing API: Let ImgWindow abstract the backends!
-    myCustomTexture = ImgWindow::CreateCustomTexture(rgba_pixels, width, height);
+    myTexture = ImgWindow::CreateTexture(rgba_pixels, width, height);
     
     stbi_image_free(rgba_pixels);
 }
 ```
 > [!WARNING]
 > 🔥 **CRITICAL TYPE WARNING: The 64-bit Vulkan Trap!** 🔥
-> If you are migrating an existing OpenGL codebase, you **must** declare `myCustomTexture` (and any variable that stores it) as an `ImTextureID`. 
+> If you are migrating an existing OpenGL codebase, you **must** declare `myTexture` (and any variable that stores it) as an `ImTextureID`. 
 > 
-> You absolutely cannot store it in legacy 32-bit integer types like `GLuint`, `unsigned int`, or `XPLMTextureID` anymore. `CreateCustomTexture` returns a **64-bit pointer** (`void*`). If you assign it to a 32-bit `GLuint`, your C++ compiler will violently truncate the top half of the memory address. When you later pass that mangled variable into `ImGui::Image()`, X-Plane will instantly crash with `Resource does not belong to your plugin`. **You are no longer writing OpenGL code; your contract with the framework is strictly through `ImTextureID`!**
+> You absolutely cannot store it in legacy 32-bit integer types like `GLuint`, `unsigned int`, or `XPLMTextureID` anymore. `CreateTexture` returns a **64-bit pointer** (`void*`). If you assign it to a 32-bit `GLuint`, your C++ compiler will violently truncate the top half of the memory address. When you later pass that mangled variable into `ImGui::Image()`, X-Plane will instantly crash with `Resource does not belong to your plugin`. **You are no longer writing OpenGL code; your contract with the framework is strictly through `ImTextureID`!**
 
-*Note on Alpha Blending:* Panel Graphics relies on straight alpha blending. If your image has fully transparent areas with black RGB values (0, 0, 0, 0), it may cause dark halos around semi-transparent edges. Ensure your assets are exported with a white matte, or manually sanitize the RGB channels of fully transparent pixels before calling `ImgWindow::CreateCustomTexture()`.
+*Note on Alpha Blending:* Panel Graphics relies on straight alpha blending. If your image has fully transparent areas with black RGB values (0, 0, 0, 0), it may cause dark halos around semi-transparent edges. Ensure your assets are exported with a white matte, or manually sanitize the RGB channels of fully transparent pixels before calling `ImgWindow::CreateTexture()`.
 
 ##### 2. Drawing the Texture
 Once your texture is loaded and cast to an `ImTextureID`, rendering it inside your window's `ImgWindow::buildInterface()` method is completely agnostic:
 
 ```cpp
 void MyWindow::buildInterface() {
-    if (myCustomTexture != nullptr) {
-        ImGui::Image(myCustomTexture, ImVec2(256.0f, 256.0f));
+    if (myTexture != nullptr) {
+        ImGui::Image(myTexture, ImVec2(256.0f, 256.0f));
     }
 }
 ```
@@ -187,14 +187,14 @@ void MyWindow::buildInterface() {
 ##### 3. Cleaning Up
 Thanks to X-Plane 12.4.4 handling memory deferral _natively_ (as of v12.4.4b3), you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely. 
 
-*(Note: Just like creating textures, destroying them is an XPLM SDK call under the hood. You must **never** call `ImgWindow::DestroyCustomTexture()` from a background worker thread!)*
+*(Note: Just like creating textures, destroying them is an XPLM SDK call under the hood. You must **never** call `ImgWindow::DeleteTexture()` from a background worker thread!)*
 
 ```cpp
-void UnloadMyCustomTexture() {
-    if (myCustomTexture) {
+void UnloadMyTexture() {
+    if (myTexture) {
         // Safe to call synchronously on the MAIN THREAD!
-        ImgWindow::DestroyCustomTexture(myCustomTexture);  // the easy way :-)
-        myCustomTexture = nullptr; // Always null out your own pointers!
+        ImgWindow::DeleteTexture(myTexture);  // the easy way :-)
+        myTexture = nullptr; // Always null out your own pointers!
     }
 }
 ```
@@ -210,9 +210,9 @@ While `ImgWindow` automatically abstracts away most of the rendering pipeline mu
 #### Caveat A: Strict Main-Thread Execution (No Background Allocation)
 The X-Plane SDK enforces a strict **Serialization Rule**: all XPLM API calls must occur sequentially on X-Plane's main thread.
 
-*   **The Trap:** Because legacy OpenGL is a separate library, some developers got away with allocating textures on background threads. However, Panel Graphics texture allocation is an *XPLM SDK feature*. If you try to call `ImgWindow::CreateCustomTexture()` from a background thread (`std::thread`, `std::async`), the XPLM SDK will immediately assert and crash the simulator.
+*   **The Trap:** Because legacy OpenGL is a separate library, some developers got away with allocating textures on background threads. However, Panel Graphics texture allocation is an *XPLM SDK feature*. If you try to call `ImgWindow::CreateTexture()` from a background thread (`std::thread`, `std::async`), the XPLM SDK will immediately assert and crash the simulator.
 
-*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, hand the raw buffer back to the **main X-Plane thread** (e.g., during your next window draw or flight-loop callback) where you will safely call `ImgWindow::CreateCustomTexture()`.
+*   **The Fix:** Keep your file I/O and pixel decoding (`stbi_load`) on your background worker thread. Once the bytes are decoded, hand the raw buffer back to the **main X-Plane thread** (e.g., during your next window draw or flight-loop callback) where you will safely call `ImgWindow::CreateTexture()`.
 
 ---
 
@@ -228,7 +228,7 @@ In legacy OpenGL, attempting to bind an uninitialized or garbage texture handle 
 #### Caveat C: Legacy OpenGL Types and Pointer Truncation (The 32-bit Trap)
 If you are migrating an existing OpenGL codebase, it is highly likely you stored your texture handles using legacy 32-bit integer types like `GLuint` or `XPLMTextureID`. You **must** refactor these to `ImTextureID`.
 
-*   **The Trap:** While `ImgWindow::CreateCustomTexture()` perfectly abstracts the backend, it returns an `ImTextureID`, which is a **64-bit pointer** (`void*`) on modern OSes. If you assign this return value to an old `GLuint` or `XPLMTextureID` variable, your C++ compiler will violently truncate the top 32 bits of the Vulkan pointer. When you later pass that truncated variable into `ImGui::Image()`, `ImgWindow` will hand the garbage pointer to X-Plane, which will instantly abort the simulator with: `Resource does not belong to your plugin`.
+*   **The Trap:** While `ImgWindow::CreateTexture()` perfectly abstracts the backend, it returns an `ImTextureID`, which is a **64-bit pointer** (`void*`) on modern OSes. If you assign this return value to an old `GLuint` or `XPLMTextureID` variable, your C++ compiler will violently truncate the top 32 bits of the Vulkan pointer. When you later pass that truncated variable into `ImGui::Image()`, `ImgWindow` will hand the garbage pointer to X-Plane, which will instantly abort the simulator with: `Resource does not belong to your plugin`.
 
 *   **The Fix:** You are no longer writing OpenGL code; you are writing *ImGui* code! Search your entire codebase and replace any `GLuint`, `unsigned int`, or `XPLMTextureID` variables that store texture handles with `ImTextureID` (or `void*`). Your contract with the framework is strictly through `ImTextureID`.
 
@@ -237,7 +237,7 @@ If you are migrating an existing OpenGL codebase, it is highly likely you stored
 #### Caveat D: Custom Textures & `ImGui::Image()` Legacy Conversion
 The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL texture IDs. If your UI code generates custom textures via `glGenTextures()` and passes those raw GL integer IDs into `ImGui::Image()`, **X-Plane will instantly crash** if that specific window is being rendered via Panel Graphics.
 
-**The Fix:** Upgrade your texture generation to use the unified `ImgWindow::CreateCustomTexture()` API so it seamlessly multiplexes between both backends.
+**The Fix:** Upgrade your texture generation to use the unified `ImgWindow::CreateTexture()` API so it seamlessly multiplexes between both backends.
 
 **Incremental Migration:** Alternatively, if you aren't ready to refactor all your OpenGL textures right now, but still want to test Panel Graphics, you can temporarily hide those specific legacy `ImGui::Image` calls when Panel Graphics is active. By using the `IsUsingPanelGraphics()` method on your `ImgWindow` subclass, you can safely branch your draw logic:
 
@@ -276,14 +276,15 @@ This file was last updated in *October, 2026* by Steven L. Goldberg, for `ImgWin
 
 ---
 
-#### Caveat E: The 1-Frame Deferred Deletion & Teardown Leaks (`Shutdown`)
+#### Caveat F: The 1-Frame Deferred Deletion & Teardown Leaks (`Shutdown`)
 Because X-Plane 12's modern Panel Graphics backend executes draw calls synchronously during your flight loop, it introduced a new timing hazard: if you destroy a texture handle (like your font atlas) while ImGui is still building its draw list, X-Plane's Vulkan backend will instantly crash when it attempts to draw the destroyed handle milliseconds later.
 
-*   **The Trap:** To prevent this crash, `ImgWindow v2` implements a **1-frame deferred deletion queue**. When you call `ImgWindow::DestroyCustomTexture()`, the texture isn't actually deleted immediately; it is placed in a queue and deleted during the *next* flight loop cycle. 
+*   **The Trap:** To prevent this crash, `ImgWindow v2` implements a **1-frame deferred deletion queue**. When you call `ImgWindow::DeleteTexture()`, the texture isn't actually deleted immediately; it is placed in a queue and deleted during the *next* flight loop cycle. 
 However, if your plugin is being disabled or stopped (e.g., inside `XPluginDisable` or `XPluginStop`), the flight loop *stops running*. If you destroy the font atlas at shutdown, it gets put into the 1-frame queue, but the next frame never comes! This leaves orphaned textures in VRAM and can cause a driver crash when X-Plane tears down your plugin's graphics context.
 
 *   **The Fix:** You **must** manually flush the deferred deletion queue at the end of your plugin's lifecycle. Inside your `XPluginDisable` (or wherever you do your final ImGui teardown), immediately after you destroy the font atlas and ensure no other ImgWindow code will run, you must call:
     ```cpp
     ImgWindow::Shutdown();
     ```
-    This instantly bypasses the 1-frame delay and wipes the queue clean, ensuring a safe exit.
+    
+    This instantly bypasses the 1-frame delay and wipes the queue clean, ensuring a safe exit. *(For a complete, copy-pasteable example of a safe font atlas teardown block, see the "Safe Teardown Example" section in the [Basic Usage Guide](Basic-Usage-Guide.md)).*

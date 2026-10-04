@@ -50,7 +50,7 @@ ImgFontAtlas::~ImgFontAtlas()
 {
     if (mTextureBound) {
         if (mTextureID != (ImTextureID)0) {
-            ImgWindow::DestroyCustomTexture(mTextureID);
+            ImgWindow::DeleteTexture(mTextureID);
             mTextureID = (ImTextureID)0;
         }
         mTextureBound = false;

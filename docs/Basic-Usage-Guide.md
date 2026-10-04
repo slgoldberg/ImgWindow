@@ -44,6 +44,7 @@ Our `ImgFontAtlas` class wraps ImGui's native atlas, intercepting the texture ge
 * **Creation & Initialization:** You must create a single `ImgFontAtlas` instance and assign it to the `ImgWindow::sFontAtlas` shared pointer **before** creating your first window. Immediately after assigning it, you must configure it by loading your required fonts (or the default font). 
   - **The Lazy Upload:** While you configure the fonts in CPU memory early, the actual VRAM upload to the GPU is handled *lazily*. `ImgWindow` automatically binds the texture for you the moment your first window begins to draw. 
   - **Best Practice:** We recommend wrapping this setup (instantiating the atlas, linking it to `sFontAtlas`, and loading fonts) inside a global `InitializeImGui()` function. You can safely call this from `XPluginStart` or `XPluginEnable` so your fonts are fully prepped before any window creation logic fires.
+* **Teardown & Reloading:** You **must** explicitly reset the shared font atlas during `XPluginStop` (e.g., `ImgWindow::sFontAtlas.reset();`). X-Plane plugin reloading does not always physically unload the dynamic library from the OS's memory. If you leave the static shared pointer populated, it will corrupt ImGui's memory allocator when the plugin restarts, resulting in a fatal crash (especially on Linux!).
 
 ### Font Setup Example
 ```cpp
@@ -64,6 +65,32 @@ ImgWindow::sFontAtlas = myFontAtlas;
 // (No need to bind the texture manually; ImgWindow handles it on the first draw frame!)
 ```
 
+### Safe Teardown Example
+When your plugin is disabled or reloaded, you must safely close your windows and destroy the font atlas.
+
+> **Close Your Windows First!** Because your plugin might have multiple floating windows actively open in the simulator when the user disables your plugin, you **must** safely delete/close all your active `ImgWindow` instances *before* calling this global teardown. Otherwise, those active windows might attempt to draw on the very next frame using a null atlas, causing an immediate crash!
+
+```cpp
+void TeardownImGui() {
+    // 1. Reset the shared pointer, triggering destruction of the texture in VRAM
+    if (ImgWindow::sFontAtlas) {
+        ImgWindow::sFontAtlas.reset(); 
+    }
+
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM > 19200) /* only on v1.92+ */
+    // 2. Immediately sever ImGui's internal reference to prevent double-delete crashes
+    if (ImGui::GetCurrentContext() != nullptr) {
+        ImGui::GetIO().Fonts = NULL; 
+    }
+#endif
+
+    // 3. Flush the queue to ensure the Font Atlas is actually deleted from VRAM!
+    // (Note: This is only strictly necessary during XPluginDisable. If you are 
+    // dynamically rebuilding the atlas while windows remain open, the framework 
+    // will automatically flush the old texture on the next frame.)
+    ImgWindow::Shutdown();
+}
+```
 ---
 
 ## 3. Creating Your First Window (Customizing and Using `ImgWindow`)
@@ -162,7 +189,7 @@ Never use the standard C++ `delete` operator to destroy your window instance (an
 
 Instead, always call **`SafeDelete()`**, which is an `ImgWindow` helper method. This **queues the window instance for destruction**, deferring the actual deletion to a static XPLM Flight Loop Callback that safely destroys the window pointer in the `BeforeFlightModel` phase (entirely outside of the ImGui and X-Plane drawing loops).
 
-&rarr;&nbsp;_Note: don't confuse the `ImgWindow::SafeDelete()` helper method with the `ImgWindow::DestroyCustomTexture()` method! **They serve completely different purposes!**_
+&rarr;&nbsp;_Note: don't confuse the `ImgWindow::SafeDelete()` helper method with the `ImgWindow::DeleteTexture()` method! **They serve completely different purposes!**_
 
 ## What's Next?
 Once you understand the basic usage model, you can safely write your UI code without worrying about how X-Plane actually gets it onto the screen.
