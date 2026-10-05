@@ -16,24 +16,33 @@
 /// any deferred Vulkan textures.
 void TeardownImGui ()
 {
-    // 1. Clear away our "Font Atlas" that may have been previously loaded for
-    // clean shut-down. This physically destroys the texture in VRAM:
-#ifdef IMGUI_V192_REFACTOR            /* needed with ImGui v1.92 and later: */
+    // 1. Delete all custom textures loaded by your plugin before flushing!
+    // if (gPluginTexture != (ImTextureID)0) {
+    //     ImgWindow::DeleteTexture(gPluginTexture);
+    //     gPluginTexture = (ImTextureID)0;
+    // }
+
+    // 2. Sever the active ImGui context's font atlas link FIRST.
+    // In modern Dear ImGui (v1.92+), we MUST sever this pointer BEFORE calling
+    // sFontAtlas.reset(). If sFontAtlas is reset first, ImFontAtlas is freed,
+    // leaving io.Fonts pointing to deallocated memory (Use-After-Free dangling pointer trap).
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) /* only on v1.92+ */
     if (ImGui::GetCurrentContext() != NULL) {
-        // Disconnect the ImgWindow version of the shared atlas link from the
-        // active context to avoid double deletion!
         ImGui::GetIO().Fonts = NULL;  
     }
 #endif /* IMGUI_V192_REFACTOR */
 
-    if (ImgWindow::sFontAtlas)
-        ImgWindow::sFontAtlas.reset();    // release singleton to delete atlas
+    // 3. Reset the shared font atlas singleton to release memory and queue texture destruction.
+    if (ImgWindow::sFontAtlas) {
+        ImgWindow::sFontAtlas.reset();
+    }
 
-    // 2. Force all ImgWindow instances to skip ImGui rendering altogether for
+    // 4. Force all ImgWindow instances to skip ImGui rendering altogether for
     // the next few cycles, preventing texture flicker or artifacts during a reload.
     ImgWindow::sBlankoutUntilCycle = XPLMGetCycleNumber() + 4;
 
-    // 3. Flush the deferred texture deletion queue to prevent VRAM leaks and
-    // driver crashes during teardown (X-Plane 12 Panel Graphics).
+    // 5. Flush the deferred texture deletion queue immediately.
+    // This physically destroys both the font atlas and any custom textures from VRAM.
+    // MUST be called after all DeleteTexture() calls!
     ImgWindow::Shutdown();
 }

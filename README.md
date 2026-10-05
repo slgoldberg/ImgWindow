@@ -94,7 +94,7 @@ If you maintain a plugin that uses `ImgWindow`, you can safely drop in this upda
 The area we are most interested in finding other plugins to test for us -- besides the basic bridge functionality to choose between Panel Graphics and OpenGL -- is plugins that manage custom **textures**, because this can be a difficult problem due to the differing architectural requirements of Panel Graphics versus legacy OpenGL.  With the support of `ImgWindow::CreateTexture()` and `ImgWindow::DeleteTexture()` for example, we mitigate these issues by providing a unified texture multiplexing API. This allows developers to seamlessly create and destroy textures that work across both backends without having to write separate `#ifdef` pipelines, saving hours of development time. Read more below and on the referenced user guide.
 
 > [!IMPORTANT]
-> **The 64-bit ImTextureID Trap:** If you use these unified texture APIs to migrate an older OpenGL plugin, you **must** refactor any variables holding texture IDs from `GLuint` (32-bit) to `ImTextureID` (64-bit pointer). Assigning the unified texture return value to an old 32-bit `GLuint` will silently truncate the pointer and instantly crash X-Plane 12 Vulkan! See the Migration Guide for full details.
+> **The 64-bit ImTextureID Trap:** If you use these unified texture APIs to migrate an older OpenGL plugin, you **must** refactor any variables holding texture IDs from `GLuint` (32-bit) to `ImTextureID` (`ImU64` integer). Assigning the unified texture return value to an old 32-bit `GLuint` will silently truncate the handle and instantly crash X-Plane 12 Vulkan! See the Migration Guide for full details.
 
 ---
 
