@@ -233,9 +233,9 @@ In legacy OpenGL, attempting to bind an uninitialized or garbage texture handle 
 #### Caveat C: Legacy OpenGL Types and Pointer Truncation (The 32-bit Trap)
 If you are migrating an existing OpenGL codebase, it is highly likely you stored your texture handles using legacy 32-bit integer types like `GLuint` or `XPLMTextureID`. You **must** refactor these to `ImTextureID`.
 
-*   **The Trap:** While `ImgWindow::CreateTexture()` perfectly abstracts the backend, it returns an `ImTextureID`, which is a **64-bit pointer** (`void*`) on modern OSes. If you assign this return value to an old `GLuint` or `XPLMTextureID` variable, your C++ compiler will violently truncate the top 32 bits of the Vulkan pointer. When you later pass that truncated variable into `ImGui::Image()`, `ImgWindow` will hand the garbage pointer to X-Plane, which will instantly abort the simulator with: `Resource does not belong to your plugin`.
+*   **The Trap:** While `ImgWindow::CreateTexture()` perfectly abstracts the backend, it returns an `ImTextureID`, which is an **`ImU64` integer** on modern ImGui versions. If you assign this return value to an old `GLuint` or `XPLMTextureID` variable, your C++ compiler will violently truncate the top 32 bits of the Vulkan handle. When you later pass that truncated variable into `ImGui::Image()`, `ImgWindow` will hand the garbage handle to X-Plane, which will instantly abort the simulator with: `Resource does not belong to your plugin`.
 
-*   **The Fix:** You are no longer writing OpenGL code; you are writing *ImGui* code! Search your entire codebase and replace any `GLuint`, `unsigned int`, or `XPLMTextureID` variables that store texture handles with `ImTextureID` (or `void*`). Your contract with the framework is strictly through `ImTextureID`.
+*   **The Fix:** You are no longer writing OpenGL code; you are writing *ImGui* code! Search your entire codebase and replace any `GLuint`, `unsigned int`, or `XPLMTextureID` variables that store texture handles with `ImTextureID`. Your contract with the framework is strictly through `ImTextureID`.
 
 ---
 
