@@ -9,7 +9,7 @@ Legacy OpenGL integer handles (`GLuint`) cannot be sent through the Vulkan/Metal
 Instead of manually generating OpenGL textures or calling raw XPLM v4.4 functions, use `ImgWindow::CreateTexture()`. This handles the backend multiplexing for you automatically.
 
 ```cpp
-ImTextureID myTexture = nullptr; // Always initialize to nullptr!
+ImTextureID myTexture = (ImTextureID)0; // Always initialize to (ImTextureID)0!
 
 void LoadMyTexture(const char* filepath) {
     int width, height, channels;
@@ -40,7 +40,7 @@ Once loaded safely into an `ImTextureID`, rendering is identical to standard ImG
 ```cpp
 void MyWindow::buildInterface() {
     // Prevent the "Uninitialized Handle Trap" by checking for null
-    if (myTexture != nullptr) {
+    if (myTexture != (ImTextureID)0) {
         ImGui::Image(myTexture, ImVec2(256.0f, 256.0f));
     }
 }
@@ -60,7 +60,7 @@ void UnloadMyTexture() {
     if (myTexture) {
         // Safe to call synchronously on the MAIN THREAD
         ImgWindow::DeleteTexture(myTexture);
-        myTexture = nullptr;
+        myTexture = (ImTextureID)0;
     }
 }
 ```

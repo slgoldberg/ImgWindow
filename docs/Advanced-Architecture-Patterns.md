@@ -43,22 +43,28 @@ To prevent ImGui from attempting a double-delete of the font texture on shutdown
 
 ```cpp
 void TeardownImGui() {
-    // 1. Reset the shared pointer, triggering destruction of the texture in VRAM
-    if (ImgWindow::sFontAtlas) {
-        ImgWindow::sFontAtlas.reset(); 
-    }
+    // 1. Clean up any custom loaded textures first
+    // if (myCustomTexture != (ImTextureID)0) {
+    //     ImgWindow::DeleteTexture(myCustomTexture);
+    //     myCustomTexture = (ImTextureID)0;
+    // }
 
-#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM > 19200) /* only on v1.92+ */
-    // 2. Immediately sever ImGui's internal reference to prevent double-delete crashes
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) /* only on v1.92+ */
+    // 2. CRITICAL: Sever ImGui's internal reference FIRST while the managed atlas 
+    // is still alive in memory! Reversing this order creates a dangling pointer / 
+    // Use-After-Free trap when sFontAtlas.reset() frees the underlying ImFontAtlas.
     if (ImGui::GetCurrentContext() != nullptr) {
         ImGui::GetIO().Fonts = NULL; 
     }
 #endif
 
-    // 3. Flush the queue to ensure the Font Atlas is actually deleted from VRAM!
-    // (Note: This is only strictly necessary during XPluginDisable. If you are 
-    // dynamically rebuilding the atlas while windows remain open, the framework 
-    // will automatically flush the old texture on the next frame.)
+    // 3. Reset the shared pointer to release the singleton and delete the atlas
+    if (ImgWindow::sFontAtlas) {
+        ImgWindow::sFontAtlas.reset(); 
+    }
+
+    // 4. Flush the queue to ensure all deferred textures (font atlas and custom
+    // textures) are immediately deleted from VRAM!
     ImgWindow::Shutdown();
 }
 ```

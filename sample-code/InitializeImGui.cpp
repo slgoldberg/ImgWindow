@@ -68,16 +68,19 @@ constexpr int SYSTEM_FONT_SIZE = 14;     // roughly equivalent size for Roboto
 
 #define BASELINE_FONT_SIZE    ( SYSTEM_FONT_SIZE )
 
-// Define macros we can use for font banks that describe the bank, to be used
-// as indices into the font array for use with ImGui::PushFont():
-constexpr size_t IM_NORMAL_FONT      = 0;
-constexpr size_t IMG_TITLE_FONT      = 1;
-constexpr size_t IM_SMALLER_FONT     = 2;
-constexpr size_t IM_BOLD_FONT        = 3;
-constexpr size_t IM_BOLD_LARGER_FONT = 4;
-constexpr size_t IM_MONO_NORMAL_FONT = 5;
-constexpr size_t IM_ITALIC_FONT      = 6;
-constexpr size_t IM_MONO_MEDIUM_FONT = 7;
+// FYI: Here is an example of how a plugin might define these fonts in a 
+// global .h file (so subclasses can easily push them in buildInterface).
+// This macro approach dynamically fetches the active context's font array:
+//
+// #define IM_FONT_SLOT(i)       ImGui::GetIO().Fonts->Fonts[i]
+// #define IM_NORMAL_FONT        IM_FONT_SLOT(0)
+// #define IMG_TITLE_FONT        IM_FONT_SLOT(1)
+// #define IM_SMALLER_FONT       IM_FONT_SLOT(2)
+// #define IM_BOLD_FONT          IM_FONT_SLOT(3)
+// #define IM_BOLD_LARGER_FONT   IM_FONT_SLOT(4)
+// #define IM_MONO_NORMAL_FONT   IM_FONT_SLOT(5)
+// #define IM_ITALIC_FONT        IM_FONT_SLOT(6)
+// #define IM_MONO_MEDIUM_FONT   IM_FONT_SLOT(7)
 
 // Load fonts from files generated via ImGui utility which converts TTF to
 // compressed C++ arrays, included in the "fonts" directory as .inc files:
@@ -397,9 +400,10 @@ bool InitializeImGui ()
 
 // ----------------------------------------------------------------------------
 
-    // Callers can now use ImGui::PushFont() with the 8 loaded fonts above, by
-    // using the atlas array at the corresponding index for each font, e.g.:
-    // ImGui::PushFont(ImgWindow::sFontAtlas->Fonts[IM_ITALIC_FONT]);
+    // Callers can now use ImGui::PushFont() with the 8 loaded fonts above.
+    // If you defined the IM_FONT_SLOT macros in a global .h file as shown
+    // at the top of this file, your UI code simply looks like this:
+    // ImGui::PushFont(IM_ITALIC_FONT);
 
     return true;
 }
