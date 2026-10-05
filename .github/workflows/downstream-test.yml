@@ -1,0 +1,58 @@
+name: Downstream Integration (imgui4xp)
+
+on:
+  push:
+    branches: [ master, main, dev ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch: # Adds a manual "Run workflow" button in GitHub Actions UI!
+
+env:
+  BUILD_TYPE: RelWithDebInfo
+
+jobs:
+  build-downstream:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    steps:
+      # 1. Clone Bill's reference plugin (imgui4xp) with its dependencies
+      - name: Checkout imgui4xp reference plugin
+        uses: actions/checkout@v4
+        with:
+          repository: sparker256/imgui4xp
+          path: imgui4xp
+          submodules: recursive
+
+      # 2. Check out the current commit/PR of ImgWindow on top of src/ImgWindow
+      - name: Overlay latest ImgWindow
+        uses: actions/checkout@v4
+        with:
+          path: imgui4xp/src/ImgWindow
+
+      # 3. Platform-specific environment configuration
+      - name: "Windows: Configure MinGW generator"
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "CMAKE_GENERATOR=MinGW Makefiles" >> $GITHUB_ENV
+
+      - name: "Linux: Install dependencies"
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends freeglut3-dev libudev-dev libopenal-dev
+
+      # 4. Configure CMake
+      - name: Configure CMake
+        run: cmake -S imgui4xp/src -B imgui4xp/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      # 5. Build the complete plugin binary across all 3 platforms
+      - name: Build plugin binary
+        run: cmake --build imgui4xp/build --config ${{ env.BUILD_TYPE }} --verbose
