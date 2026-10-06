@@ -44,10 +44,6 @@ jobs:
           sudo apt update
           sudo apt-get -y install freeglut3-dev g++ libopenal1 libssl-dev libcurl4-openssl-dev
 
-      - name: "Windows: Configure MinGW"
-        if: runner.os == 'Windows'
-        shell: bash
-        run: echo "CMAKE_GENERATOR=MinGW Makefiles" >> $GITHUB_ENV
 
       # 4. Extract X-Plane SDK from Sa'ar's repo
       - name: Extract XPSDK
