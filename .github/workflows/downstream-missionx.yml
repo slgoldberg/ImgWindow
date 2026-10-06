@@ -53,7 +53,7 @@ jobs:
 
       # 5. Configure CMake
       - name: Configure CMake
-        run: cmake -S mx-source-build -B mx-source-build/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        run: cmake -S mx-source-build -B mx-source-build/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_CONFIGURATION_TYPES=${{ env.BUILD_TYPE }}
 
       # 6. Compile Mission-X
       - name: Build Mission-X
