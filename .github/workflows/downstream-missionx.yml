@@ -1,0 +1,64 @@
+name: Downstream Integration (Mission-X)
+
+on:
+  push:
+    branches: [ master, main, dev ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch: # Allows manual run button in GitHub Actions UI!
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-missionx:
+    name: Mission-X on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-latest
+          - windows-latest
+
+    steps:
+      # 1. Clone Sa'ar's Mission-X source build repo
+      - name: Checkout Mission-X source repo
+        uses: actions/checkout@v4
+        with:
+          repository: snagar/mx-source-build
+          ref: main
+          path: mx-source-build
+
+      # 2. Overlay your latest ImgWindow over his libs/imgui4xp/ImgWindow
+      - name: Overlay latest ImgWindow
+        uses: actions/checkout@v4
+        with:
+          path: mx-source-build/libs/imgui4xp/ImgWindow
+
+      # 3. Platform setup & dependencies
+      - name: "Linux: Install dependencies"
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt-get -y install freeglut3-dev g++ libopenal1 libssl-dev libcurl4-openssl-dev
+
+      - name: "Windows: Configure MinGW"
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "CMAKE_GENERATOR=MinGW Makefiles" >> $GITHUB_ENV
+
+      # 4. Extract X-Plane SDK from Sa'ar's repo
+      - name: Extract XPSDK
+        shell: bash
+        working-directory: mx-source-build/libs
+        run: unzip -o XPSDK.zip
+
+      # 5. Configure CMake
+      - name: Configure CMake
+        run: cmake -S mx-source-build -B mx-source-build/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      # 6. Compile Mission-X
+      - name: Build Mission-X
+        run: cmake --build mx-source-build/build --config ${{ env.BUILD_TYPE }}
