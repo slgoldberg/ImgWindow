@@ -127,6 +127,7 @@ static XPLMDataRef gFrameRatePeriodRef  = nullptr;
 #endif
 
 std::shared_ptr<ImgFontAtlas> ImgWindow::sFontAtlas;
+ImgWindow* ImgWindow::s_CurrentBuildingWindow = nullptr;
 int ImgWindow::sBlankoutUntilCycle = 0;
 
 // Tracks textures pending destruction and the cycle they were queued
@@ -846,7 +847,12 @@ ImgWindow::updateImgui()
     ImGuiWindowFlags_ userFlags = beforeBegin();
     bCanMove = !(userFlags & ImGuiWindowFlags_NoMove);
     ImGui::Begin(mWindowTitle.c_str(), nullptr, userFlags | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+    
+    // Set the static context hook before building so extensions can query this window
+    s_CurrentBuildingWindow = this;
     buildInterface();
+    s_CurrentBuildingWindow = nullptr;
+    
     ImGui::End();
 
     // finally, handle window focus.

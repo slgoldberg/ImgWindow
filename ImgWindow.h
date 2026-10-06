@@ -96,6 +96,21 @@ public:
      */
     static std::shared_ptr<ImgFontAtlas> sFontAtlas;
 
+    /** Tracks the window currently executing buildInterface() so that global
+     * ImGui:: extensions (like Tooltips or Markdown) can fetch plugin-specific
+     * window metadata (like scale multipliers or focus state) natively without
+     * polluting their API signatures.
+     */
+    static ImgWindow* s_CurrentBuildingWindow;
+    static ImgWindow* GetCurrentBuildingWindow() { return s_CurrentBuildingWindow; }
+
+    /** Returns the custom layout scale factor for this window. Subclasses
+     * should override this to return their combined text zoom multiplier 
+     * (e.g., _fontAdjust * gSeniorCitizenRatio) so extensions can scale 
+     * geometry proportionally to match the text.
+     */
+    virtual float GetExtensionScaleFactor() const { return 1.0f; }
+
     /** sBlankoutUntilCycle is a global XPLM cycle number until which all
      * windows will skip rendering.  This is useful for plugins that want to
      * temporarily blank out all ImGui windows for a cycle or two, e.g., to
