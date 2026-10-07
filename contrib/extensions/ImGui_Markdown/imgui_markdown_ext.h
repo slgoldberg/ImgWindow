@@ -151,14 +151,17 @@ namespace ImGui {
 
         // Mathematically calculates the exact ImVec2 dimensions of a parsed markdown string 
         // WITHOUT rendering it to the screen. Perfect for pre-calculating X-Plane OS window boundaries!
-        inline ImVec2 CalcMarkdownSize(const std::string& markdown_text, float wrap_width = 0.0f) {
-        ImVec2 calculated_size(0, 0);
-        
-        // Place the window at (0,0) so ImGui doesn't viewport-cull it, but make it completely invisible!
-        // If we place it at -10000, ImGui skips rendering entirely on subsequent frames, resulting in 0x0 sizes!
-        ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
-        ImGui::Begin("##md_measure", nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+        inline ImVec2 CalcMarkdownSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f) {
+            ImVec2 calculated_size(0, 0);
+            
+            // Generate a perfectly unique window name for this specific tooltip and pass.
+            // This mathematically guarantees ImGui can NEVER cache the window's position across frames,
+            // which completely defeats ImGui's Viewport Culling optimization and prevents the 2-pixel tall bug!
+            char measure_name[64];
+            snprintf(measure_name, sizeof(measure_name), "##md_measure_%08X_%d", hash_id, pass);
+            
+            ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
+            ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
         
         // Feed it a massive constraint if 0.0f so it doesn't word-wrap infinitely to 1 char
         float child_width = (wrap_width > 0.0f) ? wrap_width : 99999.0f;
@@ -178,7 +181,7 @@ namespace ImGui {
         
         ImGui::EndChild();
         ImGui::End();
-        ImGui::PopStyleVar(); // Pop Alpha
+        
         
         return calculated_size;
     }
