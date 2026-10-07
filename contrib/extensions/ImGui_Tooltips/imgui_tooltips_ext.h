@@ -174,7 +174,7 @@ namespace V2 {
         // Capture size mathematically so the next frame can calculate the skew ratio!
         state.last_size = ImGui::GetWindowSize();
         ImGui::End();
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     inline void EndStationaryTooltip(const char* str_id) {
