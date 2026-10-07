@@ -198,12 +198,20 @@ namespace V2 {
     // Automatically binds to the last drawn widget using ImGui::GetItemID()
     // Defers string formatting until the tooltip actually appears to save CPU!
     inline void TimedTooltipMD(const char* fmt, ...) {
-        // Save the cursor requested by the underlying widget (e.g., ToggleButton Hand cursor)
+        bool is_hovered = ImGui::IsItemHovered();
         ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
+        
+        // BRUTE FORCE CURSOR: If the widget is hovered but the cursor is still Arrow, it means the widget's 
+        // internal IsItemHovered() check failed or ran out of order. Since this is an interactive tooltippable 
+        // widget, we violently force the Hand cursor!
+        if (is_hovered && previous_cursor == ImGuiMouseCursor_Arrow) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            previous_cursor = ImGuiMouseCursor_Hand;
+        }
         
         ImGuiID id = ImGui::GetItemID(); 
         
-        if (BeginStationaryTooltip(id)) {
+        if (BeginStationaryTooltipProxy(id, is_hovered)) {
             va_list args;
             va_start(args, fmt);
             char buffer[4096];
@@ -218,11 +226,11 @@ namespace V2 {
             
             float wrap_width = config->default_wrap_width;
             if (wrap_width <= 0.0f) {
-                // Completely eliminate mouse-position variability to solve mid-word markdown token breaks!
-                // We lock the max width deterministically. ImGui's native Tooltip clamping will safely 
-                // shove the window to the left if it hits the screen edge, and our NoInputs flags guarantee 
-                // it won't steal hover when it does!
-                wrap_width = config->max_wrap_width;
+                // Dynamic squishing to prevent the tooltip from running off the local ImgWindow bounds!
+                float avail = ImGui::GetIO().DisplaySize.x - state.locked_pos.x;
+                wrap_width = avail * 0.8f;
+                if (wrap_width < config->min_wrap_width) wrap_width = config->min_wrap_width;
+                if (wrap_width > config->max_wrap_width) wrap_width = config->max_wrap_width;
             }
             if (state.perfect_size.x == 0.0f) {
                 // 1. Dry-run infinitely wide to see how small the text naturally is
@@ -235,6 +243,12 @@ namespace V2 {
                 }
                 if (final_width < config->min_wrap_width) final_width = config->min_wrap_width;
                 if (final_width > config->max_wrap_width) final_width = config->max_wrap_width;
+                
+                // ADD EPSILON TO PREVENT MID-WORD BREAKS!
+                // If final_width is exactly raw_size.x, the markdown word-wrapper sits on a razor's edge.
+                // A tiny floating point inaccuracy causes it to forcefully wrap the last token mid-word.
+                // Giving it 2 extra pixels guarantees the text fits perfectly without breaking!
+                final_width += 2.0f;
                 
                 // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
                 state.perfect_size = CalcMarkdownSize(id, 2, std::string(buffer), final_width);
