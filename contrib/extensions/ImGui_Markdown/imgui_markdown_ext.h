@@ -211,14 +211,24 @@ namespace V2 {
 
             TooltipState& state = GetTooltipStateMap()[id];
             if (state.perfect_size.x == 0.0f) {
-                // Dry-run once per tooltip lifecycle to get mathematically perfect shrink-wrapped dimensions
-                state.perfect_size = CalcMarkdownSize(std::string(buffer), wrap_width);
+                // 1. Dry-run infinitely wide to see how small the text naturally is
+                ImVec2 raw_size = CalcMarkdownSize(std::string(buffer), 0.0f);
+                
+                // 2. Shrink-wrap tightly around small text, or clamp massive text to screen space
+                float final_width = raw_size.x;
+                if (final_width > wrap_width) {
+                    final_width = wrap_width;
+                    if (final_width < config->min_wrap_width) final_width = config->min_wrap_width;
+                }
+                
+                // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
+                state.perfect_size = CalcMarkdownSize(std::string(buffer), final_width);
             }
 
 #if IMGUI_VERSION_NUM >= 18989
-            ImGui::BeginChild("##md_delay_tt", state.perfect_size, ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground);
+            ImGui::BeginChild("##md_delay_tt", state.perfect_size, ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
 #else
-            ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+            ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_NoBackground);
 #endif
             TextMD(std::string(buffer));
             ImGui::EndChild();
