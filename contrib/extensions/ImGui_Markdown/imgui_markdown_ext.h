@@ -252,7 +252,10 @@ namespace V2 {
                 
                 // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
                 state.perfect_size = CalcMarkdownSize(id, 2, std::string(buffer), final_width);
-                state.perfect_size.x += 15.0f; // Add horizontal breathing room!
+                // CRITICAL FIX: We MUST force the real child window width to match the dry-run wrap limit EXACTLY.
+                // If we use the natural content width (which might be smaller) or add arbitrary padding,
+                // the real run will wrap at a different pixel boundary and cause mid-word token severing!
+                state.perfect_size.x = final_width; 
                 state.perfect_size.y += 4.0f;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
             }
 
