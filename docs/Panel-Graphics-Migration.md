@@ -10,7 +10,7 @@ Depending on what version of `ImgWindow` your plugin is currently using, choose 
 
 If you were an early adopter of `ImgWindow` v1.3.0 (which brought initial Panel Graphics support during the X-Plane 12.4.4b1 and b2 betas), you successfully navigated a highly restrictive, asynchronous rendering era under the authoritarian rule of King Laminar "bee-wan" and his son, Laminar "bee-too".
 
-Fortunately, Prince I-Am-GeeWin-Dough II (b3) has democratized the kingdom! A new polymorphic era of true happiness has arrived for the citizens of *Panelgraphica* and *Opengeel*, who can now live in peace and harmony thanks to the new Bridge of Synchrony!
+Fortunately, Prince I-Am-GeeWin-Dough II (b4) has democratized the kingdom! A new polymorphic era of true happiness has arrived for the citizens of *Panelgraphica* and *Opengeel*, who can now live in peace and harmony thanks to the new Bridge of Synchrony!
 
 > [!NOTE]
 > **API Name Changes in v2.1.0**
@@ -41,7 +41,7 @@ There is no need to maintain two separate codebases or force your users to upgra
 > [!NOTE]
 > **Beta Warning:** The XPLM Panel Graphics API is currently a moving target. Laminar Research recently introduced breaking phase relaxations in **X-Plane 12.4.4b3** that are fully supported by this version of `ImgWindow`. 
 > 
-> Because of these breaking changes, native Panel Graphics support is physically locked out on the earlier `b1` and `b2` betas to prevent crashes. If you run a dynamic bridge plugin on `b1` or `b2`, it will safely fall back to legacy OpenGL. Throughout this document, any unqualified references to "X-Plane 12.4.4" assume you are targeting the final release API introduced in `b3`.
+> Because of these breaking changes, native Panel Graphics support is physically locked out on the earlier `b1` and `b2` betas to prevent crashes. If you run a dynamic bridge plugin on `b1` or `b2`, it will safely fall back to legacy OpenGL. Throughout this document, any unqualified references to "X-Plane 12.4.4" assume you are targeting the final release API introduced in `b3` (and finalized in `b4`).
 
 ### 1. Build Configurations
 
