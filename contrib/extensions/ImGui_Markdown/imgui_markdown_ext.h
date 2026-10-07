@@ -181,3 +181,22 @@ namespace ImGui {
 } // namespace V2
 
 } // namespace ImGui
+
+#ifdef IMGUI_TOOLTIPS_EXT_H
+namespace ImGui {
+namespace V2 {
+    inline void DelayedTooltipMD(const char* id, const std::string& markdown_text, float wrap_width = 400.0f) {
+        if (BeginStationaryTooltip(id)) {
+#if IMGUI_VERSION_NUM >= 18989
+            ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground);
+#else
+            ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+#endif
+            TextMD(markdown_text);
+            ImGui::EndChild();
+            EndStationaryTooltip(id);
+        }
+    }
+} // namespace V2
+} // namespace ImGui
+#endif
