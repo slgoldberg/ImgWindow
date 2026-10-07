@@ -42,6 +42,7 @@ namespace V2 {
         ImVec2 perfect_size = ImVec2(0, 0);
         bool is_displayed = false;
         bool is_cooldown = false; // Prevents reappearing if they remain perfectly still after auto-hide
+        int last_frame_updated = 0;
     };
 
         inline ImGuiID& GetActiveTooltipID() {
@@ -73,6 +74,16 @@ namespace V2 {
 
     inline bool BeginStationaryTooltipProxy(ImGuiID hash_id, bool is_hovered, const TooltipConfig* config_override = nullptr) {
         TooltipState& state = GetTooltipStateMap()[hash_id];
+        state.last_frame_updated = ImGui::GetFrameCount(); // Mark as alive this frame!
+        
+        // Garbage Collection: If the active tooltip was abandoned (e.g. its ImGuiID changed due to a label toggle), kill it!
+        ImGuiID active_id = GetActiveTooltipID();
+        if (active_id != 0 && active_id != hash_id) {
+            TooltipState& active_state = GetTooltipStateMap()[active_id];
+            if (active_state.last_frame_updated < ImGui::GetFrameCount() - 1) {
+                ClearActiveTooltip();
+            }
+        }
         
         const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
         static const TooltipConfig fallback_config;

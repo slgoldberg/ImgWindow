@@ -159,10 +159,12 @@ namespace ImGui {
         
         // Feed it a massive constraint if 0.0f so it doesn't word-wrap infinitely to 1 char
         float child_width = (wrap_width > 0.0f) ? wrap_width : 99999.0f;
+        // Pass 10000.0f Y to ensure we never clip vertically during the dry run.
+        // We MUST NOT pass AlwaysAutoResize, or it will infinitely expand X and never word-wrap!
 #if IMGUI_VERSION_NUM >= 18989
-        ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground);
+        ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
 #else
-        ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+        ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
 #endif
         
         ImGui::BeginGroup();
