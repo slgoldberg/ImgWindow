@@ -170,6 +170,28 @@ namespace ImGui
 #endif
             float       widthLeft = GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+            
+            // BRAT'S FIX: If the chunk doesn't fit on this line, but it WILL fit completely on the NEXT line,
+            // push it down! This prevents mid-word breaks for emphasized text!
+            if( endLine > text_ && endLine < text_end_ )
+            {
+                // Is the character at the wrap boundary inside a word? (No space)
+                char c_ = *endLine;
+                if( c_ != ' ' && c_ != '.' && c_ != ',' && c_ != ';' && c_ != '!' && c_ != '?' && c_ != '\"' )
+                {
+                    float widthNextLine = widthLeft + ImGui::GetCursorScreenPos().x - ImGui::GetWindowPos().x;
+                    const char* endNextLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthNextLine );
+                    if( endNextLine == text_end_ )
+                    {
+                        // It fits perfectly on the next line! Force a new line!
+                        endLine = text_;
+                        ImGui::NewLine();
+                        widthLeft = ImGui::GetContentRegionAvail().x;
+                        endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                    }
+                }
+            }
+            
             ImGui::TextUnformatted( text_, endLine );
             if( bIndentToHere_ )
             {
@@ -678,6 +700,25 @@ namespace ImGui
 #endif
             float       widthLeft = GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+            
+            // BRAT'S FIX FOR LINKS:
+            if( endLine > text_ && endLine < text_end_ )
+            {
+                char c_ = *endLine;
+                if( c_ != ' ' && c_ != '.' && c_ != ',' && c_ != ';' && c_ != '!' && c_ != '?' && c_ != '\"' )
+                {
+                    float widthNextLine = widthLeft + ImGui::GetCursorScreenPos().x - ImGui::GetWindowPos().x;
+                    const char* endNextLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthNextLine );
+                    if( endNextLine == text_end_ )
+                    {
+                        endLine = text_;
+                        ImGui::NewLine();
+                        widthLeft = ImGui::GetContentRegionAvail().x;
+                        endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                    }
+                }
+            }
+            
             bool bHovered = RenderLinkText( text_, endLine, link_, markdown_, mdConfig_, linkHoverStart_ );
             if( bIndentToHere_ )
             {
