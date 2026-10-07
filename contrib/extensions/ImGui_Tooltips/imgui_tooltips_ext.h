@@ -46,8 +46,9 @@ namespace V2 {
 
         inline ImGuiID& GetActiveTooltipID() {
         // Use ImGui's global state storage to guarantee a single mutex across all Translation Units!
-        ImGuiID global_mutex_key = ImGui::GetID("GlobalTooltipMutex");
-        return *(ImGuiID*)ImGui::GetStateStorage()->GetIntRef(global_mutex_key, 0);
+        // We use a hardcoded integer key (0x71701337) because ImGui::GetID() hashes based on the UI stack!
+        // If we used GetID(), tooltips inside groups would generate different Mutex keys!
+        return *(ImGuiID*)ImGui::GetStateStorage()->GetIntRef(0x71701337, 0);
     }
 
     inline std::unordered_map<ImGuiID, TooltipState>& GetTooltipStateMap() {
@@ -157,7 +158,7 @@ namespace V2 {
             ImGui::PushStyleColor(ImGuiCol_WindowBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_PopupBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_Border, config->border_color);
-            bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar);
+            bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
             ImGui::PushStyleColor(ImGuiCol_Text, config->text_color); // Pushed AFTER Begin to affect window contents!
             ImGui::PushStyleColor(ImGuiCol_Separator, config->text_color); // Ensures markdown horizontal lines match the text color!
             return open;

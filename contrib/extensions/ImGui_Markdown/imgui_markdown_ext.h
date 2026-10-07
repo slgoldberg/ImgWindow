@@ -223,12 +223,13 @@ namespace V2 {
                 // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
                 state.perfect_size = CalcMarkdownSize(std::string(buffer), final_width);
                 state.perfect_size.x += 15.0f; // Add horizontal breathing room!
+                state.perfect_size.y += 4.0f;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
             }
 
 #if IMGUI_VERSION_NUM >= 18989
-            ImGui::BeginChild("##md_delay_tt", state.perfect_size, ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
+            ImGui::BeginChild("##md_delay_tt", state.perfect_size, ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 #else
-            ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_NoBackground);
+            ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 #endif
             TextMD(std::string(buffer));
             ImGui::EndChild();
