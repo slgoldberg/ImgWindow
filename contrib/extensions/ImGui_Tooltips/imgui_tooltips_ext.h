@@ -18,6 +18,10 @@ namespace V2 {
         float default_wrap_width = 0.0f;  // 0.0f = Auto-Calculate 80% of available space!
         float min_wrap_width = 250.0f;
         float max_wrap_width = 600.0f;
+        
+        ImVec4 bg_color = ImVec4(1.0f, 0.95f, 0.6f, 0.95f);      // Yellow Sticky Note
+        ImVec4 border_color = ImVec4(0.8f, 0.75f, 0.4f, 1.0f);   // Slightly darker border
+        ImVec4 text_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);      // Black text
     };
 
     inline const TooltipConfig*& GetDefaultTooltipConfig() {
@@ -41,8 +45,9 @@ namespace V2 {
     };
 
         inline ImGuiID& GetActiveTooltipID() {
-        static ImGuiID s_ActiveTooltip = 0;
-        return s_ActiveTooltip;
+        // Use ImGui's global state storage to guarantee a single mutex across all Translation Units!
+        ImGuiID global_mutex_key = ImGui::GetID("GlobalTooltipMutex");
+        return *(ImGuiID*)ImGui::GetStateStorage()->GetIntRef(global_mutex_key, 0);
     }
 
     inline std::unordered_map<ImGuiID, TooltipState>& GetTooltipStateMap() {
@@ -149,10 +154,12 @@ namespace V2 {
             ImGui::SetNextWindowPos(state.locked_pos);
             char window_name[32];
             snprintf(window_name, sizeof(window_name), "##TT_%08X", hash_id);
-            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1.0f, 0.95f, 0.6f, 0.95f));
-            ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(1.0f, 0.95f, 0.6f, 0.95f));
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.8f, 0.75f, 0.4f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, config->bg_color);
+            ImGui::PushStyleColor(ImGuiCol_PopupBg, config->bg_color);
+            ImGui::PushStyleColor(ImGuiCol_Border, config->border_color);
             bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar);
+            ImGui::PushStyleColor(ImGuiCol_Text, config->text_color); // Pushed AFTER Begin to affect window contents!
+            ImGui::PushStyleColor(ImGuiCol_Separator, config->text_color); // Ensures markdown horizontal lines match the text color!
             return open;
         }
         
@@ -176,8 +183,9 @@ namespace V2 {
         
         // Capture size mathematically so the next frame can calculate the skew ratio!
         state.last_size = ImGui::GetWindowSize();
+        ImGui::PopStyleColor(2); // Pop Text and Separator
         ImGui::End();
-        ImGui::PopStyleColor(3);
+        ImGui::PopStyleColor(3); // Pop Window, Popup, Border
     }
 
     inline void EndStationaryTooltip(const char* str_id) {
