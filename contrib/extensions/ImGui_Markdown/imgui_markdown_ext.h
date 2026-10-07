@@ -209,18 +209,18 @@ namespace V2 {
             static const TooltipConfig fallback_config;
             if (!config) config = &fallback_config;
             
+            TooltipState& state = GetTooltipStateMap()[id];
+            
             float wrap_width = config->default_wrap_width;
             if (wrap_width <= 0.0f) {
-                float avail = ImGui::GetIO().DisplaySize.x - ImGui::GetWindowPos().x;
+                float avail = ImGui::GetIO().DisplaySize.x - state.locked_pos.x;
                 wrap_width = avail * 0.8f;
                 if (wrap_width < config->min_wrap_width) wrap_width = config->min_wrap_width;
                 if (wrap_width > config->max_wrap_width) wrap_width = config->max_wrap_width;
             }
-
-            TooltipState& state = GetTooltipStateMap()[id];
             if (state.perfect_size.x == 0.0f) {
                 // 1. Dry-run infinitely wide to see how small the text naturally is
-                ImVec2 raw_size = CalcMarkdownSize(std::string(buffer), 0.0f);
+                ImVec2 raw_size = CalcMarkdownSize(id, 1, std::string(buffer), 0.0f);
                 
                 // 2. Shrink-wrap tightly around small text, or clamp massive text to screen space
                 float final_width = raw_size.x;
@@ -231,7 +231,7 @@ namespace V2 {
                 if (final_width > config->max_wrap_width) final_width = config->max_wrap_width;
                 
                 // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
-                state.perfect_size = CalcMarkdownSize(std::string(buffer), final_width);
+                state.perfect_size = CalcMarkdownSize(id, 2, std::string(buffer), final_width);
                 state.perfect_size.x += 15.0f; // Add horizontal breathing room!
                 state.perfect_size.y += 4.0f;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
             }
