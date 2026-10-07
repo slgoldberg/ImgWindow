@@ -185,14 +185,24 @@ namespace ImGui {
 #ifdef IMGUI_TOOLTIPS_EXT_H
 namespace ImGui {
 namespace V2 {
-    inline void DelayedTooltipMD(const char* id, const std::string& markdown_text, float wrap_width = 400.0f) {
+    // Automatically binds to the last drawn widget using ImGui::GetItemID()
+    // Defers string formatting until the tooltip actually appears to save CPU!
+    inline void TimedTooltipMD(float wrap_width, const char* fmt, ...) {
+        ImGuiID id = ImGui::GetItemID(); 
+        
         if (BeginStationaryTooltip(id)) {
+            va_list args;
+            va_start(args, fmt);
+            char buffer[4096];
+            vsnprintf(buffer, sizeof(buffer), fmt, args);
+            va_end(args);
+
 #if IMGUI_VERSION_NUM >= 18989
             ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground);
 #else
             ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
 #endif
-            TextMD(markdown_text);
+            TextMD(std::string(buffer));
             ImGui::EndChild();
             EndStationaryTooltip(id);
         }

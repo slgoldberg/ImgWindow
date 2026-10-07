@@ -59,8 +59,7 @@ namespace V2 {
     }
 
 
-    inline bool BeginStationaryTooltipProxy(const char* id, bool is_hovered, const TooltipConfig* config_override = nullptr) {
-        ImGuiID hash_id = ImGui::GetID(id);
+    inline bool BeginStationaryTooltipProxy(ImGuiID hash_id, bool is_hovered, const TooltipConfig* config_override = nullptr) {
         TooltipState& state = GetTooltipStateMap()[hash_id];
         
         const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
@@ -132,24 +131,37 @@ namespace V2 {
 
             // 3. Render Stationary Window
             ImGui::SetNextWindowPos(state.locked_pos);
-            bool open = ImGui::Begin(id, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
+            char window_name[32];
+            snprintf(window_name, sizeof(window_name), "##TT_%08X", hash_id);
+            bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
             return open;
         }
         
         return false;
     }
 
-    inline bool BeginStationaryTooltip(const char* id, const TooltipConfig* config_override = nullptr) {
-        return BeginStationaryTooltipProxy(id, ImGui::IsItemHovered(), config_override);
+    inline bool BeginStationaryTooltipProxy(const char* str_id, bool is_hovered, const TooltipConfig* config_override = nullptr) {
+        return BeginStationaryTooltipProxy(ImGui::GetID(str_id), is_hovered, config_override);
     }
 
-    inline void EndStationaryTooltip(const char* id) {
-        ImGuiID hash_id = ImGui::GetID(id);
+    inline bool BeginStationaryTooltip(ImGuiID hash_id, const TooltipConfig* config_override = nullptr) {
+        return BeginStationaryTooltipProxy(hash_id, ImGui::IsItemHovered(), config_override);
+    }
+
+    inline bool BeginStationaryTooltip(const char* str_id, const TooltipConfig* config_override = nullptr) {
+        return BeginStationaryTooltip(ImGui::GetID(str_id), config_override);
+    }
+
+    inline void EndStationaryTooltip(ImGuiID hash_id) {
         TooltipState& state = GetTooltipStateMap()[hash_id];
         
         // Capture size mathematically so the next frame can calculate the skew ratio!
         state.last_size = ImGui::GetWindowSize();
         ImGui::End();
+    }
+
+    inline void EndStationaryTooltip(const char* str_id) {
+        EndStationaryTooltip(ImGui::GetID(str_id));
     }
 
 } // namespace V2
