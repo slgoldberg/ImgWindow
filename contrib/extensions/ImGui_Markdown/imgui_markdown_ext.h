@@ -198,6 +198,9 @@ namespace V2 {
     // Automatically binds to the last drawn widget using ImGui::GetItemID()
     // Defers string formatting until the tooltip actually appears to save CPU!
     inline void TimedTooltipMD(const char* fmt, ...) {
+        // Save the cursor requested by the underlying widget (e.g., ToggleButton Hand cursor)
+        ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
+        
         ImGuiID id = ImGui::GetItemID(); 
         
         if (BeginStationaryTooltip(id)) {
@@ -215,10 +218,11 @@ namespace V2 {
             
             float wrap_width = config->default_wrap_width;
             if (wrap_width <= 0.0f) {
-                float avail = ImGui::GetIO().DisplaySize.x - state.locked_pos.x;
-                wrap_width = avail * 0.8f;
-                if (wrap_width < config->min_wrap_width) wrap_width = config->min_wrap_width;
-                if (wrap_width > config->max_wrap_width) wrap_width = config->max_wrap_width;
+                // Completely eliminate mouse-position variability to solve mid-word markdown token breaks!
+                // We lock the max width deterministically. ImGui's native Tooltip clamping will safely 
+                // shove the window to the left if it hits the screen edge, and our NoInputs flags guarantee 
+                // it won't steal hover when it does!
+                wrap_width = config->max_wrap_width;
             }
             if (state.perfect_size.x == 0.0f) {
                 // 1. Dry-run infinitely wide to see how small the text naturally is
@@ -246,6 +250,11 @@ namespace V2 {
             TextMD(std::string(buffer));
             ImGui::EndChild();
             EndStationaryTooltip(id);
+        }
+        
+        // Violently restore the underlying widget's cursor if ImGui's Tooltip engine tried to defeat it!
+        if (previous_cursor != ImGui::GetMouseCursor()) {
+            ImGui::SetMouseCursor(previous_cursor);
         }
     }
 } // namespace V2
