@@ -35,6 +35,7 @@ namespace V2 {
         ImVec2 last_mouse_pos = ImVec2(-1, -1);
         ImVec2 locked_pos = ImVec2(-1, -1);
         ImVec2 last_size = ImVec2(0, 0);
+        ImVec2 perfect_size = ImVec2(0, 0);
         bool is_displayed = false;
         bool is_cooldown = false; // Prevents reappearing if they remain perfectly still after auto-hide
     };
@@ -59,6 +60,7 @@ namespace V2 {
             state.unhover_grace_cycles = 0;
             state.is_cooldown = false;
             GetActiveTooltipID() = 0;
+            state.perfect_size = ImVec2(0,0);
         }
     }
 
@@ -73,7 +75,16 @@ namespace V2 {
         // 1. Hover Latch (Low Watermark & Grace Period)
         if (is_hovered) {
             state.unhover_grace_cycles = 0;
-            if (!state.is_cooldown) state.hover_cycles++;
+            if (!state.is_cooldown) {
+                state.hover_cycles++;
+            } else {
+                // If in cooldown, wiggling the mouse wakes it back up instantly!
+                ImVec2 current_mouse = ImGui::GetMousePos();
+                if (std::abs(current_mouse.x - state.last_mouse_pos.x) > 1.0f || std::abs(current_mouse.y - state.last_mouse_pos.y) > 1.0f) {
+                    state.is_cooldown = false;
+                    state.hover_cycles = config->hover_delay_cycles; // Instant pop!
+                }
+            }
         } else {
             if (state.is_displayed) {
                 state.unhover_grace_cycles++;
@@ -82,6 +93,7 @@ namespace V2 {
                     if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
                     state.hover_cycles = 0;
                     state.is_cooldown = false;
+                    state.perfect_size = ImVec2(0,0);
                 }
             } else {
                 state.hover_cycles = 0;
@@ -162,6 +174,7 @@ namespace V2 {
         // Capture size mathematically so the next frame can calculate the skew ratio!
         state.last_size = ImGui::GetWindowSize();
         ImGui::End();
+        ImGui::PopStyleColor(2);
     }
 
     inline void EndStationaryTooltip(const char* str_id) {

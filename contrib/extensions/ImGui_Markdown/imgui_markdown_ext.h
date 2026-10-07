@@ -209,10 +209,16 @@ namespace V2 {
                 if (wrap_width > config->max_wrap_width) wrap_width = config->max_wrap_width;
             }
 
+            TooltipState& state = GetTooltipStateMap()[id];
+            if (state.perfect_size.x == 0.0f) {
+                // Dry-run once per tooltip lifecycle to get mathematically perfect shrink-wrapped dimensions
+                state.perfect_size = CalcMarkdownSize(std::string(buffer), wrap_width);
+            }
+
 #if IMGUI_VERSION_NUM >= 18989
-            ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground);
+            ImGui::BeginChild("##md_delay_tt", state.perfect_size, ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground);
 #else
-            ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+            ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
 #endif
             TextMD(std::string(buffer));
             ImGui::EndChild();
