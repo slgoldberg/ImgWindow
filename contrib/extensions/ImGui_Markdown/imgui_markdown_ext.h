@@ -158,7 +158,9 @@ namespace ImGui {
             // This mathematically guarantees ImGui can NEVER cache the window's position across frames,
             // which completely defeats ImGui's Viewport Culling optimization and prevents the 2-pixel tall bug!
             char measure_name[64];
-            snprintf(measure_name, sizeof(measure_name), "##md_measure_%08X_%d", hash_id, pass);
+            // By appending ImGui::GetFrameCount(), we guarantee the window name is unique for every single hover lifecycle!
+            // This prevents ImGui from caching the -10000 position from a previous hover and culling it on subsequent hovers!
+            snprintf(measure_name, sizeof(measure_name), "##md_measure_%08X_%d_%d", hash_id, pass, ImGui::GetFrameCount());
             
             ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
             ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
