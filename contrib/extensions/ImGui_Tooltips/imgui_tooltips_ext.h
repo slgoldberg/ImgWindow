@@ -149,7 +149,10 @@ namespace V2 {
             ImGui::SetNextWindowPos(state.locked_pos);
             char window_name[32];
             snprintf(window_name, sizeof(window_name), "##TT_%08X", hash_id);
-            bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1.0f, 0.95f, 0.6f, 0.95f));
+            ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(1.0f, 0.95f, 0.6f, 0.95f));
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.8f, 0.75f, 0.4f, 1.0f));
+            bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar);
             return open;
         }
         
