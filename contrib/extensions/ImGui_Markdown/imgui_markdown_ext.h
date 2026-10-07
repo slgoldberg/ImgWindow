@@ -187,7 +187,7 @@ namespace ImGui {
 namespace V2 {
     // Automatically binds to the last drawn widget using ImGui::GetItemID()
     // Defers string formatting until the tooltip actually appears to save CPU!
-    inline void TimedTooltipMD(float wrap_width, const char* fmt, ...) {
+    inline void TimedTooltipMD(const char* fmt, ...) {
         ImGuiID id = ImGui::GetItemID(); 
         
         if (BeginStationaryTooltip(id)) {
@@ -196,6 +196,18 @@ namespace V2 {
             char buffer[4096];
             vsnprintf(buffer, sizeof(buffer), fmt, args);
             va_end(args);
+
+            const TooltipConfig* config = GetDefaultTooltipConfig();
+            static const TooltipConfig fallback_config;
+            if (!config) config = &fallback_config;
+            
+            float wrap_width = config->default_wrap_width;
+            if (wrap_width <= 0.0f) {
+                float avail = ImGui::GetIO().DisplaySize.x - ImGui::GetWindowPos().x;
+                wrap_width = avail * 0.8f;
+                if (wrap_width < config->min_wrap_width) wrap_width = config->min_wrap_width;
+                if (wrap_width > config->max_wrap_width) wrap_width = config->max_wrap_width;
+            }
 
 #if IMGUI_VERSION_NUM >= 18989
             ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground);

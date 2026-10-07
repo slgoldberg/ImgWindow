@@ -14,6 +14,10 @@ namespace V2 {
         int grace_period_cycles = 5;      // Forgiveness cycles for slipping off the widget
         float size_skew_multiplier = 0.5f;// Add extra cycles per pixel of height for massive manuals
         bool enable_wiggle_latch = true;  // Keep alive if mouse wiggles
+        
+        float default_wrap_width = 0.0f;  // 0.0f = Auto-Calculate 80% of available space!
+        float min_wrap_width = 250.0f;
+        float max_wrap_width = 600.0f;
     };
 
     inline const TooltipConfig*& GetDefaultTooltipConfig() {
