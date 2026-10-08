@@ -103,13 +103,15 @@ namespace ImGui {
             // Built-in Tag 1: <color=...>, <col=...>
             auto colorHandler = [](const std::string& inner_text, const std::string& param) {
                 ImVec4 col(1.0f, 1.0f, 1.0f, 1.0f);
-                if (ParseMarkdownColor(param, col)) {
-                    ImGui::PushStyleColor(ImGuiCol_Text, col);
-                    ImGui::TextUnformatted(inner_text.c_str());
-                    ImGui::PopStyleColor();
+                bool hasCol = ParseMarkdownColor(param, col);
+                if (hasCol) ImGui::PushStyleColor(ImGuiCol_Text, col);
+                const MarkdownConfig* cfg = GetDefaultMarkdownConfig();
+                if (cfg) {
+                    Markdown(inner_text.c_str(), inner_text.length(), *cfg);
                 } else {
                     ImGui::TextUnformatted(inner_text.c_str());
                 }
+                if (hasCol) ImGui::PopStyleColor();
             };
             s_CustomTags["color"] = colorHandler;
             s_CustomTags["col"]   = colorHandler;
@@ -269,11 +271,50 @@ namespace ImGui {
 
                     cursor = closing_start + closing_tag.length();
 
-                    // Flow inline with following text if not immediately followed by a newline
-                    if (cursor < markdown_text.length() && markdown_text[cursor] != '\n' && markdown_text[cursor] != '\r') {
-                        ImGui::SameLine(0.0f, 0.0f);
+                    // Check what follows the closing tag:
+                    // 1. Skip horizontal spaces to see if we hit a newline (end of line) or more text on this line
+                    size_t next_non_space = cursor;
+                    while (next_non_space < markdown_text.length() && 
+                           (markdown_text[next_non_space] == ' ' || markdown_text[next_non_space] == '\t')) {
+                        ++next_non_space;
                     }
-                    continue;
+
+                    if (next_non_space >= markdown_text.length() || 
+                        markdown_text[next_non_space] == '\n' || 
+                        markdown_text[next_non_space] == '\r') {
+                        // Tag was at the end of the line!
+                        // In Dear ImGui, rendering the tag item (button/text) ALREADY advanced the layout
+                        // cursor to the start of the next line. We must consume the single newline separator
+                        // so that subsequent Markdown() calls do not see a leading '\n' and trigger a redundant
+                        // line advance (which produces unwanted double spacing).
+                        if (next_non_space < markdown_text.length()) {
+                            if (markdown_text[next_non_space] == '\r' && 
+                                next_non_space + 1 < markdown_text.length() && 
+                                markdown_text[next_non_space + 1] == '\n') {
+                                cursor = next_non_space + 2;
+                            } else {
+                                cursor = next_non_space + 1;
+                            }
+                        } else {
+                            cursor = next_non_space;
+                        }
+                        continue;
+                    } else {
+                        // Tag is followed by more text on the SAME line!
+                        size_t spaces_after = next_non_space - cursor;
+                        if (spaces_after > 0) {
+                            // There were spaces between the tag and the next text (e.g. "<tag>foo</tag> bar").
+                            // We position on the same line with the exact width of the spaces and advance
+                            // the cursor so Markdown() doesn't strip those spaces as leading indent!
+                            float space_width = ImGui::CalcTextSize(" ").x * (float)spaces_after;
+                            ImGui::SameLine(0.0f, space_width);
+                            cursor = next_non_space;
+                        } else {
+                            // Tag followed immediately by punctuation or word without spaces
+                            ImGui::SameLine(0.0f, 0.0f);
+                        }
+                        continue;
+                    }
                 }
             }
 
