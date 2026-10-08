@@ -83,20 +83,29 @@ namespace ImGui {
         }
     }
 
-    namespace V2 {
+    namespace MD {
 
-    // -------------------------------------------------------------------------
-        // Standard Widget API
+        // -------------------------------------------------------------------------
+        // Standard Widget API (mirroring standard ImGui vocabulary)
         // -------------------------------------------------------------------------
 
-        inline void TextMD(const std::string& markdown_text) {
+        inline void Text(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
             ImGui::BeginGroup();
-            MarkdownExt(markdown_text);
+            MarkdownExt(markdown_text, config_override);
             ImGui::EndGroup(); 
         }
 
-        inline void TextWrappedMD(const std::string& markdown_text) {
-            TextMD(markdown_text);
+        inline void TextWrapped(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+            Text(markdown_text, config_override);
+        }
+
+        // Backward-compatibility and convenience aliases
+        inline void TextMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+            Text(markdown_text, config_override);
+        }
+
+        inline void TextWrappedMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+            TextWrapped(markdown_text, config_override);
         }
 
         inline bool ButtonMD(const std::string& label, const std::string& tooltip_markdown = "", float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true) {
@@ -109,7 +118,7 @@ namespace ImGui {
 #else
                 ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
 #endif
-                TextMD(tooltip_markdown);
+                Text(tooltip_markdown);
                 ImGui::EndChild();
                 ImGui::EndTooltip();
             }
@@ -135,7 +144,7 @@ namespace ImGui {
 #else
                     ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
 #endif
-                    TextMD(markdown_text);
+                    Text(markdown_text);
                     ImGui::EndChild();
                     ImGui::EndTooltip();
                 }
@@ -151,7 +160,7 @@ namespace ImGui {
 
         // Mathematically calculates the exact ImVec2 dimensions of a parsed markdown string 
         // WITHOUT rendering it to the screen. Perfect for pre-calculating X-Plane OS window boundaries!
-        inline ImVec2 CalcMarkdownSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f) {
+        inline ImVec2 CalcMarkdownSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
             ImVec2 calculated_size(0, 0);
             
             // Generate a perfectly unique window name for this specific tooltip and pass.
@@ -162,8 +171,15 @@ namespace ImGui {
             // This prevents ImGui from caching the -10000 position from a previous hover and culling it on subsequent hovers!
             snprintf(measure_name, sizeof(measure_name), "##md_measure_%08X_%d_%d", hash_id, pass, ImGui::GetFrameCount());
             
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 0.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f, 1.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 20.0f);
+            
             ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
             ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+            if (font_scale > 0.0f) {
+                ImGui::SetWindowFontScale(font_scale);
+            }
         
         // Feed it a massive constraint if 0.0f so it doesn't word-wrap infinitely to 1 char
         float child_width = (wrap_width > 0.0f) ? wrap_width : 99999.0f;
@@ -176,28 +192,35 @@ namespace ImGui {
 #endif
         
         ImGui::BeginGroup();
-        MarkdownExt(markdown_text);
+        MarkdownExt(markdown_text, md_config);
         ImGui::EndGroup();
         
         calculated_size = ImGui::GetItemRectSize();
         
         ImGui::EndChild();
         ImGui::End();
-        
+        ImGui::PopStyleVar(3);
         
         return calculated_size;
     }
 
-} // namespace V2
+    inline ImVec2 CalcSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+        return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
+    }
+
+    inline ImVec2 CalcTextSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+        return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
+    }
+
+} // namespace MD
 
 } // namespace ImGui
 
 #ifdef IMGUI_TOOLTIPS_EXT_H
 namespace ImGui {
-namespace V2 {
-    // Automatically binds to the last drawn widget using ImGui::GetItemID()
-    // Defers string formatting until the tooltip actually appears to save CPU!
-    inline void TimedTooltipMD(const char* fmt, ...) {
+namespace TimedTooltip {
+
+    inline void TextMDV(const TooltipConfig* config_override, const char* fmt, va_list args) {
         bool is_hovered = ImGui::IsItemHovered();
         ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
         
@@ -211,52 +234,70 @@ namespace V2 {
         
         ImGuiID id = ImGui::GetItemID(); 
         
-        if (BeginStationaryTooltipProxy(id, is_hovered)) {
-            va_list args;
-            va_start(args, fmt);
+        if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
             char buffer[4096];
             vsnprintf(buffer, sizeof(buffer), fmt, args);
-            va_end(args);
 
-            const TooltipConfig* config = GetDefaultTooltipConfig();
+            const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
             static const TooltipConfig fallback_config;
             if (!config) config = &fallback_config;
             
             TooltipState& state = GetTooltipStateMap()[id];
             
-            float wrap_width = config->default_wrap_width;
-            if (wrap_width <= 0.0f) {
-                // Dynamic squishing to prevent the tooltip from running off the local ImgWindow bounds!
-                float avail = ImGui::GetIO().DisplaySize.x - state.locked_pos.x;
-                wrap_width = avail * 0.8f;
-                if (wrap_width < config->min_wrap_width) wrap_width = config->min_wrap_width;
-                if (wrap_width > config->max_wrap_width) wrap_width = config->max_wrap_width;
-            }
+            // 1. Audit and sanitize wrap constraints against screen boundaries
+            float max_screen_w = ImMax(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
+            float min_w = config->min_wrap_width;
+            float max_w = config->max_wrap_width;
+            if (min_w < 50.0f) min_w = 50.0f;
+            if (max_w < min_w) max_w = min_w;
+            if (max_w > max_screen_w) max_w = max_screen_w;
+            if (min_w > max_w) min_w = max_w;
+
+            float target_w = (config->default_wrap_width > 0.0f) ? config->default_wrap_width : 360.0f;
+            float wrap_limit = ImClamp(target_w, min_w, max_w);
+            if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
+
+            // Prepare MarkdownConfig with custom bullet_spacing
+            MarkdownConfig local_md;
+            const MarkdownConfig* base_md = GetDefaultMarkdownConfig();
+            if (base_md) local_md = *base_md;
+            if (config->bullet_spacing > 0.0f) local_md.bulletSpacing = config->bullet_spacing;
+
             if (state.perfect_size.x == 0.0f) {
                 // 1. Dry-run infinitely wide to see how small the text naturally is
-                ImVec2 raw_size = CalcMarkdownSize(id, 1, std::string(buffer), 0.0f);
+                ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, config->font_scale, &local_md);
                 
-                // 2. Shrink-wrap tightly around small text, or clamp massive text to screen space
+                // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
                 float final_width = raw_size.x;
-                if (final_width > wrap_width) {
-                    final_width = wrap_width;
+                if (final_width > wrap_limit) {
+                    final_width = wrap_limit;
                 }
-                if (final_width < config->min_wrap_width) final_width = config->min_wrap_width;
-                if (final_width > config->max_wrap_width) final_width = config->max_wrap_width;
+                if (final_width > max_screen_w) final_width = max_screen_w;
                 
                 // ADD EPSILON TO PREVENT MID-WORD BREAKS!
-                // If final_width is exactly raw_size.x, the markdown word-wrapper sits on a razor's edge.
-                // A tiny floating point inaccuracy causes it to forcefully wrap the last token mid-word.
-                // Giving it 2 extra pixels guarantees the text fits perfectly without breaking!
                 final_width += 2.0f;
                 
                 // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
-                state.perfect_size = CalcMarkdownSize(id, 2, std::string(buffer), final_width);
-                // CRITICAL FIX: We MUST force the real child window width to match the dry-run wrap limit EXACTLY.
-                // If we use the natural content width (which might be smaller) or add arbitrary padding,
-                // the real run will wrap at a different pixel boundary and cause mid-word token severing!
+                state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, config->font_scale, &local_md);
                 state.perfect_size.x = final_width; 
                 state.perfect_size.y += 4.0f;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
+
+                // Immediate position clamp on Frame 1:
+                ImVec2 display_size = ImGui::GetIO().DisplaySize;
+                ImVec2 render_pos = state.locked_pos;
+                float expected_w = state.perfect_size.x + config->padding.x * 2.0f;
+                float expected_h = state.perfect_size.y + config->padding.y * 2.0f;
+                if (expected_w > display_size.x - 25.0f) expected_w = display_size.x - 25.0f;
+                if (expected_h > display_size.y - 25.0f) expected_h = display_size.y - 25.0f;
+                if (expected_h > 0.0f && render_pos.y + expected_h + 10.0f > display_size.y) {
+                    render_pos.y = display_size.y - expected_h - 15.0f;
+                    if (render_pos.y < 10.0f) render_pos.y = 10.0f;
+                }
+                if (expected_w > 0.0f && render_pos.x + expected_w + 10.0f > display_size.x) {
+                    render_pos.x = display_size.x - expected_w - 15.0f;
+                    if (render_pos.x < 10.0f) render_pos.x = 10.0f;
+                }
+                ImGui::SetWindowPos(render_pos);
             }
 
 #if IMGUI_VERSION_NUM >= 18989
@@ -264,7 +305,7 @@ namespace V2 {
 #else
             ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
 #endif
-            TextMD(std::string(buffer));
+            MD::Text(std::string(buffer), &local_md);
             ImGui::EndChild();
             EndStationaryTooltip(id);
         }
@@ -274,6 +315,41 @@ namespace V2 {
             ImGui::SetMouseCursor(previous_cursor);
         }
     }
-} // namespace V2
+
+    // Markdown-enabled Timed Tooltip with per-call config override
+    inline void TextMD(const TooltipConfig* config, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        TextMDV(config, fmt, args);
+        va_end(args);
+    }
+
+    // Markdown-enabled Timed Tooltip: mirrors standard ImGui vocabulary (ImGui::TimedTooltip::TextMD)
+    // Automatically binds to the last drawn widget using ImGui::GetItemID()
+    // Defers string formatting until the tooltip actually appears to save CPU!
+    inline void TextMD(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        TextMDV(nullptr, fmt, args);
+        va_end(args);
+    }
+
+    // Direct aliases for backward-compatibility
+    inline void TimedTooltipMD(const TooltipConfig* config, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        TextMDV(config, fmt, args);
+        va_end(args);
+    }
+
+    inline void TimedTooltipMD(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        TextMDV(nullptr, fmt, args);
+        va_end(args);
+    }
+
+} // namespace TimedTooltip
+
 } // namespace ImGui
 #endif

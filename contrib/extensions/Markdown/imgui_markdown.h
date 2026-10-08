@@ -134,6 +134,7 @@ namespace ImGui
         MarkdownHeadingFormat   headingFormats[ NUMHEADINGS ] = { { NULL, true }, { NULL, true }, { NULL, true }, { NULL, true } };
         void*                   userData = NULL;
         MarkdownFormalCallback* formatCallback = defaultMarkdownFormatCallback;
+        float                   bulletSpacing = 0.0f;               // 0.0f = default (4.0f); > 0.0f = custom gap between bullet and text
     };
 
     //-----------------------------------------------------------------------------
@@ -151,9 +152,49 @@ namespace ImGui
     inline void UnderLine( ImColor col_ );
     inline void RenderLine( const char* markdown_, Line& line_, TextRegion& textRegion_, const MarkdownConfig& mdConfig_ );
 
+    inline bool IsCharInsideWord( char c_ )
+    {
+        return c_ != ' ' && c_ != '\t' && c_ != '\n' && c_ != '\r' && 
+               c_ != '.' && c_ != ',' && c_ != ';' && c_ != '!' && c_ != '?' && 
+               c_ != '\"' && c_ != '(' && c_ != ')' && c_ != '[' && c_ != ']' && 
+               c_ != '{' && c_ != '}';
+    }
+
+    // Typographic wrap helper: Prevents orphaned opening quotes/brackets and severed contractions/hyphens
+    inline const char* AdjustWrapForTypography( const char* text_, const char* endLine, const char* text_end_ )
+    {
+        if( endLine <= text_ || endLine >= text_end_ )
+            return endLine;
+
+        char c_ = *endLine;
+        char prev_c = *(endLine - 1);
+
+        // 1. Orphaned Opening Delimiter: e.g. " word -> break before the opening delimiter so it travels with the word!
+        if( ( prev_c == '\"' || prev_c == '\'' || prev_c == '(' || prev_c == '[' || prev_c == '{' ) &&
+            ( endLine - 1 > text_ && *(endLine - 2) == ' ' ) )
+        {
+            return endLine - 1;
+        }
+
+        // 2. Severed Contraction or Hyphen: e.g. "man's" or "semi-final" -> break before the whole compound word!
+        if( ( prev_c == '\'' || prev_c == '-' ) &&
+            ( endLine - 1 > text_ && IsCharInsideWord( *(endLine - 2) ) ) &&
+            ( IsCharInsideWord( c_ ) ) )
+        {
+            const char* rewind = endLine - 2;
+            while( rewind > text_ && *rewind != ' ' )
+                --rewind;
+
+            if( rewind > text_ && *rewind == ' ' )
+                return rewind;
+        }
+
+        return endLine;
+    }
+
     struct TextRegion
     {
-        TextRegion() : indentX( 0.0f )
+        TextRegion() : indentX( 0.0f ), leadIndents( 0 )
         {
         }
         ~TextRegion()
@@ -170,16 +211,18 @@ namespace ImGui
 #endif
             float       widthLeft = GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
-            
+            endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
+
             // BRAT'S FIX: If the chunk doesn't fit on this line, but it WILL fit completely on the NEXT line,
             // push it down! This prevents mid-word breaks for emphasized text!
             if( endLine > text_ && endLine < text_end_ )
             {
-                // Is the character at the wrap boundary inside a word? (No space)
+                // Is the character at the wrap boundary inside a word?
                 char c_ = *endLine;
-                if( c_ != ' ' && c_ != '.' && c_ != ',' && c_ != ';' && c_ != '!' && c_ != '?' && c_ != '\"' )
+                if( IsCharInsideWord( c_ ) )
                 {
-                    float widthNextLine = widthLeft + ImGui::GetCursorScreenPos().x - ImGui::GetWindowPos().x;
+                    float lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
+                    float widthNextLine = widthLeft + ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
                     const char* endNextLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthNextLine );
                     if( endNextLine == text_end_ )
                     {
@@ -188,6 +231,7 @@ namespace ImGui
                         ImGui::NewLine();
                         widthLeft = ImGui::GetContentRegionAvail().x;
                         endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                        endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                     }
                 }
             }
@@ -208,6 +252,7 @@ namespace ImGui
                 text_ = endLine;
                 if( *text_ == ' ' ) { ++text_; }    // skip a space at start of line
                 endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                 if( text_ == endLine ) 
                 {
                     endLine++;
@@ -216,10 +261,17 @@ namespace ImGui
             }
         }
 
-        void RenderListTextWrapped( const char* text_, const char* text_end_ )
+        static float GetBulletSpacing( float custom_spacing = -1.0f )
+        {
+            if( custom_spacing >= 0.0f )
+                return custom_spacing;
+            return 4.0f; // Clean, elegant 4px spacing instead of bloated gap
+        }
+
+        void RenderListTextWrapped( const char* text_, const char* text_end_, float bullet_spacing = -1.0f )
         {
             ImGui::Bullet();
-            ImGui::SameLine();
+            ImGui::SameLine( 0.0f, GetBulletSpacing( bullet_spacing ) );
             RenderTextWrapped( text_, text_end_, true );
         }
 
@@ -229,6 +281,25 @@ namespace ImGui
         void RenderLinkTextWrapped( const char* text_, const char* text_end_, const Link& link_,
             const char* markdown_, const MarkdownConfig& mdConfig_, const char** linkHoverStart_, bool bIndentToHere_ = false );
 
+        float GetIndent() const
+        {
+            return indentX;
+        }
+
+        int GetLeadIndents() const
+        {
+            return leadIndents;
+        }
+
+        void ApplyLeadIndent( int count )
+        {
+            while( leadIndents < count )
+            {
+                ImGui::Indent();
+                ++leadIndents;
+            }
+        }
+
         void ResetIndent()
         {
             if( indentX > 0.0f )
@@ -236,10 +307,16 @@ namespace ImGui
                 ImGui::Unindent( indentX );
             }
             indentX = 0.0f;
+            while( leadIndents > 0 )
+            {
+                ImGui::Unindent();
+                --leadIndents;
+            }
         }
 
     private:
         float       indentX;
+        int         leadIndents;
     };
 
     struct Line {
@@ -301,16 +378,9 @@ namespace ImGui
 
     inline void RenderLine( const char* markdown_, Line& line_, TextRegion& textRegion_, const MarkdownConfig& mdConfig_ )
     {
-        // indent
-        int indentStart = 0;
-        if( line_.isUnorderedListStart )    // ImGui unordered list render always adds one indent
-        { 
-            indentStart = 1; 
-        }
-        for( int j = indentStart; j < line_.leadSpaceCount / 2; ++j )    // add indents
-        {
-            ImGui::Indent();
-        }
+        // Apply line-level leading space indentation (nested list depth)
+        int numLeadIndents = line_.leadSpaceCount / 2;
+        textRegion_.ApplyLeadIndent( numLeadIndents );
 
         // render
         MarkdownFormatInfo formatInfo;
@@ -322,7 +392,9 @@ namespace ImGui
             formatInfo.type = MarkdownFormatType::UNORDERED_LIST;
             mdConfig_.formatCallback( formatInfo, true );
             const char* text = markdown_ + textStart + 1;
-            textRegion_.RenderListTextWrapped( text, text + textSize - 1 );
+            const char* textEnd = text + textSize - 1;
+            while( text < textEnd && *text == ' ' ) { ++text; }
+            textRegion_.RenderListTextWrapped( text, textEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
         }
         else if( line_.isHeading )          // render heading
         {
@@ -349,12 +421,6 @@ namespace ImGui
             textRegion_.RenderTextWrapped( text, text + textSize );
         }
         mdConfig_.formatCallback( formatInfo, false );
-
-        // unindent
-        for( int j = indentStart; j < line_.leadSpaceCount / 2; ++j )
-        {
-            ImGui::Unindent();
-        }
     }
     
     // render markdown
@@ -384,14 +450,12 @@ namespace ImGui
                 {
                     line.isLeadingSpace = false;
                     line.lastRenderPosition = i - 1;
-                    if(( c == '*' ) && ( line.leadSpaceCount >= 2 ))
+                    if(( c == '*' || c == '-' || c == '+' ) && 
+                       ( (int)markdownLength_ > i + 1 ) && ( markdown_[ i + 1 ] == ' ' ))
                     {
-                        if( ( (int)markdownLength_ > i + 1 ) && ( markdown_[ i + 1 ] == ' ' ) )    // space after '*'
-                        {
-                            line.isUnorderedListStart = true;
-                            ++i;
-                            ++line.lastRenderPosition;
-                        }
+                        line.isUnorderedListStart = true;
+                        ++i;
+                        ++line.lastRenderPosition;
                     }
                     else if( c == '#' )
                     {
@@ -469,11 +533,21 @@ namespace ImGui
                 {
                     em = Emphasis();
                     line.lineEnd = link.text.start - ( link.isImage ? 2 : 1 );
-                    RenderLine( markdown_, line, textRegion, mdConfig_ );
-                    line.leadSpaceCount = 0;
+                    if( line.lineEnd > line.lineStart )
+                    {
+                        RenderLine( markdown_, line, textRegion, mdConfig_ );
+                        line.isUnorderedListStart = false;
+                        ImGui::SameLine( 0.0f, 0.0f );
+                    }
+                    else if( line.isUnorderedListStart )
+                    {
+                        int numLeadIndents = line.leadSpaceCount / 2;
+                        textRegion.ApplyLeadIndent( numLeadIndents );
+                        ImGui::Bullet();
+                        ImGui::SameLine( 0.0f, TextRegion::GetBulletSpacing( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f ) );
+                        line.isUnorderedListStart = false;
+                    }
                     link.url.stop = i;
-                    line.isUnorderedListStart = false;
-                    ImGui::SameLine( 0.0f, 0.0f );
                     if( link.isImage )
                     {
                         bool drawnImage = false;
@@ -582,7 +656,14 @@ namespace ImGui
                             RenderLine( markdown_, line, textRegion, mdConfig_ );
 						    ImGui::SameLine( 0.0f, 0.0f );
                             line.isUnorderedListStart = false;
-                            line.leadSpaceCount = 0;
+                        }
+                        else if( line.isUnorderedListStart )
+                        {
+                            int numLeadIndents = line.leadSpaceCount / 2;
+                            textRegion.ApplyLeadIndent( numLeadIndents );
+                            ImGui::Bullet();
+                            ImGui::SameLine( 0.0f, TextRegion::GetBulletSpacing( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f ) );
+                            line.isUnorderedListStart = false;
                         }
 						line.isEmphasis = true;
 						line.lastRenderPosition = em.text.start - 1;
@@ -631,8 +712,31 @@ namespace ImGui
 
                 line.lineStart = i + 1;
                 line.lastRenderPosition = i;
+                // Check whether the next line is a continuation line of the current list item
+                bool isNextContinuation = false;
+                if( ( textRegion.GetIndent() > 0.0f || textRegion.GetLeadIndents() > 0 ) && i + 1 < (int)markdownLength_ )
+                {
+                    int next = i + 1;
+                    int spaceCount = 0;
+                    while( next < (int)markdownLength_ && ( markdown_[next] == ' ' || markdown_[next] == '\t' ) )
+                    {
+                        spaceCount += ( markdown_[next] == '\t' ) ? 4 : 1;
+                        ++next;
+                    }
+                    if( spaceCount >= 2 && next < (int)markdownLength_ )
+                    {
+                        char nextC = markdown_[next];
+                        if( nextC != '*' && nextC != '-' && nextC != '+' && nextC != '#' && nextC != '\n' && nextC != '\r' )
+                        {
+                            isNextContinuation = true;
+                        }
+                    }
+                }
 
-                textRegion.ResetIndent();
+                if( !isNextContinuation )
+                {
+                    textRegion.ResetIndent();
+                }
                 link = Link();
             }
         }
@@ -700,14 +804,16 @@ namespace ImGui
 #endif
             float       widthLeft = GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
-            
+            endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
+
             // BRAT'S FIX FOR LINKS:
             if( endLine > text_ && endLine < text_end_ )
             {
                 char c_ = *endLine;
-                if( c_ != ' ' && c_ != '.' && c_ != ',' && c_ != ';' && c_ != '!' && c_ != '?' && c_ != '\"' )
+                if( IsCharInsideWord( c_ ) )
                 {
-                    float widthNextLine = widthLeft + ImGui::GetCursorScreenPos().x - ImGui::GetWindowPos().x;
+                    float lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
+                    float widthNextLine = widthLeft + ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
                     const char* endNextLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthNextLine );
                     if( endNextLine == text_end_ )
                     {
@@ -715,6 +821,7 @@ namespace ImGui
                         ImGui::NewLine();
                         widthLeft = ImGui::GetContentRegionAvail().x;
                         endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                        endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                     }
                 }
             }
@@ -735,6 +842,7 @@ namespace ImGui
                 text_ = endLine;
                 if( *text_ == ' ' ) { ++text_; }
                 endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                 if( text_ == endLine ) 
                 {
                     endLine++;

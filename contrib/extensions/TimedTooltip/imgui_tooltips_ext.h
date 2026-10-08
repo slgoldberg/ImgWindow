@@ -4,9 +4,10 @@
 #include "imgui.h"
 #include <unordered_map>
 #include <cmath>
+#include <algorithm>
 
 namespace ImGui {
-namespace V2 {
+namespace TimedTooltip {
 
     struct TooltipConfig {
         int hover_delay_cycles = 65;      // Low Watermark: Cycles before appearing
@@ -15,9 +16,15 @@ namespace V2 {
         float size_skew_multiplier = 0.5f;// Add extra cycles per pixel of height for massive manuals
         bool enable_wiggle_latch = true;  // Keep alive if mouse wiggles
         
-        float default_wrap_width = 0.0f;  // 0.0f = Auto-Calculate 80% of available space!
-        float min_wrap_width = 250.0f;
-        float max_wrap_width = 600.0f;
+        float default_wrap_width = 360.0f;// Target comfortable sticky-note width (360.0f; short text shrink-wraps)
+        float min_wrap_width = 240.0f;    // Minimum constraint before forced truncation/overflow
+        float max_wrap_width = 600.0f;    // Upper ceiling for wide manuals/tables
+        ImVec2 padding = ImVec2(8.0f, 6.0f);                     // Compact internal padding around tooltip text
+        ImVec2 item_spacing = ImVec2(4.0f, 0.0f);                // Tight vertical line pitch (matches native font leading)
+        ImVec2 frame_padding = ImVec2(2.0f, 1.0f);               // Compact frame padding
+        float indent_spacing = 20.0f;                            // Isolated standard indent spacing
+        float bullet_spacing = 4.0f;                             // Gap between bullet glyph and text (default 4.0f)
+        float font_scale = 0.0f;                                 // 0.0f = inherit ambient font scale; >0.0f = custom window font scale
         
         ImVec4 bg_color = ImVec4(1.0f, 0.95f, 0.6f, 0.95f);      // Yellow Sticky Note
         ImVec4 border_color = ImVec4(0.8f, 0.75f, 0.4f, 1.0f);   // Slightly darker border
@@ -30,6 +37,22 @@ namespace V2 {
     }
     inline void SetDefaultTooltipConfig(const TooltipConfig* config) {
         GetDefaultTooltipConfig() = config;
+    }
+
+    // Returns a reference to the active TooltipConfig:
+    // If a global config was set via SetDefaultTooltipConfig(), returns that.
+    // Otherwise, returns the built-in default configuration.
+    inline const TooltipConfig& GetCurrentTooltipConfig() {
+        const TooltipConfig* config = GetDefaultTooltipConfig();
+        if (config) return *config;
+        static const TooltipConfig s_BuiltinDefaultConfig;
+        return s_BuiltinDefaultConfig;
+    }
+
+    // Direct convenience helper to get an editable copy of the current configuration:
+    // e.g. TooltipConfig wideConfig = ImGui::TimedTooltip::GetConfig();
+    inline TooltipConfig GetConfig() {
+        return GetCurrentTooltipConfig();
     }
 
     struct TooltipState {
@@ -162,14 +185,42 @@ namespace V2 {
                 }
             }
 
-            // 3. Render Stationary Window
-            ImGui::SetNextWindowPos(state.locked_pos);
+            // 3. Render Stationary Window with automatic screen-edge clamping (grows upwards if clipping bottom!)
+            ImVec2 render_pos = state.locked_pos;
+            ImVec2 display_size = ImGui::GetIO().DisplaySize;
+            float expected_h = (state.perfect_size.y > 0.0f) ? (state.perfect_size.y + config->padding.y * 2.0f) : state.last_size.y;
+            float expected_w = (state.perfect_size.x > 0.0f) ? (state.perfect_size.x + config->padding.x * 2.0f) : state.last_size.x;
+
+            // Ensure expected dimensions don't exceed the active display boundaries
+            if (expected_w > display_size.x - 25.0f) expected_w = display_size.x - 25.0f;
+            if (expected_h > display_size.y - 25.0f) expected_h = display_size.y - 25.0f;
+
+            // Grow UPWARDS if tooltip would clip off the bottom of the screen!
+            if (expected_h > 0.0f && render_pos.y + expected_h + 10.0f > display_size.y) {
+                render_pos.y = display_size.y - expected_h - 15.0f;
+                if (render_pos.y < 10.0f) render_pos.y = 10.0f;
+            }
+
+            // Shift LEFTWARDS if tooltip would clip off the right edge of the screen!
+            if (expected_w > 0.0f && render_pos.x + expected_w + 10.0f > display_size.x) {
+                render_pos.x = display_size.x - expected_w - 15.0f;
+                if (render_pos.x < 10.0f) render_pos.x = 10.0f;
+            }
+
+            ImGui::SetNextWindowPos(render_pos);
             char window_name[32];
             snprintf(window_name, sizeof(window_name), "##TT_%08X", hash_id);
             ImGui::PushStyleColor(ImGuiCol_WindowBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_PopupBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_Border, config->border_color);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, config->padding);
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, config->item_spacing);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, config->frame_padding);
+            ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, config->indent_spacing);
             bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+            if (config->font_scale > 0.0f) {
+                ImGui::SetWindowFontScale(config->font_scale);
+            }
             ImGui::PushStyleColor(ImGuiCol_Text, config->text_color); // Pushed AFTER Begin to affect window contents!
             ImGui::PushStyleColor(ImGuiCol_Separator, config->text_color); // Ensures markdown horizontal lines match the text color!
             return open;
@@ -197,6 +248,7 @@ namespace V2 {
         state.last_size = ImGui::GetWindowSize();
         ImGui::PopStyleColor(2); // Pop Text and Separator
         ImGui::End();
+        ImGui::PopStyleVar(4);    // Pop WindowPadding, ItemSpacing, FramePadding, IndentSpacing
         ImGui::PopStyleColor(3); // Pop Window, Popup, Border
     }
 
@@ -204,5 +256,67 @@ namespace V2 {
         EndStationaryTooltip(ImGui::GetID(str_id));
     }
 
-} // namespace V2
+    using Config = TooltipConfig;
+    using State = TooltipState;
+
+    inline void TextV(const TooltipConfig* config_override, const char* fmt, va_list args) {
+        bool is_hovered = ImGui::IsItemHovered();
+        ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
+
+        if (is_hovered && previous_cursor == ImGuiMouseCursor_Arrow) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            previous_cursor = ImGuiMouseCursor_Hand;
+        }
+
+        ImGuiID id = ImGui::GetItemID();
+        if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
+            const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
+            static const TooltipConfig fallback_config;
+            if (!config) config = &fallback_config;
+
+            TooltipState& state = GetTooltipStateMap()[id];
+            
+            // 1. Audit and sanitize wrap constraints against screen boundaries
+            float max_screen_w = std::max(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
+            float min_w = config->min_wrap_width;
+            float max_w = config->max_wrap_width;
+            if (min_w < 50.0f) min_w = 50.0f;
+            if (max_w < min_w) max_w = min_w;
+            if (max_w > max_screen_w) max_w = max_screen_w;
+            if (min_w > max_w) min_w = max_w;
+
+            float target_w = (config->default_wrap_width > 0.0f) ? config->default_wrap_width : 360.0f;
+            float wrap_limit = std::clamp(target_w, min_w, max_w);
+            if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
+
+            ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + wrap_limit);
+            ImGui::TextV(fmt, args);
+            ImGui::PopTextWrapPos();
+
+            EndStationaryTooltip(id);
+        }
+
+        if (previous_cursor != ImGui::GetMouseCursor()) {
+            ImGui::SetMouseCursor(previous_cursor);
+        }
+    }
+
+    // Plain-text Timed Tooltip with per-call config override
+    inline void Text(const TooltipConfig* config, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        TextV(config, fmt, args);
+        va_end(args);
+    }
+
+    // Plain-text Timed Tooltip: mirrors standard ImGui vocabulary (ImGui::TimedTooltips::Text)
+    inline void Text(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        TextV(nullptr, fmt, args);
+        va_end(args);
+    }
+
+} // namespace TimedTooltip
+
 } // namespace ImGui
