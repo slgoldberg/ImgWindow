@@ -326,7 +326,8 @@ namespace ImGui {
             return clicked;
         }
 
-        inline void DelayedTooltipMD(const std::string& markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
+        inline bool DelayedTooltipMD(const std::string& markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
+            bool showing = false;
             if (is_allowed && ImGui::IsItemHovered()) {
                 ImGuiID id = ImGui::GetItemID();
                 ImGuiStorage* storage = ImGui::GetStateStorage();
@@ -338,6 +339,7 @@ namespace ImGui {
                 }
 
                 if (ImGui::GetFrameCount() - hover_start >= delay_frames) {
+                    showing = true;
                     ImGui::BeginTooltip();
                     #if IMGUI_VERSION_NUM >= 18989
                     ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
@@ -351,6 +353,7 @@ namespace ImGui {
             } else {
                 ImGui::GetStateStorage()->SetInt(ImGui::GetItemID(), 0);
             }
+            return showing;
         }
 
 
