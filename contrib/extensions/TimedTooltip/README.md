@@ -4,6 +4,9 @@ The **TimedTooltip** extension provides an advanced, stationary tooltip engine d
 
 Unlike standard Dear ImGui tooltips which move with the mouse and can flicker, obstruct UI elements, or run off-screen, `TimedTooltip` locks in place, calculates dynamic viewport boundaries, preserves custom interactive cursors, isolates its styling hermetically from parent windows, and supports both plain-text and rich Markdown content.
 
+> **Author / Maintainer:** Steven L. Goldberg ([@slgoldberg](https://github.com/slgoldberg))  
+> **License:** BSD 3-Clause (see [ImgWindow LICENSE](../../../README.md#licensing-note))
+
 ---
 
 ## Key Features

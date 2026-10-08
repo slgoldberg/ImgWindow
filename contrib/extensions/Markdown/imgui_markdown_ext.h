@@ -1,15 +1,30 @@
+// ============================================================================
+// ImgWindow Extension: Markdown
+// ----------------------------------------------------------------------------
+// Author: Steven L. Goldberg (@slgoldberg)
+// Original Upstream: Juliette Foucaut (@juliettef) & Doug Binks (@dougbinks)
+// License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
+//
+// Contributors:
+//   - Steven L. Goldberg: Lookahead line-wrapping, typographic delimiter
+//     protection, hanging indents, dynamic font scaling, pre-calculation,
+//     and parameterized styling tags.
+// ============================================================================
+
 #pragma once
 
 #include "imgui.h"
 #include <string>
 #include <functional>
 #include <unordered_map>
+#include <cctype>
+#include <cstdio>
 #include "imgui_markdown.h"
 
 namespace ImGui {
 
     // -------------------------------------------------------------------------
-    // ImGui Markdown Extensions (Tags & Widgets)
+    // ImGui Markdown Extensions (Tags & Styling Widgets)
     // -------------------------------------------------------------------------
     
     // 1. Config Registry
@@ -22,19 +37,177 @@ namespace ImGui {
         GetDefaultMarkdownConfig() = config;
     }
 
-    // 2. Custom Tag Pre-Processor
-    using CustomTagCallback = std::function<void(const std::string& inner_text)>;
+    // 2. Color Helper for Built-in Styling Tags
+    inline bool ParseMarkdownColor(const std::string& str, ImVec4& out_col) {
+        if (str.empty()) return false;
+        
+        // Named UI colors
+        if (str == "red")     { out_col = ImVec4(0.95f, 0.25f, 0.25f, 1.0f); return true; }
+        if (str == "green")   { out_col = ImVec4(0.25f, 0.85f, 0.35f, 1.0f); return true; }
+        if (str == "blue")    { out_col = ImVec4(0.30f, 0.65f, 1.0f,  1.0f); return true; }
+        if (str == "yellow")  { out_col = ImVec4(1.0f,  0.85f, 0.20f, 1.0f); return true; }
+        if (str == "orange")  { out_col = ImVec4(1.0f,  0.55f, 0.15f, 1.0f); return true; }
+        if (str == "cyan")    { out_col = ImVec4(0.20f, 0.85f, 0.95f, 1.0f); return true; }
+        if (str == "magenta") { out_col = ImVec4(0.90f, 0.30f, 0.90f, 1.0f); return true; }
+        if (str == "white")   { out_col = ImVec4(1.0f,  1.0f,  1.0f,  1.0f); return true; }
+        if (str == "black")   { out_col = ImVec4(0.0f,  0.0f,  0.0f,  1.0f); return true; }
+        if (str == "gray" || str == "grey") { out_col = ImVec4(0.60f, 0.60f, 0.60f, 1.0f); return true; }
+        if (str == "gold")    { out_col = ImVec4(1.0f,  0.84f, 0.0f,  1.0f); return true; }
+        if (str == "dark")    { out_col = ImVec4(0.18f, 0.18f, 0.22f, 1.0f); return true; }
+        if (str == "light")   { out_col = ImVec4(0.90f, 0.90f, 0.92f, 1.0f); return true; }
+
+        // Hex formats: #RRGGBB, #RRGGBBAA, 0xRRGGBB, 0xRRGGBBAA
+        size_t start = 0;
+        if (str[0] == '#') {
+            start = 1;
+        } else if (str.size() >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+            start = 2;
+        } else if (isxdigit((unsigned char)str[0])) {
+            start = 0;
+        } else {
+            return false;
+        }
+
+        std::string hex = str.substr(start);
+        if (hex.length() == 6) {
+            unsigned int val = 0;
+            if (sscanf(hex.c_str(), "%x", &val) == 1) {
+                out_col.x = ((val >> 16) & 0xFF) / 255.0f;
+                out_col.y = ((val >> 8) & 0xFF) / 255.0f;
+                out_col.z = (val & 0xFF) / 255.0f;
+                out_col.w = 1.0f;
+                return true;
+            }
+        } else if (hex.length() == 8) {
+            unsigned long long val = 0;
+            if (sscanf(hex.c_str(), "%llx", &val) == 1) {
+                out_col.x = ((val >> 24) & 0xFF) / 255.0f;
+                out_col.y = ((val >> 16) & 0xFF) / 255.0f;
+                out_col.z = ((val >> 8) & 0xFF) / 255.0f;
+                out_col.w = (val & 0xFF) / 255.0f;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 3. Custom Markdown Styling Tags Pre-Processor
+    using CustomTagCallback = std::function<void(const std::string& inner_text, const std::string& param)>;
 
     inline std::unordered_map<std::string, CustomTagCallback>& GetCustomMarkdownTags() {
         static std::unordered_map<std::string, CustomTagCallback> s_CustomTags;
+        static bool s_InitializedDefaults = false;
+        if (!s_InitializedDefaults) {
+            s_InitializedDefaults = true;
+#ifndef IMGUI_DISABLE_MARKDOWN_DEFAULT_TAGS
+            // Built-in Tag 1: <color=...>, <col=...>
+            auto colorHandler = [](const std::string& inner_text, const std::string& param) {
+                ImVec4 col(1.0f, 1.0f, 1.0f, 1.0f);
+                if (ParseMarkdownColor(param, col)) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, col);
+                    ImGui::TextUnformatted(inner_text.c_str());
+                    ImGui::PopStyleColor();
+                } else {
+                    ImGui::TextUnformatted(inner_text.c_str());
+                }
+            };
+            s_CustomTags["color"] = colorHandler;
+            s_CustomTags["col"]   = colorHandler;
+
+            // Built-in Tag 2: <backdrop=...>, <bg=...>, <highlight=...>
+            // Draws an exact filled rectangular pill behind the text bounding box with rounded corners
+            auto backdropHandler = [](const std::string& inner_text, const std::string& param) {
+                ImVec4 bg_col(1.0f, 0.90f, 0.20f, 0.65f); // default soft yellow highlight
+                ParseMarkdownColor(param, bg_col);
+
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                ImVec2 text_size = ImGui::CalcTextSize(inner_text.c_str());
+                float pad_x = 3.0f;
+                float pad_y = 1.0f;
+
+                ImDrawList* draw_list = ImGui::GetWindowDrawList();
+                ImU32 col_u32 = ImGui::GetColorU32(bg_col);
+                draw_list->AddRectFilled(
+                    ImVec2(pos.x - pad_x, pos.y - pad_y),
+                    ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
+                    col_u32, 3.0f
+                );
+
+                // Auto-contrast text color if background is dark
+                float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
+                if (lum < 0.35f) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                    ImGui::TextUnformatted(inner_text.c_str());
+                    ImGui::PopStyleColor();
+                } else {
+                    ImGui::TextUnformatted(inner_text.c_str());
+                }
+            };
+            s_CustomTags["backdrop"]  = backdropHandler;
+            s_CustomTags["bg"]        = backdropHandler;
+            s_CustomTags["highlight"] = backdropHandler;
+
+            // Built-in Tag 3: <badge=...>, <pill=...>, <tag=...>
+            // Renders a sleek pill/badge with colored background and contrasting text
+            auto badgeHandler = [](const std::string& inner_text, const std::string& param) {
+                ImVec4 bg_col = ImVec4(0.25f, 0.25f, 0.30f, 1.0f); // default charcoal
+                ImVec4 text_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+                if (param == "danger" || param == "red") {
+                    bg_col = ImVec4(0.85f, 0.15f, 0.15f, 1.0f);
+                } else if (param == "warning" || param == "yellow") {
+                    bg_col = ImVec4(0.95f, 0.75f, 0.10f, 1.0f);
+                    text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+                } else if (param == "success" || param == "green") {
+                    bg_col = ImVec4(0.15f, 0.70f, 0.25f, 1.0f);
+                } else if (param == "info" || param == "blue") {
+                    bg_col = ImVec4(0.20f, 0.55f, 0.90f, 1.0f);
+                } else {
+                    ParseMarkdownColor(param, bg_col);
+                    float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
+                    if (lum > 0.65f) text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+                }
+
+                ImGui::PushStyleColor(ImGuiCol_Button, bg_col);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bg_col);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg_col);
+                ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+                ImGui::SmallButton(inner_text.c_str());
+                ImGui::PopStyleColor(4);
+            };
+            s_CustomTags["badge"] = badgeHandler;
+            s_CustomTags["pill"]  = badgeHandler;
+            s_CustomTags["tag"]   = badgeHandler;
+
+            // Built-in Tag 4: <btn=...>
+            s_CustomTags["btn"] = [](const std::string& inner_text, const std::string&) {
+                ImGui::SmallButton(inner_text.c_str());
+            };
+#endif
+        }
         return s_CustomTags;
     }
 
-    inline void RegisterMarkdownWidget(const std::string& tag_name, CustomTagCallback callback) {
+    // Registration APIs (supporting both 2-arg parameterized and 1-arg simple callbacks):
+    inline void RegisterMarkdownTag(const std::string& tag_name, std::function<void(const std::string& inner_text, const std::string& param)> callback) {
         GetCustomMarkdownTags()[tag_name] = callback;
     }
 
-    // 3. Core String-Splitter Engine
+    inline void RegisterMarkdownTag(const std::string& tag_name, std::function<void(const std::string& inner_text)> callback) {
+        RegisterMarkdownTag(tag_name, [callback](const std::string& text, const std::string&) {
+            callback(text);
+        });
+    }
+
+    // Backward-compatibility aliases
+    inline void RegisterMarkdownWidget(const std::string& tag_name, std::function<void(const std::string& inner_text, const std::string& param)> callback) {
+        RegisterMarkdownTag(tag_name, callback);
+    }
+    inline void RegisterMarkdownWidget(const std::string& tag_name, std::function<void(const std::string& inner_text)> callback) {
+        RegisterMarkdownTag(tag_name, callback);
+    }
+
+    // 4. Core String-Splitter Engine
     inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
         const MarkdownConfig* config = config_override ? config_override : GetDefaultMarkdownConfig();
         if (!config) {
@@ -62,8 +235,23 @@ namespace ImGui {
                 break;
             }
 
-            std::string tag_name = markdown_text.substr(tag_start + 1, tag_end - tag_start - 1);
-            
+            // Extract tag header and parse name vs parameter:
+            std::string tag_header = markdown_text.substr(tag_start + 1, tag_end - tag_start - 1);
+            std::string tag_name;
+            std::string tag_param;
+
+            size_t sep = tag_header.find_first_of("=:\t ");
+            if (sep != std::string::npos) {
+                tag_name = tag_header.substr(0, sep);
+                size_t val_start = tag_header.find_first_not_of("=:\t \"'", sep);
+                if (val_start != std::string::npos) {
+                    size_t val_end = tag_header.find_last_not_of(" \"'");
+                    tag_param = tag_header.substr(val_start, val_end - val_start + 1);
+                }
+            } else {
+                tag_name = tag_header;
+            }
+
             auto it = tags.find(tag_name);
             if (it != tags.end()) {
                 std::string closing_tag = "</" + tag_name + ">";
@@ -71,8 +259,20 @@ namespace ImGui {
                 
                 if (closing_start != std::string::npos) {
                     std::string inner_text = markdown_text.substr(tag_end + 1, closing_start - tag_end - 1);
-                    it->second(inner_text); // Execute Custom Widget
+
+                    // Flow inline with preceding text if not at start of line
+                    if (tag_start > 0 && markdown_text[tag_start - 1] != '\n' && markdown_text[tag_start - 1] != '\r') {
+                        ImGui::SameLine(0.0f, 0.0f);
+                    }
+
+                    it->second(inner_text, tag_param); // Execute Custom Styling Tag
+
                     cursor = closing_start + closing_tag.length();
+
+                    // Flow inline with following text if not immediately followed by a newline
+                    if (cursor < markdown_text.length() && markdown_text[cursor] != '\n' && markdown_text[cursor] != '\r') {
+                        ImGui::SameLine(0.0f, 0.0f);
+                    }
                     continue;
                 }
             }

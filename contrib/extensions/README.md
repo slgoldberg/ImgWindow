@@ -39,7 +39,7 @@ ImGui::TimedTooltip::TextMD("Current mode: *%s*", modeStr);
 
 | Extension | Directory | C++ Namespace | Description |
 | :--- | :--- | :--- | :--- |
-| **Markdown** | [`Markdown/`](Markdown/) | `ImGui::MD::` | Markdown parser and renderer based on `juliettef/imgui_markdown`, updated with dynamic font scaling, token lookahead, and smart line-break pull-down to eliminate mid-word breaks. |
+| **Markdown** | [`Markdown/`](Markdown/) | `ImGui::MD::` | Markdown parser and renderer based on `juliettef/imgui_markdown`, enhanced with dynamic font scaling, token lookahead, true hanging indents, and rich parameterized styling tags (`<color>`, `<backdrop>`, `<badge>`). |
 | **TimedTooltip** | [`TimedTooltip/`](TimedTooltip/) | `ImGui::TimedTooltip::` | Advanced stationary and delayed tooltip engine with automatic bounding box pre-calculation, viewport edge-clamping, and support for both plain-text and Markdown tooltips. |
 
 ---

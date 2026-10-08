@@ -4,6 +4,10 @@ The **Markdown** extension provides rich Markdown parsing and rendering for Dear
 
 It allows you to embed rich text formatting, headers, links, lists, and custom interactive widgets directly into your ImGui windows, settings panels, and stationary tooltips.
 
+> **Author / Maintainer:** Steven L. Goldberg ([@slgoldberg](https://github.com/slgoldberg))  
+> **Original Upstream:** Juliette Foucaut ([@juliettef](https://github.com/juliettef)) & Doug Binks ([@dougbinks](https://github.com/dougbinks))  
+> **License:** BSD 3-Clause (see [ImgWindow LICENSE](../../../README.md#licensing-note))
+
 ---
 
 ## Architectural Enhancements over Upstream
@@ -127,21 +131,51 @@ ImGui::SetNextWindowSize(requiredSize);
 
 ---
 
-## Custom Inline Tags (`RegisterMarkdownWidget`)
+---
 
-You can register custom interactive widgets that blend seamlessly into the text stream using tag syntax:
+## Markdown Styling Tags (`<tag=param>`)
+
+The extension includes a built-in pre-processor that allows you to embed rich, inline styling tags and interactive widgets directly within Markdown text without breaking standard Markdown formatting rules:
+
+```markdown
+This option is <color=red>highly experimental</color>!
+Please verify <backdrop=yellow>active route</backdrop> before flight.
+System status: <badge=danger>FAULT</badge> | <badge=success>ONLINE</badge>
+```
+
+### 1. Pre-Supplied Built-in Tags (Ready Out-of-the-Box)
+
+The following tags are pre-registered and active by default:
+
+| Tag | Syntax | Description |
+| :--- | :--- | :--- |
+| **`color` / `col`** | `<color=NAME_OR_HEX>text</color>` | Renders `text` in the specified color. Supports UI names (`red`, `green`, `blue`, `yellow`, `orange`, `cyan`, `magenta`, `white`, `black`, `gray`, `gold`) or hex (`#RRGGBB`, `#RRGGBBAA`, `0xRRGGBB`). |
+| **`backdrop` / `highlight`** | `<backdrop=COLOR>text</backdrop>` | Renders a rounded background rectangle ("pill") behind the exact text bounding box. Because of our lookahead wrapping, backdrops never get severed across lines! Auto-contrasts text color if the background is dark. |
+| **`badge` / `pill` / `tag`** | `<badge=VARIANT>text</badge>` | Renders a sleek pill badge. Variants include `danger` (red), `warning` (yellow), `success` (green), `info` (blue), or any custom hex color. |
+| **`btn`** | `<btn=ID>label</btn>` | Renders an inline, clickable `ImGui::SmallButton`. |
+
+*(To disable default tags, define `#define IMGUI_DISABLE_MARKDOWN_DEFAULT_TAGS` before including the header).*
+
+### 2. Custom Tag Registration (`RegisterMarkdownTag`)
+
+You can register your own custom styling tags or widgets with either 1-argument or 2-argument (parameterized) callbacks:
 
 ```cpp
-// Register a custom tag:
-ImGui::RegisterMarkdownWidget("btn", [](const std::string& inner_text) {
-    if (ImGui::SmallButton(inner_text.c_str())) {
-        OnButtonClicked(inner_text);
-    }
+// Register a parameterized tag: <status=critical>Engine 1</status>
+ImGui::RegisterMarkdownTag("status", [](const std::string& text, const std::string& param) {
+    ImVec4 col = (param == "critical") ? ImVec4(1.0f, 0.2f, 0.2f, 1.0f) : ImVec4(0.2f, 0.8f, 0.2f, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_Text, col);
+    ImGui::TextUnformatted(text.c_str());
+    ImGui::PopStyleColor();
 });
 
-// Render text containing the custom tag:
-ImGui::MD::Text("Click <btn>Arm Speedbrake</btn> before descending.");
+// Simple single-argument tag: <notice>Check checklists</notice>
+ImGui::RegisterMarkdownTag("notice", [](const std::string& text) {
+    ImGui::BulletText("%s", text.c_str());
+});
 ```
+
+*(Note: `ImGui::RegisterMarkdownWidget` is preserved as a direct backward-compatible alias).*
 
 ---
 

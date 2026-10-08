@@ -1,3 +1,14 @@
+// ============================================================================
+// ImgWindow Extension: TimedTooltip
+// ----------------------------------------------------------------------------
+// Author: Steven L. Goldberg (@slgoldberg)
+// License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
+//
+// Contributors:
+//   - Steven L. Goldberg: Stationary positioning, edge-docking, wiggle-latch,
+//     hermetic style isolation, auto-wrapping, and Markdown synergy.
+// ============================================================================
+
 #define IMGUI_TOOLTIPS_EXT_H
 #pragma once
 
