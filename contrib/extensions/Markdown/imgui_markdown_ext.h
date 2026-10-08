@@ -269,9 +269,25 @@ namespace ImGui {
 
                     cursor = closing_start + closing_tag.length();
 
-                    // Flow inline with following text if not immediately followed by a newline
-                    if (cursor < markdown_text.length() && markdown_text[cursor] != '\n' && markdown_text[cursor] != '\r') {
-                        ImGui::SameLine(0.0f, 0.0f);
+                    // If followed immediately by a newline, consume that single newline
+                    // because the tag's widget has already advanced ImGui to the next line!
+                    if (cursor < markdown_text.length() && (markdown_text[cursor] == '\r' || markdown_text[cursor] == '\n')) {
+                        if (markdown_text[cursor] == '\r') {
+                            cursor++;
+                        }
+                        if (cursor < markdown_text.length() && markdown_text[cursor] == '\n') {
+                            cursor++;
+                        }
+                    } else if (cursor < markdown_text.length()) {
+                        // Tag was mid-line; flow inline with following text
+                        if (markdown_text[cursor] == ' ') {
+                            while (cursor < markdown_text.length() && markdown_text[cursor] == ' ') {
+                                cursor++;
+                            }
+                            ImGui::SameLine();
+                        } else {
+                            ImGui::SameLine(0.0f, 0.0f);
+                        }
                     }
                     continue;
                 }
@@ -435,7 +451,24 @@ namespace TimedTooltip {
         }
         
         if (id == 0) {
-            id = ImGui::GetID(fmt ? fmt : "##timed_tt_anon_md");
+            // When id == 0 (e.g. after EndGroup() or custom layout), derive a unique ID
+            // so multiple rows in loops calling DelayedTooltip("%s", text) do not collide!
+            if (fmt && args) {
+                va_list args_id;
+                va_copy(args_id, args);
+                char id_buf[256];
+                vsnprintf(id_buf, sizeof(id_buf), fmt, args_id);
+                va_end(args_id);
+                if (id_buf[0] != '\0') {
+                    id = ImGui::GetID(id_buf);
+                }
+            }
+            if (id == 0) {
+                // Secondary fallback: use screen position of current/last item
+                ImVec2 item_min = ImGui::GetItemRectMin();
+                int coord_key = (int)item_min.x ^ ((int)item_min.y << 16);
+                id = ImGui::GetID(coord_key != 0 ? &coord_key : (const void*)(fmt ? fmt : "##timed_tt_anon_md"));
+            }
         }
         
         bool displayed = false;
