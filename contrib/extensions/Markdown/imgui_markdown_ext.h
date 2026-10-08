@@ -103,15 +103,13 @@ namespace ImGui {
             // Built-in Tag 1: <color=...>, <col=...>
             auto colorHandler = [](const std::string& inner_text, const std::string& param) {
                 ImVec4 col(1.0f, 1.0f, 1.0f, 1.0f);
-                bool hasCol = ParseMarkdownColor(param, col);
-                if (hasCol) ImGui::PushStyleColor(ImGuiCol_Text, col);
-                const MarkdownConfig* cfg = GetDefaultMarkdownConfig();
-                if (cfg) {
-                    Markdown(inner_text.c_str(), inner_text.length(), *cfg);
+                if (ParseMarkdownColor(param, col)) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, col);
+                    ImGui::TextUnformatted(inner_text.c_str());
+                    ImGui::PopStyleColor();
                 } else {
                     ImGui::TextUnformatted(inner_text.c_str());
                 }
-                if (hasCol) ImGui::PopStyleColor();
             };
             s_CustomTags["color"] = colorHandler;
             s_CustomTags["col"]   = colorHandler;
@@ -271,50 +269,11 @@ namespace ImGui {
 
                     cursor = closing_start + closing_tag.length();
 
-                    // Check what follows the closing tag:
-                    // 1. Skip horizontal spaces to see if we hit a newline (end of line) or more text on this line
-                    size_t next_non_space = cursor;
-                    while (next_non_space < markdown_text.length() && 
-                           (markdown_text[next_non_space] == ' ' || markdown_text[next_non_space] == '\t')) {
-                        ++next_non_space;
+                    // Flow inline with following text if not immediately followed by a newline
+                    if (cursor < markdown_text.length() && markdown_text[cursor] != '\n' && markdown_text[cursor] != '\r') {
+                        ImGui::SameLine(0.0f, 0.0f);
                     }
-
-                    if (next_non_space >= markdown_text.length() || 
-                        markdown_text[next_non_space] == '\n' || 
-                        markdown_text[next_non_space] == '\r') {
-                        // Tag was at the end of the line!
-                        // In Dear ImGui, rendering the tag item (button/text) ALREADY advanced the layout
-                        // cursor to the start of the next line. We must consume the single newline separator
-                        // so that subsequent Markdown() calls do not see a leading '\n' and trigger a redundant
-                        // line advance (which produces unwanted double spacing).
-                        if (next_non_space < markdown_text.length()) {
-                            if (markdown_text[next_non_space] == '\r' && 
-                                next_non_space + 1 < markdown_text.length() && 
-                                markdown_text[next_non_space + 1] == '\n') {
-                                cursor = next_non_space + 2;
-                            } else {
-                                cursor = next_non_space + 1;
-                            }
-                        } else {
-                            cursor = next_non_space;
-                        }
-                        continue;
-                    } else {
-                        // Tag is followed by more text on the SAME line!
-                        size_t spaces_after = next_non_space - cursor;
-                        if (spaces_after > 0) {
-                            // There were spaces between the tag and the next text (e.g. "<tag>foo</tag> bar").
-                            // We position on the same line with the exact width of the spaces and advance
-                            // the cursor so Markdown() doesn't strip those spaces as leading indent!
-                            float space_width = ImGui::CalcTextSize(" ").x * (float)spaces_after;
-                            ImGui::SameLine(0.0f, space_width);
-                            cursor = next_non_space;
-                        } else {
-                            // Tag followed immediately by punctuation or word without spaces
-                            ImGui::SameLine(0.0f, 0.0f);
-                        }
-                        continue;
-                    }
+                    continue;
                 }
             }
 
@@ -461,8 +420,7 @@ namespace ImGui {
 namespace ImGui {
 namespace TimedTooltip {
 
-    inline void TextMDV(const TooltipConfig* config_override, const char* fmt, va_list args) {
-        bool is_hovered = ImGui::IsItemHovered();
+    inline bool TextMDProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args) {
         ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
         
         // BRUTE FORCE CURSOR: If the widget is hovered but the cursor is still Arrow, it means the widget's 
@@ -473,9 +431,13 @@ namespace TimedTooltip {
             previous_cursor = ImGuiMouseCursor_Hand;
         }
         
-        ImGuiID id = ImGui::GetItemID(); 
+        if (id == 0) {
+            id = ImGui::GetID(fmt ? fmt : "##timed_tt_anon_md");
+        }
         
+        bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
+            displayed = true;
             char buffer[4096];
             vsnprintf(buffer, sizeof(buffer), fmt, args);
 
@@ -555,39 +517,85 @@ namespace TimedTooltip {
         if (previous_cursor != ImGui::GetMouseCursor()) {
             ImGui::SetMouseCursor(previous_cursor);
         }
+        return displayed;
+    }
+
+    inline bool TextMDV(const TooltipConfig* config_override, const char* fmt, va_list args) {
+        return TextMDProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args);
+    }
+
+    // Proxy Timed Tooltips with Markdown (accept explicit ID and explicit is_hovered state):
+    inline bool TextMDProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextMDProxyV(id, is_hovered, config, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextMDProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextMDProxyV(id, is_hovered, nullptr, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextMDProxy(const char* str_id, bool is_hovered, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextMDProxyV(ImGui::GetID(str_id), is_hovered, nullptr, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextMDProxy(ImGuiID id, bool is_hovered, const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+        return TextMDProxy(id, is_hovered, config, "%s", markdown_text.c_str());
+    }
+
+    inline bool TextMDProxy(const char* str_id, bool is_hovered, const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+        return TextMDProxy(ImGui::GetID(str_id), is_hovered, config, "%s", markdown_text.c_str());
     }
 
     // Markdown-enabled Timed Tooltip with per-call config override
-    inline void TextMD(const TooltipConfig* config, const char* fmt, ...) {
+    inline bool TextMD(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        TextMDV(config, fmt, args);
+        bool res = TextMDV(config, fmt, args);
         va_end(args);
+        return res;
     }
 
     // Markdown-enabled Timed Tooltip: mirrors standard ImGui vocabulary (ImGui::TimedTooltip::TextMD)
     // Automatically binds to the last drawn widget using ImGui::GetItemID()
     // Defers string formatting until the tooltip actually appears to save CPU!
-    inline void TextMD(const char* fmt, ...) {
+    inline bool TextMD(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        TextMDV(nullptr, fmt, args);
+        bool res = TextMDV(nullptr, fmt, args);
         va_end(args);
+        return res;
+    }
+
+    inline bool TextMD(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+        return TextMD(config, "%s", markdown_text.c_str());
     }
 
     // Direct aliases for backward-compatibility
-    inline void TimedTooltipMD(const TooltipConfig* config, const char* fmt, ...) {
+    inline bool TimedTooltipMD(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        TextMDV(config, fmt, args);
+        bool res = TextMDV(config, fmt, args);
         va_end(args);
+        return res;
     }
 
-    inline void TimedTooltipMD(const char* fmt, ...) {
+    inline bool TimedTooltipMD(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        TextMDV(nullptr, fmt, args);
+        bool res = TextMDV(nullptr, fmt, args);
         va_end(args);
+        return res;
     }
 
 } // namespace TimedTooltip

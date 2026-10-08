@@ -14,6 +14,7 @@
 
 #include "imgui.h"
 #include <unordered_map>
+#include <string>
 #include <cmath>
 #include <algorithm>
 
@@ -270,8 +271,7 @@ namespace TimedTooltip {
     using Config = TooltipConfig;
     using State = TooltipState;
 
-    inline void TextV(const TooltipConfig* config_override, const char* fmt, va_list args) {
-        bool is_hovered = ImGui::IsItemHovered();
+    inline bool TextProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args) {
         ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
 
         if (is_hovered && previous_cursor == ImGuiMouseCursor_Arrow) {
@@ -279,8 +279,13 @@ namespace TimedTooltip {
             previous_cursor = ImGuiMouseCursor_Hand;
         }
 
-        ImGuiID id = ImGui::GetItemID();
+        if (id == 0) {
+            id = ImGui::GetID(fmt ? fmt : "##timed_tt_anon");
+        }
+
+        bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
+            displayed = true;
             const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
             static const TooltipConfig fallback_config;
             if (!config) config = &fallback_config;
@@ -310,22 +315,62 @@ namespace TimedTooltip {
         if (previous_cursor != ImGui::GetMouseCursor()) {
             ImGui::SetMouseCursor(previous_cursor);
         }
+        return displayed;
+    }
+
+    inline bool TextV(const TooltipConfig* config_override, const char* fmt, va_list args) {
+        return TextProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args);
+    }
+
+    // Proxy Timed Tooltips (accept explicit ID and explicit is_hovered state):
+    inline bool TextProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextProxyV(id, is_hovered, config, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextProxyV(id, is_hovered, nullptr, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextProxy(const char* str_id, bool is_hovered, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextProxyV(ImGui::GetID(str_id), is_hovered, nullptr, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextProxy(const char* str_id, bool is_hovered, const std::string& text, const TooltipConfig* config = nullptr) {
+        return TextProxy(ImGui::GetID(str_id), is_hovered, config, "%s", text.c_str());
     }
 
     // Plain-text Timed Tooltip with per-call config override
-    inline void Text(const TooltipConfig* config, const char* fmt, ...) {
+    inline bool Text(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        TextV(config, fmt, args);
+        bool res = TextV(config, fmt, args);
         va_end(args);
+        return res;
     }
 
     // Plain-text Timed Tooltip: mirrors standard ImGui vocabulary (ImGui::TimedTooltips::Text)
-    inline void Text(const char* fmt, ...) {
+    inline bool Text(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        TextV(nullptr, fmt, args);
+        bool res = TextV(nullptr, fmt, args);
         va_end(args);
+        return res;
+    }
+
+    inline bool Text(const std::string& text, const TooltipConfig* config = nullptr) {
+        return Text(config, "%s", text.c_str());
     }
 
 } // namespace TimedTooltip
