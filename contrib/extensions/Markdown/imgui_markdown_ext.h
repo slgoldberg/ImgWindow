@@ -207,7 +207,7 @@ namespace ImGui {
         RegisterMarkdownTag(tag_name, callback);
     }
 
-    // 4. Core String-Splitter Engine
+    // 4. Core Markdown Extension Engine (Unified Single-Pass Pipeline)
     inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
         const MarkdownConfig* config = config_override ? config_override : GetDefaultMarkdownConfig();
         if (!config) {
@@ -215,88 +215,21 @@ namespace ImGui {
             return;
         }
 
-        size_t cursor = 0;
-        auto& tags = GetCustomMarkdownTags();
-
-        while (cursor < markdown_text.length()) {
-            size_t tag_start = markdown_text.find("<", cursor);
-            if (tag_start == std::string::npos) {
-                Markdown(markdown_text.c_str() + cursor, markdown_text.length() - cursor, *config);
-                break;
-            }
-
-            if (tag_start > cursor) {
-                Markdown(markdown_text.c_str() + cursor, tag_start - cursor, *config);
-            }
-
-            size_t tag_end = markdown_text.find(">", tag_start);
-            if (tag_end == std::string::npos) {
-                Markdown(markdown_text.c_str() + tag_start, markdown_text.length() - tag_start, *config);
-                break;
-            }
-
-            // Extract tag header and parse name vs parameter:
-            std::string tag_header = markdown_text.substr(tag_start + 1, tag_end - tag_start - 1);
-            std::string tag_name;
-            std::string tag_param;
-
-            size_t sep = tag_header.find_first_of("=:\t ");
-            if (sep != std::string::npos) {
-                tag_name = tag_header.substr(0, sep);
-                size_t val_start = tag_header.find_first_not_of("=:\t \"'", sep);
-                if (val_start != std::string::npos) {
-                    size_t val_end = tag_header.find_last_not_of(" \"'");
-                    tag_param = tag_header.substr(val_start, val_end - val_start + 1);
-                }
-            } else {
-                tag_name = tag_header;
-            }
-
+        MarkdownConfig local_config = *config;
+        local_config.tagCallback = [](const MarkdownTagData& data) {
+            std::string tag_name(data.tagName, data.tagNameLength);
+            std::string tag_param(data.tagParam ? data.tagParam : "", data.tagParamLength);
+            std::string inner_text(data.innerText, data.innerTextLength);
+            auto& tags = GetCustomMarkdownTags();
             auto it = tags.find(tag_name);
             if (it != tags.end()) {
-                std::string closing_tag = "</" + tag_name + ">";
-                size_t closing_start = markdown_text.find(closing_tag, tag_end + 1);
-                
-                if (closing_start != std::string::npos) {
-                    std::string inner_text = markdown_text.substr(tag_end + 1, closing_start - tag_end - 1);
-
-                    // Flow inline with preceding text if not at start of line
-                    if (tag_start > 0 && markdown_text[tag_start - 1] != '\n' && markdown_text[tag_start - 1] != '\r') {
-                        ImGui::SameLine(0.0f, 0.0f);
-                    }
-
-                    it->second(inner_text, tag_param); // Execute Custom Styling Tag
-
-                    cursor = closing_start + closing_tag.length();
-
-                    // If followed immediately by a newline, consume that single newline
-                    // because the tag's widget has already advanced ImGui to the next line!
-                    if (cursor < markdown_text.length() && (markdown_text[cursor] == '\r' || markdown_text[cursor] == '\n')) {
-                        if (markdown_text[cursor] == '\r') {
-                            cursor++;
-                        }
-                        if (cursor < markdown_text.length() && markdown_text[cursor] == '\n') {
-                            cursor++;
-                        }
-                    } else if (cursor < markdown_text.length()) {
-                        // Tag was mid-line; flow inline with following text
-                        if (markdown_text[cursor] == ' ') {
-                            while (cursor < markdown_text.length() && markdown_text[cursor] == ' ') {
-                                cursor++;
-                            }
-                            ImGui::SameLine();
-                        } else {
-                            ImGui::SameLine(0.0f, 0.0f);
-                        }
-                    }
-                    continue;
-                }
+                it->second(inner_text, tag_param);
+            } else {
+                ImGui::TextUnformatted(inner_text.c_str());
             }
+        };
 
-            // Not a registered tag, render as normal markdown text
-            Markdown(markdown_text.c_str() + tag_start, tag_end - tag_start + 1, *config);
-            cursor = tag_end + 1;
-        }
+        Markdown(markdown_text.c_str(), markdown_text.length(), local_config);
     }
 
     namespace MD {

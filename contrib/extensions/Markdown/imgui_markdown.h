@@ -122,6 +122,18 @@ namespace ImGui
         bool                    separator;                          // if true, an underlined separator is drawn after the header
     };
 
+    struct MarkdownTagData
+    {
+        const char* tagName;
+        size_t      tagNameLength;
+        const char* tagParam;
+        size_t      tagParamLength;
+        const char* innerText;
+        size_t      innerTextLength;
+        void*       userData;
+    };
+    typedef void                MarkdownTagCallback( const MarkdownTagData& data );
+
     struct MarkdownConfig
     {
         static const int        NUMHEADINGS = 4;
@@ -129,6 +141,7 @@ namespace ImGui
         MarkdownLinkCallback*   linkCallback = NULL;
         MarkdownTooltipCallback* tooltipCallback = NULL;
         MarkdownImageCallback*  imageCallback = NULL;
+        MarkdownTagCallback*    tagCallback = NULL;
         const char*             linkIcon = "";                      // icon displayd in link tooltip
         const char*             emphasisChars = "*_";               // string of characters recognized as emphasis markers
         MarkdownHeadingFormat   headingFormats[ NUMHEADINGS ] = { { NULL, true }, { NULL, true }, { NULL, true }, { NULL, true } };
@@ -237,15 +250,6 @@ namespace ImGui
             }
             
             ImGui::TextUnformatted( text_, endLine );
-            if( bIndentToHere_ )
-            {
-                float indentNeeded = GetContentRegionAvail().x - widthLeft;
-                if( indentNeeded )
-                {
-                    ImGui::Indent( indentNeeded );
-                    indentX += indentNeeded;
-                }
-            }
             widthLeft = GetContentRegionAvail().x;
             while( endLine < text_end_ )
             {
@@ -268,11 +272,24 @@ namespace ImGui
             return 4.0f; // Clean, elegant 4px spacing instead of bloated gap
         }
 
+        void ApplyBullet( float custom_spacing = -1.0f )
+        {
+            float startX = ImGui::GetCursorScreenPos().x;
+            ImGui::Bullet();
+            ImGui::SameLine( 0.0f, GetBulletSpacing( custom_spacing ) );
+            float textStartX = ImGui::GetCursorScreenPos().x;
+            float bulletIndent = textStartX - startX;
+            if( bulletIndent > 0.0f )
+            {
+                ImGui::Indent( bulletIndent );
+                indentX += bulletIndent;
+            }
+        }
+
         void RenderListTextWrapped( const char* text_, const char* text_end_, float bullet_spacing = -1.0f )
         {
-            ImGui::Bullet();
-            ImGui::SameLine( 0.0f, GetBulletSpacing( bullet_spacing ) );
-            RenderTextWrapped( text_, text_end_, true );
+            ApplyBullet( bullet_spacing );
+            RenderTextWrapped( text_, text_end_ );
         }
 
         bool RenderLinkText( const char* text_, const char* text_end_, const Link& link_, 
@@ -491,6 +508,141 @@ namespace ImGui
                 }
             }
 
+            // Test to see if we have a custom styling tag <tag=param>...</tag>
+            if( c == '<' && mdConfig_.tagCallback != NULL && link.state == Link::NO_LINK && em.state == Emphasis::NONE )
+            {
+                int openClose = -1;
+                for( int k = i + 1; k < (int)markdownLength_; ++k )
+                {
+                    if( markdown_[k] == '>' ) { openClose = k; break; }
+                    if( markdown_[k] == '\n' || markdown_[k] == '<' ) break;
+                }
+                if( openClose > i + 1 )
+                {
+                    int tagHeaderStart = i + 1;
+                    int tagHeaderEnd = openClose;
+                    int sep = -1;
+                    for( int k = tagHeaderStart; k < tagHeaderEnd; ++k )
+                    {
+                        if( markdown_[k] == '=' || markdown_[k] == ':' || markdown_[k] == ' ' || markdown_[k] == '\t' )
+                        {
+                            sep = k;
+                            break;
+                        }
+                    }
+                    int nameEnd = ( sep != -1 ) ? sep : tagHeaderEnd;
+                    int nameLen = nameEnd - tagHeaderStart;
+
+                    char closeTag[64];
+                    int closeTagLen = snprintf( closeTag, sizeof(closeTag), "</%.*s>", nameLen, markdown_ + tagHeaderStart );
+                    if( closeTagLen > 0 && closeTagLen < (int)sizeof(closeTag) )
+                    {
+                        const char* closeFound = nullptr;
+                        int searchStart = openClose + 1;
+                        int maxSearch = (int)markdownLength_ - closeTagLen;
+                        for( int k = searchStart; k <= maxSearch; ++k )
+                        {
+                            if( markdown_[k] == '<' && strncmp( markdown_ + k, closeTag, closeTagLen ) == 0 )
+                            {
+                                closeFound = markdown_ + k;
+                                break;
+                            }
+                        }
+                        if( closeFound != nullptr )
+                        {
+                            int closeStart = (int)(closeFound - markdown_);
+                            int closeEnd = closeStart + closeTagLen;
+
+                            line.lineEnd = i;
+                            if( line.lineEnd > line.lineStart && line.lineEnd > line.lastRenderPosition + 1 )
+                            {
+                                RenderLine( markdown_, line, textRegion, mdConfig_ );
+                                line.isUnorderedListStart = false;
+                                ImGui::SameLine( 0.0f, 0.0f );
+                            }
+                            else if( line.isUnorderedListStart )
+                            {
+                                int numLeadIndents = line.leadSpaceCount / 2;
+                                textRegion.ApplyLeadIndent( numLeadIndents );
+                                textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                                line.isUnorderedListStart = false;
+                            }
+
+                            MarkdownTagData tagData;
+                            tagData.tagName = markdown_ + tagHeaderStart;
+                            tagData.tagNameLength = nameLen;
+                            tagData.tagParam = ( sep != -1 ) ? ( markdown_ + sep + 1 ) : nullptr;
+                            tagData.tagParamLength = ( sep != -1 ) ? ( tagHeaderEnd - sep - 1 ) : 0;
+                            while( tagData.tagParamLength > 0 && ( *tagData.tagParam == ' ' || *tagData.tagParam == '\"' || *tagData.tagParam == '\'' ) )
+                            {
+                                ++tagData.tagParam;
+                                --tagData.tagParamLength;
+                            }
+                            while( tagData.tagParamLength > 0 && ( tagData.tagParam[tagData.tagParamLength - 1] == ' ' || tagData.tagParam[tagData.tagParamLength - 1] == '\"' || tagData.tagParam[tagData.tagParamLength - 1] == '\'' ) )
+                            {
+                                --tagData.tagParamLength;
+                            }
+                            tagData.innerText = markdown_ + openClose + 1;
+                            tagData.innerTextLength = closeStart - ( openClose + 1 );
+                            tagData.userData = mdConfig_.userData;
+
+                            mdConfig_.tagCallback( tagData );
+
+                            int peek = closeEnd;
+                            while( peek < (int)markdownLength_ && ( markdown_[peek] == ' ' || markdown_[peek] == '\t' ) )
+                            {
+                                ++peek;
+                            }
+
+                            if( peek >= (int)markdownLength_ || markdown_[peek] == '\n' || markdown_[peek] == '\r' )
+                            {
+                                // Tag was at end of line. The tag widget already advanced ImGui to the next line.
+                                // Consume optional \r and single trailing \n so it doesn't double-advance!
+                                if( peek < (int)markdownLength_ && markdown_[peek] == '\r' )
+                                {
+                                    ++peek;
+                                }
+                                if( peek < (int)markdownLength_ && markdown_[peek] == '\n' )
+                                {
+                                    ++peek;
+                                }
+                                textRegion.ResetIndent();
+                                line = Line();
+                                em = Emphasis();
+                                link = Link();
+                                line.lineStart = peek;
+                                line.lastRenderPosition = peek - 1;
+                                i = peek - 1;
+                                continue;
+                            }
+                            else
+                            {
+                                // Tag was mid-line; flow inline with following text
+                                if( closeEnd < (int)markdownLength_ && markdown_[closeEnd] == ' ' )
+                                {
+                                    while( closeEnd < (int)markdownLength_ && markdown_[closeEnd] == ' ' )
+                                    {
+                                        ++closeEnd;
+                                    }
+                                    i = closeEnd - 1;
+                                    line.lastRenderPosition = closeEnd - 1;
+                                    line.lineStart = closeEnd;
+                                    ImGui::SameLine();
+                                }
+                                else
+                                {
+                                    i = closeEnd - 1;
+                                    line.lastRenderPosition = closeEnd - 1;
+                                    line.lineStart = closeEnd;
+                                    ImGui::SameLine( 0.0f, 0.0f );
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
             // Test to see if we have a link
             switch( link.state )
             {
@@ -543,8 +695,7 @@ namespace ImGui
                     {
                         int numLeadIndents = line.leadSpaceCount / 2;
                         textRegion.ApplyLeadIndent( numLeadIndents );
-                        ImGui::Bullet();
-                        ImGui::SameLine( 0.0f, TextRegion::GetBulletSpacing( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f ) );
+                        textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
                         line.isUnorderedListStart = false;
                     }
                     link.url.stop = i;
@@ -661,8 +812,7 @@ namespace ImGui
                         {
                             int numLeadIndents = line.leadSpaceCount / 2;
                             textRegion.ApplyLeadIndent( numLeadIndents );
-                            ImGui::Bullet();
-                            ImGui::SameLine( 0.0f, TextRegion::GetBulletSpacing( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f ) );
+                            textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
                             line.isUnorderedListStart = false;
                         }
 						line.isEmphasis = true;
