@@ -83,7 +83,7 @@ The `TooltipConfig` (aliased as `ImGui::TimedTooltip::Config`) controls timing, 
 | `item_spacing`       | `ImVec2` | `(4.0f, 0.0f)` | Item spacing between lines. `y = 0.0f` matches native 15px font leading. |
 | `frame_padding`      | `ImVec2` | `(2.0f, 1.0f)` | Internal padding for frame elements inside the tooltip. |
 | `indent_spacing`     | `float` | `20.0f` | Standard indent spacing between nested list levels. |
-| `bullet_spacing`     | `float` | `4.0f` | Gap between bullet glyph and following text. |
+| `bullet_spacing`     | `float` | `4.0f` | **[Markdown Tooltips Only]** Gap in pixels between bullet glyph and following text when rendering rich lists via `TextMD`. (Ignored for plain-text tooltips). |
 | `font_scale`         | `float` | `0.0f` | Window font scale multiplier (`0.0f` = automatically inherit the ambient font scale from the calling parent window; `>0.0f` = explicit scale override). |
 | `bg_color`           | `ImVec4` | Solid yellow | Window and popup background color (`#FFF299`, 100% opaque `alpha = 1.0f`). |
 | `border_color`       | `ImVec4` | Dark yellow | Tooltip border outline color (`#CCBF66`). |

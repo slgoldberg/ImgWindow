@@ -209,6 +209,16 @@ namespace ImGui {
 
     using CustomTagCallback = std::function<void(const std::string& inner_text, const std::string& param)>;
 
+    inline void EnsureTagFitsOnLine(float required_width) {
+        float avail = ImGui::GetContentRegionAvail().x;
+        float lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
+        float cursorX = ImGui::GetCursorScreenPos().x;
+        // Only wrap down if we are mid-line (cursor is not at the start) and the tag doesn't fit on this line:
+        if ((cursorX - lineStartX) > 10.0f && required_width > avail) {
+            ImGui::NewLine();
+        }
+    }
+
     inline std::unordered_map<std::string, CustomTagCallback>& GetCustomMarkdownTags() {
         static std::unordered_map<std::string, CustomTagCallback> s_CustomTags;
         static bool s_InitializedDefaults = false;
@@ -221,14 +231,22 @@ namespace ImGui {
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
 
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                EnsureTagFitsOnLine(text_size.x);
+
                 ImVec4 col(1.0f, 1.0f, 1.0f, 1.0f);
-                if (ParseMarkdownColor(style.color_param, col)) {
-                    ImGui::PushStyleColor(ImGuiCol_Text, col);
+                bool has_col = ParseMarkdownColor(style.color_param, col);
+                if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
+
+                if (text_size.x <= ImGui::GetContentRegionAvail().x) {
                     ImGui::TextUnformatted(style.clean_text.c_str());
-                    ImGui::PopStyleColor();
                 } else {
+                    ImGui::PushTextWrapPos(0.0f);
                     ImGui::TextUnformatted(style.clean_text.c_str());
+                    ImGui::PopTextWrapPos();
                 }
+
+                if (has_col) ImGui::PopStyleColor();
 
                 PopMarkdownTagFont(config, style);
             };
@@ -245,11 +263,13 @@ namespace ImGui {
                 ImVec4 bg_col(1.0f, 0.90f, 0.20f, 0.65f); // default soft yellow highlight
                 ParseMarkdownColor(style.color_param, bg_col);
 
-                ImVec2 pos = ImGui::GetCursorScreenPos();
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
                 float pad_x = 3.0f;
                 float pad_y = 1.0f;
 
+                EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
+
+                ImVec2 pos = ImGui::GetCursorScreenPos();
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
                 ImU32 col_u32 = ImGui::GetColorU32(bg_col);
                 draw_list->AddRectFilled(
@@ -299,6 +319,10 @@ namespace ImGui {
                     if (lum > 0.65f) text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
                 }
 
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                float btn_width = text_size.x + ImGui::GetStyle().FramePadding.x * 2.0f;
+                EnsureTagFitsOnLine(btn_width);
+
                 ImGui::PushStyleColor(ImGuiCol_Button, bg_col);
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bg_col);
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg_col);
@@ -317,9 +341,72 @@ namespace ImGui {
                 auto style = ParseMarkdownTagStyle(inner_text, param);
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                float btn_width = text_size.x + ImGui::GetStyle().FramePadding.x * 2.0f;
+                EnsureTagFitsOnLine(btn_width);
                 ImGui::SmallButton(style.clean_text.c_str());
                 PopMarkdownTagFont(config, style);
             };
+
+            // Built-in Tag 5: <mono>, <code>
+            // Renders monospace code span with subtle rounded background pill
+            auto monoCodeHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+
+                ImFont* mono_font = (config && config->monoFont) ? config->monoFont : nullptr;
+                if (mono_font) {
+                    ImGui::PushFont(mono_font);
+                } else {
+                    PushMarkdownTagFont(config, style);
+                }
+
+                // Default: subtle translucent gray rounded pill behind code
+                ImVec4 bg_col(0.5f, 0.5f, 0.5f, 0.24f);
+                if (!style.color_param.empty()) {
+                    ParseMarkdownColor(style.color_param, bg_col);
+                }
+
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                float pad_x = 3.0f;
+                float pad_y = 1.0f;
+
+                EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
+
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                ImDrawList* draw_list = ImGui::GetWindowDrawList();
+                ImU32 col_u32 = ImGui::GetColorU32(bg_col);
+                draw_list->AddRectFilled(
+                    ImVec2(pos.x - pad_x, pos.y - pad_y),
+                    ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
+                    col_u32, 3.0f
+                );
+
+                if (!style.color_param.empty()) {
+                    float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
+                    if (lum < 0.35f) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        ImGui::PopStyleColor();
+                    } else if (lum > 0.75f) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        ImGui::PopStyleColor();
+                    } else {
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                    }
+                } else {
+                    ImGui::TextUnformatted(style.clean_text.c_str());
+                }
+
+                if (mono_font) {
+                    ImGui::PopFont();
+                } else {
+                    PopMarkdownTagFont(config, style);
+                }
+            };
+            s_CustomTags["mono"] = monoCodeHandler;
+            s_CustomTags["code"] = monoCodeHandler;
 #endif
         }
         return s_CustomTags;
@@ -381,6 +468,16 @@ namespace ImGui {
     }
 
     namespace MD {
+
+        using Config = MarkdownConfig;
+
+        // Tag registration convenience aliases
+        inline void RegisterTag(const std::string& tag_name, std::function<void(const std::string& inner_text, const std::string& param)> callback) {
+            RegisterMarkdownTag(tag_name, callback);
+        }
+        inline void RegisterTag(const std::string& tag_name, std::function<void(const std::string& inner_text)> callback) {
+            RegisterMarkdownTag(tag_name, callback);
+        }
 
         // -------------------------------------------------------------------------
         // Standard Widget API (mirroring standard ImGui vocabulary)

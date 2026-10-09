@@ -145,11 +145,19 @@ namespace ImGui
         MarkdownImageCallback*  imageCallback = NULL;
         MarkdownTagCallback*    tagCallback = NULL;
         const char*             linkIcon = "";                      // icon displayd in link tooltip
-        const char*             emphasisChars = "*_";               // string of characters recognized as emphasis markers
+        const char*             emphasisChars = "*_`";              // string of characters recognized as emphasis markers
         MarkdownHeadingFormat   headingFormats[ NUMHEADINGS ] = { { NULL, true }, { NULL, true }, { NULL, true }, { NULL, true } };
         void*                   userData = NULL;
         MarkdownFormalCallback* formatCallback = defaultMarkdownFormatCallback;
         float                   bulletSpacing = 0.0f;               // 0.0f = default (4.0f); > 0.0f = custom gap between bullet and text
+
+        // Semantic font aliases (if set, takes priority over headingFormats):
+        ImFont*                 h1Font = nullptr;                   // If nullptr, falls back to headingFormats[0].font
+        ImFont*                 h2Font = nullptr;                   // If nullptr, falls back to headingFormats[1].font
+        ImFont*                 h3Font = nullptr;                   // If nullptr, falls back to headingFormats[2].font
+        ImFont*                 boldFont = nullptr;                 // If nullptr, falls back to headingFormats[3].font
+        ImFont*                 italicFont = nullptr;               // If nullptr, falls back to ImGuiCol_TextDisabled
+        ImFont*                 monoFont = nullptr;                 // If nullptr, falls back to ambient window font
     };
 
     //-----------------------------------------------------------------------------
@@ -1001,31 +1009,51 @@ namespace ImGui
             break;
 		case MarkdownFormatType::EMPHASIS:
         {
-            MarkdownHeadingFormat fmt;
+            if( markdownFormatInfo_.emphasisChar == '`' )
+            {
+                // Monospace code span (`code`):
+                ImFont* mono_font = markdownFormatInfo_.config ? markdownFormatInfo_.config->monoFont : nullptr;
+                if( mono_font )
+                {
+                    if( start_ ) ImGui::PushFont( mono_font );
+                    else         ImGui::PopFont();
+                }
+                break;
+            }
+
             if( markdownFormatInfo_.level == 1 )
             {
- 			    if( start_ )
-			    {
-                    ImGui::PushStyleColor( ImGuiCol_Text, ImGui::GetStyle().Colors[ ImGuiCol_TextDisabled ] );
-			    }
+                // Level 1: Italic (*italic* or _italic_)
+                ImFont* italic_font = markdownFormatInfo_.config ? markdownFormatInfo_.config->italicFont : nullptr;
+                if( italic_font )
+                {
+                    if( start_ ) ImGui::PushFont( italic_font );
+                    else         ImGui::PopFont();
+                }
                 else
-			    {
-                    ImGui::PopStyleColor();
-			    }              
+                {
+                    if( start_ ) ImGui::PushStyleColor( ImGuiCol_Text, ImGui::GetStyle().Colors[ ImGuiCol_TextDisabled ] );
+                    else         ImGui::PopStyleColor();
+                }
             }
             else
             {
-                fmt = markdownFormatInfo_.config->headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ];
+                // Level 2: Bold (**bold** or __bold__)
+                ImFont* bold_font = markdownFormatInfo_.config ? markdownFormatInfo_.config->boldFont : nullptr;
+                if( !bold_font && markdownFormatInfo_.config )
+                {
+                    bold_font = markdownFormatInfo_.config->headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font;
+                }
 			    if( start_ )
 			    {
-				    if( fmt.font )
+				    if( bold_font )
 				    {
-					    ImGui::PushFont( fmt.font );
+					    ImGui::PushFont( bold_font );
 				    }
 			    }
                 else
 			    {
-				    if( fmt.font )
+				    if( bold_font )
 				    {
 					    ImGui::PopFont();
 				    }
@@ -1044,6 +1072,18 @@ namespace ImGui
             {
                 fmt = markdownFormatInfo_.config->headingFormats[ markdownFormatInfo_.level - 1 ];
             }
+
+            // Semantic font overrides:
+            if( markdownFormatInfo_.config )
+            {
+                if( markdownFormatInfo_.level == 1 && markdownFormatInfo_.config->h1Font )
+                    fmt.font = markdownFormatInfo_.config->h1Font;
+                else if( markdownFormatInfo_.level == 2 && markdownFormatInfo_.config->h2Font )
+                    fmt.font = markdownFormatInfo_.config->h2Font;
+                else if( markdownFormatInfo_.level == 3 && markdownFormatInfo_.config->h3Font )
+                    fmt.font = markdownFormatInfo_.config->h3Font;
+            }
+
             if( start_ )
             {
                 if( fmt.font  )
