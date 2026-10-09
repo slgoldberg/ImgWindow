@@ -619,7 +619,7 @@ namespace ImGui {
 
 } // namespace ImGui
 
-#if defined(IMGUI_TOOLTIP_EXT_H) || defined(IMGUI_TOOLTIPS_EXT_H)
+#ifdef IMGUI_TOOLTIP_EXT_H
 namespace ImGui {
 namespace TimedTooltip {
 
