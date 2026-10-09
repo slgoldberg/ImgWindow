@@ -133,7 +133,7 @@ ImGui::SetNextWindowSize(requiredSize);
 
 ---
 
-## Markdown Styling Tags (`<tag=param>`)
+## Markdown Styling Tags (`<tag=param>` / `<tag param>`)
 
 The extension includes a built-in pre-processor that allows you to embed rich, inline styling tags and interactive widgets directly within Markdown text without breaking standard Markdown formatting rules:
 
@@ -143,20 +143,59 @@ Please verify <backdrop=yellow>active route</backdrop> before flight.
 System status: <badge=danger>FAULT</badge> | <badge=success>ONLINE</badge>
 ```
 
-### 1. Pre-Supplied Built-in Tags (Ready Out-of-the-Box)
+### 1. Flexible Tag Syntax
+
+Tags support both HTML-style attributes and key-value formats:
+- **Assignment format:** `<tag=red>text</tag>`, `<backdrop=yellow>text</backdrop>`
+- **Space-separated format:** `<tag red>text</tag>`, `<color #00FFCC>text</color>`
+- **Multi-parameter format:** `<tag=red,bold>text</tag>`, `<tag red bold>text</tag>`
+
+### 2. Bold and Italic Styling Inside Tags
+
+You can style tag text in two natural ways:
+
+#### A. Markdown Syntax Inside the Tag (Recommended)
+Place standard Markdown delimiters directly inside the tag content:
+```markdown
+Check <tag red>**accessibility**</tag> or options.
+Please review <backdrop=yellow>**critical checklist**</backdrop> before departure.
+Click <btn>*more info*</btn> for details.
+```
+* The engine detects inner Markdown wrappers (`**bold**`, `__bold__`, `*italic*`, `_italic_`), strips the wrapper characters so asterisks never render literally, and pushes the active bold/italic font.
+* For `<backdrop>`, the font is pushed *before* measuring text width, ensuring the pill bounding box fits the bold glyphs.
+
+#### B. Tag Parameter Flags
+You can also specify `bold` (or `b`) and `italic` (or `i`) directly in the tag attributes:
+```markdown
+Check <tag red bold>accessibility</tag> or options.
+Check <tag=red,bold>accessibility</tag> or options.
+<btn bold>Acknowledge</btn>
+```
+
+> [!NOTE]
+> **Why `**<tag>...</tag>**` is not supported:**
+> In Markdown and CommonMark, formatting delimiters wrap text spans rather than embedding interactive widgets across boundary tokens. Nesting formatting inside the tag (`<tag>**text**</tag>`) or on the tag (`<tag bold>text</tag>`) follows standard HTML/XML element structure and guarantees correct word wrapping and draw-list grouping.
+
+### 3. Inline Spacing & Punctuation Flow
+
+Inline tags integrate cleanly into paragraph and sentence flow:
+* **Preserved Spaces:** When followed by a space, such as `<tag red>badge</tag> or options`, the engine preserves the space character so text flows naturally without cramped or "eaten" spacing.
+* **Flush Punctuation:** When followed by punctuation without space, such as `<tag red>badge</tag>, options`, the punctuation docks directly flush against the tag border.
+
+### 4. Pre-Supplied Built-in Tags (Ready Out-of-the-Box)
 
 The following tags are pre-registered and active by default:
 
 | Tag | Syntax | Description |
 | :--- | :--- | :--- |
 | **`color` / `col`** | `<color=NAME_OR_HEX>text</color>` | Renders `text` in the specified color. Supports UI names (`red`, `green`, `blue`, `yellow`, `orange`, `cyan`, `magenta`, `white`, `black`, `gray`, `gold`) or hex (`#RRGGBB`, `#RRGGBBAA`, `0xRRGGBB`). |
-| **`backdrop` / `highlight`** | `<backdrop=COLOR>text</backdrop>` | Renders a rounded background rectangle ("pill") behind the exact text bounding box. Because of our lookahead wrapping, backdrops never get severed across lines! Auto-contrasts text color if the background is dark. |
+| **`backdrop` / `highlight`** | `<backdrop=COLOR>text</backdrop>` | Renders a rounded background rectangle ("pill") behind the exact text bounding box. Because of lookahead wrapping, backdrops never get severed across lines. Auto-contrasts text color if the background is dark. |
 | **`badge` / `pill` / `tag`** | `<badge=VARIANT>text</badge>` | Renders a sleek pill badge. Variants include `danger` (red), `warning` (yellow), `success` (green), `info` (blue), or any custom hex color. |
 | **`btn`** | `<btn=ID>label</btn>` | Renders an inline, clickable `ImGui::SmallButton`. |
 
 *(To disable default tags, define `#define IMGUI_DISABLE_MARKDOWN_DEFAULT_TAGS` before including the header).*
 
-### 2. Custom Tag Registration (`RegisterMarkdownTag`)
+### 5. Custom Tag Registration (`RegisterMarkdownTag`)
 
 You can register your own custom styling tags or widgets with either 1-argument or 2-argument (parameterized) callbacks:
 

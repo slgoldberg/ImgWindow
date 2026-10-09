@@ -37,6 +37,11 @@ namespace ImGui {
         GetDefaultMarkdownConfig() = config;
     }
 
+    inline const MarkdownConfig*& GetActiveMarkdownConfig() {
+        static const MarkdownConfig* s_ActiveConfig = nullptr;
+        return s_ActiveConfig;
+    }
+
     // 2. Color Helper for Built-in Styling Tags
     inline bool ParseMarkdownColor(const std::string& str, ImVec4& out_col) {
         if (str.empty()) return false;
@@ -92,6 +97,116 @@ namespace ImGui {
     }
 
     // 3. Custom Markdown Styling Tags Pre-Processor
+    struct MarkdownTagStyle {
+        std::string clean_text;
+        std::string color_param;
+        bool is_bold = false;
+        bool is_italic = false;
+    };
+
+    inline MarkdownTagStyle ParseMarkdownTagStyle(const std::string& inner_text, const std::string& param) {
+        MarkdownTagStyle style;
+        style.clean_text = inner_text;
+
+        // 1. Check if param contains 'bold', 'italic', or style flags
+        std::string p = param;
+        for (char& c : p) {
+            if (c == ',' || c == ';') c = ' ';
+        }
+        size_t pos = 0;
+        bool found_explicit_style = false;
+        while (pos < p.length()) {
+            while (pos < p.length() && (p[pos] == ' ' || p[pos] == '\t')) ++pos;
+            if (pos >= p.length()) break;
+            size_t end = pos;
+            while (end < p.length() && p[end] != ' ' && p[end] != '\t') ++end;
+            std::string token = p.substr(pos, end - pos);
+            std::string t = token;
+            for (char& c : t) c = (char)tolower((unsigned char)c);
+            if (t == "bold" || t == "b") {
+                style.is_bold = true;
+                found_explicit_style = true;
+            } else if (t == "italic" || t == "italics" || t == "i") {
+                style.is_italic = true;
+                found_explicit_style = true;
+            } else {
+                if (style.color_param.empty()) {
+                    style.color_param = token;
+                } else {
+                    style.color_param += " " + token;
+                }
+            }
+            pos = end;
+        }
+        if (style.color_param.empty() && !found_explicit_style) {
+            style.color_param = param;
+        }
+
+        // 2. Strip leading/trailing whitespace in clean_text
+        size_t start_idx = 0;
+        while (start_idx < style.clean_text.length() && style.clean_text[start_idx] == ' ') ++start_idx;
+        size_t end_idx = style.clean_text.length();
+        while (end_idx > start_idx && style.clean_text[end_idx - 1] == ' ') --end_idx;
+        std::string trimmed = style.clean_text.substr(start_idx, end_idx - start_idx);
+
+        // 3. Check if inner_text itself has markdown bold/italic syntax (**text**, __text__, *text*, _text_)
+        if ((trimmed.length() >= 4 && trimmed.rfind("**", 0) == 0 && trimmed.compare(trimmed.length() - 2, 2, "**") == 0) ||
+            (trimmed.length() >= 4 && trimmed.rfind("__", 0) == 0 && trimmed.compare(trimmed.length() - 2, 2, "__") == 0))
+        {
+            style.is_bold = true;
+            trimmed = trimmed.substr(2, trimmed.length() - 4);
+        }
+        else if ((trimmed.length() >= 2 && trimmed.front() == '*' && trimmed.back() == '*') ||
+                 (trimmed.length() >= 2 && trimmed.front() == '_' && trimmed.back() == '_'))
+        {
+            style.is_italic = true;
+            trimmed = trimmed.substr(1, trimmed.length() - 2);
+        }
+        while (trimmed.length() > 0 && trimmed.front() == ' ') trimmed.erase(0, 1);
+        while (trimmed.length() > 0 && trimmed.back() == ' ') trimmed.pop_back();
+        style.clean_text = trimmed;
+
+        return style;
+    }
+
+    inline void PushMarkdownTagFont(const MarkdownConfig* config, const MarkdownTagStyle& style) {
+        if (!config) config = GetActiveMarkdownConfig();
+        if (!config) config = GetDefaultMarkdownConfig();
+        if (!config || !config->formatCallback) return;
+        if (style.is_bold) {
+            MarkdownFormatInfo info;
+            info.config = config;
+            info.type = MarkdownFormatType::EMPHASIS;
+            info.level = 2; // Bold
+            config->formatCallback(info, true);
+        } else if (style.is_italic) {
+            MarkdownFormatInfo info;
+            info.config = config;
+            info.type = MarkdownFormatType::EMPHASIS;
+            info.level = 1; // Italic
+            config->formatCallback(info, true);
+        }
+    }
+
+    inline void PopMarkdownTagFont(const MarkdownConfig* config, const MarkdownTagStyle& style) {
+        if (!config) config = GetActiveMarkdownConfig();
+        if (!config) config = GetDefaultMarkdownConfig();
+        if (!config || !config->formatCallback) return;
+        if (style.is_bold) {
+            MarkdownFormatInfo info;
+            info.config = config;
+            info.type = MarkdownFormatType::EMPHASIS;
+            info.level = 2; // Bold
+            config->formatCallback(info, false);
+        } else if (style.is_italic) {
+            MarkdownFormatInfo info;
+            info.config = config;
+            info.type = MarkdownFormatType::EMPHASIS;
+            info.level = 1; // Italic
+            config->formatCallback(info, false);
+        }
+    }
+
     using CustomTagCallback = std::function<void(const std::string& inner_text, const std::string& param)>;
 
     inline std::unordered_map<std::string, CustomTagCallback>& GetCustomMarkdownTags() {
@@ -102,14 +217,20 @@ namespace ImGui {
 #ifndef IMGUI_DISABLE_MARKDOWN_DEFAULT_TAGS
             // Built-in Tag 1: <color=...>, <col=...>
             auto colorHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+
                 ImVec4 col(1.0f, 1.0f, 1.0f, 1.0f);
-                if (ParseMarkdownColor(param, col)) {
+                if (ParseMarkdownColor(style.color_param, col)) {
                     ImGui::PushStyleColor(ImGuiCol_Text, col);
-                    ImGui::TextUnformatted(inner_text.c_str());
+                    ImGui::TextUnformatted(style.clean_text.c_str());
                     ImGui::PopStyleColor();
                 } else {
-                    ImGui::TextUnformatted(inner_text.c_str());
+                    ImGui::TextUnformatted(style.clean_text.c_str());
                 }
+
+                PopMarkdownTagFont(config, style);
             };
             s_CustomTags["color"] = colorHandler;
             s_CustomTags["col"]   = colorHandler;
@@ -117,11 +238,15 @@ namespace ImGui {
             // Built-in Tag 2: <backdrop=...>, <bg=...>, <highlight=...>
             // Draws an exact filled rectangular pill behind the text bounding box with rounded corners
             auto backdropHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+
                 ImVec4 bg_col(1.0f, 0.90f, 0.20f, 0.65f); // default soft yellow highlight
-                ParseMarkdownColor(param, bg_col);
+                ParseMarkdownColor(style.color_param, bg_col);
 
                 ImVec2 pos = ImGui::GetCursorScreenPos();
-                ImVec2 text_size = ImGui::CalcTextSize(inner_text.c_str());
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
                 float pad_x = 3.0f;
                 float pad_y = 1.0f;
 
@@ -137,11 +262,13 @@ namespace ImGui {
                 float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
                 if (lum < 0.35f) {
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-                    ImGui::TextUnformatted(inner_text.c_str());
+                    ImGui::TextUnformatted(style.clean_text.c_str());
                     ImGui::PopStyleColor();
                 } else {
-                    ImGui::TextUnformatted(inner_text.c_str());
+                    ImGui::TextUnformatted(style.clean_text.c_str());
                 }
+
+                PopMarkdownTagFont(config, style);
             };
             s_CustomTags["backdrop"]  = backdropHandler;
             s_CustomTags["bg"]        = backdropHandler;
@@ -150,20 +277,24 @@ namespace ImGui {
             // Built-in Tag 3: <badge=...>, <pill=...>, <tag=...>
             // Renders a sleek pill/badge with colored background and contrasting text
             auto badgeHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+
                 ImVec4 bg_col = ImVec4(0.25f, 0.25f, 0.30f, 1.0f); // default charcoal
                 ImVec4 text_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 
-                if (param == "danger" || param == "red") {
+                if (style.color_param == "danger" || style.color_param == "red") {
                     bg_col = ImVec4(0.85f, 0.15f, 0.15f, 1.0f);
-                } else if (param == "warning" || param == "yellow") {
+                } else if (style.color_param == "warning" || style.color_param == "yellow") {
                     bg_col = ImVec4(0.95f, 0.75f, 0.10f, 1.0f);
                     text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
-                } else if (param == "success" || param == "green") {
+                } else if (style.color_param == "success" || style.color_param == "green") {
                     bg_col = ImVec4(0.15f, 0.70f, 0.25f, 1.0f);
-                } else if (param == "info" || param == "blue") {
+                } else if (style.color_param == "info" || style.color_param == "blue") {
                     bg_col = ImVec4(0.20f, 0.55f, 0.90f, 1.0f);
                 } else {
-                    ParseMarkdownColor(param, bg_col);
+                    ParseMarkdownColor(style.color_param, bg_col);
                     float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
                     if (lum > 0.65f) text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
                 }
@@ -172,16 +303,22 @@ namespace ImGui {
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bg_col);
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg_col);
                 ImGui::PushStyleColor(ImGuiCol_Text, text_col);
-                ImGui::SmallButton(inner_text.c_str());
+                ImGui::SmallButton(style.clean_text.c_str());
                 ImGui::PopStyleColor(4);
+
+                PopMarkdownTagFont(config, style);
             };
             s_CustomTags["badge"] = badgeHandler;
             s_CustomTags["pill"]  = badgeHandler;
             s_CustomTags["tag"]   = badgeHandler;
 
             // Built-in Tag 4: <btn=...>
-            s_CustomTags["btn"] = [](const std::string& inner_text, const std::string&) {
-                ImGui::SmallButton(inner_text.c_str());
+            s_CustomTags["btn"] = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+                ImGui::SmallButton(style.clean_text.c_str());
+                PopMarkdownTagFont(config, style);
             };
 #endif
         }
@@ -215,11 +352,18 @@ namespace ImGui {
             return;
         }
 
+        const MarkdownConfig* prev_active = GetActiveMarkdownConfig();
+        GetActiveMarkdownConfig() = config;
+
         MarkdownConfig local_config = *config;
         local_config.tagCallback = [](const MarkdownTagData& data) {
             std::string tag_name(data.tagName, data.tagNameLength);
             std::string tag_param(data.tagParam ? data.tagParam : "", data.tagParamLength);
             std::string inner_text(data.innerText, data.innerTextLength);
+            
+            const MarkdownConfig* prev = GetActiveMarkdownConfig();
+            if (data.config) GetActiveMarkdownConfig() = data.config;
+
             auto& tags = GetCustomMarkdownTags();
             auto it = tags.find(tag_name);
             if (it != tags.end()) {
@@ -227,9 +371,13 @@ namespace ImGui {
             } else {
                 ImGui::TextUnformatted(inner_text.c_str());
             }
+
+            GetActiveMarkdownConfig() = prev;
         };
 
         Markdown(markdown_text.c_str(), markdown_text.length(), local_config);
+
+        GetActiveMarkdownConfig() = prev_active;
     }
 
     namespace MD {

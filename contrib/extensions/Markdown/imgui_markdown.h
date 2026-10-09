@@ -124,13 +124,14 @@ namespace ImGui
 
     struct MarkdownTagData
     {
-        const char* tagName;
-        size_t      tagNameLength;
-        const char* tagParam;
-        size_t      tagParamLength;
-        const char* innerText;
-        size_t      innerTextLength;
-        void*       userData;
+        const char*             tagName;
+        size_t                  tagNameLength;
+        const char*             tagParam;
+        size_t                  tagParamLength;
+        const char*             innerText;
+        size_t                  innerTextLength;
+        const MarkdownConfig*   config = nullptr;
+        void*                   userData = nullptr;
     };
     typedef void                MarkdownTagCallback( const MarkdownTagData& data );
 
@@ -584,6 +585,7 @@ namespace ImGui
                             }
                             tagData.innerText = markdown_ + openClose + 1;
                             tagData.innerTextLength = closeStart - ( openClose + 1 );
+                            tagData.config = &mdConfig_;
                             tagData.userData = mdConfig_.userData;
 
                             mdConfig_.tagCallback( tagData );
@@ -617,25 +619,11 @@ namespace ImGui
                             }
                             else
                             {
-                                // Tag was mid-line; flow inline with following text
-                                if( closeEnd < (int)markdownLength_ && markdown_[closeEnd] == ' ' )
-                                {
-                                    while( closeEnd < (int)markdownLength_ && markdown_[closeEnd] == ' ' )
-                                    {
-                                        ++closeEnd;
-                                    }
-                                    i = closeEnd - 1;
-                                    line.lastRenderPosition = closeEnd - 1;
-                                    line.lineStart = closeEnd;
-                                    ImGui::SameLine();
-                                }
-                                else
-                                {
-                                    i = closeEnd - 1;
-                                    line.lastRenderPosition = closeEnd - 1;
-                                    line.lineStart = closeEnd;
-                                    ImGui::SameLine( 0.0f, 0.0f );
-                                }
+                                // Tag was mid-line; flow inline with following text without eating spaces!
+                                i = closeEnd - 1;
+                                line.lastRenderPosition = closeEnd - 1;
+                                line.lineStart = closeEnd;
+                                ImGui::SameLine( 0.0f, 0.0f );
                                 continue;
                             }
                         }
