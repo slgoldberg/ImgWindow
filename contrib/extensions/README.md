@@ -12,10 +12,21 @@ In ImgWindow, an **Extension** is a self-contained package providing substantial
 * Encapsulate complex algorithms (e.g., text parsing, layout pre-calculation, delayed timers).
 * May integrate or adapt third-party libraries.
 
-### Namespacing & API Consistency
-To prevent collisions while keeping the API intuitive, **all functions and types in an extension are scoped inside a second-level namespace**. 
+### Namespacing Philosophy: Omar Cornut's Standard & Sub-Namespaces
 
-Crucially, sub-namespaces allow us to **mirror Dear ImGui's standard vocabulary** (`Text`, `TextWrapped`, etc.) rather than inventing arbitrary new verbs:
+A common question from newcomers is: *“Why not invent a separate root namespace like `extgui::`, `eximgui::`, or `extimgui::` to distinguish extension code?”*
+
+The answer lies in **Dear ImGui's official architectural philosophy**:
+
+#### 1. Omar Cornut's Ecosystem Standard (Single Point of Discovery)
+In official Dear ImGui extensions and ecosystem projects (such as `implot`, `imgui_club`, and `imnodes`), Omar Cornut explicitly advocates extending `namespace ImGui { ... }`. 
+* **Autocomplete & Discoverability:** Modern C++ developers rely heavily on IDE autocomplete. When a developer types `ImGui::`, they expect to discover every capability available within their GUI framework in one place.
+* **Zero Cognitive Overhead:** Creating detached root namespaces (`extgui::`) forces developers to remember which feature lives in which foreign namespace, requires scattered `using namespace` declarations, and creates awkward syntax when passing native ImGui types across boundaries.
+
+#### 2. The Power of Second-Level Sub-Namespaces
+While extending `namespace ImGui` is essential, dumping heavy packages directly into the root namespace risks colliding with current or future Dear ImGui core functions. 
+
+The elegant solution is **second-level sub-namespaces** (`ImGui::<PackageName>::`):
 
 ```cpp
 namespace ImGui {
@@ -25,13 +36,16 @@ namespace ImGui {
 }
 ```
 
-*Example:*
-```cpp
-// Familiar verbs within clean, collision-free scopes:
-// (Note: To prevent collision with the core ImGui::Markdown() function, the Markdown extension uses `ImGui::MD`):
-ImGui::MD::TextWrapped("Configure your **settings** below.");
-ImGui::TimedTooltip::TextMD("Current mode: *%s*", modeStr);
-```
+* **Zero Root Pollution:** The root `ImGui::` namespace stays clean, pristine, and safe from symbol collisions.
+* **Mirroring Native ImGui Vocabulary:** Sub-namespaces allow us to reuse Dear ImGui's standard, battle-tested vocabulary (`Text`, `TextWrapped`, `CalcTextSize`) rather than inventing arbitrary or clunky new verbs (like `DrawMarkdownText` or `CalculateMarkdownDimensions`):
+  ```cpp
+  // Natural, native-feeling API design:
+  ImGui::MD::TextWrapped("Configure your **settings** below.");
+  ImVec2 size = ImGui::MD::CalcTextSize(id, 1, docString, wrapWidth);
+
+  ImGui::TimedTooltip::TextMD("Current mode: *%s*", modeStr);
+  ```
+*(Note: To prevent collision with the core third-party `ImGui::Markdown(...)` free function, the Markdown extension's sub-namespace is cleanly abbreviated to `ImGui::MD::`).*
 
 ---
 

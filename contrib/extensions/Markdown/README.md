@@ -16,11 +16,12 @@ It allows you to embed rich text formatting, headers, links, lists, and custom i
   * Upstream `imgui_markdown` evaluates emphasis (`**bold**`, `*italic*`) and link tokens as isolated chunks, causing Dear ImGui's word-wrapper to sever words mid-syllable at line edges.
   * Our engine checks if an upcoming emphasized token would fit on the next line and pushes it down cleanly via lookahead, keeping words intact.
   * Typographic lookahead prevents orphaned opening delimiters (`"`, `'`, `(`, `[`, `{`) and severed contractions (`don't`) or hyphens (`system-level`).
+  * Conforms to CommonMark punctuation rules: standard punctuation (`/`, `(`, `[`, `{`, `-`, `:`, etc.) can immediately precede emphasis tokens (e.g., `#2/**"Cerise"**` or `(**Important**)`), while preserving strict intra-word identifier safety (`variable_name`).
 * **Hanging Indents & Bullet List Typography:**
   * Replaces cramped upstream bullet spacing with scalable, comfortable breathing room (`bulletSpacing` defaulting to a clean 4px).
   * Mathematically maintains true hanging indents across wrapped multi-line list items and continuation lines, keeping all wrapped text cleanly aligned to the text column rather than under the bullet glyph.
   * Preserves leading space depth across emphasis chunks and links so nested sub-bullets never pop out of alignment.
-  * Broadens list marker syntax to standard Markdown (`*`, `-`, `+`) with or without leading whitespace.
+  * Broadens list marker syntax to standard Markdown (`*`, `-`, `+`) with or without leading whitespace, with strict token isolation so bullet glyphs never hijack inline styling into rogue italic runs.
 * **Layout Pre-Calculation (`CalcSize` / `CalcTextSize`):**
   * Exposes `ImGui::MD::CalcSize(...)` (aliased as `CalcTextSize`) to pre-measure exact wrapped multi-line Markdown dimensions without rendering to the screen—crucial for sizing OS floating windows, child frames, and stationary tooltips.
   * Defeats ImGui viewport culling by employing pass-unique offscreen window hashes.
@@ -247,3 +248,55 @@ namespace ImGui {
     }
 }
 ```
+
+---
+
+## Appendix: Real-World Example (Settings & Reference Manual)
+
+Below is a complete, copy-pasteable real-world example illustrating how the **Markdown** and **TimedTooltip** extensions combine to create a searchable settings panel with custom tags, nested list items, and rich stationary tooltips:
+
+```cpp
+#include "contrib/extensions/Markdown/imgui_markdown_ext.h"
+#include "contrib/extensions/TimedTooltip/imgui_tooltips_ext.h"
+
+void RenderSettingsPanel()
+{
+    ImGui::Begin("Plugin Settings & Reference");
+
+    // 1. Rich Header and Overview with Custom Badges
+    ImGui::MD::TextWrapped(
+        "### Welcome to Avionics Manager\n"
+        "Configure your autopilot, navigation modes, and <backdrop=yellow>**expert features**</backdrop> below. "
+        "Hover over any setting or <tag red>tag</tag> for operational manuals."
+    );
+
+    ImGui::Separator();
+
+    // 2. Multi-Line List with Nested Bullets, Badges, and Punctuation Delimiters
+    ImGui::MD::TextWrapped(
+        "* <tag red>modes</tag>: _Click_ on active tags above to filter the feature catalog.\n"
+        "  * _Important_: Filter queries use exact \"<tag yellow>substring</tag>\" matching.\n"
+        "  * Toggle back to preset: `__#1__` / \"**Default Nav**\" <pill green>Active</pill>.\n"
+        "* <tag blue>autopilot</tag>: Controls automated lateral and vertical flight guidance.\n"
+        "  * Supported modes: **LNAV**, **VNAV**, and **FLCH**.\n"
+        "  * Disconnect shortcut: `Ctrl+Shift+D`."
+    );
+
+    ImGui::Spacing();
+
+    // 3. Interactive Widgets with Rich Markdown Timed Tooltips
+    if (ImGui::Button("Reset to Defaults")) {
+        // Reset logic...
+    }
+    ImGui::TimedTooltip::TextMD(
+        "### Reset Configuration\n"
+        "Restores all plugin settings back to factory defaults.\n\n"
+        "* **Reversible:** A backup of your current setup is saved automatically.\n"
+        "* Active theme: #3/\"**Black & White**\" <pill green>PG</pill>.\n"
+        "* *Click to confirm.*"
+    );
+
+    ImGui::End();
+}
+```
+

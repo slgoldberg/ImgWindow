@@ -84,8 +84,8 @@ The `TooltipConfig` (aliased as `ImGui::TimedTooltip::Config`) controls timing, 
 | `frame_padding`      | `ImVec2` | `(2.0f, 1.0f)` | Internal padding for frame elements inside the tooltip. |
 | `indent_spacing`     | `float` | `20.0f` | Standard indent spacing between nested list levels. |
 | `bullet_spacing`     | `float` | `4.0f` | Gap between bullet glyph and following text. |
-| `font_scale`         | `float` | `0.0f` | Window font scale multiplier (`0.0f` = inherit ambient font scale; `>0.0f` = custom scale). |
-| `bg_color`           | `ImVec4` | Yellow note | Window and popup background color (`#FFF299`). |
+| `font_scale`         | `float` | `0.0f` | Window font scale multiplier (`0.0f` = automatically inherit the ambient font scale from the calling parent window; `>0.0f` = explicit scale override). |
+| `bg_color`           | `ImVec4` | Solid yellow | Window and popup background color (`#FFF299`, 100% opaque `alpha = 1.0f`). |
 | `border_color`       | `ImVec4` | Dark yellow | Tooltip border outline color (`#CCBF66`). |
 | `text_color`         | `ImVec4` | Jet black | Tooltip text and separator color (`#000000`). |
 
@@ -102,7 +102,7 @@ static ImGui::TimedTooltip::Config s_MyTooltipConfig;
 s_MyTooltipConfig.hover_delay_cycles = 45;                           // Snappier hover delay
 s_MyTooltipConfig.padding            = ImVec2(8.0f, 6.0f);           // Compact padding
 s_MyTooltipConfig.item_spacing       = ImVec2(4.0f, 0.0f);           // Tight line pitch
-s_MyTooltipConfig.bg_color           = ImVec4(1.0f, 0.95f, 0.6f, 0.95f); // Sticky note yellow
+s_MyTooltipConfig.bg_color           = ImVec4(1.0f, 0.95f, 0.6f, 1.0f); // 100% opaque sticky note
 
 ImGui::TimedTooltip::SetDefaultTooltipConfig(&s_MyTooltipConfig);
 ```
@@ -161,6 +161,23 @@ This guarantees that:
 Tooltips automatically check the active display dimensions (`ImGui::GetIO().DisplaySize`):
 * **Bottom Edge Protection:** If `render_pos.y + height` exceeds the screen floor, the anchor position automatically shifts upward so the entire tooltip remains visible on screen.
 * **Right Edge Protection:** If `render_pos.x + width` exceeds the screen edge, the tooltip shifts leftwards to keep all content in view.
+
+---
+
+## X-Plane 12 Panel Graphics (Linear Blending & Font Scaling)
+
+### 1. 100% Solid Opacity (`alpha = 1.0f`)
+In legacy OpenGL, plugins composited in uncorrected gamma space, where semi-transparent yellow cards (`alpha = 0.95f`) appeared largely solid. 
+
+In X-Plane 12's modern **Panel Graphics** pipeline (Metal on macOS, Vulkan on Windows/Linux), compositing is computed in **physically linear color space**. Even a minor 5% transparency allows intense runway lights, aircraft labels, and bright background elements to illuminate the pixels under dark text. Furthermore, linear antialiasing blends 50% edge coverage at $\approx 73\%$ background luminance ($(0.5)^{1/2.2} \approx 0.73$), optically eroding dark letter stems.
+
+To ensure crisp, dark typography without background wash-out, `TooltipConfig::bg_color` defaults to **`1.0f` solid opacity** (`ImVec4(1.0f, 0.95f, 0.6f, 1.0f)`).
+
+### 2. Automatic Ambient Font Scale Inheritance
+When `TooltipConfig::font_scale` is left at `0.0f` (the default), the tooltip engine automatically queries and inherits the ambient window font scale of the calling widget:
+* **Custom Window Zoom:** If a child window or floating palette is zoomed to 124%, hovering a widget inside that window renders the tooltip scaled at that exact same 124% factor.
+* **Accessibility / Senior Citizen Mode:** If a global or per-window 17pt font mode is active, the tooltip inherits the enlarged scale seamlessly.
+* **Pre-Calculation Accuracy:** The 2-pass size pre-calculator (`MD::CalcMarkdownSize`) computes wrap boundaries and vertical heights using this exact inherited scale factor, guaranteeing zero text clipping and zero scrollbar flutter.
 
 ---
 
