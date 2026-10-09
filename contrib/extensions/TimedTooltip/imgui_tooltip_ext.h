@@ -10,6 +10,7 @@
 // ============================================================================
 
 #define IMGUI_TOOLTIP_EXT_H
+#define IMGUI_TOOLTIPS_EXT_H
 #pragma once
 
 #include "imgui.h"
