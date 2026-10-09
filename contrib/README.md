@@ -14,10 +14,11 @@ contrib/
 │   ├── Markdown/        # Markdown parser & renderer with dynamic font scaling
 │   └── TimedTooltip/    # Timed tooltips engine with auto-bounds clamping
 │
-└── widgets/             # Lightweight, reusable UI controls (Coming Soon)
+└── widgets/             # Lightweight, reusable UI controls
     ├── imgui_extra_widgets.h   # Master roll-up header (Opt-Out by default)
-    ├── toggle_button.h         # Animated / custom toggle buttons
-    └── wheel_slider.h          # Sliders & controls with mouse-wheel interaction
+    ├── toggle_button.h         # Animated toggle switches & segmented button pairs
+    ├── wheel_slider.h          # Sliders & controls with mouse-wheel interaction
+    └── clickable_link.h        # ButtonLink, TextLink & hand-cursor affordances
 ```
 
 ### 1. Packages & Extensions (`contrib/extensions/`)
@@ -27,7 +28,7 @@ contrib/
 * *See &rarr; [contrib/extensions/README.md](extensions/README.md) for full guidelines.*
 
 ### 2. Reusable Widgets (`contrib/widgets/`)
-* **What they are:** Lightweight, stateless, single-function UI controls that feel like native Dear ImGui controls (e.g. toggle buttons, wheel-responsive sliders, custom indicators).
+* **What they are:** Self-contained, immediate-mode UI controls that feel like native Dear ImGui controls (e.g. toggle buttons, wheel-responsive sliders, clickable link affordances).
 * **Namespacing:** Injected directly into the top-level `ImGui::` namespace (`ImGui::ToggleButton(...)`, `ImGui::AdjustOnItemMouseWheel(...)`).
 * **Inclusion Strategy:**
   * **A-la-carte:** Include only what you need (`#include "contrib/widgets/wheel_slider.h"`).
