@@ -124,7 +124,7 @@ ImGui::MD::TextWrapped(
 When combined with the companion **TimedTooltip** extension, rich multi-line Markdown tooltips are attached with a single line of code:
 
 ```cpp
-#include "contrib/extensions/TimedTooltip/imgui_tooltips_ext.h"
+#include "contrib/extensions/TimedTooltip/imgui_tooltip_ext.h"
 #include "contrib/extensions/Markdown/imgui_markdown_ext.h"
 
 ImGui::Button("Accessibility Mode");
@@ -472,7 +472,7 @@ void RenderSettingsPanelVanilla()
 // hanging bullet indents, draw-list pills, delay timers, and screen docking!
 // -----------------------------------------------------------------------------
 #include "contrib/extensions/Markdown/imgui_markdown_ext.h"
-#include "contrib/extensions/TimedTooltip/imgui_tooltips_ext.h"
+#include "contrib/extensions/TimedTooltip/imgui_tooltip_ext.h"
 
 void RenderSettingsPanelExtensions()
 {
