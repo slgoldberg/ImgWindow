@@ -213,8 +213,9 @@ namespace ImGui {
         float avail = ImGui::GetContentRegionAvail().x;
         float lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
         float cursorX = ImGui::GetCursorScreenPos().x;
+        float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
         // Only wrap down if we are mid-line (cursor is not at the start) and the tag doesn't fit on this line:
-        if ((cursorX - lineStartX) > 10.0f && required_width > avail) {
+        if ((cursorX - lineStartX) > (10.0f * scale) && required_width > avail) {
             ImGui::NewLine();
         }
     }
@@ -264,8 +265,10 @@ namespace ImGui {
                 ParseMarkdownColor(style.color_param, bg_col);
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float pad_x = 3.0f;
-                float pad_y = 1.0f;
+                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float pad_x = 3.0f * scale;
+                float pad_y = 1.0f * scale;
+                float rounding = 3.0f * scale;
 
                 EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
 
@@ -275,7 +278,7 @@ namespace ImGui {
                 draw_list->AddRectFilled(
                     ImVec2(pos.x - pad_x, pos.y - pad_y),
                     ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
-                    col_u32, 3.0f
+                    col_u32, rounding
                 );
 
                 // Auto-contrast text color if background is dark
@@ -368,8 +371,10 @@ namespace ImGui {
                 }
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float pad_x = 3.0f;
-                float pad_y = 1.0f;
+                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float pad_x = 3.0f * scale;
+                float pad_y = 1.0f * scale;
+                float rounding = 3.0f * scale;
 
                 EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
 
@@ -379,7 +384,7 @@ namespace ImGui {
                 draw_list->AddRectFilled(
                     ImVec2(pos.x - pad_x, pos.y - pad_y),
                     ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
-                    col_u32, 3.0f
+                    col_u32, rounding
                 );
 
                 if (!style.color_param.empty()) {
@@ -568,9 +573,10 @@ namespace ImGui {
             // This prevents ImGui from caching the -10000 position from a previous hover and culling it on subsequent hovers!
             snprintf(measure_name, sizeof(measure_name), "##md_measure_%08X_%d_%d", hash_id, pass, ImGui::GetFrameCount());
             
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 0.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f, 1.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 20.0f);
+            float s = (font_scale > 0.0f) ? font_scale : 1.0f;
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * s, 0.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f * s, 1.0f * s));
+            ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 20.0f * s);
             
             ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
             ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
@@ -661,16 +667,19 @@ namespace TimedTooltip {
             
             TooltipState& state = GetTooltipStateMap()[id];
             
+            float scale = TimedTooltip::GetActiveFontScale(config);
+            if (scale <= 0.0f) scale = 1.0f;
+            
             // 1. Audit and sanitize wrap constraints against screen boundaries
             float max_screen_w = ImMax(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
-            float min_w = config->min_wrap_width;
-            float max_w = config->max_wrap_width;
-            if (min_w < 50.0f) min_w = 50.0f;
+            float min_w = config->min_wrap_width * scale;
+            float max_w = config->max_wrap_width * scale;
+            if (min_w < 50.0f * scale) min_w = 50.0f * scale;
             if (max_w < min_w) max_w = min_w;
             if (max_w > max_screen_w) max_w = max_screen_w;
             if (min_w > max_w) min_w = max_w;
 
-            float target_w = (config->default_wrap_width > 0.0f) ? config->default_wrap_width : 360.0f;
+            float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
             float wrap_limit = ImClamp(target_w, min_w, max_w);
             if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
 
@@ -678,11 +687,11 @@ namespace TimedTooltip {
             MarkdownConfig local_md;
             const MarkdownConfig* base_md = GetDefaultMarkdownConfig();
             if (base_md) local_md = *base_md;
-            if (config->bullet_spacing > 0.0f) local_md.bulletSpacing = config->bullet_spacing;
+            if (config->bullet_spacing > 0.0f) local_md.bulletSpacing = config->bullet_spacing * scale;
 
             if (state.perfect_size.x == 0.0f) {
                 // 1. Dry-run infinitely wide to see how small the text naturally is
-                ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, config->font_scale, &local_md);
+                ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, scale, &local_md);
                 
                 // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
                 float final_width = raw_size.x;
@@ -692,18 +701,19 @@ namespace TimedTooltip {
                 if (final_width > max_screen_w) final_width = max_screen_w;
                 
                 // ADD EPSILON TO PREVENT MID-WORD BREAKS!
-                final_width += 2.0f;
+                final_width += 2.0f * scale;
                 
                 // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
-                state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, config->font_scale, &local_md);
+                state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
                 state.perfect_size.x = final_width; 
-                state.perfect_size.y += 4.0f;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
+                state.perfect_size.y += 4.0f * scale;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
 
                 // Immediate position clamp on Frame 1:
                 ImVec2 display_size = ImGui::GetIO().DisplaySize;
                 ImVec2 render_pos = state.locked_pos;
-                float expected_w = state.perfect_size.x + config->padding.x * 2.0f;
-                float expected_h = state.perfect_size.y + config->padding.y * 2.0f;
+                ImVec2 scaled_padding(config->padding.x * scale, config->padding.y * scale);
+                float expected_w = state.perfect_size.x + scaled_padding.x * 2.0f;
+                float expected_h = state.perfect_size.y + scaled_padding.y * 2.0f;
                 if (expected_w > display_size.x - 25.0f) expected_w = display_size.x - 25.0f;
                 if (expected_h > display_size.y - 25.0f) expected_h = display_size.y - 25.0f;
                 if (expected_h > 0.0f && render_pos.y + expected_h + 10.0f > display_size.y) {

@@ -67,6 +67,19 @@ namespace TimedTooltip {
         return GetCurrentTooltipConfig();
     }
 
+    // Resolves the active font scale: explicit config->font_scale override if set,
+    // otherwise the ambient font scale from the calling parent window:
+    inline float GetActiveFontScale(const TooltipConfig* config = nullptr) {
+        if (config && config->font_scale > 0.0f) {
+            return config->font_scale;
+        }
+        float font_size = ImGui::GetFontSize();
+        if (font_size > 0.0f) {
+            return font_size / 14.0f;
+        }
+        return ImGui::GetIO().FontGlobalScale;
+    }
+
     struct TooltipState {
         int hover_cycles = 0;
         int unhover_grace_cycles = 0;
@@ -153,6 +166,9 @@ namespace TimedTooltip {
             }
         }
 
+        float scale = GetActiveFontScale(config);
+        if (scale <= 0.0f) scale = 1.0f;
+
         // Trigger Display (With Global Mutex)
         if (!state.is_displayed && state.hover_cycles >= config->hover_delay_cycles) {
             if (GetActiveTooltipID() == 0 || GetActiveTooltipID() == hash_id) {
@@ -160,7 +176,7 @@ namespace TimedTooltip {
                 state.is_displayed = true;
                 state.display_cycles = 0;
             // Lock anchor position (Offset slightly so the cursor doesn't cover the text)
-            state.locked_pos = ImVec2(ImGui::GetMousePos().x + 15.0f, ImGui::GetMousePos().y + 15.0f);
+            state.locked_pos = ImVec2(ImGui::GetMousePos().x + 15.0f * scale, ImGui::GetMousePos().y + 15.0f * scale);
             state.last_mouse_pos = ImGui::GetMousePos();
             }
         }
@@ -200,8 +216,9 @@ namespace TimedTooltip {
             // 3. Render Stationary Window with automatic screen-edge clamping (grows upwards if clipping bottom!)
             ImVec2 render_pos = state.locked_pos;
             ImVec2 display_size = ImGui::GetIO().DisplaySize;
-            float expected_h = (state.perfect_size.y > 0.0f) ? (state.perfect_size.y + config->padding.y * 2.0f) : state.last_size.y;
-            float expected_w = (state.perfect_size.x > 0.0f) ? (state.perfect_size.x + config->padding.x * 2.0f) : state.last_size.x;
+            ImVec2 scaled_padding = ImVec2(config->padding.x * scale, config->padding.y * scale);
+            float expected_h = (state.perfect_size.y > 0.0f) ? (state.perfect_size.y + scaled_padding.y * 2.0f) : state.last_size.y;
+            float expected_w = (state.perfect_size.x > 0.0f) ? (state.perfect_size.x + scaled_padding.x * 2.0f) : state.last_size.x;
 
             // Ensure expected dimensions don't exceed the active display boundaries
             if (expected_w > display_size.x - 25.0f) expected_w = display_size.x - 25.0f;
@@ -225,13 +242,13 @@ namespace TimedTooltip {
             ImGui::PushStyleColor(ImGuiCol_WindowBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_PopupBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_Border, config->border_color);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, config->padding);
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, config->item_spacing);
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, config->frame_padding);
-            ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, config->indent_spacing);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, scaled_padding);
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(config->item_spacing.x * scale, config->item_spacing.y * scale));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(config->frame_padding.x * scale, config->frame_padding.y * scale));
+            ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, config->indent_spacing * scale);
             bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-            if (config->font_scale > 0.0f) {
-                ImGui::SetWindowFontScale(config->font_scale);
+            if (scale != 1.0f) {
+                ImGui::SetWindowFontScale(scale);
             }
             ImGui::PushStyleColor(ImGuiCol_Text, config->text_color); // Pushed AFTER Begin to affect window contents!
             ImGui::PushStyleColor(ImGuiCol_Separator, config->text_color); // Ensures markdown horizontal lines match the text color!
@@ -309,16 +326,19 @@ namespace TimedTooltip {
 
             TooltipState& state = GetTooltipStateMap()[id];
             
+            float scale = GetActiveFontScale(config);
+            if (scale <= 0.0f) scale = 1.0f;
+
             // 1. Audit and sanitize wrap constraints against screen boundaries
             float max_screen_w = std::max(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
-            float min_w = config->min_wrap_width;
-            float max_w = config->max_wrap_width;
-            if (min_w < 50.0f) min_w = 50.0f;
+            float min_w = config->min_wrap_width * scale;
+            float max_w = config->max_wrap_width * scale;
+            if (min_w < 50.0f * scale) min_w = 50.0f * scale;
             if (max_w < min_w) max_w = min_w;
             if (max_w > max_screen_w) max_w = max_screen_w;
             if (min_w > max_w) min_w = max_w;
 
-            float target_w = (config->default_wrap_width > 0.0f) ? config->default_wrap_width : 360.0f;
+            float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
             float wrap_limit = std::clamp(target_w, min_w, max_w);
             if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
 
