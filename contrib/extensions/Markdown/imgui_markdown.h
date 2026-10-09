@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <ctype.h>
 #include "imgui_internal.h"
 
 #ifndef ORIGINAL	/* brat's hack */
@@ -474,6 +475,7 @@ namespace ImGui
                         line.isUnorderedListStart = true;
                         ++i;
                         ++line.lastRenderPosition;
+                        continue;
                     }
                     else if( c == '#' )
                     {
@@ -739,11 +741,8 @@ namespace ImGui
 					// Check if the character is in the user's registered emphasisChars string
 					if( mdConfig_.emphasisChars && strchr(mdConfig_.emphasisChars, c) != NULL
                         && ( i == line.lineStart
-                            || markdown_[ prev ] == ' '
-							|| markdown_[ prev ] == '"'
-							|| markdown_[ prev ] == '\''
-							|| markdown_[ prev ] == '['
-                            || markdown_[ prev ] == '\t' )
+                            || isspace((unsigned char)markdown_[ prev ])
+                            || ( ispunct((unsigned char)markdown_[ prev ]) && markdown_[ prev ] != c ) )
                         && (int)markdownLength_ > next 
                         && markdown_[ next ] != ' '
                         && markdown_[ next ] != '\n'

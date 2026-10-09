@@ -38,7 +38,7 @@ namespace TimedTooltip {
         float bullet_spacing = 4.0f;                             // Gap between bullet glyph and text (default 4.0f)
         float font_scale = 0.0f;                                 // 0.0f = inherit ambient font scale; >0.0f = custom window font scale
         
-        ImVec4 bg_color = ImVec4(1.0f, 0.95f, 0.6f, 0.95f);      // Yellow Sticky Note
+        ImVec4 bg_color = ImVec4(1.0f, 0.95f, 0.6f, 1.0f);      // Yellow Sticky Note (100% opaque)
         ImVec4 border_color = ImVec4(0.8f, 0.75f, 0.4f, 1.0f);   // Slightly darker border
         ImVec4 text_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);      // Black text
     };
