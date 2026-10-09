@@ -80,7 +80,7 @@ The `TooltipConfig` (aliased as `ImGui::TimedTooltip::Config`) controls timing, 
 | `min_wrap_width`     | `float` | `240.0f` | Minimum width boundary before forced truncation/overflow. |
 | `max_wrap_width`     | `float` | `600.0f` | Maximum width ceiling for wide documentation/manuals. |
 | `padding`            | `ImVec2` | `(8.0f, 6.0f)` | Internal window padding around the tooltip contents. |
-| `item_spacing`       | `ImVec2` | `(4.0f, 0.0f)` | Item spacing between lines. `y = 0.0f` matches native 15px font leading. |
+| `item_spacing`       | `ImVec2` | `(4.0f, 0.0f)` | Item spacing between lines. `y = 0.0f` matches native font leading. |
 | `frame_padding`      | `ImVec2` | `(2.0f, 1.0f)` | Internal padding for frame elements inside the tooltip. |
 | `indent_spacing`     | `float` | `20.0f` | Standard indent spacing between nested list levels. |
 | `bullet_spacing`     | `float` | `4.0f` | **[Markdown Tooltips Only]** Gap in pixels between bullet glyph and following text when rendering rich lists via `TextMD`. (Ignored for plain-text tooltips). |
@@ -88,6 +88,10 @@ The `TooltipConfig` (aliased as `ImGui::TimedTooltip::Config`) controls timing, 
 | `bg_color`           | `ImVec4` | Solid yellow | Window and popup background color (`#FFF299`, 100% opaque `alpha = 1.0f`). |
 | `border_color`       | `ImVec4` | Dark yellow | Tooltip border outline color (`#CCBF66`). |
 | `text_color`         | `ImVec4` | Jet black | Tooltip text and separator color (`#000000`). |
+
+> [!NOTE]
+> **Resolution-Independent Base Dimensions**:
+> All dimensional settings (`default_wrap_width`, `min_wrap_width`, `max_wrap_width`, `padding`, `item_spacing`, `frame_padding`, and `indent_spacing`) are defined in **base design boxels** (at 1.0× baseline). The tooltip engine resolves the active ambient scale (`ImGui::GetFontSize() / 14.0f` or explicit `font_scale`) and automatically scales constraints and padding dynamically. Callers do not need to manually multiply configuration values by font zoom factors.
 
 ---
 
