@@ -72,7 +72,8 @@ if (ImGui::ToggleButtons("##style_toggle", &s_WindowStyle, "Opaque", "Transparen
 ### 2. Mouse-Wheel Sliders (`wheel_slider.h`)
 
 #### A. Standalone Helper (`ImGui::AdjustOnItemMouseWheel`)
-Attaches to the preceding ImGui widget via `ImGui::IsItemHovered()`, interprets vertical and horizontal mouse-wheel clicks, clamps to bounds, and switches the cursor to East-West resize arrows (`ImGuiMouseCursor_ResizeEW`).
+Attaches to the preceding ImGui widget via `ImGui::IsItemHovered()`, interprets vertical and horizontal mouse-wheel clicks, and clamps boundaries. 
+* **Option C Cursor Precision**: Switches the cursor to East-West resize arrows (`ImGuiMouseCursor_ResizeEW`) strictly when hovering over the physical slider track, preserving standard arrow cursors over text labels.
 
 ```cpp
 #include "contrib/widgets/wheel_slider.h"
@@ -82,24 +83,31 @@ ImGui::SliderFloat("Text Zoom", &fontZoom, 0.75f, 1.75f);
 ImGui::AdjustOnItemMouseWheel(&fontZoom, 0.75f, 1.75f, 0.01f);
 ```
 
-#### B. Percentage Slider (`ImGui::SliderPercent`)
-Specialized float slider designed for normalized fractions (`0.0f .. 1.0f`), rendered cleanly as percentages (`0% .. 100%`) with mouse-wheel adjustment built in.
-
-```cpp
-static float s_Opacity = 0.85f; // 85%
-
-// Adjust by clicking, dragging, or spinning the mouse wheel:
-if (ImGui::SliderPercent("Window Opacity", &s_Opacity, 0.1f, 1.0f)) {
-    UpdateWindowAlpha(s_Opacity);
-}
-```
-
-#### C. Integrated Wheel Sliders (`SliderFloatWithWheel` / `SliderIntWithWheel`)
-Drop-in replacements for `ImGui::SliderFloat` and `ImGui::SliderInt` that respond to mouse-wheel scrolling out of the box.
+#### B. Integrated Wheel Sliders (`SliderFloatWithWheel` / `SliderPercentWithWheel`)
+Drop-in replacements for standard sliders that respond to mouse-wheel scrolling out of the box.
 
 ```cpp
 static float s_Heading = 180.0f;
 ImGui::SliderFloatWithWheel("Heading", &s_Heading, 0.0f, 360.0f, "%.0f°", 0, 1.0f);
+
+static float s_Opacity = 0.85f;
+ImGui::SliderPercentWithWheel("Window Opacity", &s_Opacity, 0.1f, 1.0f);
+```
+
+#### C. Composite Reset Sliders (`ResetSliderFloatWithWheel` / `ResetSliderPercentWithWheel`)
+Full-featured compound sliders with an abutting vector undo/reset button, smart width reservation, and dual-tooltip support.
+* Sits cleanly in a single line: `[ Slider Track ] [ ↺ Reset ]  Label Text`
+* Automatically dims the reset button when already at default value, and lights up when modified.
+* Features an antialiased vector counter-clockwise undo glyph drawn directly in `ImDrawList` (zero font dependencies).
+
+```cpp
+static float s_Heading = 180.0f;
+
+// 1-line slider with built-in mouse-wheel and one-click reset to 180°:
+ImGui::ResetSliderFloatWithWheel("Heading", &s_Heading, 180.0f /* default */, 0.0f, 360.0f, "%.0f°");
+
+static float s_Opacity = 0.85f;
+ImGui::ResetSliderPercentWithWheel("Opacity", &s_Opacity, 0.85f /* default */, 0.1f, 1.0f);
 ```
 
 ---

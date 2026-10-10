@@ -33,6 +33,7 @@ namespace ImGui {
     {
         if (!v || !label) return false;
 
+        BeginGroup();
         ImVec2 p = GetCursorScreenPos();
         ImDrawList* draw_list = GetWindowDrawList();
         const ImGuiStyle& style = GetStyle();
@@ -119,6 +120,8 @@ namespace ImGui {
                 }
             }
         }
+
+        EndGroup();
 
         return clicked;
     }

@@ -252,7 +252,9 @@ namespace TimedTooltip {
             }
             ImGui::PushStyleColor(ImGuiCol_Text, config->text_color); // Pushed AFTER Begin to affect window contents!
             ImGui::PushStyleColor(ImGuiCol_Separator, config->text_color); // Ensures markdown horizontal lines match the text color!
-            return open;
+            // Once Begin() is called, always return true so caller invokes EndStationaryTooltip()
+            // to properly close the window and pop styles, avoiding 1-frame titlebar blips on appearance.
+            return true;
         }
         
         return false;

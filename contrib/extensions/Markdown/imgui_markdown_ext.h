@@ -579,7 +579,7 @@ namespace ImGui {
             ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 20.0f * s);
             
             ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
-            ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+            ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
             if (font_scale > 0.0f) {
                 ImGui::SetWindowFontScale(font_scale);
             }
