@@ -480,6 +480,67 @@ namespace ImGui {
         GetActiveMarkdownConfig() = prev_active;
     }
 
+} // namespace ImGui
+
+#ifndef IMGUI_LINK_CLICK_RESULT_DEFINED
+#define IMGUI_LINK_CLICK_RESULT_DEFINED
+namespace ImGui {
+namespace Detail {
+    struct LinkClickToggleState {
+        int     frame_count = -1;
+        ImGuiID item_id     = 0;
+        ImVec2  item_min    = ImVec2(-1.0f, -1.0f);
+        bool    toggle_mode = false;
+    };
+
+    inline LinkClickToggleState& GetLinkClickToggleState() {
+        static LinkClickToggleState s_State;
+        return s_State;
+    }
+
+    inline void RegisterItemTooltipToggle(bool is_toggle_eligible = true) {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        st.frame_count = GetFrameCount();
+        st.item_id     = GetItemID();
+        st.item_min    = GetItemRectMin();
+        st.toggle_mode = is_toggle_eligible;
+    }
+
+    inline void MarkLastItemClickConsumed() {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        if (st.frame_count == GetFrameCount()) {
+            st.toggle_mode = false;
+        }
+    }
+
+    inline bool ShouldToggleTooltipOnClick(ImGuiID raw_item_id, bool is_item_active) {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        ImVec2 cur_min = GetItemRectMin();
+        if (st.frame_count == GetFrameCount()) {
+            if ((raw_item_id != 0 && st.item_id == raw_item_id) ||
+                (raw_item_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y)) {
+                return st.toggle_mode;
+            }
+        }
+        return !is_item_active;
+    }
+} // namespace Detail
+
+    struct LinkClickResult {
+        bool clicked;
+
+        constexpr LinkClickResult(bool is_clicked = false) noexcept : clicked(is_clicked) {}
+
+        operator bool() const noexcept {
+            Detail::MarkLastItemClickConsumed();
+            return clicked;
+        }
+    };
+} // namespace ImGui
+#endif // IMGUI_LINK_CLICK_RESULT_DEFINED
+
+namespace ImGui {
+
     namespace MD {
 
         using Config = MarkdownConfig;
@@ -504,6 +565,29 @@ namespace ImGui {
 
         inline void TextWrapped(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
             Text(markdown_text, config_override);
+        }
+
+        // Clickable Markdown Text Links (shows Hand cursor on hover; toggles TimedTooltip on click
+        // unless the return value is tested in an `if (...)` block):
+#pragma push_macro("TextLink")
+#undef TextLink
+        inline LinkClickResult TextLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+            Text(markdown_text, config_override);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+            bool clicked = ImGui::IsItemClicked();
+            ImGui::Detail::RegisterItemTooltipToggle(true);
+            return LinkClickResult(clicked);
+        }
+
+        inline LinkClickResult TextLinkContrib(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+            return TextLink(markdown_text, config_override);
+        }
+#pragma pop_macro("TextLink")
+
+        inline LinkClickResult TextWrappedLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+            return TextLink(markdown_text, config_override);
         }
 
         // Backward-compatibility and convenience aliases
@@ -625,13 +709,18 @@ namespace ImGui {
 
 } // namespace MD
 
+    // Top-level convenience alias for clickable Markdown text links:
+    inline LinkClickResult TextMDLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+        return MD::TextLink(markdown_text, config_override);
+    }
+
 } // namespace ImGui
 
 #ifdef IMGUI_TOOLTIP_EXT_H
 namespace ImGui {
 namespace TimedTooltip {
 
-    inline bool TextMDProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args, bool is_clicked = false) {
+    inline bool TextMDProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args, bool is_clicked = false, bool toggle_on_click = false) {
         ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
         
         // BRUTE FORCE CURSOR: If the widget is hovered but the cursor is still Arrow, it means the widget's 
@@ -663,7 +752,7 @@ namespace TimedTooltip {
             }
         }
 
-        HandleTooltipClick(id, is_clicked);
+        HandleTooltipClick(id, is_clicked, toggle_on_click);
         
         bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
@@ -755,7 +844,13 @@ namespace TimedTooltip {
     }
 
     inline bool TextMDV(const TooltipConfig* config_override, const char* fmt, va_list args) {
-        return TextMDProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked());
+        ImGuiID raw_id = ImGui::GetItemID();
+        bool toggle = ImGui::Detail::ShouldToggleTooltipOnClick(raw_id, ImGui::IsItemActive());
+        return TextMDProxyV(raw_id, ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked(), toggle);
+    }
+
+    inline bool TextMDLinkV(const TooltipConfig* config_override, const char* fmt, va_list args) {
+        return TextMDProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked(), true);
     }
 
     // Proxy Timed Tooltips with Markdown (accept explicit ID and explicit is_hovered state):
@@ -813,6 +908,27 @@ namespace TimedTooltip {
 
     inline bool TextMD(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
         return TextMD(config, "%s", markdown_text.c_str());
+    }
+
+    // Explicit click-to-toggle Markdown Timed Tooltip chasers (ImGui::TimedTooltip::TextMDLink):
+    inline bool TextMDLink(const TooltipConfig* config, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextMDLinkV(config, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextMDLink(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextMDLinkV(nullptr, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextMDLink(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+        return TextMDLink(config, "%s", markdown_text.c_str());
     }
 
     // Direct aliases for backward-compatibility

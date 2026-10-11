@@ -297,19 +297,108 @@ namespace TimedTooltip {
     using Config = TooltipConfig;
     using State = TooltipState;
 
-    // Dismisses any currently displayed tooltip if the underlying item is clicked:
-    inline void HandleTooltipClick(ImGuiID hash_id, bool is_clicked) {
-        if (!is_clicked || hash_id == 0) return;
-        TooltipState& state = GetTooltipStateMap()[hash_id];
-        state.is_displayed = false;
-        if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
-        state.hover_cycles = 0;
-        state.unhover_grace_cycles = 0;
-        state.is_cooldown = false;
-        state.perfect_size = ImVec2(0, 0);
+} // namespace TimedTooltip
+} // namespace ImGui
+
+#ifndef IMGUI_LINK_CLICK_RESULT_DEFINED
+#define IMGUI_LINK_CLICK_RESULT_DEFINED
+namespace ImGui {
+namespace Detail {
+    struct LinkClickToggleState {
+        int     frame_count = -1;
+        ImGuiID item_id     = 0;
+        ImVec2  item_min    = ImVec2(-1.0f, -1.0f);
+        bool    toggle_mode = false;
+    };
+
+    inline LinkClickToggleState& GetLinkClickToggleState() {
+        static LinkClickToggleState s_State;
+        return s_State;
     }
 
-    inline bool TextProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args, bool is_clicked = false) {
+    inline void RegisterItemTooltipToggle(bool is_toggle_eligible = true) {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        st.frame_count = GetFrameCount();
+        st.item_id     = GetItemID();
+        st.item_min    = GetItemRectMin();
+        st.toggle_mode = is_toggle_eligible;
+    }
+
+    inline void MarkLastItemClickConsumed() {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        if (st.frame_count == GetFrameCount()) {
+            st.toggle_mode = false;
+        }
+    }
+
+    inline bool ShouldToggleTooltipOnClick(ImGuiID raw_item_id, bool is_item_active) {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        ImVec2 cur_min = GetItemRectMin();
+        if (st.frame_count == GetFrameCount()) {
+            if ((raw_item_id != 0 && st.item_id == raw_item_id) ||
+                (raw_item_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y)) {
+                return st.toggle_mode;
+            }
+        }
+        return !is_item_active;
+    }
+} // namespace Detail
+
+    // Return-value proxy for *Link widgets (ButtonLink, SmallButtonLink, TextLink, MD::TextLink):
+    // Implicitly converts to bool when tested in `if (...)` or assigned to a bool, marking the
+    // click as handled by the caller. When called as a standalone statement without testing
+    // the return value, `operator bool()` is not called, allowing a trailing TimedTooltip
+    // to automatically toggle ON/OFF when the widget is clicked!
+    struct LinkClickResult {
+        bool clicked;
+
+        constexpr LinkClickResult(bool is_clicked = false) noexcept : clicked(is_clicked) {}
+
+        operator bool() const noexcept {
+            Detail::MarkLastItemClickConsumed();
+            return clicked;
+        }
+    };
+} // namespace ImGui
+#endif // IMGUI_LINK_CLICK_RESULT_DEFINED
+
+namespace ImGui {
+namespace TimedTooltip {
+
+    // Explicitly marks the preceding widget as a click-to-toggle tooltip target for this frame:
+    inline void ToggleOnClick(bool enable = true) {
+        ImGui::Detail::RegisterItemTooltipToggle(enable);
+    }
+
+    // Handles item click: dismisses if currently displayed; otherwise, if 'toggle_on_click'
+    // is true (e.g. passive text, slider/drag/combo label, or unconsumed *Link widget),
+    // immediately triggers tooltip display on click!
+    inline void HandleTooltipClick(ImGuiID hash_id, bool is_clicked, bool toggle_on_click = false) {
+        if (!is_clicked || hash_id == 0) return;
+        TooltipState& state = GetTooltipStateMap()[hash_id];
+        if (state.is_displayed) {
+            state.is_displayed = false;
+            if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
+            state.hover_cycles = 0;
+            state.unhover_grace_cycles = 0;
+            state.is_cooldown = false;
+            state.perfect_size = ImVec2(0, 0);
+        } else if (toggle_on_click) {
+            if (GetActiveTooltipID() != 0 && GetActiveTooltipID() != hash_id) {
+                ClearActiveTooltip();
+            }
+            state.is_cooldown = false;
+            state.unhover_grace_cycles = 0;
+            state.hover_cycles = 1000000; // Satisfies hover_delay_cycles immediately in BeginStationaryTooltipProxy!
+        } else {
+            state.hover_cycles = 0;
+            state.unhover_grace_cycles = 0;
+            state.is_cooldown = false;
+            state.perfect_size = ImVec2(0, 0);
+        }
+    }
+
+    inline bool TextProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args, bool is_clicked = false, bool toggle_on_click = false) {
         ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
 
         if (is_hovered && previous_cursor == ImGuiMouseCursor_Arrow) {
@@ -338,7 +427,7 @@ namespace TimedTooltip {
             }
         }
 
-        HandleTooltipClick(id, is_clicked);
+        HandleTooltipClick(id, is_clicked, toggle_on_click);
 
         bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
@@ -379,7 +468,13 @@ namespace TimedTooltip {
     }
 
     inline bool TextV(const TooltipConfig* config_override, const char* fmt, va_list args) {
-        return TextProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked());
+        ImGuiID raw_id = ImGui::GetItemID();
+        bool toggle = ImGui::Detail::ShouldToggleTooltipOnClick(raw_id, ImGui::IsItemActive());
+        return TextProxyV(raw_id, ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked(), toggle);
+    }
+
+    inline bool TextLinkV(const TooltipConfig* config_override, const char* fmt, va_list args) {
+        return TextProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked(), true);
     }
 
     // Proxy Timed Tooltips (accept explicit ID and explicit is_hovered state):
@@ -432,6 +527,50 @@ namespace TimedTooltip {
     inline bool Text(const std::string& text, const TooltipConfig* config = nullptr) {
         return Text(config, "%s", text.c_str());
     }
+
+    // Explicit click-to-toggle Timed Tooltip chasers (ImGui::TimedTooltip::TextLink):
+#pragma push_macro("TextLink")
+#undef TextLink
+    inline bool TextLink(const TooltipConfig* config, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextLinkV(config, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextLink(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextLinkV(nullptr, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextLink(const std::string& text, const TooltipConfig* config = nullptr) {
+        return TextLink(config, "%s", text.c_str());
+    }
+
+    inline bool TextLinkContrib(const TooltipConfig* config, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextLinkV(config, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextLinkContrib(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextLinkV(nullptr, fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextLinkContrib(const std::string& text, const TooltipConfig* config = nullptr) {
+        return TextLinkContrib(config, "%s", text.c_str());
+    }
+#pragma pop_macro("TextLink")
 
 } // namespace TimedTooltip
 
