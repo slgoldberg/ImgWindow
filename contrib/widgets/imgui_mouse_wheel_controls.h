@@ -205,7 +205,7 @@ namespace ImGui {
         inline void AttachTooltipProxy(ImGuiID id, const char* text, bool is_hovered)
         {
             if (!text || text[0] == '\0') return;
-#if defined(IMGWINDOW_CONTRIB_H) && !defined(IMGWINDOW_DISABLE_CONTRIB_MARKDOWN) && defined(IMGUI_TOOLTIP_EXT_H)
+#if defined(IMGUI_MARKDOWN_EXT_H) && defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::TextMDProxy(id, is_hovered, "%s", text);
 #elif defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::TextProxy(id, is_hovered, "%s", text);
@@ -220,7 +220,7 @@ namespace ImGui {
         inline void AttachTooltip(const char* text, bool is_hovered)
         {
             if (!text || text[0] == '\0') return;
-#if defined(IMGWINDOW_CONTRIB_H) && !defined(IMGWINDOW_DISABLE_CONTRIB_MARKDOWN) && defined(IMGUI_TOOLTIP_EXT_H)
+#if defined(IMGUI_MARKDOWN_EXT_H) && defined(IMGUI_TOOLTIP_EXT_H)
             (void)is_hovered;
             TimedTooltip::TextMD("%s", text);
 #elif defined(IMGUI_TOOLTIP_EXT_H)
@@ -1508,7 +1508,17 @@ namespace ImGui {
     {
         return ResetCombo(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
     }
-#endif // !IMGUI_DISABLE_MOUSE_WHEEL_COMBO
+
+    inline IMGUI_API bool ResetMouseWheelCombo(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
+    {
+        return ResetCombo(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
+    }
+
+    inline IMGUI_API bool ResetComboMouseWheel(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
+    {
+        return ResetCombo(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
+    }
+#endif // !CONTRIB_DISABLE_MOUSE_WHEEL_COMBO
 
 } // namespace ImGui
 

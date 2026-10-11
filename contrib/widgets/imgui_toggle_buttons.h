@@ -61,7 +61,7 @@ namespace ImGui {
         inline void AttachTooltipProxy(ImGuiID id, const char* text, bool is_hovered)
         {
             if (!text || text[0] == '\0') return;
-#if defined(IMGWINDOW_CONTRIB_H) && !defined(IMGWINDOW_DISABLE_CONTRIB_MARKDOWN) && defined(IMGUI_TOOLTIP_EXT_H)
+#if defined(IMGUI_MARKDOWN_EXT_H) && defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::TextMDProxy(id, is_hovered, "%s", text);
 #elif defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::TextProxy(id, is_hovered, "%s", text);
