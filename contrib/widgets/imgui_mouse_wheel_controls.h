@@ -459,37 +459,6 @@ namespace ImGui {
     {
         return WheelSliderDetail::AdjustInt(valRef, minVal, maxVal, scale, setCustomCursor);
     }
-
-    // Aliases for discoverability & backward compatibility:
-    inline IMGUI_API bool AdjustOnItemMouseWheel(float* valRef, float minVal = 0.0f, float maxVal = 1.0f, float scale = 0.01f, bool setCustomCursor = true)
-    {
-        return AdjustItemOnMouseWheel(valRef, minVal, maxVal, scale, setCustomCursor);
-    }
-
-    inline IMGUI_API bool AdjustOnItemMouseWheel(int* valRef, int minVal = 0, int maxVal = 100, float scale = 1.0f, bool setCustomCursor = true)
-    {
-        return AdjustItemOnMouseWheel(valRef, minVal, maxVal, scale, setCustomCursor);
-    }
-
-    inline IMGUI_API bool UpdateItemOnMouseWheel(float* valRef, float minVal = 0.0f, float maxVal = 1.0f, float scale = 0.01f, bool setCustomCursor = true)
-    {
-        return AdjustItemOnMouseWheel(valRef, minVal, maxVal, scale, setCustomCursor);
-    }
-
-    inline IMGUI_API bool UpdateItemOnMouseWheel(int* valRef, int minVal = 0, int maxVal = 100, float scale = 1.0f, bool setCustomCursor = true)
-    {
-        return AdjustItemOnMouseWheel(valRef, minVal, maxVal, scale, setCustomCursor);
-    }
-
-    inline IMGUI_API bool AdjustItemRangeOnMouseWheel(float* valRef, float minVal = 0.0f, float maxVal = 1.0f, float scale = 0.01f, bool setCustomCursor = true)
-    {
-        return AdjustItemOnMouseWheel(valRef, minVal, maxVal, scale, setCustomCursor);
-    }
-
-    inline IMGUI_API bool AdjustItemRangeOnMouseWheel(int* valRef, int minVal = 0, int maxVal = 100, float scale = 1.0f, bool setCustomCursor = true)
-    {
-        return AdjustItemOnMouseWheel(valRef, minVal, maxVal, scale, setCustomCursor);
-    }
 #endif // !CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL
 
 #if !defined(CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL) && \
@@ -554,28 +523,7 @@ namespace ImGui {
         if (item_count <= 1) return false;
         return CycleItemOnMouseWheel(current_idx, 0, item_count - 1, wrap, natural_list_order, consume, hover_cursor);
     }
-
-    // Aliases for discoverability & backward compatibility:
-    inline IMGUI_API bool CycleOnItemMouseWheel(int* current_idx, int item_count, bool wrap = false, bool natural_list_order = true, bool consume = true, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
-    {
-        return CycleItemOnMouseWheel(current_idx, item_count, wrap, natural_list_order, consume, hover_cursor);
-    }
-
-    inline IMGUI_API bool CycleOnItemMouseWheel(int* current_idx, int min_idx, int max_idx, bool wrap = false, bool natural_list_order = true, bool consume = true, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
-    {
-        return CycleItemOnMouseWheel(current_idx, min_idx, max_idx, wrap, natural_list_order, consume, hover_cursor);
-    }
-
-    inline IMGUI_API bool CycleItemOptionsOnMouseWheel(int* current_idx, int item_count, bool wrap = false, bool natural_list_order = true, bool consume = true, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
-    {
-        return CycleItemOnMouseWheel(current_idx, item_count, wrap, natural_list_order, consume, hover_cursor);
-    }
-
-    inline IMGUI_API bool CycleItemOptionsOnMouseWheel(int* current_idx, int min_idx, int max_idx, bool wrap = false, bool natural_list_order = true, bool consume = true, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
-    {
-        return CycleItemOnMouseWheel(current_idx, min_idx, max_idx, wrap, natural_list_order, consume, hover_cursor);
-    }
-#endif // IMGUI_DISABLE_EXTRA_CYCLE_MOUSE_WHEEL
+#endif // !CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL
 
     // -------------------------------------------------------------------------
     // 3. Vector Undo/Reset Button Helper (Zero FontAwesome Dependency)
@@ -695,37 +643,6 @@ namespace ImGui {
         return changed;
     }
 
-    // Aliases for discoverability & backward compatibility:
-    inline IMGUI_API bool SliderFloatMouseWheel(const char* label, float* v, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f)
-    {
-        return MouseWheelSlider(label, v, v_min, v_max, format, flags, wheel_step);
-    }
-
-    inline IMGUI_API bool SliderIntMouseWheel(const char* label, int* v, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f)
-    {
-        return MouseWheelSlider(label, v, v_min, v_max, format, flags, wheel_step);
-    }
-
-    inline IMGUI_API bool SliderFloatWithWheel(const char* label, float* v, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f)
-    {
-        return MouseWheelSlider(label, v, v_min, v_max, format, flags, wheel_step);
-    }
-
-    inline IMGUI_API bool SliderIntWithWheel(const char* label, int* v, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f)
-    {
-        return MouseWheelSlider(label, v, v_min, v_max, format, flags, wheel_step);
-    }
-
-    inline IMGUI_API bool DragFloatMouseWheel(const char* label, float* v, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f)
-    {
-        return MouseWheelDrag(label, v, v_speed, v_min, v_max, format, flags, wheel_step);
-    }
-
-    inline IMGUI_API bool DragIntMouseWheel(const char* label, int* v, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f)
-    {
-        return MouseWheelDrag(label, v, v_speed, v_min, v_max, format, flags, wheel_step);
-    }
-
     // -------------------------------------------------------------------------
     // 5. PercentSlider (0.0 .. 1.0 displayed as 0% .. 100%, with Mouse-Wheel)
     // -------------------------------------------------------------------------
@@ -770,18 +687,7 @@ namespace ImGui {
         return PercentSlider(label, v, v_min, v_max, format, flags, wheel_step);
     }
 #endif
-
-    // Aliases for discoverability & backward compatibility:
-    inline IMGUI_API bool SliderPercentMouseWheel(const char* label, float* v, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f)
-    {
-        return PercentSlider(label, v, v_min, v_max, format, flags, wheel_step);
-    }
-
-    inline IMGUI_API bool SliderPercentWithWheel(const char* label, float* v, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f)
-    {
-        return PercentSlider(label, v, v_min, v_max, format, flags, wheel_step);
-    }
-#endif // !IMGUI_DISABLE_PERCENT_SLIDER
+#endif // !CONTRIB_DISABLE_PERCENT_SLIDER
 
     // -------------------------------------------------------------------------
     // 6. Composite Sliders & Drag Boxes with Reset [ Control | ↺ ] Label
@@ -1226,7 +1132,7 @@ namespace ImGui {
         return changed;
     }
 
-    // Aliases for discoverability & backward compatibility (Resettable*, MouseWheel*WithReset, Reset*):
+    // Alternate adjective & explicit mouse-wheel forms (Resettable*, MouseWheel*WithReset):
     inline IMGUI_API bool ResettableSlider(const char* label, float* v, float v_default, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
     {
         return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
@@ -1273,71 +1179,6 @@ namespace ImGui {
     }
 
     inline IMGUI_API bool MouseWheelDragWithReset(const char* label, int* v, int v_default, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
-    {
-        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetSlider(const char* label, float* v, float v_default, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
-    {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetSlider(const char* label, int* v, int v_default, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f, const char* reset_tooltip = nullptr)
-    {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetPercentSlider(const char* label, float* v, float v_default = 1.0f, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
-    {
-        return PercentSliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetDrag(const char* label, float* v, float v_default, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
-    {
-        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetDrag(const char* label, int* v, int v_default, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
-    {
-        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetSliderFloat(const char* label, float* v, float v_default, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
-    {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetSliderInt(const char* label, int* v, int v_default, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f, const char* reset_tooltip = nullptr)
-    {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetSliderPercent(const char* label, float* v, float v_default = 1.0f, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
-    {
-        return PercentSliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetSliderFloatWithWheel(const char* label, float* v, float v_default, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
-    {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetSliderPercentWithWheel(const char* label, float* v, float v_default = 1.0f, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
-    {
-        return PercentSliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetSliderIntWithWheel(const char* label, int* v, int v_default, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f, const char* reset_tooltip = nullptr)
-    {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetDragFloat(const char* label, float* v, float v_default, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
-    {
-        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
-    }
-
-    inline IMGUI_API bool ResetDragInt(const char* label, int* v, int v_default, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
     {
         return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
     }
@@ -1549,7 +1390,7 @@ namespace ImGui {
                               hover_cursor, popup_cursor);
     }
 
-    // Aliases for discoverability & backward compatibility:
+    // Alternate adjective & explicit mouse-wheel forms (ResettableCombo, MouseWheelComboWithReset):
     inline IMGUI_API bool ResettableCombo(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
     {
         return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
@@ -1568,61 +1409,6 @@ namespace ImGui {
     inline IMGUI_API bool MouseWheelComboWithReset(const char* label, int* current_item, int default_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
     {
         return ComboWithReset(label, current_item, default_item, items_separated_by_zeros, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ComboMouseWheel(const char* label, int* current_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return MouseWheelCombo(label, current_item, items, items_count, popup_max_height_in_items, wrap, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ComboMouseWheel(const char* label, int* current_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return MouseWheelCombo(label, current_item, items_separated_by_zeros, popup_max_height_in_items, wrap, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ComboWithWheel(const char* label, int* current_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return MouseWheelCombo(label, current_item, items, items_count, popup_max_height_in_items, wrap, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ComboWithWheel(const char* label, int* current_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return MouseWheelCombo(label, current_item, items_separated_by_zeros, popup_max_height_in_items, wrap, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool WheelCombo(const char* label, int* current_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return MouseWheelCombo(label, current_item, items, items_count, popup_max_height_in_items, wrap, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool WheelCombo(const char* label, int* current_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return MouseWheelCombo(label, current_item, items_separated_by_zeros, popup_max_height_in_items, wrap, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ResetCombo(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ResetCombo(const char* label, int* current_item, int default_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return ComboWithReset(label, current_item, default_item, items_separated_by_zeros, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ResetComboWithWheel(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ResetMouseWheelCombo(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
-    }
-
-    inline IMGUI_API bool ResetComboMouseWheel(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
-    {
-        return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
     }
 #endif // !CONTRIB_DISABLE_MOUSE_WHEEL_COMBO
 

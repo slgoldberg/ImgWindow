@@ -234,7 +234,7 @@ ImGui::RadioButtonLink("NAV 1", &s_NavSource, 1);
 ```cpp
 // Attach default Hand cursor to any preceding item:
 ImGui::Image(textureId, ImVec2(64, 64));
-ImGui::AttachItemCursor(); // (aliases: ShowItemCursor, SetItemCursor, ShowItemCursorOnHover, ShowLinkCursorOnHover)
+ImGui::AttachItemCursor();
 
 // Or attach any specific ImGuiMouseCursor on hover:
 ImGui::Button("Splitter");

@@ -43,32 +43,6 @@ namespace ImGui {
         }
     }
 
-    // Aliases for discoverability & backward compatibility:
-    inline IMGUI_API void ShowItemCursor(ImGuiMouseCursor cursor = ImGuiMouseCursor_Hand)
-    {
-        AttachItemCursor(cursor);
-    }
-
-    inline IMGUI_API void SetItemCursor(ImGuiMouseCursor cursor = ImGuiMouseCursor_Hand)
-    {
-        AttachItemCursor(cursor);
-    }
-
-    inline IMGUI_API void SetItemHoverCursor(ImGuiMouseCursor cursor = ImGuiMouseCursor_Hand)
-    {
-        AttachItemCursor(cursor);
-    }
-
-    inline IMGUI_API void ShowItemCursorOnHover(ImGuiMouseCursor cursor = ImGuiMouseCursor_Hand)
-    {
-        AttachItemCursor(cursor);
-    }
-
-    inline IMGUI_API void ShowCursorOnHover(ImGuiMouseCursor cursor = ImGuiMouseCursor_Hand)
-    {
-        AttachItemCursor(cursor);
-    }
-
     inline IMGUI_API void ShowLinkCursorOnHover()
     {
         AttachItemCursor(ImGuiMouseCursor_Hand);
