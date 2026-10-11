@@ -13,6 +13,14 @@
 
 #pragma once
 
+#if !defined(CONTRIB_DISABLE_MARKDOWN) && \
+    !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && \
+    !defined(IMGUI_DISABLE_CONTRIB_MARKDOWN) && \
+    !defined(IMGUI_DISABLE_MARKDOWN) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_MARKDOWN)
+#ifndef IMGUI_MARKDOWN_EXT_H
+#define IMGUI_MARKDOWN_EXT_H
+
 #include "imgui.h"
 #include <string>
 #include <functional>
@@ -623,7 +631,7 @@ namespace ImGui {
 namespace ImGui {
 namespace TimedTooltip {
 
-    inline bool TextMDProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args) {
+    inline bool TextMDProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args, bool is_clicked = false) {
         ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
         
         // BRUTE FORCE CURSOR: If the widget is hovered but the cursor is still Arrow, it means the widget's 
@@ -654,6 +662,8 @@ namespace TimedTooltip {
                 id = ImGui::GetID(coord_key != 0 ? &coord_key : (const void*)(fmt ? fmt : "##timed_tt_anon_md"));
             }
         }
+
+        HandleTooltipClick(id, is_clicked);
         
         bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
@@ -745,7 +755,7 @@ namespace TimedTooltip {
     }
 
     inline bool TextMDV(const TooltipConfig* config_override, const char* fmt, va_list args) {
-        return TextMDProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args);
+        return TextMDProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked());
     }
 
     // Proxy Timed Tooltips with Markdown (accept explicit ID and explicit is_hovered state):
@@ -826,3 +836,6 @@ namespace TimedTooltip {
 
 } // namespace ImGui
 #endif
+
+#endif // IMGUI_MARKDOWN_EXT_H
+#endif // !IMGUI_DISABLE_MARKDOWN

@@ -9,8 +9,15 @@
 //     hermetic style isolation, auto-wrapping, and Markdown synergy.
 // ============================================================================
 
-#define IMGUI_TOOLTIP_EXT_H
 #pragma once
+
+#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && \
+    !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && \
+    !defined(IMGUI_DISABLE_CONTRIB_TIMED_TOOLTIP) && \
+    !defined(IMGUI_DISABLE_TIMED_TOOLTIP) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_TIMED_TOOLTIP)
+#ifndef IMGUI_TOOLTIP_EXT_H
+#define IMGUI_TOOLTIP_EXT_H
 
 #include "imgui.h"
 #include <unordered_map>
@@ -24,7 +31,7 @@ namespace TimedTooltip {
     struct TooltipConfig {
         int hover_delay_cycles = 65;      // Low Watermark: Cycles before appearing
         int max_display_cycles = 504;     // High Watermark: Cycles before auto-hiding
-        int grace_period_cycles = 5;      // Forgiveness cycles for slipping off the widget
+        int grace_period_cycles = 12;     // Forgiveness cycles for slipping off the widget
         float size_skew_multiplier = 0.5f;// Add extra cycles per pixel of height for massive manuals
         bool enable_wiggle_latch = true;  // Keep alive if mouse wiggles
         
@@ -290,7 +297,19 @@ namespace TimedTooltip {
     using Config = TooltipConfig;
     using State = TooltipState;
 
-    inline bool TextProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args) {
+    // Dismisses any currently displayed tooltip if the underlying item is clicked:
+    inline void HandleTooltipClick(ImGuiID hash_id, bool is_clicked) {
+        if (!is_clicked || hash_id == 0) return;
+        TooltipState& state = GetTooltipStateMap()[hash_id];
+        state.is_displayed = false;
+        if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
+        state.hover_cycles = 0;
+        state.unhover_grace_cycles = 0;
+        state.is_cooldown = false;
+        state.perfect_size = ImVec2(0, 0);
+    }
+
+    inline bool TextProxyV(ImGuiID id, bool is_hovered, const TooltipConfig* config_override, const char* fmt, va_list args, bool is_clicked = false) {
         ImGuiMouseCursor previous_cursor = ImGui::GetMouseCursor();
 
         if (is_hovered && previous_cursor == ImGuiMouseCursor_Arrow) {
@@ -318,6 +337,8 @@ namespace TimedTooltip {
                 id = ImGui::GetID(coord_key != 0 ? &coord_key : (const void*)(fmt ? fmt : "##timed_tt_anon"));
             }
         }
+
+        HandleTooltipClick(id, is_clicked);
 
         bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
@@ -358,7 +379,7 @@ namespace TimedTooltip {
     }
 
     inline bool TextV(const TooltipConfig* config_override, const char* fmt, va_list args) {
-        return TextProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args);
+        return TextProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked());
     }
 
     // Proxy Timed Tooltips (accept explicit ID and explicit is_hovered state):
@@ -399,7 +420,7 @@ namespace TimedTooltip {
         return res;
     }
 
-    // Plain-text Timed Tooltip: mirrors standard ImGui vocabulary (ImGui::TimedTooltips::Text)
+    // Plain-text Timed Tooltip: mirrors standard ImGui vocabulary (ImGui::TimedTooltip::Text)
     inline bool Text(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -415,3 +436,6 @@ namespace TimedTooltip {
 } // namespace TimedTooltip
 
 } // namespace ImGui
+
+#endif // IMGUI_TOOLTIP_EXT_H
+#endif // !IMGUI_DISABLE_TIMED_TOOLTIP

@@ -120,12 +120,16 @@ ImGui::MD::TextWrapped(
 );
 ```
 
+> [!TIP]
+> **`#`, `##`, and `###` Are Pure Markdown Headers (Never Swallowed as ImGui IDs!):**
+> In standard Dear ImGui widgets (`ImGui::Button`, `ImGui::Checkbox`, `ImGui::CollapsingHeader`, etc.), `"##"` is reserved as an ID separator that hides everything after `"##"`.
+> In `ImGui::MD::Text(...)`, `ImGui::MD::TextWrapped(...)`, and `ImGui::TimedTooltip::TextMD(...)`, text is rendered via `ImGui::TextUnformatted(start, end)`, bypassing ImGui's `"##"` label parser completely. You can freely start strings or lines with `#`, `##`, or `###` for H1/H2/H3 headers without any escaping!
+
 ### 4. Rendering Markdown in Timed Tooltips
-When combined with the companion **TimedTooltip** extension, rich multi-line Markdown tooltips are attached with a single line of code:
+When combined with the companion **TimedTooltip** extension (or when including the master header `#include "contrib/ImgWindow_contrib.h"`), rich multi-line Markdown tooltips are attached with a single line of code:
 
 ```cpp
-#include "contrib/extensions/TimedTooltip/imgui_tooltip_ext.h"
-#include "contrib/extensions/Markdown/imgui_markdown_ext.h"
+#include "contrib/ImgWindow_contrib.h"
 
 ImGui::Button("Accessibility Mode");
 ImGui::TimedTooltip::TextMD(

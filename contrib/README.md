@@ -1,39 +1,50 @@
-# ImgWindow Contrib Ecosystem
+# ImGui Contributions in ImgWindow (`contrib/`)
 
-Welcome to the `contrib/` directory of **ImgWindow**. This space hosts community-contributed extensions, widgets, and utility packages that extend Dear ImGui within X-Plane plugins that rely on the **ImgWindow** framework to host and render their user interfaces.
+Welcome to the `contrib/` directory of **ImgWindow**. This directory houses ImgWindow's bundled library of community-contributed **Dear ImGui (`ImGui::`) extensions and immediate-mode widgets** for X-Plane plugins.
 
 ---
 
 ## Ecosystem Organization
 
-To keep contributions modular and maintainable, the ecosystem is organized into two primary categories:
+To keep contributions modular and easy to include at any level of granularity, the ecosystem is organized into two primary categories with uniform **`includes.h`** roll-up headers and top-level concentrators:
 
 ```
-contrib/
-├── extensions/          # Heavyweight, feature-complete packages
-│   ├── Markdown/        # Markdown parser & renderer with dynamic font scaling
-│   └── TimedTooltip/    # Timed tooltips engine with auto-bounds clamping
-│
-└── widgets/             # Lightweight, reusable UI controls
-    ├── imgui_extra_widgets.h   # Master roll-up header (Opt-Out by default)
-    ├── toggle_button.h         # Animated toggle switches & segmented button pairs
-    ├── wheel_slider.h          # Sliders & controls with mouse-wheel interaction
-    └── clickable_link.h        # ButtonLink, TextLink & hand-cursor affordances
+ImgWindow/
+├── contrib.h                              # Top-level concentrator (-> contrib/includes.h)
+└── contrib/
+    ├── includes.h                         # Master roll-up for all extensions & widgets
+    ├── extensions.h                       # Concentrator for all extensions (-> extensions/includes.h)
+    ├── widgets.h                          # Concentrator for all widgets    (-> widgets/includes.h)
+    │
+    ├── extensions/                        # Feature-complete ImGui::<Package>:: subsystems
+    │   ├── includes.h                     # Roll-up for all extensions (TimedTooltip first, then Markdown)
+    │   ├── TimedTooltip/                  # Stationary & delayed tooltip engine with auto-bounds clamping
+    │   └── Markdown/                      # Markdown parser & renderer with dynamic font scaling & tags
+    │
+    └── widgets/                           # Lightweight, immediate-mode ImGui:: UI controls
+        ├── includes.h                     # Roll-up for all contributed widgets
+        ├── imgui_toggle_buttons.h         # Animated toggle switches & segmented button pairs
+        ├── imgui_mouse_wheel_controls.h   # Sliders, drags, combos & chasers with mouse-wheel support
+        └── imgui_clickable_links.h        # ButtonLink, TextLink & AttachItemCursor hover affordances
 ```
 
 ### 1. Packages & Extensions (`contrib/extensions/`)
-* **What they are:** Complex, feature-rich additions that maintain their own internal state, use configuration structs, or integrate external libraries.
-* **Namespacing:** Strictly scoped within a dedicated sub-namespace (`ImGui::<PackageName>::`, e.g. `ImGui::TimedTooltip::Text(...)`) to avoid polluting the global ImGui namespace.
-* **Inclusion:** Included a-la-carte as needed.
+* **What they are:** Feature-rich additions that maintain their own internal state, use configuration structs, or integrate external libraries.
+* **Namespacing:** Scoped within a dedicated sub-namespace (`ImGui::<PackageName>::`, e.g. `ImGui::TimedTooltip::Text(...)`, `ImGui::MD::TextWrapped(...)`) to avoid polluting the root `ImGui::` namespace.
+* **Inclusion:**
+  * **Everything in `contrib/`:** `#include "ImgWindow/contrib.h"` (or `"ImgWindow/contrib/includes.h"`)
+  * **All extensions:** `#include "ImgWindow/contrib/extensions.h"` (or `"ImgWindow/contrib/extensions/includes.h"`)
+  * **A-la-carte:** `#include "ImgWindow/contrib/extensions/TimedTooltip/imgui_tooltip_ext.h"`
 * *See &rarr; [contrib/extensions/README.md](extensions/README.md) for full guidelines.*
 
 ### 2. Reusable Widgets (`contrib/widgets/`)
-* **What they are:** Self-contained, immediate-mode UI controls that feel like native Dear ImGui controls (e.g. toggle buttons, wheel-responsive sliders, clickable link affordances).
-* **Namespacing:** Injected directly into the top-level `ImGui::` namespace (`ImGui::ToggleButton(...)`, `ImGui::AdjustOnItemMouseWheel(...)`).
+* **What they are:** Self-contained, immediate-mode UI controls and item chasers that feel like native Dear ImGui controls (e.g. toggle buttons, mouse-wheel sliders/drags/combos, clickable link affordances).
+* **Namespacing:** Injected directly into the root `ImGui::` namespace (`ImGui::ToggleButton(...)`, `ImGui::MouseWheelSlider(...)`, `ImGui::AdjustItemOnMouseWheel(...)`, `ImGui::AttachItemCursor(...)`).
 * **Inclusion Strategy:**
-  * **A-la-carte:** Include only what you need (`#include "contrib/widgets/wheel_slider.h"`).
-  * **Master Roll-Up:** Include everything via `#include "contrib/widgets/imgui_extra_widgets.h"`.
-  * **Opt-Out Guards:** Every widget is wrapped in an `#ifndef IMGUI_DISABLE_EXTRA_<WIDGET>` guard so you can disable specific widgets if naming collisions occur.
+  * **Everything in `contrib/`:** `#include "ImgWindow/contrib.h"`
+  * **All widgets:** `#include "ImgWindow/contrib/widgets.h"` (or `"ImgWindow/contrib/widgets/includes.h"`)
+  * **A-la-carte:** `#include "ImgWindow/contrib/widgets/imgui_mouse_wheel_controls.h"`
+  * **Opt-Out Guards:** Every extension, widget family, and chaser is wrapped in an `#ifndef CONTRIB_DISABLE_<FEATURE>` guard so you can selectively disable any feature before including `contrib.h`.
 * *See &rarr; [contrib/widgets/README.md](widgets/README.md) for full guidelines.*
 
 ---

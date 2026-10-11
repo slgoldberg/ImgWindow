@@ -73,7 +73,7 @@ The `TooltipConfig` (aliased as `ImGui::TimedTooltip::Config`) controls timing, 
 | :--- | :--- | :--- | :--- |
 | `hover_delay_cycles` | `int` | `65` | Frame cycles the mouse must hover before the tooltip appears (~1.0s at 60fps). |
 | `max_display_cycles` | `int` | `504` | Frame cycles before the tooltip auto-dismisses. Set negative to disable auto-hide. |
-| `grace_period_cycles`| `int` | `5` | Allowable frame cycles off the widget before cancelling hover state. |
+| `grace_period_cycles`| `int` | `12` | Allowable frame cycles off the widget before cancelling hover state. |
 | `size_skew_multiplier`| `float` | `0.5f` | Extra cycles added to display timeout per pixel of vertical height. |
 | `enable_wiggle_latch`| `bool` | `true` | When `true`, subtle mouse movements inside the tooltip reset the dismiss timer. |
 | `default_wrap_width` | `float` | `360.0f` | Target comfortable sticky-note width (~50-60 chars). Short text shrink-wraps tightly to its natural size. |
@@ -190,13 +190,28 @@ When `TooltipConfig::font_scale` is left at `0.0f` (the default), the tooltip en
 ```cpp
 namespace ImGui {
     namespace TimedTooltip {
-        // High-level Plain Text (binds to previous ImGui item):
-        void Text(const char* fmt, ...);
-        void Text(const TooltipConfig* config, const char* fmt, ...);
+        // High-level Plain Text (binds to previous ImGui item; returns true when displayed):
+        bool Text(const char* fmt, ...);
+        bool Text(const TooltipConfig* config, const char* fmt, ...);
+        bool Text(const std::string& text, const TooltipConfig* config = nullptr);
 
-        // High-level Markdown (requires imgui_markdown_ext.h):
-        void TextMD(const char* fmt, ...);
-        void TextMD(const TooltipConfig* config, const char* fmt, ...);
+        // High-level Plain Text Proxy (explicit ID and hover state):
+        bool TextProxy(ImGuiID id, bool is_hovered, const char* fmt, ...);
+        bool TextProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...);
+        bool TextProxy(const char* str_id, bool is_hovered, const char* fmt, ...);
+        bool TextProxy(const char* str_id, bool is_hovered, const std::string& text, const TooltipConfig* config = nullptr);
+
+        // High-level Markdown (requires imgui_markdown_ext.h; returns true when displayed):
+        bool TextMD(const char* fmt, ...);
+        bool TextMD(const TooltipConfig* config, const char* fmt, ...);
+        bool TextMD(const std::string& markdown_text, const TooltipConfig* config = nullptr);
+
+        // High-level Markdown Proxy (explicit ID and hover state):
+        bool TextMDProxy(ImGuiID id, bool is_hovered, const char* fmt, ...);
+        bool TextMDProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...);
+        bool TextMDProxy(const char* str_id, bool is_hovered, const char* fmt, ...);
+        bool TextMDProxy(ImGuiID id, bool is_hovered, const std::string& markdown_text, const TooltipConfig* config = nullptr);
+        bool TextMDProxy(const char* str_id, bool is_hovered, const std::string& markdown_text, const TooltipConfig* config = nullptr);
 
         // Configuration:
         using Config = TooltipConfig;
