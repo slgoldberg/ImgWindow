@@ -10,7 +10,7 @@
 // Why use this header (or top-level "contrib.h")?
 // 1. Guaranteed Dependency Order: Automatically includes TimedTooltip BEFORE
 //    Markdown and Widgets so cross-extension bridges (such as
-//    ImGui::TimedTooltip::TextMD and TimedTooltips on ResetSlider / ResetCombo)
+//    ImGui::TimedTooltip::TextMD and TimedTooltips on SliderWithReset / ComboWithReset)
 //    activate seamlessly with zero manual header juggling.
 // 2. Easy Customization & Opt-Out: Uncomment any of the #define toggles below
 //    (or define them before including this file) to selectively exclude
@@ -53,7 +53,7 @@
 // #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL      // Exclude CycleItemOnMouseWheel()
 // #define CONTRIB_DISABLE_PERCENT_SLIDER         // Exclude PercentSlider() & SliderPercent()
 // #define CONTRIB_DISABLE_SLIDER_PERCENT         // Exclude only the SliderPercent() alias
-// #define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO      // Exclude MouseWheelCombo & ResetCombo
+// #define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO      // Exclude MouseWheelCombo & ComboWithReset
 
 // (Note: IMGUI_CONTRIB_DISABLE_*, IMGUI_DISABLE_CONTRIB_*, and legacy
 //  IMGUI_DISABLE_EXTRA_* macro names are also honored automatically.)

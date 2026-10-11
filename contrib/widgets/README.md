@@ -9,7 +9,7 @@ Unlike **Extensions** (which manage their own complex background subsystems, reg
 ## Architecture & Inclusion Strategy
 
 ### 1. Root `ImGui::` Namespacing
-All widgets in this directory are injected directly into `namespace ImGui { ... }`. You call `ImGui::ToggleButton(...)`, `ImGui::ResetSlider(...)`, `ImGui::PercentSlider(...)`, and `ImGui::ButtonLink(...)` just like Dear ImGui's built-in `ImGui::Checkbox` or `ImGui::SliderFloat`.
+All widgets in this directory are injected directly into `namespace ImGui { ... }`. You call `ImGui::ToggleButton(...)`, `ImGui::SliderWithReset(...)`, `ImGui::PercentSlider(...)`, and `ImGui::ButtonLink(...)` just like Dear ImGui's built-in `ImGui::Checkbox` or `ImGui::SliderFloat`.
 
 ### 2. The 4-Tier Inclusion Model
 
@@ -35,7 +35,7 @@ If your project defines a function with the same name, define any of the followi
 #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL     // Disables CycleItemOnMouseWheel()
 #define CONTRIB_DISABLE_PERCENT_SLIDER        // Disables PercentSlider() & SliderPercent()
 #define CONTRIB_DISABLE_SLIDER_PERCENT        // Disables only the SliderPercent() alias
-#define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO     // Disables MouseWheelCombo & ResetCombo
+#define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO     // Disables MouseWheelCombo & ComboWithReset
 ```
 
 ---
@@ -156,8 +156,8 @@ static float s_Opacity = 0.85f;
 ImGui::PercentSlider("Window Opacity", &s_Opacity, 0.1f, 1.0f); // (alias: ImGui::SliderPercent)
 ```
 
-#### E. Composite Reset Sliders & Drag Boxes (`ResetSlider` / `ResetPercentSlider` / `ResetDrag`)
-Full-featured compound controls (overloaded for `float*` and `int*`) with built-in mouse-wheel support, a flush abutting vector undo/reset button (`0`-gap seam), smart width reservation, hover isolation, active input lockout, and dual-tooltip support.
+#### E. Composite Sliders & Drag Boxes with Reset (`SliderWithReset` / `PercentSliderWithReset` / `DragWithReset`)
+Full-featured compound controls (overloaded for `float*` and `int*`, also aliased as `ResettableSlider`, `ResettablePercentSlider`, and `ResettableDrag`) with built-in mouse-wheel support, a flush abutting vector undo/reset button (`0`-gap seam), smart width reservation, hover isolation, active input lockout, and dual-tooltip support.
 * Sits cleanly in a single line: `[ Control Track/Box | ↺ ]  Label Text`
 * Automatically dims the reset button when already at default value, and lights up when modified.
 * Features an antialiased vector counter-clockwise undo glyph drawn directly in `ImDrawList` (zero font dependencies).
@@ -167,19 +167,19 @@ static float s_Heading = 180.0f;
 static int   s_Fov     = 80;
 
 // 1-line sliders (float* or int*) with built-in mouse-wheel and one-click reset:
-ImGui::ResetSlider("Heading", &s_Heading, 180.0f /* default */, 0.0f, 360.0f, "%.0f°");
-ImGui::ResetSlider("FOV",     &s_Fov,     80     /* default */, 40,   120,    "%d°");
+ImGui::SliderWithReset("Heading", &s_Heading, 180.0f /* default */, 0.0f, 360.0f, "%.0f°");
+ImGui::SliderWithReset("FOV",     &s_Fov,     80     /* default */, 40,   120,    "%d°");
 
 static float s_Opacity = 0.85f;
-ImGui::ResetPercentSlider("Opacity", &s_Opacity, 0.85f /* default */, 0.1f, 1.0f);
+ImGui::PercentSliderWithReset("Opacity", &s_Opacity, 0.85f /* default */, 0.1f, 1.0f);
 
 static float s_PitchOffset = 0.0f;
-ImGui::ResetDrag("Pitch Offset", &s_PitchOffset, 0.0f /* default */, 0.5f /* speed */, -45.0f, 45.0f, "%.1f°");
+ImGui::DragWithReset("Pitch Offset", &s_PitchOffset, 0.0f /* default */, 0.5f /* speed */, -45.0f, 45.0f, "%.1f°");
 ```
 
-#### F. Turnkey Mouse-Wheel Combos (`MouseWheelCombo` / `ResetCombo`)
+#### F. Turnkey Mouse-Wheel Combos (`MouseWheelCombo` / `ComboWithReset`)
 Dropdown combo boxes that work like standard `ImGui::Combo` when clicked, and support live mouse-wheel cycling both when **closed** (hovering over the combo box frame) and while the dropdown popup menu is **open** (hovering over the open list or combo header)!
-* **`ResetCombo`** pairs the mouse-wheel combo with the flush abutting `↺` reset button to revert to `default_item` in one click.
+* **`ComboWithReset`** (also aliased as `ResettableCombo`) pairs the mouse-wheel combo with the flush abutting `↺` reset button to revert to `default_item` in one click.
 * **Per-Item Tooltips (`item_tooltips[]`) & Open-Menu Wheel Tooltip Latch ("Lens UI"):** Pass an optional array of tooltip strings (plain text or Markdown when `contrib.h` is active) to attach a distinct tooltip to each item in the open dropdown list. When the user spins the mouse wheel while the dropdown menu is open, tooltip targeting automatically latches onto the **newly wheel-selected item** (`*current_item`) rather than whichever row the stationary mouse cursor happens to be parked over, and seamlessly returns to normal mouse hover targeting on the first movement of the mouse (`> 1.5px`).
 
 ```cpp
@@ -198,10 +198,10 @@ ImGui::MouseWheelCombo("Camera View", &s_CamMode, kCameraModes, IM_ARRAYSIZE(kCa
                        -1, false /* wrap */, kCameraModeTooltips);
 
 // Compound mouse-wheel dropdown with abutting one-click reset to default (1 = Chase):
-ImGui::ResetCombo("Camera Mode", &s_CamMode, 1 /* default */,
-                  kCameraModes, IM_ARRAYSIZE(kCameraModes),
-                  -1, false /* wrap */, nullptr /* default reset tooltip */,
-                  kCameraModeTooltips);
+ImGui::ComboWithReset("Camera Mode", &s_CamMode, 1 /* default */,
+                      kCameraModes, IM_ARRAYSIZE(kCameraModes),
+                      -1, false /* wrap */, nullptr /* default reset tooltip */,
+                      kCameraModeTooltips);
 ```
 
 ---
