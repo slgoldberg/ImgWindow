@@ -29,13 +29,19 @@ If your project defines a function with the same name, define any of the followi
 #define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS  // Disables all wheel sliders, drags, cyclers & combos
 #define CONTRIB_DISABLE_CLICKABLE_LINKS       // Disables ButtonLink, TextLink & AttachItemCursor
 
-// Fine-grained opt-outs within imgui_mouse_wheel_controls.h:
+// Fine-grained opt-outs & style defaults within imgui_mouse_wheel_controls.h:
 #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Disables GetMouseWheel* primitives
 #define CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL    // Disables AdjustItemOnMouseWheel()
 #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL     // Disables CycleItemOnMouseWheel()
 #define CONTRIB_DISABLE_PERCENT_SLIDER        // Disables PercentSlider() & SliderPercent()
 #define CONTRIB_DISABLE_SLIDER_PERCENT        // Disables only the SliderPercent() alias
 #define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO     // Disables MouseWheelCombo & ComboWithReset
+#define IMGUI_CONTRIB_DISABLE_RESET_UNDO      // Disables 1-click Reset-with-Undo (restore previous value)
+
+// Optional compile-time icon & chevron style customization:
+#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL      ICON_FA_UNDO     // Custom primary reset icon (default: vector ↺)
+#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT  ICON_FA_REDO     // Custom restore/redo icon (default: vector ↻)
+#define IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE ImGui::ComboArrowStyle_RightWhenClosed // Combo chevron polarity
 ```
 
 ---
@@ -129,7 +135,7 @@ Attaches to **any** preceding widget (`Button`, `Text`, `Combo`, `Selectable`) t
 * **Directional Hover Cursor:** Defaults to `ImGuiMouseCursor_ResizeNS` (`↕`) on hover, and can be overridden per-call (e.g., `ImGuiMouseCursor_ResizeEW` `↔` for horizontal button cycling or `ImGuiMouseCursor_Hand`).
 
 ```cpp
-// Attach wheel-cycling directly to a button with an East-West scroll cursor:
+// 1. Attach wheel-cycling to a popup-menu opener button with an East-West scroll cursor:
 if (ImGui::ButtonLink(kDensityLabels[s_DensityIdx])) {
     ImGui::OpenPopup("##density_menu");
 }
@@ -137,6 +143,24 @@ if (ImGui::CycleItemOnMouseWheel(&s_DensityIdx, 5 /* item_count */, false /* wra
                                  true /* natural_list_order */, true /* consume */,
                                  ImGuiMouseCursor_ResizeEW)) {
     ApplyDensity(s_DensityIdx);
+}
+
+// 2. Standalone wheel-cycled ButtonLink paired with an abutting ResetButton:
+//    Evaluating `(is_mod || can_restore) && static_cast<bool>(btn)` resets/restores on click
+//    when actionable, and automatically falls back to click-to-toggle tooltip when idle at default!
+const bool is_mod      = (s_DensityIdx != 2);
+const bool can_restore = (!is_mod && s_LastDensityIdx != 2);
+auto btn = ImGui::ButtonLink(kDensityLabels[s_DensityIdx], ImVec2(110.0f, 0.0f));
+bool btn_clicked = (is_mod || can_restore) && static_cast<bool>(btn);
+if (ImGui::CycleItemOnMouseWheel(&s_DensityIdx, 5, false, true, true, ImGuiMouseCursor_ResizeEW)) {
+    if (s_DensityIdx == 2) s_LastDensityIdx = 2;
+}
+ImGui::SameLine(0.0f, 0.0f);
+bool rst_clicked = ImGui::ResetButton("##density_reset", is_mod, 0.0f, true /* abutting */, nullptr, can_restore);
+if (btn_clicked || rst_clicked) {
+    if (is_mod) { s_LastDensityIdx = s_DensityIdx; s_DensityIdx = 2; }
+    else if (can_restore) { s_DensityIdx = s_LastDensityIdx; }
+    ImGui::TimedTooltip::ClearActiveTooltip();
 }
 ```
 
@@ -156,21 +180,29 @@ static float s_Opacity = 0.85f;
 ImGui::PercentSlider("Window Opacity", &s_Opacity, 0.1f, 1.0f); // (alias: ImGui::SliderPercent)
 ```
 
-#### E. Composite Sliders & Drag Boxes with Reset (`SliderWithReset` / `PercentSliderWithReset` / `DragWithReset`)
-Full-featured compound controls (overloaded for `float*` and `int*`, also aliased as `ResettableSlider`, `ResettablePercentSlider`, and `ResettableDrag`) with built-in mouse-wheel support, a flush abutting vector undo/reset button (`0`-gap seam), smart width reservation, hover isolation, active input lockout, and dual-tooltip support.
-* Sits cleanly in a single line: `[ Control Track/Box | ↺ ]  Label Text`
-* Automatically dims the reset button when already at default value, and lights up when modified.
-* **Click-to-Toggle Tooltip When at Default:** Clicking the dimmed reset button when already at default value (`!is_modified`) or clicking the right-side text label immediately toggles the status/help `TimedTooltip` ON/OFF!
-* Features an antialiased vector counter-clockwise undo glyph drawn directly in `ImDrawList` (zero font dependencies), or accepts a custom icon/string globally via `ImGui::SetDefaultResetButtonLabel(ICON_FA_UNDO)` (or `#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL ICON_FA_UNDO`).
+#### E. Composite Sliders & Drag Boxes with Reset & Undo (`SliderWithReset` / `PercentSliderWithReset` / `DragWithReset`)
+Full-featured compound controls (overloaded for `float*` and `int*`, also aliased as `ResettableSlider`, `ResettablePercentSlider`, and `ResettableDrag`) with built-in mouse-wheel support, a flush abutting vector undo/reset button (`0`-gap seam), smart width reservation, hover isolation, active input lockout, and **Reset-with-Undo** (1-click A/B toggle between default and previous value).
+* Sits cleanly in a single line: `[ Control Track/Box | ↺ / ↻ ]  Label Text`
+* **"Reset with Undo" (1-Click A/B Comparison):**
+  * When modified (`*v != v_default`), clicking the Reset button saves the current non-default value (`last_val`), resets `*v = v_default`, and flips the button into **Restore/Redo Mode** (`↻` or `IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT`).
+  * Clicking the button again in Restore mode swaps `*v` right back to `last_val`, letting users click back and forth effortlessly to A/B compare their custom setting against the default!
+  * **Automatic Session Memory + Optional Persistent Pointer (`v_last`):** Works automatically with **zero extra arguments** via internal per-ID session memory (`##reset_undo`), or accepts an optional trailing `float* v_last = nullptr` / `int* v_last = nullptr` pointer if you want to persist the pre-reset value in your own variable/dataref across sessions.
+* **Automatic 3-State Default Tooltips:** When `reset_tooltip` is `nullptr`, automatically formats the default and previous values using the control's `format` string:
+  * **Modified:** `"Click to revert to default (85%)."`
+  * **After Reset (Restore Mode):** `"At default (85%). Click to restore previous (42%)."`
+  * **At Default (Idle):** `"Already at default (85%)."` (Clicking the dimmed button or right-side label immediately toggles the status/help `TimedTooltip` ON/OFF!)
+* **Dual Icon Configuration (`#define` or Runtime Setter) & Vector Fallback:**
+  * With zero font configuration, draws crisp, DPI-scaled procedural vector arrows directly in `ImDrawList`: counter-clockwise **`↺`** for Reset, and clockwise **`↻`** for Restore-Previous.
+  * Or configure custom FontAwesome / icon-font strings at compile time (`#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL ICON_FA_UNDO` and `#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT ICON_FA_REDO` / `IMGUI_CONTRIB_DEFAULT_REDO_LABEL`) or at runtime via `ImGui::SetDefaultResetButtonLabel(reset_label, restore_label)`. Button width is automatically sized across both glyphs so the control never shifts by 1px when toggling states.
 
 ```cpp
 static float s_Heading = 180.0f;
 static int   s_Fov     = 80;
 
-// Optional: use a FontAwesome glyph instead of the built-in vector undo arrow:
-// ImGui::SetDefaultResetButtonLabel(ICON_FA_UNDO);
+// Optional: configure custom Reset & Restore/Redo icons globally (or via #define before #include):
+// ImGui::SetDefaultResetButtonLabel(ICON_FA_UNDO, ICON_FA_REDO);
 
-// 1-line sliders (float* or int*) with built-in mouse-wheel and one-click reset:
+// 1-line sliders (float* or int*) with built-in mouse-wheel and Reset-with-Undo:
 ImGui::SliderWithReset("Heading", &s_Heading, 180.0f /* default */, 0.0f, 360.0f, "%.0f°");
 ImGui::SliderWithReset("FOV",     &s_Fov,     80     /* default */, 40,   120,    "%d°");
 
@@ -182,8 +214,17 @@ ImGui::DragWithReset("Pitch Offset", &s_PitchOffset, 0.0f /* default */, 0.5f /*
 ```
 
 #### F. Turnkey Mouse-Wheel Combos (`MouseWheelCombo` / `ComboWithReset`)
-Dropdown combo boxes that work like standard `ImGui::Combo` when clicked, and support live mouse-wheel cycling both when **closed** (hovering over the combo box frame) and while the dropdown popup menu is **open** (hovering over the open list or combo header)!
-* **`ComboWithReset`** (also aliased as `ResettableCombo`) pairs the mouse-wheel combo with the flush abutting `↺` reset button to revert to `default_item` in one click.
+Dropdown combo boxes that work like standard `ImGui::Combo` when clicked, and support live mouse-wheel cycling both when **closed** and while the dropdown popup menu is **open**!
+* **Split Preview vs. Chevron `[▼]` Zones:**
+  * **Preview Text Zone (`[box_min.x .. box_max.x - GetFrameHeight()]`):** Shows `hover_cursor` (`ImGuiMouseCursor_ResizeNS` by default) and cycles items on mouse-wheel without falsely highlighting the right-hand chevron button.
+  * **Chevron Button Zone (`[box_max.x - GetFrameHeight() .. box_max.x]`):** Shows **`ImGuiMouseCursor_Hand`**, highlights strictly when the chevron itself is hovered (or when the popup is open), and **ignores mouse-wheel scrolling** so clicking/hovering the opener button feels like a dedicated dropdown button.
+* **Configurable Chevron Arrow Polarity (`ImGui::ComboArrowStyle`):**
+  Configure globally via `#define IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE` or `ImGui::SetDefaultComboArrowStyle(...)`:
+  * `ImGui::ComboArrowStyle_DownWhenClosed` (`0`, default): `▼` when closed $\rightarrow$ `▲` when open (or `▼` if the popup flipped upward near the bottom of the screen).
+  * `ImGui::ComboArrowStyle_RightWhenClosed` (`1`, ABC disclosure style): `▶` when closed $\rightarrow$ `▼` (or `▲` if opened upward) when open.
+  * `ImGui::ComboArrowStyle_UpWhenClosed` (`2`): `▲` when closed $\rightarrow$ `▼` (or `▲` if opened upward) when open.
+  * `ImGui::ComboArrowStyle_StaticDown` (`3`): Vanilla ImGui's static `▼`.
+* **`ComboWithReset`** (also aliased as `ResettableCombo`) pairs the mouse-wheel combo with the flush abutting `↺` / `↻` reset-with-undo button (with automatic session memory or optional `int* last_item = nullptr` persistence).
 * **Per-Item Tooltips (`item_tooltips[]`) & Open-Menu Wheel Tooltip Latch ("Lens UI"):** Pass an optional array of tooltip strings (plain text or Markdown when `contrib.h` is active) to attach a distinct tooltip to each item in the open dropdown list. When the user spins the mouse wheel while the dropdown menu is open, tooltip targeting automatically latches onto the **newly wheel-selected item** (`*current_item`) rather than whichever row the stationary mouse cursor happens to be parked over, and seamlessly returns to normal mouse hover targeting when the mouse moves (`> 6px`).
 
 ```cpp
@@ -197,14 +238,17 @@ static const char* const kCameraModeTooltips[] = {
 };
 static int s_CamMode = 1; // Default: Chase (1)
 
+// Optional: use disclosure chevron polarity (▶ when closed -> ▼ when open):
+// ImGui::SetDefaultComboArrowStyle(ImGui::ComboArrowStyle_RightWhenClosed);
+
 // Standard mouse-wheel-enabled dropdown with per-item tooltips:
 ImGui::MouseWheelCombo("Camera View", &s_CamMode, kCameraModes, IM_ARRAYSIZE(kCameraModes),
                        -1, false /* wrap */, kCameraModeTooltips);
 
-// Compound mouse-wheel dropdown with abutting one-click reset to default (1 = Chase):
+// Compound mouse-wheel dropdown with abutting Reset-with-Undo (1 = Chase):
 ImGui::ComboWithReset("Camera Mode", &s_CamMode, 1 /* default */,
                       kCameraModes, IM_ARRAYSIZE(kCameraModes),
-                      -1, false /* wrap */, nullptr /* default reset tooltip */,
+                      -1, false /* wrap */, nullptr /* auto 3-state reset/restore tooltip */,
                       kCameraModeTooltips);
 ```
 

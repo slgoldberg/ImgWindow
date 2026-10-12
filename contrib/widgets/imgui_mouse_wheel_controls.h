@@ -47,6 +47,39 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
+#include <unordered_map>
+
+// Combo chevron arrow direction styles (global or per-call):
+enum ImGuiComboArrowStyle {
+    ImGuiComboArrowStyle_DownWhenClosed  = 0, // Default (Option A): ▼ when closed -> ▲ when open (or ▼ if opened upward)
+    ImGuiComboArrowStyle_Standard        = 0, // Alias for DownWhenClosed
+    ImGuiComboArrowStyle_RightWhenClosed = 1, // Option B (ABC style): ▶ when closed -> ▼ (or ▲ if opened upward) when open
+    ImGuiComboArrowStyle_UpWhenClosed    = 2, // ▲ when closed -> ▼ (or ▲ if opened upward) when open
+    ImGuiComboArrowStyle_StaticDown      = 3  // Vanilla ImGui: always ▼
+};
+
+namespace ImGui {
+    using ComboArrowStyle = ImGuiComboArrowStyle;
+    constexpr ImGuiComboArrowStyle ComboArrowStyle_DownWhenClosed  = ImGuiComboArrowStyle_DownWhenClosed;
+    constexpr ImGuiComboArrowStyle ComboArrowStyle_Standard        = ImGuiComboArrowStyle_Standard;
+    constexpr ImGuiComboArrowStyle ComboArrowStyle_RightWhenClosed = ImGuiComboArrowStyle_RightWhenClosed;
+    constexpr ImGuiComboArrowStyle ComboArrowStyle_UpWhenClosed    = ImGuiComboArrowStyle_UpWhenClosed;
+    constexpr ImGuiComboArrowStyle ComboArrowStyle_StaticDown      = ImGuiComboArrowStyle_StaticDown;
+} // namespace ImGui
+
+#if !defined(IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE)
+#if defined(IMGUI_EXTRA_WHEEL_COMBO_ARROW_STYLE)
+#define IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE IMGUI_EXTRA_WHEEL_COMBO_ARROW_STYLE
+#else
+#define IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE ImGuiComboArrowStyle_DownWhenClosed
+#endif
+#endif
+
+#if !defined(IMGUI_CONTRIB_DISABLE_RESET_UNDO) && !defined(CONTRIB_DISABLE_RESET_UNDO)
+#define IMGUI_CONTRIB_DEFAULT_RESET_UNDO_ENABLED true
+#else
+#define IMGUI_CONTRIB_DEFAULT_RESET_UNDO_ENABLED false
+#endif
 
 #ifndef IMGUI_LINK_CLICK_RESULT_DEFINED
 #define IMGUI_LINK_CLICK_RESULT_DEFINED
@@ -400,6 +433,62 @@ namespace ImGui {
 #endif
         }
 
+        inline ImGuiComboArrowStyle& GetDefaultComboArrowStyleStorage()
+        {
+            static ImGuiComboArrowStyle s_Style = IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE;
+            return s_Style;
+        }
+
+        inline bool& GetResetButtonUndoEnabledStorage()
+        {
+            static bool s_Enabled = IMGUI_CONTRIB_DEFAULT_RESET_UNDO_ENABLED;
+            return s_Enabled;
+        }
+
+        struct ResetUndoEntry {
+            float last_float = 0.0f;
+            int   last_int   = 0;
+            bool  has_last   = false;
+        };
+
+        inline ResetUndoEntry& GetResetUndoEntry(ImGuiID id)
+        {
+            static std::unordered_map<ImGuiID, ResetUndoEntry> s_Map;
+            return s_Map[id];
+        }
+
+        inline void DrawComboArrow(ImDrawList* draw_list, ImVec2 pos, ImU32 col, ImGuiDir dir, float font_size, float scale = 1.0f)
+        {
+            if (!draw_list) return;
+            const float h = font_size;
+            float r = h * 0.40f * scale;
+            ImVec2 center(pos.x + h * 0.50f, pos.y + h * 0.50f * scale);
+
+            ImVec2 a(0.0f, 0.0f), b(0.0f, 0.0f), c(0.0f, 0.0f);
+            switch (dir) {
+            case ImGuiDir_Up:
+            case ImGuiDir_Down:
+                if (dir == ImGuiDir_Up) r = -r;
+                a = ImVec2(+0.000f * r, +0.750f * r);
+                b = ImVec2(-0.866f * r, -0.750f * r);
+                c = ImVec2(+0.866f * r, -0.750f * r);
+                break;
+            case ImGuiDir_Left:
+            case ImGuiDir_Right:
+                if (dir == ImGuiDir_Left) r = -r;
+                a = ImVec2(+0.750f * r, +0.000f * r);
+                b = ImVec2(-0.750f * r, +0.866f * r);
+                c = ImVec2(-0.750f * r, -0.866f * r);
+                break;
+            default:
+                return;
+            }
+            draw_list->AddTriangleFilled(ImVec2(center.x + a.x, center.y + a.y),
+                                         ImVec2(center.x + b.x, center.y + b.y),
+                                         ImVec2(center.x + c.x, center.y + c.y),
+                                         col);
+        }
+
         inline bool ComboWithWheelEx(const char* label,
                                      int* current_item,
                                      const char* const items[],
@@ -429,10 +518,17 @@ namespace ImGui {
             static ImVec2  s_WheelLatchMousePos = ImVec2(-1.0f, -1.0f);
 
             // Capture the physical combo box frame rect [ Preview | ▼ ] (excluding right-side label)
+            // and split it into the Preview Text zone [box_min.x .. value_x2] and the
+            // Chevron Arrow Button zone [value_x2 .. box_max.x]:
+            ImDrawList* parent_draw_list = GetWindowDrawList();
+            const float parent_font_size = GetFontSize();
+            const ImGuiStyle& style = GetStyle();
             ImVec2 box_min = GetCursorScreenPos();
             float box_w = CalcItemWidth();
             float box_h = GetFrameHeight();
             ImVec2 box_max(box_min.x + box_w, box_min.y + box_h);
+            float arrow_size = box_h;
+            float value_x2 = std::max(box_min.x, box_max.x - arrow_size);
 
             const char* preview_value = (*current_item >= 0 && *current_item < items_count && items[*current_item])
                                         ? items[*current_item]
@@ -440,13 +536,65 @@ namespace ImGui {
 
             if (popup_max_height_in_items != -1) {
                 float max_h = (GetTextLineHeightWithSpacing() * popup_max_height_in_items) +
-                              (GetStyle().WindowPadding.y * 2.0f);
+                              (style.WindowPadding.y * 2.0f);
                 SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(FLT_MAX, max_h));
             }
 
             bool changed = false;
             bool popup_open = BeginCombo(label, preview_value, ImGuiComboFlags_None);
             if (out_popup_open) *out_popup_open = popup_open;
+
+            bool in_box_y = (io.MousePos.y >= box_min.y && io.MousePos.y <= box_max.y);
+            bool preview_hovered_rect = in_box_y && (io.MousePos.x >= box_min.x && io.MousePos.x < value_x2);
+            bool arrow_hovered_rect   = in_box_y && (io.MousePos.x >= value_x2  && io.MousePos.x <= box_max.x);
+            bool combo_item_hovered   = popup_open ? (preview_hovered_rect || arrow_hovered_rect)
+                                                   : IsItemHovered();
+            bool preview_hovered      = combo_item_hovered && preview_hovered_rect;
+            bool arrow_hovered        = combo_item_hovered && arrow_hovered_rect;
+
+            // Determine chevron arrow direction based on configured ImGuiComboArrowStyle and open/closed state:
+            bool opens_up = popup_open && (GetWindowPos().y < box_min.y);
+            ImGuiComboArrowStyle arrow_style = GetDefaultComboArrowStyleStorage();
+            ImGuiDir arrow_dir = ImGuiDir_Down;
+            switch (arrow_style) {
+            case ImGuiComboArrowStyle_DownWhenClosed:
+                arrow_dir = popup_open ? (opens_up ? ImGuiDir_Down : ImGuiDir_Up) : ImGuiDir_Down;
+                break;
+            case ImGuiComboArrowStyle_RightWhenClosed:
+                arrow_dir = popup_open ? (opens_up ? ImGuiDir_Up : ImGuiDir_Down) : ImGuiDir_Right;
+                break;
+            case ImGuiComboArrowStyle_UpWhenClosed:
+                arrow_dir = popup_open ? (opens_up ? ImGuiDir_Up : ImGuiDir_Down) : ImGuiDir_Up;
+                break;
+            case ImGuiComboArrowStyle_StaticDown:
+            default:
+                arrow_dir = ImGuiDir_Down;
+                break;
+            }
+
+            // Overpaint the chevron button square [value_x2 .. box_max.x] on the parent window draw list so:
+            //  1) Its hover highlight (ImGuiCol_ButtonHovered) lights up strictly when hovering the chevron
+            //     button (or when open), rather than whenever the preview text box is hovered, and
+            //  2) The arrow reflects the configured ImGuiComboArrowStyle (e.g. rotating on open/close).
+            if (parent_draw_list && box_w > 0.0f) {
+                ImU32 bg_col = GetColorU32((popup_open || arrow_hovered) ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+                ImDrawFlags round_flags = (box_w <= arrow_size) ? ImDrawFlags_RoundCornersAll : ImDrawFlags_RoundCornersRight;
+                if (((bg_col >> IM_COL32_A_SHIFT) & 0xFF) < 0xFF) {
+                    parent_draw_list->AddRectFilled(ImVec2(value_x2, box_min.y), box_max,
+                                                    GetColorU32(ImGuiCol_WindowBg, 1.0f), style.FrameRounding, round_flags);
+                }
+                parent_draw_list->AddRectFilled(ImVec2(value_x2, box_min.y), box_max,
+                                                bg_col, style.FrameRounding, round_flags);
+                if (value_x2 + arrow_size - style.FramePadding.x <= box_max.x) {
+                    DrawComboArrow(parent_draw_list,
+                                   ImVec2(value_x2 + style.FramePadding.y, box_min.y + style.FramePadding.y),
+                                   GetColorU32(ImGuiCol_Text), arrow_dir, parent_font_size, 1.0f);
+                }
+                if (style.FrameBorderSize > 0.0f) {
+                    parent_draw_list->AddRect(box_min, box_max, GetColorU32(ImGuiCol_Border),
+                                              style.FrameRounding, 0, style.FrameBorderSize);
+                }
+            }
 
             if (popup_open) {
                 // Break the wheel-selection tooltip latch only when the mouse moves deliberately (> 6 px),
@@ -462,18 +610,19 @@ namespace ImGui {
                 }
 
                 // Dropdown menu is OPEN:
-                // Keep widget "hot" for mouse-wheel cycling whether the cursor is inside
-                // the open popup list OR still resting on the combo box header above it.
+                //  - Hovering over the chevron button [▼] shows the Hand cursor and ignores mouse-wheel.
+                //  - Hovering over the preview text box or inside the open popup list shows the scroll
+                //    cursor and cycles items on mouse-wheel.
                 bool popup_hovered = IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem |
                                                      ImGuiHoveredFlags_ChildWindows);
-                bool header_hovered = (io.MousePos.x >= box_min.x && io.MousePos.x <= box_max.x &&
-                                       io.MousePos.y >= box_min.y && io.MousePos.y <= box_max.y);
 
                 bool wheel_stepped = false;
-                if (popup_hovered || header_hovered) {
+                if (arrow_hovered && !popup_hovered) {
+                    SetMouseCursor(ImGuiMouseCursor_Hand);
+                } else if (popup_hovered || preview_hovered) {
                     if (popup_hovered && popup_cursor != ImGuiMouseCursor_None) {
                         SetMouseCursor(popup_cursor);
-                    } else if (header_hovered && hover_cursor != ImGuiMouseCursor_None) {
+                    } else if (preview_hovered && hover_cursor != ImGuiMouseCursor_None) {
                         SetMouseCursor(hover_cursor);
                     }
                     float clicks = GetMouseWheelEither(true);
@@ -507,7 +656,7 @@ namespace ImGui {
                         SetMouseCursor(popup_cursor);
                     }
                     if (item_tooltips && item_tooltips[i] && item_tooltips[i][0] != '\0') {
-                        bool tooltip_target = (s_WheelLatchComboID == combo_id || (header_hovered && !popup_hovered))
+                        bool tooltip_target = (s_WheelLatchComboID == combo_id || ((preview_hovered || arrow_hovered) && !popup_hovered))
                                               ? ((i == *current_item) && !wheel_stepped)
                                               : item_hovered;
                         AttachTooltipProxy(GetItemID(), item_tooltips[i], tooltip_target);
@@ -527,11 +676,13 @@ namespace ImGui {
                     s_WheelLatchComboID = 0;
                 }
                 // Dropdown menu is CLOSED:
-                // Hot for mouse-wheel cycling strictly over the physical combo box frame
-                // (not over the text label to its right).
-                bool box_hovered = IsItemHovered() &&
-                                   (io.MousePos.x >= box_min.x && io.MousePos.x <= box_max.x);
-                if (box_hovered) {
+                //  - Hovering over the chevron button [▼] shows the Hand cursor (signaling it is a
+                //    clickable dropdown button) and does NOT cycle on mouse-wheel.
+                //  - Hovering over the preview text box [box_min.x .. value_x2] shows hover_cursor
+                //    (ResizeNS / ResizeEW) and cycles items on mouse-wheel.
+                if (arrow_hovered) {
+                    SetMouseCursor(ImGuiMouseCursor_Hand);
+                } else if (preview_hovered) {
                     if (hover_cursor != ImGuiMouseCursor_None) {
                         SetMouseCursor(hover_cursor);
                     }
@@ -709,19 +860,54 @@ namespace ImGui {
 #endif // !CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL
 
     // -------------------------------------------------------------------------
-    // 3. Undo/Reset Button Helper (Custom Icon String or Vector Fallback)
+    // 3. Undo/Reset Button Helper (Custom Icon Strings or Vector Fallback)
     // -------------------------------------------------------------------------
     // Callers with FontAwesome (or custom icon fonts/text) can configure the
-    // default reset button label globally once via:
-    //   ImGui::SetDefaultResetButtonLabel(ICON_FA_UNDO); // or ICON_FA_UNDO_ALT
-    // or at compile time via `#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL ICON_FA_UNDO`,
-    // or per-call via `reset_label`.
+    // default reset button label (and optional restore/redo label) globally via:
+    //   ImGui::SetDefaultResetButtonLabel(ICON_FA_UNDO, ICON_FA_REDO);
+    // or at compile time before including this header via:
+    //   #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL      ICON_FA_UNDO
+    //   #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT  ICON_FA_REDO // (or IMGUI_CONTRIB_DEFAULT_REDO_LABEL / IMGUI_CONTRIB_DEFAULT_RESTORE_LABEL)
+    // or per-call via `reset_label` / `restore_label`.
     // When no label string is set (nullptr or ""), ResetButton automatically draws
-    // a crisp, DPI-scaled counter-clockwise vector undo arrow!
+    // a crisp, DPI-scaled counter-clockwise vector undo arrow (↺) for Reset, and
+    // flips to a clockwise vector redo arrow (↻) when in Restore-Previous mode!
 
 #ifndef IMGUI_CONTRIB_DEFAULT_RESET_LABEL
 #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL nullptr
 #endif
+
+#if !defined(IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT)
+#if defined(IMGUI_CONTRIB_DEFAULT_REDO_LABEL)
+#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT IMGUI_CONTRIB_DEFAULT_REDO_LABEL
+#elif defined(IMGUI_CONTRIB_DEFAULT_RESTORE_LABEL)
+#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT IMGUI_CONTRIB_DEFAULT_RESTORE_LABEL
+#elif defined(IMGUI_CONTRIB_DEFAULT_RESTORE_LAST_LABEL)
+#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT IMGUI_CONTRIB_DEFAULT_RESTORE_LAST_LABEL
+#else
+#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT nullptr
+#endif
+#endif
+
+    inline IMGUI_API void SetDefaultComboArrowStyle(ImGuiComboArrowStyle style)
+    {
+        WheelSliderDetail::GetDefaultComboArrowStyleStorage() = style;
+    }
+
+    inline IMGUI_API ImGuiComboArrowStyle GetDefaultComboArrowStyle()
+    {
+        return WheelSliderDetail::GetDefaultComboArrowStyleStorage();
+    }
+
+    inline IMGUI_API void SetResetButtonUndoEnabled(bool enabled)
+    {
+        WheelSliderDetail::GetResetButtonUndoEnabledStorage() = enabled;
+    }
+
+    inline IMGUI_API bool GetResetButtonUndoEnabled()
+    {
+        return WheelSliderDetail::GetResetButtonUndoEnabledStorage();
+    }
 
     namespace WheelSliderDetail {
         inline const char*& GetDefaultResetButtonLabelStorage()
@@ -729,11 +915,122 @@ namespace ImGui {
             static const char* s_DefaultLabel = IMGUI_CONTRIB_DEFAULT_RESET_LABEL;
             return s_DefaultLabel;
         }
+
+        inline const char*& GetDefaultRestoreButtonLabelStorage()
+        {
+            static const char* s_DefaultRestoreLabel = IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT;
+            return s_DefaultRestoreLabel;
+        }
+
+        inline float CalcResetButtonWidth(float height,
+                                          bool abutting,
+                                          const char* reset_label = nullptr,
+                                          const char* restore_label = nullptr)
+        {
+            float width = abutting ? std::round(height * 0.85f) : height;
+            const char* primary = (reset_label != nullptr) ? reset_label : GetDefaultResetButtonLabelStorage();
+            const char* alt     = (restore_label != nullptr) ? restore_label : GetDefaultRestoreButtonLabelStorage();
+            const float pad_x   = GetStyle().FramePadding.x * 1.5f;
+            if (primary && primary[0] != '\0') {
+                ImVec2 sz = CalcTextSize(primary, nullptr, true);
+                if (sz.x + pad_x > width) width = std::ceil(sz.x + pad_x);
+            }
+            if (alt && alt[0] != '\0') {
+                ImVec2 sz = CalcTextSize(alt, nullptr, true);
+                if (sz.x + pad_x > width) width = std::ceil(sz.x + pad_x);
+            }
+            return width;
+        }
+
+        inline bool ResolveFloatUndo(ImGuiID undo_id,
+                                     float current_val,
+                                     float default_val,
+                                     float eps,
+                                     const float* v_last_ptr,
+                                     float* out_restore_val)
+        {
+            if (!GetResetButtonUndoEnabledStorage()) return false;
+            if (std::abs(current_val - default_val) > eps) return false;
+            if (v_last_ptr != nullptr) {
+                if (!std::isnan(*v_last_ptr) && std::abs(*v_last_ptr - default_val) > eps) {
+                    if (out_restore_val) *out_restore_val = *v_last_ptr;
+                    return true;
+                }
+            }
+            ResetUndoEntry& entry = GetResetUndoEntry(undo_id);
+            if (entry.has_last && std::abs(entry.last_float - default_val) > eps) {
+                if (out_restore_val) *out_restore_val = entry.last_float;
+                return true;
+            }
+            return false;
+        }
+
+        inline void RecordFloatReset(ImGuiID undo_id, float val_before_reset, float* v_last_ptr)
+        {
+            if (v_last_ptr != nullptr) {
+                *v_last_ptr = val_before_reset;
+            }
+            ResetUndoEntry& entry = GetResetUndoEntry(undo_id);
+            entry.last_float = val_before_reset;
+            entry.has_last   = true;
+        }
+
+        inline void ClearFloatUndo(ImGuiID undo_id, float default_val, float* v_last_ptr)
+        {
+            if (v_last_ptr != nullptr) {
+                *v_last_ptr = default_val;
+            }
+            ResetUndoEntry& entry = GetResetUndoEntry(undo_id);
+            entry.has_last = false;
+        }
+
+        inline bool ResolveIntUndo(ImGuiID undo_id,
+                                   int current_val,
+                                   int default_val,
+                                   const int* v_last_ptr,
+                                   int* out_restore_val)
+        {
+            if (!GetResetButtonUndoEnabledStorage()) return false;
+            if (current_val != default_val) return false;
+            if (v_last_ptr != nullptr) {
+                if (*v_last_ptr != default_val) {
+                    if (out_restore_val) *out_restore_val = *v_last_ptr;
+                    return true;
+                }
+            }
+            ResetUndoEntry& entry = GetResetUndoEntry(undo_id);
+            if (entry.has_last && entry.last_int != default_val) {
+                if (out_restore_val) *out_restore_val = entry.last_int;
+                return true;
+            }
+            return false;
+        }
+
+        inline void RecordIntReset(ImGuiID undo_id, int val_before_reset, int* v_last_ptr)
+        {
+            if (v_last_ptr != nullptr) {
+                *v_last_ptr = val_before_reset;
+            }
+            ResetUndoEntry& entry = GetResetUndoEntry(undo_id);
+            entry.last_int = val_before_reset;
+            entry.has_last = true;
+        }
+
+        inline void ClearIntUndo(ImGuiID undo_id, int default_val, int* v_last_ptr)
+        {
+            if (v_last_ptr != nullptr) {
+                *v_last_ptr = default_val;
+            }
+            ResetUndoEntry& entry = GetResetUndoEntry(undo_id);
+            entry.has_last = false;
+        }
     } // namespace WheelSliderDetail
 
-    inline IMGUI_API void SetDefaultResetButtonLabel(const char* label)
+    inline IMGUI_API void SetDefaultResetButtonLabel(const char* reset_label,
+                                                     const char* restore_label = IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT)
     {
-        WheelSliderDetail::GetDefaultResetButtonLabelStorage() = label;
+        WheelSliderDetail::GetDefaultResetButtonLabelStorage() = reset_label;
+        WheelSliderDetail::GetDefaultRestoreButtonLabelStorage() = restore_label;
     }
 
     inline IMGUI_API const char* GetDefaultResetButtonLabel()
@@ -741,24 +1038,49 @@ namespace ImGui {
         return WheelSliderDetail::GetDefaultResetButtonLabelStorage();
     }
 
+    inline IMGUI_API void SetDefaultRestoreButtonLabel(const char* restore_label)
+    {
+        WheelSliderDetail::GetDefaultRestoreButtonLabelStorage() = restore_label;
+    }
+
+    inline IMGUI_API const char* GetDefaultRestoreButtonLabel()
+    {
+        return WheelSliderDetail::GetDefaultRestoreButtonLabelStorage();
+    }
+
+    inline IMGUI_API void SetDefaultRedoButtonLabel(const char* redo_label)
+    {
+        WheelSliderDetail::GetDefaultRestoreButtonLabelStorage() = redo_label;
+    }
+
+    inline IMGUI_API const char* GetDefaultRedoButtonLabel()
+    {
+        return WheelSliderDetail::GetDefaultRestoreButtonLabelStorage();
+    }
+
     inline IMGUI_API bool ResetButton(const char* str_id,
                                       bool is_modified = true,
                                       float width_arg = 0.0f,
                                       bool abutting = false,
-                                      const char* reset_label = nullptr)
+                                      const char* reset_label = nullptr,
+                                      bool is_restore_mode = false,
+                                      const char* restore_label = nullptr)
     {
-        const char* label_to_draw = (reset_label != nullptr) ? reset_label : GetDefaultResetButtonLabel();
-        bool has_custom_label = (label_to_draw != nullptr && label_to_draw[0] != '\0');
+        const char* primary_label = (reset_label != nullptr) ? reset_label : GetDefaultResetButtonLabel();
+        const char* alt_label     = (restore_label != nullptr) ? restore_label : GetDefaultRestoreButtonLabel();
+        if (!alt_label || alt_label[0] == '\0') {
+            alt_label = primary_label;
+        }
+
+        const bool use_restore_visual = (!is_modified && is_restore_mode);
+        const bool is_actionable      = (is_modified || is_restore_mode);
+        const char* label_to_draw     = use_restore_visual ? alt_label : primary_label;
+        const bool has_custom_label   = (label_to_draw != nullptr && label_to_draw[0] != '\0');
 
         float height = GetFrameHeight();
-        float width  = (width_arg > 0.0f) ? width_arg : (abutting ? std::round(height * 0.85f) : height);
-        if (width_arg <= 0.0f && has_custom_label) {
-            ImVec2 text_sz = CalcTextSize(label_to_draw, nullptr, true);
-            float min_text_w = text_sz.x + GetStyle().FramePadding.x * 1.5f;
-            if (min_text_w > width) {
-                width = std::ceil(min_text_w);
-            }
-        }
+        float width  = (width_arg > 0.0f)
+                       ? width_arg
+                       : WheelSliderDetail::CalcResetButtonWidth(height, abutting, primary_label, alt_label);
 
         PushID(str_id);
         ImVec2 p = GetCursorScreenPos();
@@ -770,9 +1092,9 @@ namespace ImGui {
         if (hovered) {
             SetMouseCursor(ImGuiMouseCursor_Hand);
         }
-        // When already at default (!is_modified), clicking the dimmed reset button
-        // immediately toggles its status tooltip ON/OFF!
-        Detail::RegisterItemTooltipToggle(!is_modified);
+        // When already at default with nothing to restore (!is_actionable), clicking the
+        // dimmed reset button immediately toggles its status tooltip ON/OFF!
+        Detail::RegisterItemTooltipToggle(!is_actionable);
 
         ImDrawList* draw_list = GetWindowDrawList();
         const ImGuiStyle& style = GetStyle();
@@ -784,8 +1106,8 @@ namespace ImGui {
             draw_list->AddRect(p, ImVec2(p.x + width, p.y + height), GetColorU32(ImGuiCol_Border), rounding, round_flags, style.FrameBorderSize);
         }
 
-        // Color: prominent text color if modified, dimmed if already at default!
-        ImU32 icon_col = GetColorU32(is_modified ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+        // Color: prominent text color if actionable (modified OR restore-previous ready), dimmed if idle at default!
+        ImU32 icon_col = GetColorU32(is_actionable ? ImGuiCol_Text : ImGuiCol_TextDisabled);
 
         if (has_custom_label) {
             const char* text_end = FindRenderedTextEnd(label_to_draw);
@@ -793,6 +1115,36 @@ namespace ImGui {
             ImVec2 text_pos(std::floor(p.x + (width - text_sz.x) * 0.5f),
                             std::floor(p.y + (height - text_sz.y) * 0.5f));
             draw_list->AddText(text_pos, icon_col, label_to_draw, text_end);
+        } else if (use_restore_visual) {
+            // Draw clockwise redo/restore circular arc (matching ICON_FA_REDO / U+21BB):
+            // Horizontal mirror of the counter-clockwise undo arc: sweeps clockwise from
+            // bottom-right (~4:30) around the left and top to the top-right arrowhead (~1:15).
+            ImVec2 center(p.x + width * 0.48f, p.y + height * 0.52f);
+            float radius = height * 0.25f;
+            float thickness = std::max(1.2f, height * 0.095f);
+
+            const float kPI = 3.14159265f;
+            const float a_tail = 0.28f * kPI;
+            const float a_head = 1.62f * kPI;
+            draw_list->PathArcTo(center, radius, a_tail, a_head, 16);
+            draw_list->PathStroke(icon_col, 0, thickness);
+
+            // Tangent-aligned arrowhead at a_head pointing clockwise (increasing angle):
+            float cos_a = std::cos(a_head);
+            float sin_a = std::sin(a_head);
+            float tx = -sin_a; // unit tangent in clockwise (increasing angle) direction
+            float ty =  cos_a;
+            float nx =  cos_a; // unit outward normal
+            float ny =  sin_a;
+
+            ImVec2 base(center.x + radius * cos_a, center.y + radius * sin_a);
+            float arrow_len = radius * 0.95f;
+            float arrow_w   = radius * 0.68f;
+            ImVec2 tip(base.x + tx * (arrow_len * 0.65f), base.y + ty * (arrow_len * 0.65f));
+            ImVec2 back(base.x - tx * (arrow_len * 0.35f), base.y - ty * (arrow_len * 0.35f));
+            ImVec2 p1(back.x + nx * arrow_w, back.y + ny * arrow_w);
+            ImVec2 p2(back.x - nx * arrow_w, back.y - ny * arrow_w);
+            draw_list->AddTriangleFilled(tip, p1, p2, icon_col);
         } else {
             // Draw counter-clockwise undo circular arc (matching ICON_FA_UNDO / U+21BA):
             // In ImGui screen coordinates (+Y down):
@@ -945,11 +1297,15 @@ namespace ImGui {
 #endif // !CONTRIB_DISABLE_PERCENT_SLIDER
 
     // -------------------------------------------------------------------------
-    // 6. Composite Sliders & Drag Boxes with Reset [ Control | ↺ ] Label
+    // 6. Composite Sliders & Drag Boxes with Reset [ Control | ↺/↻ ] Label
     // -------------------------------------------------------------------------
     // Eliminates all developer layout headache: automatically reserves width,
-    // places an abutting vector reset button next to the control box, appends
-    // the label, and provides dual-tooltip and mouse-wheel support!
+    // places an abutting reset/restore button next to the control box, appends
+    // the label, and provides dual-tooltip, mouse-wheel, and Reset-with-Undo
+    // (1-click A/B toggle between default and previous value) support!
+    // Pass an optional `v_last` pointer if you want the pre-reset value persisted
+    // in your own variable/dataref across sessions; otherwise session memory is
+    // managed automatically per widget ID.
 
     inline IMGUI_API bool SliderWithReset(const char* label,
                                           float* v,
@@ -959,7 +1315,8 @@ namespace ImGui {
                                           const char* format = "%.3f",
                                           ImGuiSliderFlags flags = 0,
                                           float wheel_step = 0.01f,
-                                          const char* reset_tooltip = nullptr)
+                                          const char* reset_tooltip = nullptr,
+                                          float* v_last = nullptr)
     {
         if (!v) return false;
 
@@ -970,7 +1327,7 @@ namespace ImGui {
         bool has_label = (id_pos != label) && (label[0] != '\0');
 
         float btn_size = GetFrameHeight();
-        float btn_w = std::round(btn_size * 0.85f);
+        float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
         float slider_w = std::max(50.0f, total_item_w - btn_w);
@@ -988,25 +1345,45 @@ namespace ImGui {
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, wheel_step))
             changed = true;
 
-        // 2. Abutting Vector Reset Button (0 gap, flat left edge):
+        // 2. Abutting Reset / Restore-Previous Button (0 gap, flat left edge):
+        const float kEps = 0.0005f;
+        ImGuiID undo_id = GetID("##reset_undo");
+        if (changed && std::abs(*v - v_default) <= kEps) {
+            WheelSliderDetail::ClearFloatUndo(undo_id, v_default, v_last);
+        }
+
         SameLine(0.0f, 0.0f);
-        bool is_modified = std::abs(*v - v_default) > 0.0005f;
-        if (ResetButton("##reset", is_modified, btn_w, true) && is_modified) {
-            *v = v_default;
-            changed = true;
+        bool is_modified = std::abs(*v - v_default) > kEps;
+        float restore_val = v_default;
+        bool can_restore = !is_modified && WheelSliderDetail::ResolveFloatUndo(undo_id, *v, v_default, kEps, v_last, &restore_val);
+
+        if (ResetButton("##reset", is_modified, btn_w, true, nullptr, can_restore)) {
+            if (is_modified) {
+                WheelSliderDetail::RecordFloatReset(undo_id, *v, v_last);
+                *v = v_default;
+                changed = true;
+            } else if (can_restore) {
+                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                changed = true;
+            }
         }
         bool reset_hovered = IsItemHovered();
 
-        char default_buf[128];
+        char default_buf[160];
         if (reset_tooltip && reset_tooltip[0] != '\0') {
             std::snprintf(default_buf, sizeof(default_buf), "%s", reset_tooltip);
         } else {
             char val_str[64];
             std::snprintf(val_str, sizeof(val_str), format, v_default);
-            std::snprintf(default_buf, sizeof(default_buf),
-                          is_modified ? "Click to revert to default (%s)."
-                                      : "Already at default (%s).",
-                          val_str);
+            if (is_modified) {
+                std::snprintf(default_buf, sizeof(default_buf), "Click to revert to default (%s).", val_str);
+            } else if (can_restore) {
+                char prev_str[64];
+                std::snprintf(prev_str, sizeof(prev_str), format, restore_val);
+                std::snprintf(default_buf, sizeof(default_buf), "At default (%s). Click to restore previous (%s).", val_str, prev_str);
+            } else {
+                std::snprintf(default_buf, sizeof(default_buf), "Already at default (%s).", val_str);
+            }
         }
 
         WheelSliderDetail::AttachTooltip(default_buf, reset_hovered);
@@ -1049,7 +1426,8 @@ namespace ImGui {
                                           const char* format = "%d",
                                           ImGuiSliderFlags flags = 0,
                                           float wheel_step = 1.0f,
-                                          const char* reset_tooltip = nullptr)
+                                          const char* reset_tooltip = nullptr,
+                                          int* v_last = nullptr)
     {
         if (!v) return false;
 
@@ -1060,7 +1438,7 @@ namespace ImGui {
         bool has_label = (id_pos != label) && (label[0] != '\0');
 
         float btn_size = GetFrameHeight();
-        float btn_w = std::round(btn_size * 0.85f);
+        float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
         float slider_w = std::max(50.0f, total_item_w - btn_w);
@@ -1078,23 +1456,44 @@ namespace ImGui {
         if (WheelSliderDetail::AdjustInt(v, v_min, v_max, wheel_step))
             changed = true;
 
-        // 2. Abutting Vector Reset Button (0 gap, flat left edge):
+        // 2. Abutting Reset / Restore-Previous Button (0 gap, flat left edge):
+        ImGuiID undo_id = GetID("##reset_undo");
+        if (changed && *v == v_default) {
+            WheelSliderDetail::ClearIntUndo(undo_id, v_default, v_last);
+        }
+
         SameLine(0.0f, 0.0f);
         bool is_modified = (*v != v_default);
-        if (ResetButton("##reset", is_modified, btn_w, true) && is_modified) {
-            *v = v_default;
-            changed = true;
+        int restore_val = v_default;
+        bool can_restore = !is_modified && WheelSliderDetail::ResolveIntUndo(undo_id, *v, v_default, v_last, &restore_val);
+
+        if (ResetButton("##reset", is_modified, btn_w, true, nullptr, can_restore)) {
+            if (is_modified) {
+                WheelSliderDetail::RecordIntReset(undo_id, *v, v_last);
+                *v = v_default;
+                changed = true;
+            } else if (can_restore) {
+                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                changed = true;
+            }
         }
         bool reset_hovered = IsItemHovered();
 
-        char default_buf[128];
+        char default_buf[160];
         if (reset_tooltip && reset_tooltip[0] != '\0') {
             std::snprintf(default_buf, sizeof(default_buf), "%s", reset_tooltip);
         } else {
-            std::snprintf(default_buf, sizeof(default_buf),
-                          is_modified ? "Click to revert to default (%d)."
-                                      : "Already at default (%d).",
-                          v_default);
+            char val_str[64];
+            std::snprintf(val_str, sizeof(val_str), format, v_default);
+            if (is_modified) {
+                std::snprintf(default_buf, sizeof(default_buf), "Click to revert to default (%s).", val_str);
+            } else if (can_restore) {
+                char prev_str[64];
+                std::snprintf(prev_str, sizeof(prev_str), format, restore_val);
+                std::snprintf(default_buf, sizeof(default_buf), "At default (%s). Click to restore previous (%s).", val_str, prev_str);
+            } else {
+                std::snprintf(default_buf, sizeof(default_buf), "Already at default (%s).", val_str);
+            }
         }
 
         WheelSliderDetail::AttachTooltip(default_buf, reset_hovered);
@@ -1137,7 +1536,8 @@ namespace ImGui {
                                                  const char* format = "%.0f%%",
                                                  ImGuiSliderFlags flags = 0,
                                                  float wheel_step = 0.01f,
-                                                 const char* reset_tooltip = nullptr)
+                                                 const char* reset_tooltip = nullptr,
+                                                 float* v_last = nullptr)
     {
         if (!v) return false;
 
@@ -1148,7 +1548,7 @@ namespace ImGui {
         bool has_label = (id_pos != label) && (label[0] != '\0');
 
         float btn_size = GetFrameHeight();
-        float btn_w = std::round(btn_size * 0.85f);
+        float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
         float slider_w = std::max(50.0f, total_item_w - btn_w);
@@ -1168,23 +1568,45 @@ namespace ImGui {
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, wheel_step))
             changed = true;
 
-        // 2. Abutting Vector Reset Button (0 gap, flat left edge):
+        // 2. Abutting Reset / Restore-Previous Button (0 gap, flat left edge):
+        const float kEps = 0.001f;
+        ImGuiID undo_id = GetID("##reset_undo");
+        if (changed && std::abs(*v - v_default) <= kEps) {
+            WheelSliderDetail::ClearFloatUndo(undo_id, v_default, v_last);
+        }
+
         SameLine(0.0f, 0.0f);
-        bool is_modified = std::abs(*v - v_default) > 0.001f;
-        if (ResetButton("##reset", is_modified, btn_w, true) && is_modified) {
-            *v = v_default;
-            changed = true;
+        bool is_modified = std::abs(*v - v_default) > kEps;
+        float restore_val = v_default;
+        bool can_restore = !is_modified && WheelSliderDetail::ResolveFloatUndo(undo_id, *v, v_default, kEps, v_last, &restore_val);
+
+        if (ResetButton("##reset", is_modified, btn_w, true, nullptr, can_restore)) {
+            if (is_modified) {
+                WheelSliderDetail::RecordFloatReset(undo_id, *v, v_last);
+                *v = v_default;
+                changed = true;
+            } else if (can_restore) {
+                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                changed = true;
+            }
         }
         bool reset_hovered = IsItemHovered();
 
-        char default_buf[128];
+        char default_buf[160];
         if (reset_tooltip && reset_tooltip[0] != '\0') {
             std::snprintf(default_buf, sizeof(default_buf), "%s", reset_tooltip);
         } else {
-            std::snprintf(default_buf, sizeof(default_buf),
-                          is_modified ? "Click to revert to default (%.0f%%)."
-                                      : "Already at default (%.0f%%).",
-                          v_default * 100.0f);
+            char val_str[64];
+            std::snprintf(val_str, sizeof(val_str), format, v_default * 100.0f);
+            if (is_modified) {
+                std::snprintf(default_buf, sizeof(default_buf), "Click to revert to default (%s).", val_str);
+            } else if (can_restore) {
+                char prev_str[64];
+                std::snprintf(prev_str, sizeof(prev_str), format, restore_val * 100.0f);
+                std::snprintf(default_buf, sizeof(default_buf), "At default (%s). Click to restore previous (%s).", val_str, prev_str);
+            } else {
+                std::snprintf(default_buf, sizeof(default_buf), "Already at default (%s).", val_str);
+            }
         }
 
         WheelSliderDetail::AttachTooltip(default_buf, reset_hovered);
@@ -1219,7 +1641,7 @@ namespace ImGui {
         return changed;
     }
 
-    // Composite Drag Boxes with Reset [ Drag Box | ↺ ] Label (Overloaded for float* & int*):
+    // Composite Drag Boxes with Reset [ Drag Box | ↺/↻ ] Label (Overloaded for float* & int*):
     inline IMGUI_API bool DragWithReset(const char* label,
                                         float* v,
                                         float v_default,
@@ -1229,7 +1651,8 @@ namespace ImGui {
                                         const char* format = "%.3f",
                                         ImGuiSliderFlags flags = 0,
                                         float wheel_step = 0.0f,
-                                        const char* reset_tooltip = nullptr)
+                                        const char* reset_tooltip = nullptr,
+                                        float* v_last = nullptr)
     {
         if (!v) return false;
 
@@ -1240,7 +1663,7 @@ namespace ImGui {
         bool has_label = (id_pos != label) && (label[0] != '\0');
 
         float btn_size = GetFrameHeight();
-        float btn_w = std::round(btn_size * 0.85f);
+        float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
         float drag_w = std::max(50.0f, total_item_w - btn_w);
@@ -1259,25 +1682,45 @@ namespace ImGui {
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, step))
             changed = true;
 
-        // 2. Abutting Vector Reset Button (0 gap, flat left edge):
+        // 2. Abutting Reset / Restore-Previous Button (0 gap, flat left edge):
+        const float kEps = 0.0005f;
+        ImGuiID undo_id = GetID("##reset_undo");
+        if (changed && std::abs(*v - v_default) <= kEps) {
+            WheelSliderDetail::ClearFloatUndo(undo_id, v_default, v_last);
+        }
+
         SameLine(0.0f, 0.0f);
-        bool is_modified = std::abs(*v - v_default) > 0.0005f;
-        if (ResetButton("##reset", is_modified, btn_w, true) && is_modified) {
-            *v = v_default;
-            changed = true;
+        bool is_modified = std::abs(*v - v_default) > kEps;
+        float restore_val = v_default;
+        bool can_restore = !is_modified && WheelSliderDetail::ResolveFloatUndo(undo_id, *v, v_default, kEps, v_last, &restore_val);
+
+        if (ResetButton("##reset", is_modified, btn_w, true, nullptr, can_restore)) {
+            if (is_modified) {
+                WheelSliderDetail::RecordFloatReset(undo_id, *v, v_last);
+                *v = v_default;
+                changed = true;
+            } else if (can_restore) {
+                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                changed = true;
+            }
         }
         bool reset_hovered = IsItemHovered();
 
-        char default_buf[128];
+        char default_buf[160];
         if (reset_tooltip && reset_tooltip[0] != '\0') {
             std::snprintf(default_buf, sizeof(default_buf), "%s", reset_tooltip);
         } else {
             char val_str[64];
             std::snprintf(val_str, sizeof(val_str), format, v_default);
-            std::snprintf(default_buf, sizeof(default_buf),
-                          is_modified ? "Click to revert to default (%s)."
-                                      : "Already at default (%s).",
-                          val_str);
+            if (is_modified) {
+                std::snprintf(default_buf, sizeof(default_buf), "Click to revert to default (%s).", val_str);
+            } else if (can_restore) {
+                char prev_str[64];
+                std::snprintf(prev_str, sizeof(prev_str), format, restore_val);
+                std::snprintf(default_buf, sizeof(default_buf), "At default (%s). Click to restore previous (%s).", val_str, prev_str);
+            } else {
+                std::snprintf(default_buf, sizeof(default_buf), "Already at default (%s).", val_str);
+            }
         }
 
         WheelSliderDetail::AttachTooltip(default_buf, reset_hovered);
@@ -1321,7 +1764,8 @@ namespace ImGui {
                                         const char* format = "%d",
                                         ImGuiSliderFlags flags = 0,
                                         float wheel_step = 0.0f,
-                                        const char* reset_tooltip = nullptr)
+                                        const char* reset_tooltip = nullptr,
+                                        int* v_last = nullptr)
     {
         if (!v) return false;
 
@@ -1332,7 +1776,7 @@ namespace ImGui {
         bool has_label = (id_pos != label) && (label[0] != '\0');
 
         float btn_size = GetFrameHeight();
-        float btn_w = std::round(btn_size * 0.85f);
+        float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
         float drag_w = std::max(50.0f, total_item_w - btn_w);
@@ -1351,23 +1795,44 @@ namespace ImGui {
         if (WheelSliderDetail::AdjustInt(v, v_min, v_max, step))
             changed = true;
 
-        // 2. Abutting Vector Reset Button (0 gap, flat left edge):
+        // 2. Abutting Reset / Restore-Previous Button (0 gap, flat left edge):
+        ImGuiID undo_id = GetID("##reset_undo");
+        if (changed && *v == v_default) {
+            WheelSliderDetail::ClearIntUndo(undo_id, v_default, v_last);
+        }
+
         SameLine(0.0f, 0.0f);
         bool is_modified = (*v != v_default);
-        if (ResetButton("##reset", is_modified, btn_w, true) && is_modified) {
-            *v = v_default;
-            changed = true;
+        int restore_val = v_default;
+        bool can_restore = !is_modified && WheelSliderDetail::ResolveIntUndo(undo_id, *v, v_default, v_last, &restore_val);
+
+        if (ResetButton("##reset", is_modified, btn_w, true, nullptr, can_restore)) {
+            if (is_modified) {
+                WheelSliderDetail::RecordIntReset(undo_id, *v, v_last);
+                *v = v_default;
+                changed = true;
+            } else if (can_restore) {
+                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                changed = true;
+            }
         }
         bool reset_hovered = IsItemHovered();
 
-        char default_buf[128];
+        char default_buf[160];
         if (reset_tooltip && reset_tooltip[0] != '\0') {
             std::snprintf(default_buf, sizeof(default_buf), "%s", reset_tooltip);
         } else {
-            std::snprintf(default_buf, sizeof(default_buf),
-                          is_modified ? "Click to revert to default (%d)."
-                                      : "Already at default (%d).",
-                          v_default);
+            char val_str[64];
+            std::snprintf(val_str, sizeof(val_str), format, v_default);
+            if (is_modified) {
+                std::snprintf(default_buf, sizeof(default_buf), "Click to revert to default (%s).", val_str);
+            } else if (can_restore) {
+                char prev_str[64];
+                std::snprintf(prev_str, sizeof(prev_str), format, restore_val);
+                std::snprintf(default_buf, sizeof(default_buf), "At default (%s). Click to restore previous (%s).", val_str, prev_str);
+            } else {
+                std::snprintf(default_buf, sizeof(default_buf), "Already at default (%s).", val_str);
+            }
         }
 
         WheelSliderDetail::AttachTooltip(default_buf, reset_hovered);
@@ -1403,54 +1868,54 @@ namespace ImGui {
     }
 
     // Alternate adjective & explicit mouse-wheel forms (Resettable*, MouseWheel*WithReset):
-    inline IMGUI_API bool ResettableSlider(const char* label, float* v, float v_default, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool ResettableSlider(const char* label, float* v, float v_default, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr, float* v_last = nullptr)
     {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool ResettableSlider(const char* label, int* v, int v_default, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool ResettableSlider(const char* label, int* v, int v_default, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f, const char* reset_tooltip = nullptr, int* v_last = nullptr)
     {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool ResettablePercentSlider(const char* label, float* v, float v_default = 1.0f, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool ResettablePercentSlider(const char* label, float* v, float v_default = 1.0f, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr, float* v_last = nullptr)
     {
-        return PercentSliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return PercentSliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool SliderPercentWithReset(const char* label, float* v, float v_default = 1.0f, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool SliderPercentWithReset(const char* label, float* v, float v_default = 1.0f, float v_min = 0.0f, float v_max = 1.0f, const char* format = "%.0f%%", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr, float* v_last = nullptr)
     {
-        return PercentSliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return PercentSliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool ResettableDrag(const char* label, float* v, float v_default, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool ResettableDrag(const char* label, float* v, float v_default, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr, float* v_last = nullptr)
     {
-        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool ResettableDrag(const char* label, int* v, int v_default, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool ResettableDrag(const char* label, int* v, int v_default, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr, int* v_last = nullptr)
     {
-        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool MouseWheelSliderWithReset(const char* label, float* v, float v_default, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool MouseWheelSliderWithReset(const char* label, float* v, float v_default, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.01f, const char* reset_tooltip = nullptr, float* v_last = nullptr)
     {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool MouseWheelSliderWithReset(const char* label, int* v, int v_default, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool MouseWheelSliderWithReset(const char* label, int* v, int v_default, int v_min, int v_max, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 1.0f, const char* reset_tooltip = nullptr, int* v_last = nullptr)
     {
-        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return SliderWithReset(label, v, v_default, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool MouseWheelDragWithReset(const char* label, float* v, float v_default, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool MouseWheelDragWithReset(const char* label, float* v, float v_default, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr, float* v_last = nullptr)
     {
-        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
-    inline IMGUI_API bool MouseWheelDragWithReset(const char* label, int* v, int v_default, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr)
+    inline IMGUI_API bool MouseWheelDragWithReset(const char* label, int* v, int v_default, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* format = "%d", ImGuiSliderFlags flags = 0, float wheel_step = 0.0f, const char* reset_tooltip = nullptr, int* v_last = nullptr)
     {
-        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip);
+        return DragWithReset(label, v, v_default, v_speed, v_min, v_max, format, flags, wheel_step, reset_tooltip, v_last);
     }
 
 #if !defined(CONTRIB_DISABLE_MOUSE_WHEEL_COMBO) && \
@@ -1468,7 +1933,9 @@ namespace ImGui {
     // -------------------------------------------------------------------------
     // Configurable default cursors for MouseWheelCombo / ComboWithReset:
     //  - IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR: shown when hovering over the
-    //    combo box header (default: ImGuiMouseCursor_ResizeNS).
+    //    combo box preview area (default: ImGuiMouseCursor_ResizeNS). Hovering
+    //    over the right-hand chevron button [▼] always shows ImGuiMouseCursor_Hand
+    //    and ignores mouse-wheel scrolling.
     //  - IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR: shown when hovering over items
     //    inside the open dropdown popup list (default: ImGuiMouseCursor_ResizeNS).
     // Define either macro to ImGuiMouseCursor_None (or ImGuiMouseCursor_Arrow /
@@ -1483,14 +1950,15 @@ namespace ImGui {
 #endif
 
     // Turnkey dropdown combo controls that allow the user to:
-    //  a) Hover over the closed combo box and spin the mouse wheel to step
-    //     through items directly in-place (clamped to [0, items_count - 1]), OR
-    //  b) Click to open the dropdown popup list and STILL spin the mouse wheel
-    //     while hovering over the open list (or header) to step through items
-    //     live, OR click any item to select and close.
+    //  a) Hover over the closed combo box preview text and spin the mouse wheel
+    //     to step through items directly in-place (clamped to [0, items_count - 1]), OR
+    //  b) Click the combo or chevron button [▼] to open the dropdown popup list
+    //     and STILL spin the mouse wheel while hovering over the open list (or
+    //     preview box) to step through items live, OR click any item to select and close.
     // Supports optional per-item tooltips ('item_tooltips[]') with open-menu
-    // wheel-selection tooltip latching ("Lens UI"), and independent cursor
-    // customization for the combo box ('hover_cursor') vs open popup ('popup_cursor').
+    // wheel-selection tooltip latching ("Lens UI"), independent cursor
+    // customization for the combo preview ('hover_cursor') vs open popup ('popup_cursor'),
+    // and configurable chevron arrow styles (ImGui::SetDefaultComboArrowStyle).
 
     inline IMGUI_API bool MouseWheelCombo(const char* label,
                                           int* current_item,
@@ -1545,7 +2013,7 @@ namespace ImGui {
                                popup_max_height_in_items, wrap, item_tooltips, hover_cursor, popup_cursor);
     }
 
-    // Composite Combo with Reset: [ Combo Box | ↺ ] Label (with Built-In Mouse-Wheel)
+    // Composite Combo with Reset: [ Combo Box | ↺/↻ ] Label (with Built-In Mouse-Wheel & Reset-with-Undo)
     inline IMGUI_API bool ComboWithReset(const char* label,
                                          int* current_item,
                                          int default_item,
@@ -1556,7 +2024,8 @@ namespace ImGui {
                                          const char* reset_tooltip = nullptr,
                                          const char* const item_tooltips[] = nullptr,
                                          ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR,
-                                         ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
+                                         ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR,
+                                         int* last_item = nullptr)
     {
         if (!current_item || !items || items_count <= 0) return false;
 
@@ -1567,7 +2036,7 @@ namespace ImGui {
         bool has_label = (id_pos != label) && (label[0] != '\0');
 
         float btn_size = GetFrameHeight();
-        float btn_w = std::round(btn_size * 0.85f);
+        float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
         float combo_w = std::max(50.0f, total_item_w - btn_w);
@@ -1583,25 +2052,47 @@ namespace ImGui {
         PopItemWidth();
         bool combo_header_active = IsItemActive();
 
-        // 2. Abutting Vector Reset Button (0 gap, flat left edge):
+        // 2. Abutting Reset / Restore-Previous Button (0 gap, flat left edge):
+        int clamped_default = std::clamp(default_item, 0, items_count - 1);
+        ImGuiID undo_id = GetID("##reset_undo");
+        if (changed && *current_item == clamped_default) {
+            WheelSliderDetail::ClearIntUndo(undo_id, clamped_default, last_item);
+        }
+
         SameLine(0.0f, 0.0f);
-        bool is_modified = (*current_item != default_item);
-        if (ResetButton("##reset", is_modified, btn_w, true) && is_modified) {
-            *current_item = std::clamp(default_item, 0, items_count - 1);
-            changed = true;
+        bool is_modified = (*current_item != clamped_default);
+        int restore_item = clamped_default;
+        bool can_restore = !is_modified &&
+                           WheelSliderDetail::ResolveIntUndo(undo_id, *current_item, clamped_default, last_item, &restore_item) &&
+                           (restore_item >= 0 && restore_item < items_count);
+
+        if (ResetButton("##reset", is_modified, btn_w, true, nullptr, can_restore)) {
+            if (is_modified) {
+                WheelSliderDetail::RecordIntReset(undo_id, *current_item, last_item);
+                *current_item = clamped_default;
+                changed = true;
+            } else if (can_restore) {
+                *current_item = std::clamp(restore_item, 0, items_count - 1);
+                changed = true;
+            }
         }
         bool reset_hovered = IsItemHovered();
 
-        char default_buf[128];
+        char default_buf[160];
         if (reset_tooltip && reset_tooltip[0] != '\0') {
             std::snprintf(default_buf, sizeof(default_buf), "%s", reset_tooltip);
         } else {
-            const char* def_name = (default_item >= 0 && default_item < items_count && items[default_item])
-                                   ? items[default_item] : "default";
-            std::snprintf(default_buf, sizeof(default_buf),
-                          is_modified ? "Click to revert to default (%s)."
-                                      : "Already at default (%s).",
-                          def_name);
+            const char* def_name = (clamped_default >= 0 && clamped_default < items_count && items[clamped_default])
+                                   ? items[clamped_default] : "default";
+            if (is_modified) {
+                std::snprintf(default_buf, sizeof(default_buf), "Click to revert to default (%s).", def_name);
+            } else if (can_restore) {
+                const char* prev_name = (restore_item >= 0 && restore_item < items_count && items[restore_item])
+                                        ? items[restore_item] : "previous";
+                std::snprintf(default_buf, sizeof(default_buf), "At default (%s). Click to restore previous (%s).", def_name, prev_name);
+            } else {
+                std::snprintf(default_buf, sizeof(default_buf), "Already at default (%s).", def_name);
+            }
         }
 
         WheelSliderDetail::AttachTooltip(default_buf, reset_hovered);
@@ -1648,7 +2139,8 @@ namespace ImGui {
                                          const char* reset_tooltip = nullptr,
                                          const char* const item_tooltips[] = nullptr,
                                          ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR,
-                                         ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
+                                         ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR,
+                                         int* last_item = nullptr)
     {
         if (!items_separated_by_zeros) return false;
         const char* items_buf[64];
@@ -1660,28 +2152,28 @@ namespace ImGui {
         }
         return ComboWithReset(label, current_item, default_item, items_buf, count,
                               popup_max_height_in_items, wrap, reset_tooltip, item_tooltips,
-                              hover_cursor, popup_cursor);
+                              hover_cursor, popup_cursor, last_item);
     }
 
     // Alternate adjective & explicit mouse-wheel forms (ResettableCombo, MouseWheelComboWithReset):
-    inline IMGUI_API bool ResettableCombo(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
+    inline IMGUI_API bool ResettableCombo(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR, int* last_item = nullptr)
     {
-        return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
+        return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor, last_item);
     }
 
-    inline IMGUI_API bool ResettableCombo(const char* label, int* current_item, int default_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
+    inline IMGUI_API bool ResettableCombo(const char* label, int* current_item, int default_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR, int* last_item = nullptr)
     {
-        return ComboWithReset(label, current_item, default_item, items_separated_by_zeros, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
+        return ComboWithReset(label, current_item, default_item, items_separated_by_zeros, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor, last_item);
     }
 
-    inline IMGUI_API bool MouseWheelComboWithReset(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
+    inline IMGUI_API bool MouseWheelComboWithReset(const char* label, int* current_item, int default_item, const char* const items[], int items_count, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR, int* last_item = nullptr)
     {
-        return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
+        return ComboWithReset(label, current_item, default_item, items, items_count, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor, last_item);
     }
 
-    inline IMGUI_API bool MouseWheelComboWithReset(const char* label, int* current_item, int default_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR)
+    inline IMGUI_API bool MouseWheelComboWithReset(const char* label, int* current_item, int default_item, const char* items_separated_by_zeros, int popup_max_height_in_items = -1, bool wrap = false, const char* reset_tooltip = nullptr, const char* const item_tooltips[] = nullptr, ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_COMBO_DEFAULT_CURSOR, ImGuiMouseCursor popup_cursor = IMGUI_EXTRA_WHEEL_COMBO_POPUP_CURSOR, int* last_item = nullptr)
     {
-        return ComboWithReset(label, current_item, default_item, items_separated_by_zeros, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor);
+        return ComboWithReset(label, current_item, default_item, items_separated_by_zeros, popup_max_height_in_items, wrap, reset_tooltip, item_tooltips, hover_cursor, popup_cursor, last_item);
     }
 #endif // !CONTRIB_DISABLE_MOUSE_WHEEL_COMBO
 
@@ -1689,3 +2181,4 @@ namespace ImGui {
 
 #endif // IMGUI_MOUSE_WHEEL_CONTROLS_H
 #endif // !IMGUI_DISABLE_MOUSE_WHEEL_CONTROLS
+

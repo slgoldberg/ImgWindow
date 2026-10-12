@@ -47,13 +47,17 @@
 // #define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS   // Exclude all wheel sliders, drags, cyclers & combos
 // #define CONTRIB_DISABLE_CLICKABLE_LINKS        // Exclude ButtonLink, TextLink & AttachItemCursor
 
-// --- Fine-Grained Mouse-Wheel Control Opt-Outs ---
+// --- Fine-Grained Mouse-Wheel Control Opt-Outs & Style Defaults ---
 // #define CONTRIB_DISABLE_GET_MOUSE_WHEEL        // Exclude GetMouseWheel* primitives
 // #define CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL     // Exclude AdjustItemOnMouseWheel()
 // #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL      // Exclude CycleItemOnMouseWheel()
 // #define CONTRIB_DISABLE_PERCENT_SLIDER         // Exclude PercentSlider() & SliderPercent()
 // #define CONTRIB_DISABLE_SLIDER_PERCENT         // Exclude only the SliderPercent() alias
 // #define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO      // Exclude MouseWheelCombo & ComboWithReset
+// #define IMGUI_CONTRIB_DISABLE_RESET_UNDO       // Disable 1-click Reset-with-Undo (restore previous value)
+// #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL      ICON_FA_UNDO  // Custom reset button icon (default: vector ↺)
+// #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT  ICON_FA_REDO  // Custom restore/redo icon (default: vector ↻)
+// #define IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE ImGui::ComboArrowStyle_RightWhenClosed // Combo chevron style
 
 // (Note: IMGUI_CONTRIB_DISABLE_*, IMGUI_DISABLE_CONTRIB_*, and legacy
 //  IMGUI_DISABLE_EXTRA_* macro names are also honored automatically.)
