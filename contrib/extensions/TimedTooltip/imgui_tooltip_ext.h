@@ -98,6 +98,7 @@ namespace TimedTooltip {
         bool is_displayed = false;
         bool is_cooldown = false; // Prevents reappearing if they remain perfectly still after auto-hide
         int last_frame_updated = 0;
+        ImGuiContext* last_context_updated = nullptr;
     };
 
         inline ImGuiID& GetActiveTooltipID() {
@@ -124,19 +125,64 @@ namespace TimedTooltip {
             GetActiveTooltipID() = 0;
             state.perfect_size = ImVec2(0,0);
         }
+        for (auto& kv : GetTooltipStateMap()) {
+            if (kv.second.is_displayed || kv.second.hover_cycles > 0) {
+                kv.second.is_displayed = false;
+                kv.second.hover_cycles = 0;
+                kv.second.unhover_grace_cycles = 0;
+                kv.second.is_cooldown = false;
+                kv.second.perfect_size = ImVec2(0, 0);
+            }
+        }
     }
 
 
     inline bool BeginStationaryTooltipProxy(ImGuiID hash_id, bool is_hovered, const TooltipConfig* config_override = nullptr) {
+        ImGuiContext* cur_ctx = ImGui::GetCurrentContext();
+        int cur_frame = ImGui::GetFrameCount();
+
+        // Foreground-Widget Hover Priority:
+        // In Dear ImGui, ImGui::IsItemHovered() only tests bounding-box overlap (HoveredRect),
+        // so a later full-width background Selectable(SpanAllColumns) on the same line will also
+        // report IsItemHovered() == true even when the mouse is over an earlier Button on that line!
+        // The first widget in a given (ImGuiContext*, frame_count) that passes is_hovered == true
+        // claims tooltip hover for the frame; any later overlapping widget yields automatically.
+        static ImGuiContext* s_ClaimedHoverCtx   = nullptr;
+        static int           s_ClaimedHoverFrame = -1;
+        static ImGuiID       s_ClaimedHoverID    = 0;
+        bool preempted_by_other_widget = false;
+        if (is_hovered) {
+            if (s_ClaimedHoverCtx != cur_ctx || s_ClaimedHoverFrame != cur_frame) {
+                s_ClaimedHoverCtx   = cur_ctx;
+                s_ClaimedHoverFrame = cur_frame;
+                s_ClaimedHoverID    = hash_id;
+            } else if (s_ClaimedHoverID != hash_id) {
+                is_hovered = false;
+                preempted_by_other_widget = true;
+            }
+        } else if (s_ClaimedHoverCtx == cur_ctx && s_ClaimedHoverFrame == cur_frame && s_ClaimedHoverID != hash_id) {
+            preempted_by_other_widget = true;
+        }
+
         TooltipState& state = GetTooltipStateMap()[hash_id];
-        state.last_frame_updated = ImGui::GetFrameCount(); // Mark as alive this frame!
+        state.last_frame_updated = cur_frame; // Mark as alive this frame!
+        state.last_context_updated = cur_ctx;
         
-        // Garbage Collection: If the active tooltip was abandoned (e.g. its ImGuiID changed due to a label toggle), kill it!
+        // Garbage Collection & Immediate Preemption:
+        // If another widget is now the foreground hovered widget, or if the active tooltip was
+        // abandoned (e.g. its ImGuiID changed due to a label toggle), release the active tooltip immediately.
         ImGuiID active_id = GetActiveTooltipID();
         if (active_id != 0 && active_id != hash_id) {
             TooltipState& active_state = GetTooltipStateMap()[active_id];
-            if (active_state.last_frame_updated < ImGui::GetFrameCount() - 1) {
-                ClearActiveTooltip();
+            bool abandoned_in_same_ctx = (active_state.last_context_updated == cur_ctx &&
+                                          active_state.last_frame_updated < cur_frame - 1);
+            if (is_hovered || abandoned_in_same_ctx || !active_state.is_displayed) {
+                active_state.is_displayed = false;
+                active_state.hover_cycles = 0;
+                active_state.unhover_grace_cycles = 0;
+                active_state.is_cooldown = false;
+                active_state.perfect_size = ImVec2(0, 0);
+                GetActiveTooltipID() = 0;
             }
         }
         
@@ -160,7 +206,7 @@ namespace TimedTooltip {
         } else {
             if (state.is_displayed) {
                 state.unhover_grace_cycles++;
-                if (state.unhover_grace_cycles > config->grace_period_cycles) {
+                if (preempted_by_other_widget || state.unhover_grace_cycles > config->grace_period_cycles) {
                     state.is_displayed = false;
                     if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
                     state.hover_cycles = 0;
@@ -305,11 +351,20 @@ namespace TimedTooltip {
 namespace ImGui {
 namespace Detail {
     struct LinkClickToggleState {
-        int     frame_count    = -1;
-        ImGuiID item_id        = 0;
-        ImVec2  item_min       = ImVec2(-1.0f, -1.0f);
-        bool    toggle_mode    = false;
-        bool    click_consumed = false;
+        ImGuiContext* context                 = nullptr;
+        int           frame_count             = -1;
+        ImGuiID       item_id                 = 0;
+        ImVec2        item_min                = ImVec2(-1.0f, -1.0f);
+        bool          toggle_mode             = false;
+        bool          click_consumed          = false;
+        bool          is_menu_item            = false;
+        bool          menu_item_selected      = false;
+        ImGuiContext* menu_active_context     = nullptr;
+        int           menu_active_frame       = -1;
+        bool          wheel_latched           = false;
+        ImGuiContext* wheel_latch_context     = nullptr;
+        int           wheel_latch_alive_frame = -1;
+        ImVec2        wheel_latch_mouse_pos   = ImVec2(-1.0f, -1.0f);
     };
 
     inline LinkClickToggleState& GetLinkClickToggleState() {
@@ -319,24 +374,103 @@ namespace Detail {
 
     inline void RegisterItemTooltipToggle(bool is_toggle_eligible = true) {
         LinkClickToggleState& st = GetLinkClickToggleState();
+        ImGuiContext* cur_ctx = GetCurrentContext();
         int cur_frame = GetFrameCount();
         ImGuiID cur_id = GetItemID();
         ImVec2 cur_min = GetItemRectMin();
-        bool same_item = (st.frame_count == cur_frame) &&
+        bool same_item = (st.context == cur_ctx) && (st.frame_count == cur_frame) &&
                          ((cur_id != 0 && st.item_id == cur_id) ||
                           (cur_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y));
         if (!same_item) {
-            st.frame_count    = cur_frame;
-            st.item_id        = cur_id;
-            st.item_min       = cur_min;
-            st.click_consumed = false;
+            st.context            = cur_ctx;
+            st.frame_count        = cur_frame;
+            st.item_id            = cur_id;
+            st.item_min           = cur_min;
+            st.click_consumed     = false;
+            st.is_menu_item       = false;
+            st.menu_item_selected = false;
+        }
+        if (IsItemClicked()) {
+            st.wheel_latched = false;
         }
         st.toggle_mode = st.click_consumed ? false : is_toggle_eligible;
     }
 
+    inline void RegisterMenuItemSelection(bool is_selected, bool is_clicked = false, bool is_toggle_eligible = false) {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        ImGuiContext* cur_ctx = GetCurrentContext();
+        int cur_frame = GetFrameCount();
+        st.context             = cur_ctx;
+        st.frame_count         = cur_frame;
+        st.item_id             = GetItemID();
+        st.item_min            = GetItemRectMin();
+        st.click_consumed      = false;
+        st.toggle_mode         = is_toggle_eligible;
+        st.is_menu_item        = true;
+        st.menu_item_selected  = is_selected;
+        st.menu_active_context = cur_ctx;
+        st.menu_active_frame   = cur_frame;
+        if (is_clicked) {
+            st.wheel_latched = false;
+        }
+    }
+
+    inline bool KeepWheelLatchAlive(bool wheel_stepped) {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        ImGuiContext* cur_ctx = GetCurrentContext();
+        int cur_frame = GetFrameCount();
+        ImVec2 mouse_pos = GetIO().MousePos;
+        if (wheel_stepped) {
+            st.wheel_latched           = true;
+            st.wheel_latch_context     = cur_ctx;
+            st.wheel_latch_alive_frame = cur_frame;
+            st.wheel_latch_mouse_pos   = mouse_pos;
+            return false;
+        } else if (st.wheel_latched && st.wheel_latch_context == cur_ctx) {
+            float dx = mouse_pos.x - st.wheel_latch_mouse_pos.x;
+            float dy = mouse_pos.y - st.wheel_latch_mouse_pos.y;
+            if (dx > 6.0f || dx < -6.0f || dy > 6.0f || dy < -6.0f) {
+                st.wheel_latched = false;
+                return true;
+            } else {
+                st.wheel_latch_alive_frame = cur_frame;
+            }
+        }
+        return false;
+    }
+
+    inline bool ResolveItemTooltipHover(ImGuiID raw_item_id, bool raw_hovered) {
+        LinkClickToggleState& st = GetLinkClickToggleState();
+        ImGuiContext* cur_ctx = GetCurrentContext();
+        int cur_frame = GetFrameCount();
+        if (!st.wheel_latched || st.wheel_latch_context != cur_ctx) {
+            return raw_hovered;
+        }
+        ImVec2 mouse_pos = GetIO().MousePos;
+        float dx = mouse_pos.x - st.wheel_latch_mouse_pos.x;
+        float dy = mouse_pos.y - st.wheel_latch_mouse_pos.y;
+        bool menu_still_open = (st.menu_active_context == cur_ctx) && (cur_frame - st.menu_active_frame <= 1);
+        if ((!menu_still_open && cur_frame - st.wheel_latch_alive_frame > 2) ||
+            dx > 6.0f || dx < -6.0f || dy > 6.0f || dy < -6.0f) {
+            st.wheel_latched = false;
+            return raw_hovered;
+        }
+        if (menu_still_open) {
+            ImVec2 cur_min = GetItemRectMin();
+            bool same_item = (st.context == cur_ctx) && (st.frame_count == cur_frame) &&
+                             ((raw_item_id != 0 && st.item_id == raw_item_id) ||
+                              (raw_item_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y));
+            if (same_item && st.is_menu_item) {
+                return st.menu_item_selected;
+            }
+            return false;
+        }
+        return raw_hovered;
+    }
+
     inline void MarkLastItemClickConsumed() {
         LinkClickToggleState& st = GetLinkClickToggleState();
-        if (st.frame_count == GetFrameCount()) {
+        if (st.context == GetCurrentContext() && st.frame_count == GetFrameCount()) {
             st.click_consumed = true;
             st.toggle_mode    = false;
         }
@@ -345,7 +479,7 @@ namespace Detail {
     inline bool ShouldToggleTooltipOnClick(ImGuiID raw_item_id, bool is_item_active) {
         LinkClickToggleState& st = GetLinkClickToggleState();
         ImVec2 cur_min = GetItemRectMin();
-        if (st.frame_count == GetFrameCount()) {
+        if (st.context == GetCurrentContext() && st.frame_count == GetFrameCount()) {
             if ((raw_item_id != 0 && st.item_id == raw_item_id) ||
                 (raw_item_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y)) {
                 return st.toggle_mode;
@@ -486,11 +620,14 @@ namespace TimedTooltip {
     inline bool TextV(const TooltipConfig* config_override, const char* fmt, va_list args) {
         ImGuiID raw_id = ImGui::GetItemID();
         bool toggle = ImGui::Detail::ShouldToggleTooltipOnClick(raw_id, ImGui::IsItemActive());
-        return TextProxyV(raw_id, ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked(), toggle);
+        bool hovered = ImGui::Detail::ResolveItemTooltipHover(raw_id, ImGui::IsItemHovered());
+        return TextProxyV(raw_id, hovered, config_override, fmt, args, ImGui::IsItemClicked(), toggle);
     }
 
     inline bool TextLinkV(const TooltipConfig* config_override, const char* fmt, va_list args) {
-        return TextProxyV(ImGui::GetItemID(), ImGui::IsItemHovered(), config_override, fmt, args, ImGui::IsItemClicked(), true);
+        ImGuiID raw_id = ImGui::GetItemID();
+        bool hovered = ImGui::Detail::ResolveItemTooltipHover(raw_id, ImGui::IsItemHovered());
+        return TextProxyV(raw_id, hovered, config_override, fmt, args, ImGui::IsItemClicked(), true);
     }
 
     // Proxy Timed Tooltips (accept explicit ID and explicit is_hovered state):

@@ -107,17 +107,26 @@ ImGui::SetDefaultMarkdownConfig(&mdConfig);
 > * `monoFont` falls back to the ambient window font.
 
 ### 3. Rendering Markdown in Windows
-Use the clean, collision-free `ImGui::MD` namespace:
+Use the clean, collision-free `ImGui::MD` namespace, which mirrors Dear ImGui's native wrapping contract:
+* **`ImGui::MD::TextUnformatted` & `ImGui::MD::Text`:** Do **not** auto-wrap by default (matching `ImGui::TextUnformatted` and `ImGui::Text`—lines only break on explicit `\n` unless an active `ImGui::PushTextWrapPos()` is on the stack or an explicit `wrap_width` / `ImVec2 wrap_size` argument is passed).
+* **`ImGui::MD::TextWrapped`:** Automatically wraps to the available window content width (`GetContentRegionAvail().x`), or to an explicit `wrap_width` / `ImVec2 wrap_size` if provided.
+* **`ImGui::MD::TextLink` / `TextUnformattedLink` / `TextWrappedLink`:** Renders Markdown with `ImGuiMouseCursor_Hand` on hover and returns `ImGui::LinkClickResult` (supporting automatic click-to-toggle tooltips when the return value is not tested in `if (...)`).
 
 ```cpp
-// Standard inline Markdown block:
+// Single-line / non-wrapping Markdown (unless \n or PushTextWrapPos is used):
 ImGui::MD::Text("### System Status\nEngine 1: **Normal** | Fuel: *Sufficient*");
+ImGui::MD::TextUnformatted("Status: **ACTIVE**");
 
 // Markdown block with automatic wrapping matching available window width:
 ImGui::MD::TextWrapped(
     "Check this option to enable **custom cursors**. "
     "Changes take effect immediately without requiring a simulator restart."
 );
+
+// Clickable Markdown text link:
+if (ImGui::MD::TextLink("Open **Avionics Settings**")) {
+    OpenSettings();
+}
 ```
 
 > [!TIP]
@@ -126,10 +135,10 @@ ImGui::MD::TextWrapped(
 > In `ImGui::MD::Text(...)`, `ImGui::MD::TextWrapped(...)`, and `ImGui::TimedTooltip::TextMD(...)`, text is rendered via `ImGui::TextUnformatted(start, end)`, bypassing ImGui's `"##"` label parser completely. You can freely start strings or lines with `#`, `##`, or `###` for H1/H2/H3 headers without any escaping!
 
 ### 4. Rendering Markdown in Timed Tooltips
-When combined with the companion **TimedTooltip** extension (or when including the master header `#include "contrib/ImgWindow_contrib.h"`), rich multi-line Markdown tooltips are attached with a single line of code:
+When combined with the companion **TimedTooltip** extension (included in either order, or via `#include "contrib/includes.h"`), rich multi-line Markdown tooltips are attached with a single line of code:
 
 ```cpp
-#include "contrib/ImgWindow_contrib.h"
+#include "contrib/includes.h"
 
 ImGui::Button("Accessibility Mode");
 ImGui::TimedTooltip::TextMD(
@@ -349,8 +358,26 @@ namespace ImGui {
         void RegisterTag(const std::string& tag_name, std::function<void(const std::string& text)> callback);
 
         // Standard Text Rendering (Mirroring standard ImGui vocabulary):
+        // - TextUnformatted / Text: Do not wrap by default (unless wrap_width / wrap_size or PushTextWrapPos is supplied)
+        // - TextWrapped: Wraps automatically to GetContentRegionAvail().x (or explicit wrap_width / wrap_size)
+        void TextUnformatted(const char* text, const char* text_end = nullptr, const MarkdownConfig* config_override = nullptr);
+        void TextUnformatted(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);
         void Text(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);
+        void Text(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr);
+        void Text(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr);
         void TextWrapped(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);
+        void TextWrapped(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr);
+        void TextWrapped(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr);
+
+        // Clickable Markdown Text Links (Hand cursor on hover; toggles TimedTooltip on click if return value is ignored):
+        LinkClickResult TextUnformattedLink(const char* text, const char* text_end = nullptr, const MarkdownConfig* config_override = nullptr);
+        LinkClickResult TextUnformattedLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);
+        LinkClickResult TextLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);
+        LinkClickResult TextLink(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr);
+        LinkClickResult TextLink(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr);
+        LinkClickResult TextWrappedLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);
+        LinkClickResult TextWrappedLink(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr);
+        LinkClickResult TextWrappedLink(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr);
 
         // Backward-Compatibility Aliases:
         void TextMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);

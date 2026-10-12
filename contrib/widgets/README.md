@@ -160,11 +160,15 @@ ImGui::PercentSlider("Window Opacity", &s_Opacity, 0.1f, 1.0f); // (alias: ImGui
 Full-featured compound controls (overloaded for `float*` and `int*`, also aliased as `ResettableSlider`, `ResettablePercentSlider`, and `ResettableDrag`) with built-in mouse-wheel support, a flush abutting vector undo/reset button (`0`-gap seam), smart width reservation, hover isolation, active input lockout, and dual-tooltip support.
 * Sits cleanly in a single line: `[ Control Track/Box | ↺ ]  Label Text`
 * Automatically dims the reset button when already at default value, and lights up when modified.
-* Features an antialiased vector counter-clockwise undo glyph drawn directly in `ImDrawList` (zero font dependencies).
+* **Click-to-Toggle Tooltip When at Default:** Clicking the dimmed reset button when already at default value (`!is_modified`) or clicking the right-side text label immediately toggles the status/help `TimedTooltip` ON/OFF!
+* Features an antialiased vector counter-clockwise undo glyph drawn directly in `ImDrawList` (zero font dependencies), or accepts a custom icon/string globally via `ImGui::SetDefaultResetButtonLabel(ICON_FA_UNDO)` (or `#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL ICON_FA_UNDO`).
 
 ```cpp
 static float s_Heading = 180.0f;
 static int   s_Fov     = 80;
+
+// Optional: use a FontAwesome glyph instead of the built-in vector undo arrow:
+// ImGui::SetDefaultResetButtonLabel(ICON_FA_UNDO);
 
 // 1-line sliders (float* or int*) with built-in mouse-wheel and one-click reset:
 ImGui::SliderWithReset("Heading", &s_Heading, 180.0f /* default */, 0.0f, 360.0f, "%.0f°");
@@ -180,7 +184,7 @@ ImGui::DragWithReset("Pitch Offset", &s_PitchOffset, 0.0f /* default */, 0.5f /*
 #### F. Turnkey Mouse-Wheel Combos (`MouseWheelCombo` / `ComboWithReset`)
 Dropdown combo boxes that work like standard `ImGui::Combo` when clicked, and support live mouse-wheel cycling both when **closed** (hovering over the combo box frame) and while the dropdown popup menu is **open** (hovering over the open list or combo header)!
 * **`ComboWithReset`** (also aliased as `ResettableCombo`) pairs the mouse-wheel combo with the flush abutting `↺` reset button to revert to `default_item` in one click.
-* **Per-Item Tooltips (`item_tooltips[]`) & Open-Menu Wheel Tooltip Latch ("Lens UI"):** Pass an optional array of tooltip strings (plain text or Markdown when `contrib.h` is active) to attach a distinct tooltip to each item in the open dropdown list. When the user spins the mouse wheel while the dropdown menu is open, tooltip targeting automatically latches onto the **newly wheel-selected item** (`*current_item`) rather than whichever row the stationary mouse cursor happens to be parked over, and seamlessly returns to normal mouse hover targeting on the first movement of the mouse (`> 1.5px`).
+* **Per-Item Tooltips (`item_tooltips[]`) & Open-Menu Wheel Tooltip Latch ("Lens UI"):** Pass an optional array of tooltip strings (plain text or Markdown when `contrib.h` is active) to attach a distinct tooltip to each item in the open dropdown list. When the user spins the mouse wheel while the dropdown menu is open, tooltip targeting automatically latches onto the **newly wheel-selected item** (`*current_item`) rather than whichever row the stationary mouse cursor happens to be parked over, and seamlessly returns to normal mouse hover targeting when the mouse moves (`> 6px`).
 
 ```cpp
 static const char* const kCameraModes[] = { "Cockpit", "Chase", "Circle", "Tower", "Ride-Along" };
@@ -208,27 +212,66 @@ ImGui::ComboWithReset("Camera Mode", &s_CamMode, 1 /* default */,
 
 ### 3. Clickable Link & Item Cursor Affordances (`imgui_clickable_links.h`)
 
-In standard Dear ImGui, buttons and clickable elements keep the default OS arrow cursor. The `imgui_clickable_links.h` header eliminates the boilerplate of writing `if (IsItemHovered()) SetMouseCursor(ImGuiMouseCursor_Hand);` on every interactive item.
+In standard Dear ImGui, buttons, menu items, and clickable text keep the default OS arrow cursor. The `imgui_clickable_links.h` header eliminates the boilerplate of writing `if (IsItemHovered()) SetMouseCursor(ImGuiMouseCursor_Hand);` on every interactive item, while providing automatic **click-to-toggle tooltip** ergonomics and **open-popup wheel-selection tooltip latching**.
 
-* **Ambient Color Preservation on `ImGui::TextLink`:** In Dear ImGui 1.91+, the built-in `ImGui::TextLink(const char*)` forces `ImGuiCol_TextLink` (a bright sky-blue tint) onto the text. Our `imgui_clickable_links.h` overloads preserve your **ambient `ImGuiCol_Text` color** by default (or accept an explicit `const ImVec4* text_color` override and `std::string`), while rendering a zero-frame clickable text item with a Hand cursor on hover.
+* **Ambient Color Preservation on `ImGui::TextLink`:** In Dear ImGui 1.91+, the built-in `ImGui::TextLink(const char*)` forces `ImGuiCol_TextLink` (a bright sky-blue tint) with an underline. Our `imgui_clickable_links.h` overloads preserve your **ambient `ImGuiCol_Text` color** by default (or accept an explicit `const ImVec4* col_override` and `std::string`), while rendering a zero-frame clickable text item with a Hand cursor on hover (with Dear ImGui's native hyperlink preserved as `ImGui::NativeTextLink`).
+* **Smart Click-to-Toggle Tooltips (`ImGui::LinkClickResult`):** `ButtonLink`, `SmallButtonLink`, `TextLink`, `TextLinkUnformatted`, `MenuItemLink`, and `MD::TextLink` return `ImGui::LinkClickResult`:
+  * **Tested in `if (...)` (Action Link):** Evaluating `if (ImGui::ButtonLink("Save"))` invokes `operator bool()`, marking the click as handled by your action block and dismissing any open tooltip on click.
+  * **Standalone Statement (Info / Help Link):** Calling `ImGui::TextLink("(i) Help");` without testing its return value leaves the click unconsumed, so clicking the widget immediately toggles a trailing `ImGui::TimedTooltip::Text` / `TextMD` ON and OFF (without closing any enclosing `BeginPopup`!).
 
 ```cpp
 #include "contrib/widgets/imgui_clickable_links.h"
 
-// Standard button with hand cursor on hover:
+// 1. Action button (tested in `if` -> executes action & dismisses tooltip on click):
 if (ImGui::ButtonLink("Save Flight Plan")) {
     SavePlan();
 }
+ImGui::TimedTooltip::TextMD("Saves the active flight plan to disk.");
 
-// Clickable text preserving ambient text color (or optional custom color):
-if (ImGui::TextLink("A-Better-Camera Settings")) {
-    ToggleHeaderMode();
-}
+// 2. Standalone info link (return value ignored -> clicking toggles tooltip ON/OFF!):
+ImGui::TextLinkUnformatted("(i) Works with scroll-wheel!");
+ImGui::TimedTooltip::TextMD("Spin the **scroll-wheel** over this menu to step through options.");
 
-// Checkboxes and radio buttons with hand cursor:
+// 3. Checkboxes, radio buttons, selectables, and menu items with hand cursor:
 ImGui::CheckboxLink("Enable Autothrottle", &s_Autothrottle);
 ImGui::RadioButtonLink("NAV 1", &s_NavSource, 1);
+ImGui::SelectableLink("Row Item", isSelected);
+ImGui::MenuItemLink("Compact Density", nullptr, isSelected);
 ```
+
+#### Custom `BeginPopup` Menus with Mouse-Wheel Cycling & Per-Item Tooltips
+When building custom `ImGui::BeginPopup` menus (with custom titles, separators, or footers), wrap the popup contents in `BeginGroup()` / `EndGroup()`, use `ImGui::MenuItem` (or `ImGui::MenuItemLink` for a Hand cursor on each row) with per-item `TimedTooltip::TextMD` calls, and attach `ImGui::CycleItemOnMouseWheel` after `EndGroup()`:
+
+```cpp
+if (ImGui::BeginPopup("#density_menu")) {
+    ImGui::BeginGroup();
+    if (ImGui::TextLink("Choose tracking list density:")) {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::Separator();
+
+    for (int i = 4; i >= 0; --i) {
+        bool isActive = (densityIdx == i);
+        if (ImGui::MenuItem(menus[i], nullptr, isActive)) {
+            gUserLinePadding = 4 + 2 * i;
+        }
+        ImGui::TimedTooltip::TextMD("Switch table spacing to **%s** density.", tipLabels[i]);
+    }
+
+    ImGui::Separator();
+    ImGui::TextLinkUnformatted("  (i) Works with scroll-wheel!  ");
+    ImGui::TimedTooltip::TextMD("Spin your scroll-wheel over this list to step through options.");
+    ImGui::EndGroup();
+
+    // Whole-menu mouse-wheel cycling (automatically latches per-item tooltips to `isActive`!):
+    if (ImGui::CycleItemOnMouseWheel(&densityIdx, 0, 4, /*wrap=*/false, /*natural_list_order=*/false,
+                                     /*consume=*/true, ImGuiMouseCursor_Hand)) {
+        gUserLinePadding = 4 + 2 * densityIdx;
+    }
+    ImGui::EndPopup();
+}
+```
+* **Automatic Wheel-Selection Tooltip Latch:** `ImGui::MenuItem` and `ImGui::MenuItemLink` register each item's `isActive` state. When the user spins the scroll wheel inside the open popup, `TimedTooltip` automatically switches from mouse-hover targeting to showing the tooltip for the **newly wheel-selected item** (`isActive`), returning to normal hover targeting as soon as the mouse moves (`> 6px`).
 
 #### Universal Item Hover-Cursor Chaser (`ImGui::AttachItemCursor`):
 ```cpp

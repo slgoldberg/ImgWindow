@@ -23,12 +23,15 @@ Unlike standard Dear ImGui tooltips which move with the mouse and can flicker, o
   * **Upward Growth:** If a multi-line tooltip would clip off the bottom of the screen, it automatically grows upwards, clamping cleanly above the display floor.
   * **Leftward Shift:** If a tooltip approaches the right screen border, it automatically shifts leftwards.
   * **Adaptive Wrap:** Shrink-wraps tightly around concise text while wrapping paragraphs at a readable width (80% of available viewport width by default).
-* **Interactive Cursor Protection:**
-  * Preserves and restores custom widget cursors (e.g., `ImGuiMouseCursor_Hand`) so hovering interactive elements remains intuitive.
-* **Global Mutex:**
-  * Automatically suppresses competing tooltips across disparate translation units, child windows, and widget hierarchies.
-* **Plain Text & Markdown Support:**
-  * Native plain-text via `Text(...)` and rich Markdown via `TextMD(...)`.
+* **Interactive Cursor Protection & Click-to-Toggle Ergonomics:**
+  * Preserves and restores custom widget cursors (e.g., `ImGuiMouseCursor_Hand` or `ImGuiMouseCursor_ResizeEW`), and automatically shows a Hand cursor on passive text/labels that have a tooltip attached.
+  * Clicking passive text, right-side Slider/Drag/Combo labels, dimmed at-default reset buttons, or standalone `*Link` widgets immediately toggles the tooltip ON/OFF without waiting for `hover_delay_cycles`.
+* **Multi-`ImGuiContext` & Overlapping-Widget Safety:**
+  * Isolates tooltip state and wheel-selection latches per `ImGuiContext*` so multiple `ImgWindow` instances rendering in the same X-Plane draw cycle never interfere with one another.
+  * **Foreground-Widget Hover Priority:** When a button sits on the same line as a full-width background `Selectable(..., ImGuiSelectableFlags_SpanAllColumns)`, `TimedTooltip` automatically gives tooltip priority to the earlier foreground widget on the row without requiring manual hover-suppression flags.
+* **Plain Text & Markdown Support (Order-Independent):**
+  * Native auto-wrapping plain-text via `Text(...)`, single-line non-wrapping plain-text via `TextUnformatted(...)`, rich auto-wrapping Markdown via `TextMD(...)`, and single-line non-wrapping Markdown via `TextUnformattedMD(...)`.
+  * `imgui_tooltip_ext.h` and `imgui_markdown_ext.h` can be `#include`d in **either order** and the `TextMD` / `TextUnformattedMD` bridge is synthesized automatically.
 
 ---
 
@@ -51,14 +54,18 @@ ImGui::TimedTooltip::Text("Saves the active route to disk as an .fms file.");
 ```
 
 ### 3. Markdown Tooltip
-If using the companion **Markdown** extension, include `imgui_markdown_ext.h` and call `TextMD`:
+If using the companion **Markdown** extension, include `imgui_markdown_ext.h` (in either order, or via `contrib/includes.h`) and call `TextMD`:
 
 ```cpp
-#include "contrib/extensions/TimedTooltip/imgui_tooltip_ext.h"
 #include "contrib/extensions/Markdown/imgui_markdown_ext.h"
+#include "contrib/extensions/TimedTooltip/imgui_tooltip_ext.h"
 
 ImGui::Button("Autopilot Nav");
 ImGui::TimedTooltip::TextMD("Arms **LNAV** mode. *Requires active GPS waypoint.*");
+
+// Single-line non-wrapping Markdown tooltip (never wraps unless \n is present):
+ImGui::Button("Quick Action");
+ImGui::TimedTooltip::TextUnformattedMD("**Action:** Switch to exterior chase view.");
 ```
 
 ---
@@ -190,21 +197,30 @@ When `TooltipConfig::font_scale` is left at `0.0f` (the default), the tooltip en
 ```cpp
 namespace ImGui {
     namespace TimedTooltip {
-        // High-level Plain Text (binds to previous ImGui item; returns true when displayed):
+        // High-level Plain Text (auto-wraps to TooltipConfig bounds; returns true when displayed):
         bool Text(const char* fmt, ...);
         bool Text(const TooltipConfig* config, const char* fmt, ...);
         bool Text(const std::string& text, const TooltipConfig* config = nullptr);
+
+        // Single-line / Non-Wrapping Plain Text (mirrors ImGui::TextUnformatted):
+        bool TextUnformatted(const char* text, const char* text_end = nullptr, const TooltipConfig* config = nullptr);
+        bool TextUnformatted(const std::string& text, const TooltipConfig* config = nullptr);
 
         // High-level Plain Text Proxy (explicit ID and hover state):
         bool TextProxy(ImGuiID id, bool is_hovered, const char* fmt, ...);
         bool TextProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...);
         bool TextProxy(const char* str_id, bool is_hovered, const char* fmt, ...);
         bool TextProxy(const char* str_id, bool is_hovered, const std::string& text, const TooltipConfig* config = nullptr);
+        bool TextUnformattedProxy(ImGuiID id, bool is_hovered, const char* text, const char* text_end = nullptr, const TooltipConfig* config = nullptr);
 
-        // High-level Markdown (requires imgui_markdown_ext.h; returns true when displayed):
+        // High-level Markdown (requires imgui_markdown_ext.h in either include order; returns true when displayed):
         bool TextMD(const char* fmt, ...);
         bool TextMD(const TooltipConfig* config, const char* fmt, ...);
         bool TextMD(const std::string& markdown_text, const TooltipConfig* config = nullptr);
+
+        // Single-line / Non-Wrapping Markdown (never wraps unless \n or PushTextWrapPos is active):
+        bool TextUnformattedMD(const char* text, const char* text_end = nullptr, const TooltipConfig* config = nullptr);
+        bool TextUnformattedMD(const std::string& markdown_text, const TooltipConfig* config = nullptr);
 
         // High-level Markdown Proxy (explicit ID and hover state):
         bool TextMDProxy(ImGuiID id, bool is_hovered, const char* fmt, ...);
@@ -212,6 +228,10 @@ namespace ImGui {
         bool TextMDProxy(const char* str_id, bool is_hovered, const char* fmt, ...);
         bool TextMDProxy(ImGuiID id, bool is_hovered, const std::string& markdown_text, const TooltipConfig* config = nullptr);
         bool TextMDProxy(const char* str_id, bool is_hovered, const std::string& markdown_text, const TooltipConfig* config = nullptr);
+        bool TextUnformattedMDProxy(ImGuiID id, bool is_hovered, const char* text, const char* text_end = nullptr, const TooltipConfig* config = nullptr);
+
+        // Explicitly opt the preceding widget into click-to-toggle tooltip behavior for the current frame:
+        void ToggleOnClick(bool enable = true);
 
         // Configuration:
         using Config = TooltipConfig;

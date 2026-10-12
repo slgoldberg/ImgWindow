@@ -17,7 +17,7 @@ ImgWindow/
     ├── widgets.h                          # Concentrator for all widgets    (-> widgets/includes.h)
     │
     ├── extensions/                        # Feature-complete ImGui::<Package>:: subsystems
-    │   ├── includes.h                     # Roll-up for all extensions (TimedTooltip first, then Markdown)
+    │   ├── includes.h                     # Roll-up for all extensions (order-independent)
     │   ├── TimedTooltip/                  # Stationary & delayed tooltip engine with auto-bounds clamping
     │   └── Markdown/                      # Markdown parser & renderer with dynamic font scaling & tags
     │
@@ -25,7 +25,7 @@ ImgWindow/
         ├── includes.h                     # Roll-up for all contributed widgets
         ├── imgui_toggle_buttons.h         # Animated toggle switches & segmented button pairs
         ├── imgui_mouse_wheel_controls.h   # Sliders, drags, combos & chasers with mouse-wheel support
-        └── imgui_clickable_links.h        # ButtonLink, TextLink & AttachItemCursor hover affordances
+        └── imgui_clickable_links.h        # ButtonLink, TextLink, MenuItemLink & AttachItemCursor affordances
 ```
 
 ### 1. Packages & Extensions (`contrib/extensions/`)
