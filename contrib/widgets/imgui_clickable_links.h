@@ -34,10 +34,11 @@
 namespace ImGui {
 namespace Detail {
     struct LinkClickToggleState {
-        int     frame_count = -1;
-        ImGuiID item_id     = 0;
-        ImVec2  item_min    = ImVec2(-1.0f, -1.0f);
-        bool    toggle_mode = false;
+        int     frame_count    = -1;
+        ImGuiID item_id        = 0;
+        ImVec2  item_min       = ImVec2(-1.0f, -1.0f);
+        bool    toggle_mode    = false;
+        bool    click_consumed = false;
     };
 
     inline LinkClickToggleState& GetLinkClickToggleState() {
@@ -47,16 +48,26 @@ namespace Detail {
 
     inline void RegisterItemTooltipToggle(bool is_toggle_eligible = true) {
         LinkClickToggleState& st = GetLinkClickToggleState();
-        st.frame_count = GetFrameCount();
-        st.item_id     = GetItemID();
-        st.item_min    = GetItemRectMin();
-        st.toggle_mode = is_toggle_eligible;
+        int cur_frame = GetFrameCount();
+        ImGuiID cur_id = GetItemID();
+        ImVec2 cur_min = GetItemRectMin();
+        bool same_item = (st.frame_count == cur_frame) &&
+                         ((cur_id != 0 && st.item_id == cur_id) ||
+                          (cur_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y));
+        if (!same_item) {
+            st.frame_count    = cur_frame;
+            st.item_id        = cur_id;
+            st.item_min       = cur_min;
+            st.click_consumed = false;
+        }
+        st.toggle_mode = st.click_consumed ? false : is_toggle_eligible;
     }
 
     inline void MarkLastItemClickConsumed() {
         LinkClickToggleState& st = GetLinkClickToggleState();
         if (st.frame_count == GetFrameCount()) {
-            st.toggle_mode = false;
+            st.click_consumed = true;
+            st.toggle_mode    = false;
         }
     }
 
@@ -252,6 +263,32 @@ namespace ImGui {
         bool result = Selectable(label, p_selected, flags, size);
         AttachItemCursor();
         return result;
+    }
+
+    inline IMGUI_API LinkClickResult MenuItemLink(const char* label,
+                                                  const char* shortcut = nullptr,
+                                                  bool selected = false,
+                                                  bool enabled = true)
+    {
+        bool result = MenuItem(label, shortcut, selected, enabled);
+        if (enabled) {
+            AttachItemCursor();
+        }
+        Detail::RegisterItemTooltipToggle(true);
+        return LinkClickResult(result);
+    }
+
+    inline IMGUI_API LinkClickResult MenuItemLink(const char* label,
+                                                  const char* shortcut,
+                                                  bool* p_selected,
+                                                  bool enabled = true)
+    {
+        bool result = MenuItem(label, shortcut, p_selected, enabled);
+        if (enabled) {
+            AttachItemCursor();
+        }
+        Detail::RegisterItemTooltipToggle(true);
+        return LinkClickResult(result);
     }
 
 } // namespace ImGui

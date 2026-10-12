@@ -11,8 +11,6 @@
 //     and parameterized styling tags.
 // ============================================================================
 
-#pragma once
-
 #if !defined(CONTRIB_DISABLE_MARKDOWN) && \
     !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && \
     !defined(IMGUI_DISABLE_CONTRIB_MARKDOWN) && \
@@ -27,6 +25,7 @@
 #include <unordered_map>
 #include <cctype>
 #include <cstdio>
+#include <cstring>
 #include "imgui_markdown.h"
 
 namespace ImGui {
@@ -218,9 +217,11 @@ namespace ImGui {
     using CustomTagCallback = std::function<void(const std::string& inner_text, const std::string& param)>;
 
     inline void EnsureTagFitsOnLine(float required_width) {
-        float avail = ImGui::GetContentRegionAvail().x;
+        const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+        if (config && config->wrapWidth < 0.0f) return;
         float lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
         float cursorX = ImGui::GetCursorScreenPos().x;
+        float avail = (config && config->wrapWidth > 0.0f) ? (config->wrapWidth - (cursorX - lineStartX)) : ImGui::GetContentRegionAvail().x;
         float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
         // Only wrap down if we are mid-line (cursor is not at the start) and the tag doesn't fit on this line:
         if ((cursorX - lineStartX) > (10.0f * scale) && required_width > avail) {
@@ -247,10 +248,13 @@ namespace ImGui {
                 bool has_col = ParseMarkdownColor(style.color_param, col);
                 if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
 
-                if (text_size.x <= ImGui::GetContentRegionAvail().x) {
+                bool no_wrap = (config && config->wrapWidth < 0.0f);
+                float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
+                if (no_wrap || text_size.x <= avail_w) {
                     ImGui::TextUnformatted(style.clean_text.c_str());
                 } else {
-                    ImGui::PushTextWrapPos(0.0f);
+                    float wrap_pos = (config && config->wrapWidth > 0.0f) ? (ImGui::GetCursorPos().x + config->wrapWidth) : 0.0f;
+                    ImGui::PushTextWrapPos(wrap_pos);
                     ImGui::TextUnformatted(style.clean_text.c_str());
                     ImGui::PopTextWrapPos();
                 }
@@ -445,17 +449,18 @@ namespace ImGui {
     }
 
     // 4. Core Markdown Extension Engine (Unified Single-Pass Pipeline)
-    inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+    inline void MarkdownExt(const char* markdown_text, size_t markdown_len, const MarkdownConfig* config_override = nullptr) {
+        if (!markdown_text) return;
         const MarkdownConfig* config = config_override ? config_override : GetDefaultMarkdownConfig();
+        static const MarkdownConfig s_FallbackConfig;
         if (!config) {
-            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "[MarkdownExt Error: No MarkdownConfig Set!]");
-            return;
+            config = &s_FallbackConfig;
         }
 
-        const MarkdownConfig* prev_active = GetActiveMarkdownConfig();
-        GetActiveMarkdownConfig() = config;
-
         MarkdownConfig local_config = *config;
+        const MarkdownConfig* prev_active = GetActiveMarkdownConfig();
+        GetActiveMarkdownConfig() = &local_config;
+
         local_config.tagCallback = [](const MarkdownTagData& data) {
             std::string tag_name(data.tagName, data.tagNameLength);
             std::string tag_param(data.tagParam ? data.tagParam : "", data.tagParamLength);
@@ -475,9 +480,13 @@ namespace ImGui {
             GetActiveMarkdownConfig() = prev;
         };
 
-        Markdown(markdown_text.c_str(), markdown_text.length(), local_config);
+        Markdown(markdown_text, markdown_len, local_config);
 
         GetActiveMarkdownConfig() = prev_active;
+    }
+
+    inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+        MarkdownExt(markdown_text.c_str(), markdown_text.length(), config_override);
     }
 
 } // namespace ImGui
@@ -487,10 +496,11 @@ namespace ImGui {
 namespace ImGui {
 namespace Detail {
     struct LinkClickToggleState {
-        int     frame_count = -1;
-        ImGuiID item_id     = 0;
-        ImVec2  item_min    = ImVec2(-1.0f, -1.0f);
-        bool    toggle_mode = false;
+        int     frame_count    = -1;
+        ImGuiID item_id        = 0;
+        ImVec2  item_min       = ImVec2(-1.0f, -1.0f);
+        bool    toggle_mode    = false;
+        bool    click_consumed = false;
     };
 
     inline LinkClickToggleState& GetLinkClickToggleState() {
@@ -500,16 +510,26 @@ namespace Detail {
 
     inline void RegisterItemTooltipToggle(bool is_toggle_eligible = true) {
         LinkClickToggleState& st = GetLinkClickToggleState();
-        st.frame_count = GetFrameCount();
-        st.item_id     = GetItemID();
-        st.item_min    = GetItemRectMin();
-        st.toggle_mode = is_toggle_eligible;
+        int cur_frame = GetFrameCount();
+        ImGuiID cur_id = GetItemID();
+        ImVec2 cur_min = GetItemRectMin();
+        bool same_item = (st.frame_count == cur_frame) &&
+                         ((cur_id != 0 && st.item_id == cur_id) ||
+                          (cur_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y));
+        if (!same_item) {
+            st.frame_count    = cur_frame;
+            st.item_id        = cur_id;
+            st.item_min       = cur_min;
+            st.click_consumed = false;
+        }
+        st.toggle_mode = st.click_consumed ? false : is_toggle_eligible;
     }
 
     inline void MarkLastItemClickConsumed() {
         LinkClickToggleState& st = GetLinkClickToggleState();
         if (st.frame_count == GetFrameCount()) {
-            st.toggle_mode = false;
+            st.click_consumed = true;
+            st.toggle_mode    = false;
         }
     }
 
@@ -553,22 +573,92 @@ namespace ImGui {
             RegisterMarkdownTag(tag_name, callback);
         }
 
+        namespace Detail {
+            inline void RenderWithWrapMode(const char* text, size_t len, float default_wrap_width, const MarkdownConfig* config_override) {
+                if (!text) return;
+                const MarkdownConfig* base = config_override ? config_override : GetDefaultMarkdownConfig();
+                static const MarkdownConfig s_FallbackConfig;
+                if (!base) {
+                    base = &s_FallbackConfig;
+                }
+                MarkdownConfig local_cfg = *base;
+                // If config_override explicitly specifies a positive wrapWidth, honor it unless default_wrap_width > 0.0f:
+                if (default_wrap_width > 0.0f) {
+                    local_cfg.wrapWidth = default_wrap_width;
+                } else if (!config_override || config_override->wrapWidth == 0.0f) {
+                    if (default_wrap_width < 0.0f && ImGui::GetCurrentWindow() && ImGui::GetCurrentWindow()->DC.TextWrapPos >= 0.0f) {
+                        // Honor active ImGui::PushTextWrapPos() stack just like standard ImGui::Text / TextUnformatted:
+                        float wp = ImGui::GetCurrentWindow()->DC.TextWrapPos;
+                        local_cfg.wrapWidth = (wp == 0.0f) ? 0.0f : ImMax(10.0f, wp - ImGui::GetCursorPos().x);
+                    } else {
+                        local_cfg.wrapWidth = default_wrap_width;
+                    }
+                }
+                ImGui::BeginGroup();
+                MarkdownExt(text, len, &local_cfg);
+                ImGui::EndGroup();
+            }
+        } // namespace Detail
+
         // -------------------------------------------------------------------------
         // Standard Widget API (mirroring standard ImGui vocabulary)
         // -------------------------------------------------------------------------
+        // - MD::TextUnformatted / MD::Text: Do NOT auto-wrap by default (wrapWidth = -1.0f,
+        //   single line per '\n') unless an explicit wrap_width > 0.0f, wrap_size.x > 0.0f,
+        //   or config_override->wrapWidth > 0.0f is supplied.
+        // - MD::TextWrapped: Automatically wraps to GetContentRegionAvail().x (wrapWidth = 0.0f),
+        //   or to an explicit wrap_width / wrap_size.x if supplied.
+
+        inline void TextUnformatted(const char* text, const char* text_end = nullptr, const MarkdownConfig* config_override = nullptr) {
+            if (!text) return;
+            size_t len = text_end ? (size_t)(text_end - text) : std::strlen(text);
+            Detail::RenderWithWrapMode(text, len, -1.0f, config_override);
+        }
+
+        inline void TextUnformatted(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+            Detail::RenderWithWrapMode(markdown_text.c_str(), markdown_text.length(), -1.0f, config_override);
+        }
 
         inline void Text(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
-            ImGui::BeginGroup();
-            MarkdownExt(markdown_text, config_override);
-            ImGui::EndGroup(); 
+            Detail::RenderWithWrapMode(markdown_text.c_str(), markdown_text.length(), -1.0f, config_override);
+        }
+
+        inline void Text(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr) {
+            Detail::RenderWithWrapMode(markdown_text.c_str(), markdown_text.length(), (wrap_width > 0.0f) ? wrap_width : -1.0f, config_override);
+        }
+
+        inline void Text(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr) {
+            Detail::RenderWithWrapMode(markdown_text.c_str(), markdown_text.length(), (wrap_size.x > 0.0f) ? wrap_size.x : -1.0f, config_override);
         }
 
         inline void TextWrapped(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
-            Text(markdown_text, config_override);
+            Detail::RenderWithWrapMode(markdown_text.c_str(), markdown_text.length(), 0.0f, config_override);
+        }
+
+        inline void TextWrapped(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr) {
+            Detail::RenderWithWrapMode(markdown_text.c_str(), markdown_text.length(), (wrap_width > 0.0f) ? wrap_width : 0.0f, config_override);
+        }
+
+        inline void TextWrapped(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr) {
+            Detail::RenderWithWrapMode(markdown_text.c_str(), markdown_text.length(), (wrap_size.x > 0.0f) ? wrap_size.x : 0.0f, config_override);
         }
 
         // Clickable Markdown Text Links (shows Hand cursor on hover; toggles TimedTooltip on click
         // unless the return value is tested in an `if (...)` block):
+        inline LinkClickResult TextUnformattedLink(const char* text, const char* text_end = nullptr, const MarkdownConfig* config_override = nullptr) {
+            TextUnformatted(text, text_end, config_override);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+            bool clicked = ImGui::IsItemClicked();
+            ImGui::Detail::RegisterItemTooltipToggle(true);
+            return LinkClickResult(clicked);
+        }
+
+        inline LinkClickResult TextUnformattedLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+            return TextUnformattedLink(markdown_text.c_str(), markdown_text.c_str() + markdown_text.length(), config_override);
+        }
+
 #pragma push_macro("TextLink")
 #undef TextLink
         inline LinkClickResult TextLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
@@ -581,13 +671,55 @@ namespace ImGui {
             return LinkClickResult(clicked);
         }
 
+        inline LinkClickResult TextLink(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr) {
+            Text(markdown_text, wrap_width, config_override);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+            bool clicked = ImGui::IsItemClicked();
+            ImGui::Detail::RegisterItemTooltipToggle(true);
+            return LinkClickResult(clicked);
+        }
+
+        inline LinkClickResult TextLink(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr) {
+            return TextLink(markdown_text, wrap_size.x, config_override);
+        }
+
         inline LinkClickResult TextLinkContrib(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
             return TextLink(markdown_text, config_override);
+        }
+
+        inline LinkClickResult TextLinkContrib(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr) {
+            return TextLink(markdown_text, wrap_width, config_override);
+        }
+
+        inline LinkClickResult TextLinkContrib(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr) {
+            return TextLink(markdown_text, wrap_size.x, config_override);
         }
 #pragma pop_macro("TextLink")
 
         inline LinkClickResult TextWrappedLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
-            return TextLink(markdown_text, config_override);
+            TextWrapped(markdown_text, config_override);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+            bool clicked = ImGui::IsItemClicked();
+            ImGui::Detail::RegisterItemTooltipToggle(true);
+            return LinkClickResult(clicked);
+        }
+
+        inline LinkClickResult TextWrappedLink(const std::string& markdown_text, float wrap_width, const MarkdownConfig* config_override = nullptr) {
+            TextWrapped(markdown_text, wrap_width, config_override);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+            bool clicked = ImGui::IsItemClicked();
+            ImGui::Detail::RegisterItemTooltipToggle(true);
+            return LinkClickResult(clicked);
+        }
+
+        inline LinkClickResult TextWrappedLink(const std::string& markdown_text, const ImVec2& wrap_size, const MarkdownConfig* config_override = nullptr) {
+            return TextWrappedLink(markdown_text, wrap_size.x, config_override);
         }
 
         // Backward-compatibility and convenience aliases
@@ -609,7 +741,7 @@ namespace ImGui {
 #else
                 ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
 #endif
-                Text(tooltip_markdown);
+                TextWrapped(tooltip_markdown);
                 ImGui::EndChild();
                 ImGui::EndTooltip();
             }
@@ -637,7 +769,7 @@ namespace ImGui {
 #else
                     ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
 #endif
-                    Text(markdown_text);
+                    TextWrapped(markdown_text);
                     ImGui::EndChild();
                     ImGui::EndTooltip();
                 }
@@ -716,7 +848,13 @@ namespace ImGui {
 
 } // namespace ImGui
 
-#ifdef IMGUI_TOOLTIP_EXT_H
+#endif // IMGUI_MARKDOWN_EXT_H
+
+// Order-independent TimedTooltip <-> Markdown bridge:
+// Activated automatically regardless of whether imgui_tooltip_ext.h or
+// imgui_markdown_ext.h was #included first!
+#if defined(IMGUI_MARKDOWN_EXT_H) && defined(IMGUI_TOOLTIP_EXT_H) && !defined(IMGUI_TIMED_TOOLTIP_MD_BRIDGE_DEFINED)
+#define IMGUI_TIMED_TOOLTIP_MD_BRIDGE_DEFINED
 namespace ImGui {
 namespace TimedTooltip {
 
@@ -771,41 +909,51 @@ namespace TimedTooltip {
             
             // 1. Audit and sanitize wrap constraints against screen boundaries
             float max_screen_w = ImMax(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
-            float min_w = config->min_wrap_width * scale;
-            float max_w = config->max_wrap_width * scale;
-            if (min_w < 50.0f * scale) min_w = 50.0f * scale;
-            if (max_w < min_w) max_w = min_w;
-            if (max_w > max_screen_w) max_w = max_screen_w;
-            if (min_w > max_w) min_w = max_w;
+            bool no_wrap = (config->default_wrap_width < 0.0f);
+            float wrap_limit = max_screen_w;
+            if (!no_wrap) {
+                float min_w = config->min_wrap_width * scale;
+                float max_w = config->max_wrap_width * scale;
+                if (min_w < 50.0f * scale) min_w = 50.0f * scale;
+                if (max_w < min_w) max_w = min_w;
+                if (max_w > max_screen_w) max_w = max_screen_w;
+                if (min_w > max_w) min_w = max_w;
 
-            float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
-            float wrap_limit = ImClamp(target_w, min_w, max_w);
-            if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
+                float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
+                wrap_limit = ImClamp(target_w, min_w, max_w);
+                if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
+            }
 
             // Prepare MarkdownConfig with custom bullet_spacing
             MarkdownConfig local_md;
             const MarkdownConfig* base_md = GetDefaultMarkdownConfig();
             if (base_md) local_md = *base_md;
             if (config->bullet_spacing > 0.0f) local_md.bulletSpacing = config->bullet_spacing * scale;
+            if (no_wrap) local_md.wrapWidth = -1.0f;
 
             if (state.perfect_size.x == 0.0f) {
                 // 1. Dry-run infinitely wide to see how small the text naturally is
                 ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, scale, &local_md);
                 
-                // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
-                float final_width = raw_size.x;
-                if (final_width > wrap_limit) {
-                    final_width = wrap_limit;
+                if (no_wrap) {
+                    state.perfect_size.x = raw_size.x + 2.0f * scale;
+                    state.perfect_size.y = raw_size.y + 4.0f * scale;
+                } else {
+                    // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
+                    float final_width = raw_size.x;
+                    if (final_width > wrap_limit) {
+                        final_width = wrap_limit;
+                    }
+                    if (final_width > max_screen_w) final_width = max_screen_w;
+                    
+                    // ADD EPSILON TO PREVENT MID-WORD BREAKS!
+                    final_width += 2.0f * scale;
+                    
+                    // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
+                    state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
+                    state.perfect_size.x = final_width; 
+                    state.perfect_size.y += 4.0f * scale;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
                 }
-                if (final_width > max_screen_w) final_width = max_screen_w;
-                
-                // ADD EPSILON TO PREVENT MID-WORD BREAKS!
-                final_width += 2.0f * scale;
-                
-                // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
-                state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
-                state.perfect_size.x = final_width; 
-                state.perfect_size.y += 4.0f * scale;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
 
                 // Immediate position clamp on Frame 1:
                 ImVec2 display_size = ImGui::GetIO().DisplaySize;
@@ -831,7 +979,11 @@ namespace TimedTooltip {
 #else
             ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
 #endif
-            MD::Text(std::string(buffer), &local_md);
+            if (no_wrap) {
+                MD::Text(std::string(buffer), &local_md);
+            } else {
+                MD::TextWrapped(std::string(buffer), &local_md);
+            }
             ImGui::EndChild();
             EndStationaryTooltip(id);
         }
@@ -910,6 +1062,18 @@ namespace TimedTooltip {
         return TextMD(config, "%s", markdown_text.c_str());
     }
 
+    // Non-wrapping Unformatted Markdown Timed Tooltip (never auto-wraps; single line per '\n'):
+    inline bool TextMDUnformatted(const char* markdown_text, const TooltipConfig* config = nullptr) {
+        if (!markdown_text) return false;
+        TooltipConfig local_cfg = config ? *config : GetCurrentTooltipConfig();
+        local_cfg.default_wrap_width = -1.0f;
+        return TextMD(&local_cfg, "%s", markdown_text);
+    }
+
+    inline bool TextMDUnformatted(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+        return TextMDUnformatted(markdown_text.c_str(), config);
+    }
+
     // Explicit click-to-toggle Markdown Timed Tooltip chasers (ImGui::TimedTooltip::TextMDLink):
     inline bool TextMDLink(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
@@ -951,7 +1115,7 @@ namespace TimedTooltip {
 } // namespace TimedTooltip
 
 } // namespace ImGui
-#endif
+#endif // IMGUI_MARKDOWN_EXT_H && IMGUI_TOOLTIP_EXT_H
 
-#endif // IMGUI_MARKDOWN_EXT_H
 #endif // !IMGUI_DISABLE_MARKDOWN
+

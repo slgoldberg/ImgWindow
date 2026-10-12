@@ -53,10 +53,11 @@
 namespace ImGui {
 namespace Detail {
     struct LinkClickToggleState {
-        int     frame_count = -1;
-        ImGuiID item_id     = 0;
-        ImVec2  item_min    = ImVec2(-1.0f, -1.0f);
-        bool    toggle_mode = false;
+        int     frame_count    = -1;
+        ImGuiID item_id        = 0;
+        ImVec2  item_min       = ImVec2(-1.0f, -1.0f);
+        bool    toggle_mode    = false;
+        bool    click_consumed = false;
     };
 
     inline LinkClickToggleState& GetLinkClickToggleState() {
@@ -66,16 +67,26 @@ namespace Detail {
 
     inline void RegisterItemTooltipToggle(bool is_toggle_eligible = true) {
         LinkClickToggleState& st = GetLinkClickToggleState();
-        st.frame_count = GetFrameCount();
-        st.item_id     = GetItemID();
-        st.item_min    = GetItemRectMin();
-        st.toggle_mode = is_toggle_eligible;
+        int cur_frame = GetFrameCount();
+        ImGuiID cur_id = GetItemID();
+        ImVec2 cur_min = GetItemRectMin();
+        bool same_item = (st.frame_count == cur_frame) &&
+                         ((cur_id != 0 && st.item_id == cur_id) ||
+                          (cur_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y));
+        if (!same_item) {
+            st.frame_count    = cur_frame;
+            st.item_id        = cur_id;
+            st.item_min       = cur_min;
+            st.click_consumed = false;
+        }
+        st.toggle_mode = st.click_consumed ? false : is_toggle_eligible;
     }
 
     inline void MarkLastItemClickConsumed() {
         LinkClickToggleState& st = GetLinkClickToggleState();
         if (st.frame_count == GetFrameCount()) {
-            st.toggle_mode = false;
+            st.click_consumed = true;
+            st.toggle_mode    = false;
         }
     }
 
@@ -570,14 +581,20 @@ namespace ImGui {
                                                 bool consume = true,
                                                 ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
     {
-        if (!current_idx || max_idx <= min_idx || !IsItemHovered())
+        if (!current_idx || max_idx <= min_idx || !IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup))
             return false;
 
         if (hover_cursor != ImGuiMouseCursor_None) {
-            SetMouseCursor(hover_cursor);
+            // When attached to a container group (GetItemID() == 0, e.g. after EndGroup() inside BeginPopup),
+            // preserve any explicit cursor (such as ImGuiMouseCursor_Hand on an inner TextLink or MenuItemLink)
+            // already set by a hovered child widget inside the group:
+            if (GetItemID() != 0 || GetMouseCursor() == ImGuiMouseCursor_Arrow) {
+                SetMouseCursor(hover_cursor);
+            }
         }
 
-        // Allow clicking a wheel-cycled button/widget to toggle its TimedTooltip ON/OFF:
+        // Allow clicking a passive wheel-cycled button/widget to toggle its TimedTooltip ON/OFF
+        // (unless the click was already consumed by an `if (ImGui::ButtonLink(...))` handler):
         Detail::RegisterItemTooltipToggle(true);
 
         float clicks = WheelSliderDetail::GetMouseWheelEither(consume);

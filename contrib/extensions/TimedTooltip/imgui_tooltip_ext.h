@@ -305,10 +305,11 @@ namespace TimedTooltip {
 namespace ImGui {
 namespace Detail {
     struct LinkClickToggleState {
-        int     frame_count = -1;
-        ImGuiID item_id     = 0;
-        ImVec2  item_min    = ImVec2(-1.0f, -1.0f);
-        bool    toggle_mode = false;
+        int     frame_count    = -1;
+        ImGuiID item_id        = 0;
+        ImVec2  item_min       = ImVec2(-1.0f, -1.0f);
+        bool    toggle_mode    = false;
+        bool    click_consumed = false;
     };
 
     inline LinkClickToggleState& GetLinkClickToggleState() {
@@ -318,16 +319,26 @@ namespace Detail {
 
     inline void RegisterItemTooltipToggle(bool is_toggle_eligible = true) {
         LinkClickToggleState& st = GetLinkClickToggleState();
-        st.frame_count = GetFrameCount();
-        st.item_id     = GetItemID();
-        st.item_min    = GetItemRectMin();
-        st.toggle_mode = is_toggle_eligible;
+        int cur_frame = GetFrameCount();
+        ImGuiID cur_id = GetItemID();
+        ImVec2 cur_min = GetItemRectMin();
+        bool same_item = (st.frame_count == cur_frame) &&
+                         ((cur_id != 0 && st.item_id == cur_id) ||
+                          (cur_id == 0 && st.item_id == 0 && st.item_min.x == cur_min.x && st.item_min.y == cur_min.y));
+        if (!same_item) {
+            st.frame_count    = cur_frame;
+            st.item_id        = cur_id;
+            st.item_min       = cur_min;
+            st.click_consumed = false;
+        }
+        st.toggle_mode = st.click_consumed ? false : is_toggle_eligible;
     }
 
     inline void MarkLastItemClickConsumed() {
         LinkClickToggleState& st = GetLinkClickToggleState();
         if (st.frame_count == GetFrameCount()) {
-            st.toggle_mode = false;
+            st.click_consumed = true;
+            st.toggle_mode    = false;
         }
     }
 
@@ -442,21 +453,26 @@ namespace TimedTooltip {
             if (scale <= 0.0f) scale = 1.0f;
 
             // 1. Audit and sanitize wrap constraints against screen boundaries
-            float max_screen_w = std::max(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
-            float min_w = config->min_wrap_width * scale;
-            float max_w = config->max_wrap_width * scale;
-            if (min_w < 50.0f * scale) min_w = 50.0f * scale;
-            if (max_w < min_w) max_w = min_w;
-            if (max_w > max_screen_w) max_w = max_screen_w;
-            if (min_w > max_w) min_w = max_w;
+            if (config->default_wrap_width < 0.0f) {
+                // Explicit non-wrapping mode (single line per '\n'):
+                ImGui::TextV(fmt, args);
+            } else {
+                float max_screen_w = std::max(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
+                float min_w = config->min_wrap_width * scale;
+                float max_w = config->max_wrap_width * scale;
+                if (min_w < 50.0f * scale) min_w = 50.0f * scale;
+                if (max_w < min_w) max_w = min_w;
+                if (max_w > max_screen_w) max_w = max_screen_w;
+                if (min_w > max_w) min_w = max_w;
 
-            float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
-            float wrap_limit = std::clamp(target_w, min_w, max_w);
-            if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
+                float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
+                float wrap_limit = std::clamp(target_w, min_w, max_w);
+                if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
 
-            ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + wrap_limit);
-            ImGui::TextV(fmt, args);
-            ImGui::PopTextWrapPos();
+                ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + wrap_limit);
+                ImGui::TextV(fmt, args);
+                ImGui::PopTextWrapPos();
+            }
 
             EndStationaryTooltip(id);
         }
@@ -528,6 +544,18 @@ namespace TimedTooltip {
         return Text(config, "%s", text.c_str());
     }
 
+    // Non-wrapping Unformatted Timed Tooltip (never auto-wraps; single line per '\n'):
+    inline bool TextUnformatted(const char* text, const TooltipConfig* config = nullptr) {
+        if (!text) return false;
+        TooltipConfig local_cfg = config ? *config : GetCurrentTooltipConfig();
+        local_cfg.default_wrap_width = -1.0f;
+        return Text(&local_cfg, "%s", text);
+    }
+
+    inline bool TextUnformatted(const std::string& text, const TooltipConfig* config = nullptr) {
+        return TextUnformatted(text.c_str(), config);
+    }
+
     // Explicit click-to-toggle Timed Tooltip chasers (ImGui::TimedTooltip::TextLink):
 #pragma push_macro("TextLink")
 #undef TextLink
@@ -575,6 +603,16 @@ namespace TimedTooltip {
 } // namespace TimedTooltip
 
 } // namespace ImGui
+
+#if defined(IMGUI_MARKDOWN_EXT_H) && !defined(IMGUI_TIMED_TOOLTIP_MD_BRIDGE_DEFINED)
+#if defined(__has_include)
+#if __has_include("../Markdown/imgui_markdown_ext.h")
+#include "../Markdown/imgui_markdown_ext.h"
+#elif __has_include("imgui_markdown_ext.h")
+#include "imgui_markdown_ext.h"
+#endif
+#endif
+#endif
 
 #endif // IMGUI_TOOLTIP_EXT_H
 #endif // !IMGUI_DISABLE_TIMED_TOOLTIP

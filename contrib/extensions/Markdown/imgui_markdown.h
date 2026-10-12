@@ -150,6 +150,7 @@ namespace ImGui
         void*                   userData = NULL;
         MarkdownFormalCallback* formatCallback = defaultMarkdownFormatCallback;
         float                   bulletSpacing = 0.0f;               // 0.0f = default (4.0f); > 0.0f = custom gap between bullet and text
+        float                   wrapWidth = 0.0f;                   // 0.0f = wrap at GetContentRegionAvail().x; > 0.0f = explicit wrap width; < 0.0f = no word-wrap (single line per \n)
 
         // Semantic font aliases (if set, takes priority over headingFormats):
         ImFont*                 h1Font = nullptr;                   // If nullptr, falls back to headingFormats[0].font
@@ -217,7 +218,7 @@ namespace ImGui
 
     struct TextRegion
     {
-        TextRegion() : indentX( 0.0f ), leadIndents( 0 )
+        TextRegion() : indentX( 0.0f ), leadIndents( 0 ), wrapWidth( 0.0f )
         {
         }
         ~TextRegion()
@@ -227,12 +228,19 @@ namespace ImGui
 
         void RenderTextWrapped( const char* text_, const char* text_end_, bool bIndentToHere_ = false )
         {
+            if( wrapWidth < 0.0f )
+            {
+                ImGui::TextUnformatted( text_, text_end_ );
+                return;
+            }
 #ifdef ORIGINAL
             float       scale = ImGui::GetIO().FontGlobalScale;
 #else /* brat's version: */
 			float		scale = ImGui::GetFontScale(false);// use parent's scale
 #endif
-            float       widthLeft = GetContentRegionAvail().x;
+            float       lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
+            float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
+            float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
             endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
 
@@ -244,15 +252,14 @@ namespace ImGui
                 char c_ = *endLine;
                 if( IsCharInsideWord( c_ ) )
                 {
-                    float lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
-                    float widthNextLine = widthLeft + ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
+                    float widthNextLine = ( wrapWidth > 0.0f ) ? wrapWidth : ( widthLeft + usedOnLine );
                     const char* endNextLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthNextLine );
                     if( endNextLine == text_end_ )
                     {
                         // It fits perfectly on the next line! Force a new line!
                         endLine = text_;
                         ImGui::NewLine();
-                        widthLeft = ImGui::GetContentRegionAvail().x;
+                        widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : ImGui::GetContentRegionAvail().x;
                         endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
                         endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                     }
@@ -260,7 +267,7 @@ namespace ImGui
             }
             
             ImGui::TextUnformatted( text_, endLine );
-            widthLeft = GetContentRegionAvail().x;
+            widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : GetContentRegionAvail().x;
             while( endLine < text_end_ )
             {
                 text_ = endLine;
@@ -340,6 +347,8 @@ namespace ImGui
                 --leadIndents;
             }
         }
+
+        float       wrapWidth;
 
     private:
         float       indentX;
@@ -458,6 +467,7 @@ namespace ImGui
         Link        link;
         Emphasis    em;
         TextRegion  textRegion;
+        textRegion.wrapWidth = mdConfig_.wrapWidth;
 
         char c = 0;
         for( int i=0; i < (int)markdownLength_; ++i )
@@ -942,12 +952,23 @@ namespace ImGui
     inline void TextRegion::RenderLinkTextWrapped( const char* text_, const char* text_end_, const Link& link_,
         const char* markdown_, const MarkdownConfig& mdConfig_, const char** linkHoverStart_, bool bIndentToHere_ )
         {
+            if( wrapWidth < 0.0f )
+            {
+                bool bHovered = RenderLinkText( text_, text_end_, link_, markdown_, mdConfig_, linkHoverStart_ );
+                if( !bHovered && *linkHoverStart_ == markdown_ + link_.text.start )
+                {
+                    *linkHoverStart_ = NULL;
+                }
+                return;
+            }
 #ifdef ORIGINAL
 		float       scale = ImGui::GetIO().FontGlobalScale;
 #else /* brat's version: */
 		float		scale = ImGui::GetFontScale(false);	  // use parent's scale
 #endif
-            float       widthLeft = GetContentRegionAvail().x;
+            float       lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
+            float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
+            float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
             endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
 
@@ -957,14 +978,13 @@ namespace ImGui
                 char c_ = *endLine;
                 if( IsCharInsideWord( c_ ) )
                 {
-                    float lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
-                    float widthNextLine = widthLeft + ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
+                    float widthNextLine = ( wrapWidth > 0.0f ) ? wrapWidth : ( widthLeft + usedOnLine );
                     const char* endNextLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthNextLine );
                     if( endNextLine == text_end_ )
                     {
                         endLine = text_;
                         ImGui::NewLine();
-                        widthLeft = ImGui::GetContentRegionAvail().x;
+                        widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : ImGui::GetContentRegionAvail().x;
                         endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
                         endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                     }
@@ -981,7 +1001,7 @@ namespace ImGui
                     indentX += indentNeeded;
                 }
             }
-            widthLeft = GetContentRegionAvail().x;
+            widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : GetContentRegionAvail().x;
             while( endLine < text_end_ )
             {
                 text_ = endLine;
