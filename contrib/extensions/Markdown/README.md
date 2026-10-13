@@ -254,7 +254,7 @@ Tags support both HTML-style attributes and key-value formats:
 - **Space-separated format:** `<tag red>text</tag>`, `<color #00FFCC>text</color>`
 - **Multi-parameter format:** `<tag=red,bold>text</tag>`, `<tag red bold>text</tag>`
 
-### 2. Bold and Italic Styling Inside Tags
+### 2. Bold, Italic, and Monospace Styling Inside Tags
 
 You can style tag text in two natural ways:
 
@@ -264,15 +264,19 @@ Place standard Markdown delimiters directly inside the tag content:
 Check <tag red>**accessibility**</tag> or options.
 Please review <backdrop=yellow>**critical checklist**</backdrop> before departure.
 Click <btn>*more info*</btn> for details.
+<pill orange>` ⇄ `</pill>
 ```
-* The engine detects inner Markdown wrappers (`**bold**`, `__bold__`, `*italic*`, `_italic_`), strips the wrapper characters so asterisks never render literally, and pushes the active bold/italic font.
-* For `<backdrop>`, the font is pushed *before* measuring text width, ensuring the pill bounding box fits the bold glyphs.
+* The engine detects inner Markdown wrappers (`**bold**`, `__bold__`, `*italic*`, `_italic_`, `` `mono` ``), strips the wrapper characters so delimiters never render literally, and pushes the active bold, italic, or monospace (`mdConfig.monoFont`) font.
+* Intentional leading/trailing padding spaces (both outside and inside the delimiters, as well as UTF-8 non-breaking spaces `U+00A0`) are preserved so you can easily pad single-icon pills (e.g., `"<pill orange mono> " ICON_FA_RETWEET " </pill>"` or `"<pill orange>` " ICON_FA_RETWEET " `</pill>"`).
+* For `<backdrop>` and `<pill>`, the font is pushed *before* measuring text width, ensuring the pill bounding box fits the styled glyphs.
 
 #### B. Tag Parameter Flags
-You can also specify `bold` (or `b`) and `italic` (or `i`) directly in the tag attributes:
+You can also specify `bold` (or `b`), `italic` (or `i`), and `mono` (or `monospace`, `code`, `m`) directly in the tag attributes (alongside optional `color=` / `col=` prefixes):
 ```markdown
 Check <tag red bold>accessibility</tag> or options.
 Check <tag=red,bold>accessibility</tag> or options.
+<pill orange mono> ⇄ </pill>
+<pill color=0xFFA500, mono> ⇄ </pill>
 <btn bold>Acknowledge</btn>
 ```
 
@@ -283,7 +287,7 @@ Check <tag=red,bold>accessibility</tag> or options.
 ### 3. Inline Spacing & Punctuation Flow
 
 Inline tags integrate cleanly into paragraph and sentence flow:
-* **Preserved Spaces:** When followed by a space, such as `<tag red>badge</tag> or options`, the engine preserves the space character so text flows naturally without cramped or "eaten" spacing.
+* **Preserved Spaces:** Both inter-word spaces after a closing tag (such as `<tag red>badge</tag> or options`) and intentional padding spaces inside a tag (such as `<pill orange mono> ⇄ </pill>`) are preserved.
 * **Flush Punctuation:** When followed by punctuation without space, such as `<tag red>badge</tag>, options`, the punctuation docks directly flush against the tag border.
 * **Automatic Line-Wrap Protection:** If an inline tag, button, or background pill exceeds the remaining horizontal space on the current line, the renderer automatically wraps down to the next line (`EnsureTagFitsOnLine`) to prevent tags from spilling past window borders.
 
@@ -293,10 +297,10 @@ The following tags are pre-registered and active by default:
 
 | Tag | Syntax Options | Parameters & Variants | Description |
 | :--- | :--- | :--- | :--- |
-| **`color` / `col`** | `<color=COLOR>text</color>`<br>`<color COLOR>text</color>` | Named colors (`red`, `green`, `blue`, `yellow`, `orange`, `cyan`, `magenta`, `white`, `black`, `gray`, `gold`, `dark`, `light`) or hex (`#RGB`, `#RRGGBB`, `#RRGGBBAA`, `0xRRGGBB`). | Renders `text` in the specified color. |
-| **`backdrop` / `highlight`** | `<backdrop=COLOR>text</backdrop>`<br>`<backdrop COLOR [bold] [italic]>text</backdrop>` | Accepts any named color or hex code. Optional attribute flags: `bold`, `italic`. | Renders a rounded background rectangle ("pill") behind the exact text bounding box. Backdrops auto-contrast text color against dark backgrounds and never split awkwardly across lines. |
-| **`badge` / `pill` / `tag`** | `<badge=VARIANT>text</badge>`<br>`<badge VARIANT [bold] [italic]>text</badge>` | Semantic variants (`danger`, `warning`, `success`, `info`) or custom hex color. Optional flags: `bold`, `italic`. | Renders a sleek, rounded pill badge with thematic background and contrasting text. |
-| **`btn`** | `<btn=ID>label</btn>`<br>`<btn ID>label</btn>` | Unique button ID or label identifier string. | Renders an inline, clickable `ImGui::SmallButton` directly within text flow. |
+| **`color` / `col`** | `<color=COLOR>text</color>`<br>`<color COLOR [bold] [italic] [mono]>text</color>` | Named colors (`red`, `green`, `blue`, `yellow`, `orange`, `purple`, `violet`, `cyan`, `magenta`, `white`, `black`, `gray`, `gold`, `dark`, `light`) or hex (`#RRGGBB`, `#RRGGBBAA`, `0xRRGGBB`, `0xRRGGBBAA`). Optional flags: `bold`, `italic`, `mono`. | Renders `text` in the specified color and font style. |
+| **`backdrop` / `bg` / `highlight`** | `<backdrop=COLOR>text</backdrop>`<br>`<backdrop COLOR [bold] [italic] [mono]>text</backdrop>` | Accepts any named color or hex code. Optional attribute flags: `bold`, `italic`, `mono`. | Renders a rounded background rectangle ("pill") optically centered behind the text bounding box. Backdrops auto-contrast text color against dark backgrounds and never split awkwardly across lines. |
+| **`badge` / `pill` / `tag`** | `<badge=VARIANT>text</badge>`<br>`<pill COLOR [bold] [italic] [mono]>text</pill>` | Semantic variants (`danger`, `warning`, `success`, `info`), named colors, or custom hex color. Optional flags: `bold`, `italic`, `mono`. | Renders a sleek, rounded pill badge with thematic background and auto-contrasting text. |
+| **`btn`** | `<btn=ID>label</btn>`<br>`<btn [bold] [italic] [mono]>label</btn>` | Unique button ID or style flags (`bold`, `italic`, `mono`). | Renders an inline, clickable `ImGui::SmallButton` directly within text flow. |
 | **`mono` / `code`** | `<mono>text</mono>`<br>`<code [COLOR]>text</code>` | Accepts optional custom background color or hex parameter. | Renders `text` in monospace (`mdConfig.monoFont`) inside a subtle, translucent rounded background pill. |
 
 *(To disable default tags, define `#define IMGUI_DISABLE_MARKDOWN_DEFAULT_TAGS` before including the header).*

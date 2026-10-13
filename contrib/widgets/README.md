@@ -252,6 +252,23 @@ ImGui::ComboWithReset("Camera Mode", &s_CamMode, 1 /* default */,
                       kCameraModeTooltips);
 ```
 
+#### G. Mouse-Wheel Checkboxes (`MouseWheelCheckbox` / `ToggleItemOnMouseWheel` / `CycleItemOnMouseWheel(bool*)`)
+Allows standard checkboxes to be toggled with the mouse wheel strictly when hovering over the **square `[✓]` box on the left** (`[box_min.x .. box_min.x + GetFrameHeight()]`), while hovering over the **text label** shows `ImGuiMouseCursor_Hand` (still clickable to toggle) and **ignores** the mouse wheel!
+* By default (`wrap = false`), scrolling **up/right** checks the box (`true`) and scrolling **down/left** unchecks it (`false`), clamping cleanly at both ends (or pass `wrap = true` to flip on every wheel notch).
+* Includes convenience overloads accepting `ImGuiMouseCursor_` directly after `bool* v` so you can customize or suppress the hover cursor (`ImGuiMouseCursor_Hand` or `ImGuiMouseCursor_None`) without passing intermediate boolean parameters.
+
+```cpp
+static bool s_AutoZoom = true;
+
+// Option 1: Single-call MouseWheelCheckbox (with optional cursor override right after &v):
+ImGui::MouseWheelCheckbox("Enable Auto-Zoom", &s_AutoZoom);
+ImGui::MouseWheelCheckbox("Quiet Mode", &s_QuietMode, ImGuiMouseCursor_Hand);
+
+// Option 2: 1-line chaser attached to standard ImGui::Checkbox:
+ImGui::Checkbox("Expert Mode", &s_ExpertMode);
+ImGui::ToggleItemOnMouseWheel(&s_ExpertMode, ImGuiMouseCursor_None); // or CycleItemOnMouseWheel(&s_ExpertMode)
+```
+
 ---
 
 ### 3. Clickable Link & Item Cursor Affordances (`imgui_clickable_links.h`)

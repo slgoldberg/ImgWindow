@@ -857,6 +857,122 @@ namespace ImGui {
         if (item_count <= 1) return false;
         return CycleItemOnMouseWheel(current_idx, 0, item_count - 1, wrap, natural_list_order, consume, hover_cursor);
     }
+
+    // Boolean / Checkbox mouse-wheel chaser:
+    // When attached to an ImGui::Checkbox(label, &v), 'only_over_box = true' (default)
+    // restricts both the scroll cursor and mouse-wheel toggling strictly to the
+    // square [✓] box on the left (width = GetFrameHeight()), while hovering over
+    // the text label to the right shows ImGuiMouseCursor_Hand and ignores the wheel!
+    // By default (wrap = false), scrolling up/right turns the checkbox ON (true)
+    // and scrolling down/left turns it OFF (false), clamping cleanly at both ends.
+    inline IMGUI_API bool CycleItemOnMouseWheel(bool* v,
+                                                bool wrap = false,
+                                                bool only_over_box = true,
+                                                bool consume = true,
+                                                ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
+    {
+        if (!v || !IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup))
+            return false;
+
+        if (only_over_box) {
+            ImVec2 item_min = GetItemRectMin();
+            float box_max_x = item_min.x + GetFrameHeight();
+            if (GetIO().MousePos.x > box_max_x) {
+                // Mouse is over the checkbox text label: show Hand cursor (clickable)
+                // and ignore mouse-wheel scrolling!
+                SetMouseCursor(ImGuiMouseCursor_Hand);
+                return false;
+            }
+        }
+
+        if (hover_cursor != ImGuiMouseCursor_None) {
+            if (GetItemID() != 0 || GetMouseCursor() == ImGuiMouseCursor_Arrow) {
+                SetMouseCursor(hover_cursor);
+            }
+        }
+
+        Detail::RegisterItemTooltipToggle(true);
+
+        float clicks = WheelSliderDetail::GetMouseWheelEither(consume);
+        bool changed = false;
+        if (clicks != 0.0f) {
+            if (wrap) {
+                int steps = (int)std::round(std::fabs(clicks));
+                if (steps < 1) steps = 1;
+                if (steps % 2 != 0) {
+                    *v = !(*v);
+                    changed = true;
+                }
+            } else {
+                if (clicks > 0.0f && !(*v)) {
+                    *v = true;
+                    changed = true;
+                } else if (clicks < 0.0f && *v) {
+                    *v = false;
+                    changed = true;
+                }
+            }
+        }
+
+        bool unlatched = Detail::KeepWheelLatchAlive(changed || clicks != 0.0f);
+        if (changed || clicks != 0.0f || unlatched) {
+#if defined(IMGUI_TOOLTIP_EXT_H)
+            TimedTooltip::ClearActiveTooltip();
+#endif
+        }
+        return changed;
+    }
+
+    inline IMGUI_API bool CycleItemOnMouseWheel(bool* v,
+                                                ImGuiMouseCursor_ hover_cursor,
+                                                bool wrap = false,
+                                                bool only_over_box = true,
+                                                bool consume = true)
+    {
+        return CycleItemOnMouseWheel(v, wrap, only_over_box, consume, (ImGuiMouseCursor)hover_cursor);
+    }
+
+    inline IMGUI_API bool ToggleItemOnMouseWheel(bool* v,
+                                                 bool wrap = false,
+                                                 bool only_over_box = true,
+                                                 bool consume = true,
+                                                 ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
+    {
+        return CycleItemOnMouseWheel(v, wrap, only_over_box, consume, hover_cursor);
+    }
+
+    inline IMGUI_API bool ToggleItemOnMouseWheel(bool* v,
+                                                 ImGuiMouseCursor_ hover_cursor,
+                                                 bool wrap = false,
+                                                 bool only_over_box = true,
+                                                 bool consume = true)
+    {
+        return CycleItemOnMouseWheel(v, wrap, only_over_box, consume, (ImGuiMouseCursor)hover_cursor);
+    }
+
+    // Turnkey Mouse-Wheel Checkbox (toggles on wheel ONLY over the square [✓] box,
+    // shows Hand cursor over the text label):
+    inline IMGUI_API bool MouseWheelCheckbox(const char* label,
+                                             bool* v,
+                                             bool wrap = false,
+                                             bool only_over_box = true,
+                                             ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
+    {
+        bool changed = Checkbox(label, v);
+        if (CycleItemOnMouseWheel(v, wrap, only_over_box, true, hover_cursor)) {
+            changed = true;
+        }
+        return changed;
+    }
+
+    inline IMGUI_API bool MouseWheelCheckbox(const char* label,
+                                             bool* v,
+                                             ImGuiMouseCursor_ hover_cursor,
+                                             bool wrap = false,
+                                             bool only_over_box = true)
+    {
+        return MouseWheelCheckbox(label, v, wrap, only_over_box, (ImGuiMouseCursor)hover_cursor);
+    }
 #endif // !CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL
 
     // -------------------------------------------------------------------------

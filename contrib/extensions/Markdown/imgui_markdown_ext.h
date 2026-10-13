@@ -50,7 +50,17 @@ namespace ImGui {
     }
 
     // 2. Color Helper for Built-in Styling Tags
-    inline bool ParseMarkdownColor(const std::string& str, ImVec4& out_col) {
+    inline bool ParseMarkdownColor(const std::string& raw_str, ImVec4& out_col) {
+        if (raw_str.empty()) return false;
+
+        std::string str = raw_str;
+        for (char& c : str) c = (char)tolower((unsigned char)c);
+
+        // Strip optional key= prefix (e.g. color=0xFFA500, col=orange, bg=#FF0000)
+        if (str.rfind("color=", 0) == 0)     str = str.substr(6);
+        else if (str.rfind("col=", 0) == 0)  str = str.substr(4);
+        else if (str.rfind("bg=", 0) == 0)   str = str.substr(3);
+        else if (str.rfind("fg=", 0) == 0)   str = str.substr(3);
         if (str.empty()) return false;
         
         // Named UI colors
@@ -58,7 +68,8 @@ namespace ImGui {
         if (str == "green")   { out_col = ImVec4(0.25f, 0.85f, 0.35f, 1.0f); return true; }
         if (str == "blue")    { out_col = ImVec4(0.30f, 0.65f, 1.0f,  1.0f); return true; }
         if (str == "yellow")  { out_col = ImVec4(1.0f,  0.85f, 0.20f, 1.0f); return true; }
-        if (str == "orange")  { out_col = ImVec4(1.0f,  0.55f, 0.15f, 1.0f); return true; }
+        if (str == "orange")  { out_col = ImVec4(1.0f,  0.647f, 0.0f, 1.0f); return true; } // 0xFFA500
+        if (str == "purple" || str == "violet") { out_col = ImVec4(0.60f, 0.25f, 0.90f, 1.0f); return true; }
         if (str == "cyan")    { out_col = ImVec4(0.20f, 0.85f, 0.95f, 1.0f); return true; }
         if (str == "magenta") { out_col = ImVec4(0.90f, 0.30f, 0.90f, 1.0f); return true; }
         if (str == "white")   { out_col = ImVec4(1.0f,  1.0f,  1.0f,  1.0f); return true; }
@@ -109,13 +120,14 @@ namespace ImGui {
         std::string color_param;
         bool is_bold = false;
         bool is_italic = false;
+        bool is_mono = false;
     };
 
     inline MarkdownTagStyle ParseMarkdownTagStyle(const std::string& inner_text, const std::string& param) {
         MarkdownTagStyle style;
         style.clean_text = inner_text;
 
-        // 1. Check if param contains 'bold', 'italic', or style flags
+        // 1. Check if param contains 'bold', 'italic', 'mono', or color tokens
         std::string p = param;
         for (char& c : p) {
             if (c == ',' || c == ';') c = ' ';
@@ -130,17 +142,27 @@ namespace ImGui {
             std::string token = p.substr(pos, end - pos);
             std::string t = token;
             for (char& c : t) c = (char)tolower((unsigned char)c);
-            if (t == "bold" || t == "b") {
+            if (t == "bold" || t == "b" || t == "font=bold" || t == "style=bold") {
                 style.is_bold = true;
                 found_explicit_style = true;
-            } else if (t == "italic" || t == "italics" || t == "i") {
+            } else if (t == "italic" || t == "italics" || t == "i" || t == "font=italic" || t == "style=italic") {
                 style.is_italic = true;
                 found_explicit_style = true;
+            } else if (t == "mono" || t == "monospace" || t == "code" || t == "m" || t == "font=mono" || t == "style=mono") {
+                style.is_mono = true;
+                found_explicit_style = true;
             } else {
-                if (style.color_param.empty()) {
-                    style.color_param = token;
-                } else {
-                    style.color_param += " " + token;
+                // Strip optional color= / col= / bg= / fg= key prefix if present:
+                if (t.rfind("color=", 0) == 0)     token = token.substr(6);
+                else if (t.rfind("col=", 0) == 0)  token = token.substr(4);
+                else if (t.rfind("bg=", 0) == 0)   token = token.substr(3);
+                else if (t.rfind("fg=", 0) == 0)   token = token.substr(3);
+                if (!token.empty()) {
+                    if (style.color_param.empty()) {
+                        style.color_param = token;
+                    } else {
+                        style.color_param += " " + token;
+                    }
                 }
             }
             pos = end;
@@ -149,29 +171,46 @@ namespace ImGui {
             style.color_param = param;
         }
 
-        // 2. Strip leading/trailing whitespace in clean_text
+        // 2. Normalize any UTF-8 non-breaking spaces (\xC2\xA0, e.g. macOS Option+Space)
+        // to standard ASCII ' ' (0x20) so fonts baking only 7-bit ASCII (0x20..0x7E)
+        // still measure and render the exact advance width of a space glyph:
+        for (size_t i = 0; i + 1 < style.clean_text.length(); ++i) {
+            if ((unsigned char)style.clean_text[i] == 0xC2 &&
+                (unsigned char)style.clean_text[i + 1] == 0xA0) {
+                style.clean_text.replace(i, 2, " ");
+            }
+        }
+
+        // 3. Locate non-whitespace core to check for markdown bold/italic/code syntax
+        // (**text**, __text__, *text*, _text_, `text`) WITHOUT discarding intentional
+        // leading/trailing padding spaces (e.g., "<pill> " ICON_FA_RETWEET " </pill>"):
         size_t start_idx = 0;
         while (start_idx < style.clean_text.length() && style.clean_text[start_idx] == ' ') ++start_idx;
         size_t end_idx = style.clean_text.length();
         while (end_idx > start_idx && style.clean_text[end_idx - 1] == ' ') --end_idx;
-        std::string trimmed = style.clean_text.substr(start_idx, end_idx - start_idx);
 
-        // 3. Check if inner_text itself has markdown bold/italic syntax (**text**, __text__, *text*, _text_)
-        if ((trimmed.length() >= 4 && trimmed.rfind("**", 0) == 0 && trimmed.compare(trimmed.length() - 2, 2, "**") == 0) ||
-            (trimmed.length() >= 4 && trimmed.rfind("__", 0) == 0 && trimmed.compare(trimmed.length() - 2, 2, "__") == 0))
+        std::string lead_spaces = style.clean_text.substr(0, start_idx);
+        std::string core = style.clean_text.substr(start_idx, end_idx - start_idx);
+        std::string trail_spaces = style.clean_text.substr(end_idx);
+
+        if ((core.length() >= 4 && core.rfind("**", 0) == 0 && core.compare(core.length() - 2, 2, "**") == 0) ||
+            (core.length() >= 4 && core.rfind("__", 0) == 0 && core.compare(core.length() - 2, 2, "__") == 0))
         {
             style.is_bold = true;
-            trimmed = trimmed.substr(2, trimmed.length() - 4);
+            core = core.substr(2, core.length() - 4);
         }
-        else if ((trimmed.length() >= 2 && trimmed.front() == '*' && trimmed.back() == '*') ||
-                 (trimmed.length() >= 2 && trimmed.front() == '_' && trimmed.back() == '_'))
+        else if ((core.length() >= 2 && core.front() == '*' && core.back() == '*') ||
+                 (core.length() >= 2 && core.front() == '_' && core.back() == '_'))
         {
             style.is_italic = true;
-            trimmed = trimmed.substr(1, trimmed.length() - 2);
+            core = core.substr(1, core.length() - 2);
         }
-        while (trimmed.length() > 0 && trimmed.front() == ' ') trimmed.erase(0, 1);
-        while (trimmed.length() > 0 && trimmed.back() == ' ') trimmed.pop_back();
-        style.clean_text = trimmed;
+        else if (core.length() >= 2 && core.front() == '`' && core.back() == '`')
+        {
+            style.is_mono = true;
+            core = core.substr(1, core.length() - 2);
+        }
+        style.clean_text = lead_spaces + core + trail_spaces;
 
         return style;
     }
@@ -179,6 +218,10 @@ namespace ImGui {
     inline void PushMarkdownTagFont(const MarkdownConfig* config, const MarkdownTagStyle& style) {
         if (!config) config = GetActiveMarkdownConfig();
         if (!config) config = GetDefaultMarkdownConfig();
+        if (style.is_mono && config && config->monoFont) {
+            ImGui::PushFont(config->monoFont);
+            return;
+        }
         if (!config || !config->formatCallback) return;
         if (style.is_bold) {
             MarkdownFormatInfo info;
@@ -198,6 +241,10 @@ namespace ImGui {
     inline void PopMarkdownTagFont(const MarkdownConfig* config, const MarkdownTagStyle& style) {
         if (!config) config = GetActiveMarkdownConfig();
         if (!config) config = GetDefaultMarkdownConfig();
+        if (style.is_mono && config && config->monoFont) {
+            ImGui::PopFont();
+            return;
+        }
         if (!config || !config->formatCallback) return;
         if (style.is_bold) {
             MarkdownFormatInfo info;
@@ -287,8 +334,10 @@ namespace ImGui {
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
                 ImU32 col_u32 = ImGui::GetColorU32(bg_col);
+                // TrueType fonts include ~1px of diacritic headroom at pos.y while descenders ('p', 'g', 'y')
+                // reach pos.y + text_size.y; starting at pos.y and extending +pad_y below centers the box optically:
                 draw_list->AddRectFilled(
-                    ImVec2(pos.x - pad_x, pos.y - pad_y),
+                    ImVec2(pos.x - pad_x, pos.y),
                     ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
                     col_u32, rounding
                 );
@@ -338,12 +387,46 @@ namespace ImGui {
                 float btn_width = text_size.x + ImGui::GetStyle().FramePadding.x * 2.0f;
                 EnsureTagFitsOnLine(btn_width);
 
-                ImGui::PushStyleColor(ImGuiCol_Button, bg_col);
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bg_col);
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg_col);
-                ImGui::PushStyleColor(ImGuiCol_Text, text_col);
-                ImGui::SmallButton(style.clean_text.c_str());
-                ImGui::PopStyleColor(4);
+                bool has_ascii_text = false;
+                for (char c : style.clean_text) {
+                    if ((unsigned char)c > ' ' && (unsigned char)c < 0x80) {
+                        has_ascii_text = true;
+                        break;
+                    }
+                }
+
+                if (has_ascii_text) {
+                    // For text pills (with ascenders/descenders like 'p', 'g', 'y'), SmallButton's
+                    // FramePadding.y = 0 leaves 0px below descenders and ~2px of diacritic headroom at top.
+                    // Draw the rounded pill shifted +1px down so ascenders and descenders are balanced:
+                    float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                    ImVec2 pos = ImGui::GetCursorScreenPos();
+                    if (ImGui::GetCurrentWindow() && ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset > 0.0f) {
+                        pos.y += ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset;
+                    }
+                    float rounding = ImMax(3.0f * scale, ImGui::GetStyle().FrameRounding);
+                    ImGui::GetWindowDrawList()->AddRectFilled(
+                        ImVec2(pos.x, pos.y + 0.5f * scale),
+                        ImVec2(pos.x + btn_width, pos.y + text_size.y + 1.0f * scale),
+                        ImGui::GetColorU32(bg_col), rounding
+                    );
+                    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+                    ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+                    ImGui::SmallButton(style.clean_text.c_str());
+                    ImGui::PopStyleColor(4);
+                    ImGui::PopStyleVar();
+                } else {
+                    // Icon-only pill (e.g., FontAwesome glyph): keep standard SmallButton frame bounds
+                    ImGui::PushStyleColor(ImGuiCol_Button, bg_col);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bg_col);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg_col);
+                    ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+                    ImGui::SmallButton(style.clean_text.c_str());
+                    ImGui::PopStyleColor(4);
+                }
 
                 PopMarkdownTagFont(config, style);
             };
@@ -394,7 +477,7 @@ namespace ImGui {
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
                 ImU32 col_u32 = ImGui::GetColorU32(bg_col);
                 draw_list->AddRectFilled(
-                    ImVec2(pos.x - pad_x, pos.y - pad_y),
+                    ImVec2(pos.x - pad_x, pos.y),
                     ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
                     col_u32, rounding
                 );
@@ -1025,7 +1108,7 @@ namespace TimedTooltip {
                 
                 if (no_wrap) {
                     state.perfect_size.x = raw_size.x + 2.0f * scale;
-                    state.perfect_size.y = raw_size.y + 4.0f * scale;
+                    state.perfect_size.y = raw_size.y + 2.0f * scale;
                 } else {
                     // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
                     float final_width = raw_size.x;
@@ -1040,7 +1123,7 @@ namespace TimedTooltip {
                     // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
                     state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
                     state.perfect_size.x = final_width; 
-                    state.perfect_size.y += 4.0f * scale;  // Prevent 1-pixel shift scrollbars when buttons are clicked!
+                    state.perfect_size.y += 2.0f * scale;  // Symmetric 1px top + 1px bottom headroom for pills/backdrops
                 }
 
                 // Immediate position clamp on Frame 1:
@@ -1067,6 +1150,7 @@ namespace TimedTooltip {
 #else
             ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
 #endif
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 1.0f * scale);
             if (no_wrap) {
                 MD::Text(std::string(buffer), &local_md);
             } else {
