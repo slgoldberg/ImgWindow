@@ -160,6 +160,7 @@ namespace Detail {
     }
 
     inline bool ShouldToggleTooltipOnClick(ImGuiID raw_item_id, bool is_item_active) {
+        (void)is_item_active;
         LinkClickToggleState& st = GetLinkClickToggleState();
         ImVec2 cur_min = GetItemRectMin();
         if (st.context == GetCurrentContext() && st.frame_count == GetFrameCount()) {
@@ -168,7 +169,7 @@ namespace Detail {
                 return st.toggle_mode;
             }
         }
-        return !is_item_active;
+        return false;
     }
 } // namespace Detail
 
@@ -261,7 +262,11 @@ namespace ImGui {
 
     inline IMGUI_API bool NativeTextLink(const char* label)
     {
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM >= 19090
         return ::ImGui::TextLink(label);
+#else
+        return TextLinkContrib(label);
+#endif
     }
 
     inline IMGUI_API LinkClickResult TextLinkUnformatted(const char* text, const char* text_end = nullptr)
@@ -289,9 +294,21 @@ namespace ImGui {
         return LinkClickResult(clicked);
     }
 
+    inline IMGUI_API LinkClickResult TextLinkContrib(const char* label, ImU32 col_override)
+    {
+        ImVec4 col = ColorConvertU32ToFloat4(col_override);
+        return TextLinkContrib(label, &col);
+    }
+
     inline IMGUI_API LinkClickResult TextLinkContrib(const std::string& label, const ImVec4* col_override = nullptr)
     {
         return TextLinkContrib(label.c_str(), col_override);
+    }
+
+    inline IMGUI_API LinkClickResult TextLinkContrib(const std::string& label, ImU32 col_override)
+    {
+        ImVec4 col = ColorConvertU32ToFloat4(col_override);
+        return TextLinkContrib(label.c_str(), &col);
     }
 
     inline IMGUI_API LinkClickResult TextLink(const char* label, const ImVec4* col_override)
@@ -299,9 +316,19 @@ namespace ImGui {
         return TextLinkContrib(label, col_override);
     }
 
+    inline IMGUI_API LinkClickResult TextLink(const char* label, ImU32 col_override)
+    {
+        return TextLinkContrib(label, col_override);
+    }
+
     inline IMGUI_API LinkClickResult TextLink(const std::string& label, const ImVec4* col_override = nullptr)
     {
         return TextLinkContrib(label.c_str(), col_override);
+    }
+
+    inline IMGUI_API LinkClickResult TextLink(const std::string& label, ImU32 col_override)
+    {
+        return TextLinkContrib(label, col_override);
     }
 
 #ifndef TextLink

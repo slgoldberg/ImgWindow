@@ -212,6 +212,7 @@ namespace Detail {
     }
 
     inline bool ShouldToggleTooltipOnClick(ImGuiID raw_item_id, bool is_item_active) {
+        (void)is_item_active;
         LinkClickToggleState& st = GetLinkClickToggleState();
         ImVec2 cur_min = GetItemRectMin();
         if (st.context == GetCurrentContext() && st.frame_count == GetFrameCount()) {
@@ -220,7 +221,7 @@ namespace Detail {
                 return st.toggle_mode;
             }
         }
-        return !is_item_active;
+        return false;
     }
 } // namespace Detail
 
@@ -249,6 +250,20 @@ namespace ImGui {
     // compile regardless of which public functions are opted out or where
     // this header is included.
     namespace WheelSliderDetail {
+
+        template<typename T>
+        inline T Clamp(T v, T lo, T hi) {
+            return (v < lo) ? lo : (v > hi) ? hi : v;
+        }
+
+        inline const char* FindTextDisplayEnd(const char* text, const char* text_end = nullptr) {
+            const char* text_display_end = text;
+            if (!text_end)
+                text_end = (const char*)-1;
+            while (text_display_end < text_end && *text_display_end != '\0' && (text_display_end[0] != '#' || text_display_end[1] != '#'))
+                text_display_end++;
+            return text_display_end;
+        }
 
         inline float GetMouseWheel(bool consume = false)
         {
@@ -312,7 +327,7 @@ namespace ImGui {
 
                 float prev = *valRef;
                 float next = *valRef + scale * clicks;
-                *valRef = (minVal < maxVal) ? std::clamp(next, minVal, maxVal) : next;
+                *valRef = (minVal < maxVal) ? Clamp(next, minVal, maxVal) : next;
                 if (*valRef != prev) {
                     isHandled = true;
 #if defined(IMGUI_TOOLTIP_EXT_H)
@@ -355,7 +370,7 @@ namespace ImGui {
 
                 int prev = *valRef;
                 int next = *valRef + delta;
-                *valRef = (minVal < maxVal) ? std::clamp(next, minVal, maxVal) : next;
+                *valRef = (minVal < maxVal) ? Clamp(next, minVal, maxVal) : next;
                 if (*valRef != prev) {
                     isHandled = true;
 #if defined(IMGUI_TOOLTIP_EXT_H)
@@ -396,7 +411,7 @@ namespace ImGui {
                 if (offset < 0) offset += count;
                 *current_idx = min_idx + offset;
             } else {
-                *current_idx = std::clamp(*current_idx + dir, min_idx, max_idx);
+                *current_idx = Clamp(*current_idx + dir, min_idx, max_idx);
             }
 
             return (*current_idx != prev);
@@ -1216,7 +1231,11 @@ namespace ImGui {
         const ImGuiStyle& style = GetStyle();
         ImU32 bg_col = GetColorU32(active ? ImGuiCol_ButtonActive : (hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button));
         float rounding = style.FrameRounding;
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18200
+        ImDrawCornerFlags round_flags = abutting ? ImDrawCornerFlags_Right : ImDrawCornerFlags_All;
+#else
         ImDrawFlags round_flags = abutting ? ImDrawFlags_RoundCornersRight : ImDrawFlags_RoundCornersAll;
+#endif
         draw_list->AddRectFilled(p, ImVec2(p.x + width, p.y + height), bg_col, rounding, round_flags);
         if (style.FrameBorderSize > 0.0f) {
             draw_list->AddRect(p, ImVec2(p.x + width, p.y + height), GetColorU32(ImGuiCol_Border), rounding, round_flags, style.FrameBorderSize);
@@ -1226,7 +1245,7 @@ namespace ImGui {
         ImU32 icon_col = GetColorU32(is_actionable ? ImGuiCol_Text : ImGuiCol_TextDisabled);
 
         if (has_custom_label) {
-            const char* text_end = FindRenderedTextEnd(label_to_draw);
+            const char* text_end = WheelSliderDetail::FindTextDisplayEnd(label_to_draw);
             ImVec2 text_sz = CalcTextSize(label_to_draw, text_end, false);
             ImVec2 text_pos(std::floor(p.x + (width - text_sz.x) * 0.5f),
                             std::floor(p.y + (height - text_sz.y) * 0.5f));
@@ -1479,7 +1498,7 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
                 changed = true;
             }
         }
@@ -1589,7 +1608,7 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
                 changed = true;
             }
         }
@@ -1702,7 +1721,7 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
                 changed = true;
             }
         }
@@ -1816,7 +1835,7 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
                 changed = true;
             }
         }
@@ -1928,7 +1947,7 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? std::clamp(restore_val, v_min, v_max) : restore_val;
+                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
                 changed = true;
             }
         }
@@ -2169,7 +2188,7 @@ namespace ImGui {
         bool combo_header_active = IsItemActive();
 
         // 2. Abutting Reset / Restore-Previous Button (0 gap, flat left edge):
-        int clamped_default = std::clamp(default_item, 0, items_count - 1);
+        int clamped_default = WheelSliderDetail::Clamp(default_item, 0, items_count - 1);
         ImGuiID undo_id = GetID("##reset_undo");
         if (changed && *current_item == clamped_default) {
             WheelSliderDetail::ClearIntUndo(undo_id, clamped_default, last_item);
@@ -2188,7 +2207,7 @@ namespace ImGui {
                 *current_item = clamped_default;
                 changed = true;
             } else if (can_restore) {
-                *current_item = std::clamp(restore_item, 0, items_count - 1);
+                *current_item = WheelSliderDetail::Clamp(restore_item, 0, items_count - 1);
                 changed = true;
             }
         }

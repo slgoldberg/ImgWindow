@@ -705,6 +705,7 @@ namespace Detail {
     }
 
     inline bool ShouldToggleTooltipOnClick(ImGuiID raw_item_id, bool is_item_active) {
+        (void)is_item_active;
         LinkClickToggleState& st = GetLinkClickToggleState();
         ImVec2 cur_min = GetItemRectMin();
         if (st.context == GetCurrentContext() && st.frame_count == GetFrameCount()) {
@@ -713,7 +714,7 @@ namespace Detail {
                 return st.toggle_mode;
             }
         }
-        return !is_item_active;
+        return false;
     }
 } // namespace Detail
 

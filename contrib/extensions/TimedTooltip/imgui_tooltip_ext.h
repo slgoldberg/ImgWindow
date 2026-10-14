@@ -27,6 +27,8 @@
 
 namespace ImGui {
 namespace TimedTooltip {
+    using std::min;
+    using std::max;
 
     struct TooltipConfig {
         int hover_delay_cycles = 65;      // Low Watermark: Cycles before appearing
@@ -48,6 +50,10 @@ namespace TimedTooltip {
         ImVec4 bg_color = ImVec4(1.0f, 0.95f, 0.6f, 1.0f);      // Yellow Sticky Note (100% opaque)
         ImVec4 border_color = ImVec4(0.8f, 0.75f, 0.4f, 1.0f);   // Slightly darker border
         ImVec4 text_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);      // Black text
+
+        void SetBgColor(ImU32 col) { bg_color = ColorConvertU32ToFloat4(col); }
+        void SetBorderColor(ImU32 col) { border_color = ColorConvertU32ToFloat4(col); }
+        void SetTextColor(ImU32 col) { text_color = ColorConvertU32ToFloat4(col); }
     };
 
     inline const TooltipConfig*& GetDefaultTooltipConfig() {
@@ -190,8 +196,22 @@ namespace TimedTooltip {
         static const TooltipConfig fallback_config;
         if (!config) config = &fallback_config;
 
+        ImGuiIO& io = GetIO();
+        const bool is_mouse_wheel_active = (io.MouseWheel != 0.0f || io.MouseWheelH != 0.0f);
+        const bool is_mouse_dragging = ImGui::IsMouseDragging(0) || ImGui::IsMouseDragging(1) || ImGui::IsMouseDragging(2);
+
         // 1. Hover Latch (Low Watermark & Grace Period)
-        if (is_hovered) {
+        if (is_mouse_wheel_active || is_mouse_dragging) {
+            // User input active (spinning wheel or dragging) -> slam low-water timer back to 0!
+            state.hover_cycles = 0;
+            state.unhover_grace_cycles = 0;
+            if (state.is_displayed) {
+                state.is_displayed = false;
+                if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
+                state.is_cooldown = false;
+                state.perfect_size = ImVec2(0, 0);
+            }
+        } else if (is_hovered) {
             state.unhover_grace_cycles = 0;
             if (!state.is_cooldown) {
                 state.hover_cycles++;
@@ -253,7 +273,16 @@ namespace TimedTooltip {
             if (config->max_display_cycles >= 0) {
                 int max_timeout = config->max_display_cycles;
                 if (state.last_size.y > 0) {
-                    max_timeout += (int)(state.last_size.y * config->size_skew_multiplier);
+/* [Roger: This is experimental: -Steve] */
+/* [The goal being to force very short timeouts for just one line or two.] */
+const float ssMult = min(max(0.125f, config->size_skew_multiplier), 0.875f);
+const float ssFactor = 16.f * scale; // approx chunk sizes (vertical or horizontal)
+if (state.last_size.y <= ssFactor)
+    max_timeout = (int)(ssMult * (0.5f * (max_timeout) + state.last_size.x / ssFactor));
+else if (state.last_size.y <= 2.f * ssFactor)
+    max_timeout = (int)(ssMult * (0.67f * (max_timeout) + state.last_size.x / ssFactor));
+else // only *add* to max timeout if it's not very short per above:
+                    max_timeout += (int)(state.last_size.y * ssMult/*config->size_skew_multiplier*/);
                 }
                 
                 // High Watermark: Auto-hide triggered
@@ -266,7 +295,7 @@ namespace TimedTooltip {
                 }
             }
 
-            // 3. Render Stationary Window with automatic screen-edge clamping (grows upwards if clipping bottom!)
+            // 3. Render Stationary Window with automatic screen-edge clamping (flips above/left of cursor if clipping!)
             ImVec2 render_pos = state.locked_pos;
             ImVec2 display_size = ImGui::GetIO().DisplaySize;
             ImVec2 scaled_padding = ImVec2(config->padding.x * scale, config->padding.y * scale);
@@ -277,16 +306,21 @@ namespace TimedTooltip {
             if (expected_w > display_size.x - 25.0f) expected_w = display_size.x - 25.0f;
             if (expected_h > display_size.y - 25.0f) expected_h = display_size.y - 25.0f;
 
-            // Grow UPWARDS if tooltip would clip off the bottom of the screen!
+            // Flip UPWARDS above cursor if tooltip would clip off the bottom of the screen!
             if (expected_h > 0.0f && render_pos.y + expected_h + 10.0f > display_size.y) {
-                render_pos.y = display_size.y - expected_h - 15.0f;
+                render_pos.y = state.last_mouse_pos.y - expected_h - 10.0f * scale;
                 if (render_pos.y < 10.0f) render_pos.y = 10.0f;
             }
 
-            // Shift LEFTWARDS if tooltip would clip off the right edge of the screen!
+            // Shift LEFTWARDS (or flip left of cursor) if tooltip would clip off the right edge of the screen!
             if (expected_w > 0.0f && render_pos.x + expected_w + 10.0f > display_size.x) {
-                render_pos.x = display_size.x - expected_w - 15.0f;
-                if (render_pos.x < 10.0f) render_pos.x = 10.0f;
+                float left_pos = state.last_mouse_pos.x - expected_w - 10.0f * scale;
+                if (left_pos >= 10.0f) {
+                    render_pos.x = left_pos;
+                } else {
+                    render_pos.x = display_size.x - expected_w - 15.0f;
+                    if (render_pos.x < 10.0f) render_pos.x = 10.0f;
+                }
             }
 
             ImGui::SetNextWindowPos(render_pos);
@@ -477,6 +511,7 @@ namespace Detail {
     }
 
     inline bool ShouldToggleTooltipOnClick(ImGuiID raw_item_id, bool is_item_active) {
+        (void)is_item_active;
         LinkClickToggleState& st = GetLinkClickToggleState();
         ImVec2 cur_min = GetItemRectMin();
         if (st.context == GetCurrentContext() && st.frame_count == GetFrameCount()) {
@@ -485,7 +520,7 @@ namespace Detail {
                 return st.toggle_mode;
             }
         }
-        return !is_item_active;
+        return false;
     }
 } // namespace Detail
 
@@ -600,7 +635,7 @@ namespace TimedTooltip {
                 if (min_w > max_w) min_w = max_w;
 
                 float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
-                float wrap_limit = std::clamp(target_w, min_w, max_w);
+                float wrap_limit = (target_w < min_w) ? min_w : (target_w > max_w) ? max_w : target_w;
                 if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
 
                 ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + wrap_limit);

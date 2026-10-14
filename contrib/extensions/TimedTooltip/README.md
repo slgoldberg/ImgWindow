@@ -13,6 +13,7 @@ Unlike standard Dear ImGui tooltips which move with the mouse and can flicker, o
 
 * **Configurable Delay & Lifetime:**
   * **Low Watermark (Hover Delay):** Prevents tooltip spam by waiting for the user to pause over a widget before showing.
+  * **Active Input Low-Water Reset:** Spinning the mouse wheel (`io.MouseWheel` / `io.MouseWheelH`) or dragging (`IsMouseDragging`) over any widget immediately slams the hover timer back to 0 and dismisses any active tooltip, preventing tooltips from popping up or obstructing adjustments during continuous wheel scrolling or slider interaction.
   * **High Watermark (Auto-Dismiss):** Automatically hides tooltips after a readable duration, with adaptive time-scaling for taller/multi-line text.
   * **Grace Period:** Forgives micro-slips off the target widget so users don't lose their place.
   * **Wiggle Latch:** Micro-mouse movements reset the auto-hide timer so users can continue reading long descriptions.
@@ -20,7 +21,7 @@ Unlike standard Dear ImGui tooltips which move with the mouse and can flicker, o
   * Pushes and pops its own `WindowPadding`, `ItemSpacing`, `FramePadding`, and `IndentSpacing`. Outer parent window style modifications (such as `ItemSpacing.x = 0` in menu bars or compressed button pads) can never distort tooltip typography, and tooltip styles never leak back out.
   * Precise vertical line pitch (`item_spacing.y = 0.0f`) preserves the exact 15px native font leading in X-Plane, preventing vertical bloat and screen overrun.
 * **Smart Bounds Clamping & Docking:**
-  * **Upward Growth:** If a multi-line tooltip would clip off the bottom of the screen, it automatically grows upwards, clamping cleanly above the display floor.
+  * **Cursor-Safe Viewport Clamping (Flip Above Cursor):** If a tooltip would clip off the bottom of the screen (e.g. over a bottom control strip or footer slider), it automatically flips **above the mouse cursor**, ensuring the tooltip never covers the cursor or the widget being manipulated.
   * **Leftward Shift:** If a tooltip approaches the right screen border, it automatically shifts leftwards.
   * **Adaptive Wrap:** Shrink-wraps tightly around concise text while wrapping paragraphs at a readable width (80% of available viewport width by default).
 * **Interactive Cursor Protection & Click-to-Toggle Ergonomics:**

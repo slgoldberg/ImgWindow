@@ -59,26 +59,40 @@ A modern, iOS / Material-design rounded pill switch with a smoothly sliding circ
 static bool s_ExpertMode = false;
 static int  s_SmoothTransitions = 1;
 
-// Standard switch with clickable label on the right:
+// 1. Standard switch with clickable label on the right:
 ImGui::ToggleButton("Expert Mode", &s_ExpertMode);
 
-// Compact switch without visible label (uses ID only):
+// 2. Direct reference syntax (no & required):
+ImGui::ToggleButton("Expert Mode", s_ExpertMode);
+
+// 3. Compact switch without visible label (uses ID only):
 ImGui::ToggleButton("##hud_switch", &s_HudActive);
 
-// Switch with built-in per-state tooltips ({ Off tooltip, On tooltip }):
+// 4. Direct dual-string per-state tooltips (Off tooltip, On tooltip):
+ImGui::ToggleButton("HUD Overlay", &s_HudActive,
+                    "HUD is currently **OFF**.\n- Click to enable overlay.",
+                    "HUD is currently **ON**.\n- Click to disable overlay.");
+
+// 5. Array-based per-state tooltips ({ Off tooltip, On tooltip }):
 static const char* const kTransitionTooltips[] = {
     "Smooth transitions are **OFF** (instant snap).\n- Click or scroll **up** on the switch to enable.",
     "Smooth transitions are **ON** (animated).\n- Click or scroll **down** on the switch to disable."
 };
 ImGui::ToggleButton("Smooth Transitions", &s_SmoothTransitions, ImVec2(0, 0), kTransitionTooltips);
+
+// Optional: Customize switch active track & thumb colors globally:
+ImGui::SetDefaultToggleButtonColors(ImVec4(0.26f, 0.59f, 0.98f, 1.0f)); // Active track color
+// Or via ImU32:
+ImGui::SetDefaultToggleButtonColors(ABCIM_COL32(HILITE_COLOR));
 ```
 
 * **Features:**
   * Frame-rate independent sliding animation powered by `io.DeltaTime` and stored per-widget in `ImGuiStorage`.
-  * Accepts either `bool*` or `int*` (`0` = Off, non-zero = On).
+  * **Flexible Types & Syntax:** Accepts `bool*`, `int*`, `bool&`, or `int&` (`0` = Off, non-zero = On).
+  * **Global Theme Integration (`SetDefaultToggleButtonColors`):** Easily set the switch track/thumb colors globally via `ImVec4` or `ImU32`. Defaults to your theme's active highlight color (`ImGuiCol_ButtonActive`).
   * **Built-In Clamped Mouse-Wheel Support (`allow_mouse_wheel = true`):** Spinning the scroll wheel up/right over the pill switch turns it **On** and clamps there; spinning down/left turns it **Off** and clamps there (never wraps). Hovering over the text label does *not* capture the mouse wheel, preventing accidental toggles when scrolling windows.
-  * **Per-State Tooltips (`item_tooltips`):** Optional 2-element string array `{ off_tooltip, on_tooltip }` automatically displays the tooltip for the active state via `TimedTooltip::TextMDProxy` (or standard `SetTooltip` fallback).
-  * Sizing automatically derives from `ImGui::GetFrameHeight()` (resolution-independent) or accepts explicit `ImVec2 size`.
+  * **Per-State Tooltips:** Supports both direct dual-string parameters (`off_tooltip`, `on_tooltip`) and 2-element string arrays (`{ off_tooltip, on_tooltip }`) automatically rendered via `TimedTooltip::TextMDProxy` (or standard `SetTooltip` fallback).
+  * **Responsive Auto-Scaling:** Switch dimensions scale naturally with the ambient font size (0.78x ambient frame height for standard switches, 0.60x for compact switches), looking crisp on standard, Retina, and 4K displays, with support for explicit `ImVec2 size` overrides.
   * Automatic hand pointer cursor (`ImGuiMouseCursor_Hand` by default, customizable via `hover_cursor` or `IMGUI_EXTRA_TOGGLE_DEFAULT_CURSOR`).
 
 #### B. Segmented Dual-Button Pair (`ImGui::ToggleButtons`)
