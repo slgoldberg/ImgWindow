@@ -4,6 +4,29 @@ Welcome to the `contrib/` directory of **ImgWindow**. This directory houses ImgW
 
 ---
 
+## 🎯 Why `contrib/`? (From Debug Menus to Cockpit Instruments)
+
+Pure Dear ImGui is fundamentally an engine designed for game-dev debug menus and developer panels. When flight sim plugin authors try to build user-facing products with it, they immediately hit friction:
+
+* **Tooltips follow the mouse, flicker, and fall off the screen** when moving near the simulator window edges.
+* **Help text in tooltips is limited to plain ASCII strings** without headers, bullet lists, bold emphasis, or documentation links.
+* **Toggles are clunky checkboxes** rather than tactile, cockpit-grade switches with clear dual-state affordances.
+* **Sliders and combos don't respond naturally to the mouse scroll-wheel**, making fine tuning feel clumsy compared to real avionics knobs.
+* **There is no standard "revert to default" pattern**, so users fear tweaking settings lest they lose their calibrated values.
+
+Look at the spectrum of UI tasks a flight sim plugin author faces, and how `contrib/` covers them today:
+
+| Common Cockpit UI Task | Vanilla Dear ImGui Friction | `contrib/` Solution |
+| :--- | :--- | :--- |
+| **Interactive Help & Manuals** | `SetTooltip()` follows the mouse cursor, flickers, and clips outside simulator window boundaries. Limited to plain ASCII strings. | **`ImGui::TimedTooltip` & `ImGui::MD`**<br>Stationary anchor after initial delay, low-water wheel reset, smart cursor-avoidance and screen-edge clamping, and full Markdown rendering. |
+| **Two-Position Switches** | Clunky `[x]` checkboxes with no visual state distinction or dual-label tooltips. | **`ImGui::ToggleButton`**<br>Animated physical rocker/toggle switches with font-relative scaling, custom palettes, and automatic dual-state tooltips (`"Off Hint", "On Hint"`). |
+| **Avionics Dials & Adjusters** | Requires click-and-drag. The mouse wheel does nothing, requiring awkward custom tracking. | **`ImGui::MouseWheelSlider` / `MouseWheelDrag` / `MouseWheelCombo`**<br>Natural mouse-wheel stepping with configurable increments and fine-tune modifier keys. |
+| **Fearless Settings Tweaking** | No standard "revert to default" pattern; users hesitate to adjust complex tuning parameters. | **`ImGui::AdjustItemOnMouseWheel` & Reset Chasers**<br>Inline 1-click restore-to-default icon chaser with instant undo history. |
+| **External Docs & Web Links** | Raw text URLs or awkward styled buttons with default arrow cursors. | **`ImGui::ButtonLink`, `TextLink`, `MenuItemLink`**<br>Native OS hand cursors (`ImGuiMouseCursor_Hand`), hover underlines, and one-click browser launch via `XPLMOpenURL`. |
+
+
+---
+
 ## Ecosystem Organization
 
 To keep contributions modular and easy to include at any level of granularity, the ecosystem is organized into two primary categories with uniform **`includes.h`** roll-up headers and top-level concentrators:
