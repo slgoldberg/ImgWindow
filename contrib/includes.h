@@ -40,6 +40,7 @@
 // --- Individual Extensions (contrib/extensions/) ---
 // #define CONTRIB_DISABLE_TIMED_TOOLTIP          // Exclude TimedTooltip extension
 // #define CONTRIB_DISABLE_MARKDOWN               // Exclude Markdown extension
+// #define CONTRIB_DISABLE_TEXT_MD                // Exclude root ImGui::TextMD / TextWrappedMD aliases
 
 // --- Widget Collections (contrib/widgets/) ---
 // #define CONTRIB_DISABLE_TOGGLE_BUTTONS         // Exclude ToggleButton & ToggleButtons

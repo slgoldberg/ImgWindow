@@ -1013,6 +1013,7 @@ namespace ImGui {
 
 } // namespace MD
 
+#if !defined(CONTRIB_DISABLE_TEXT_MD) && !defined(IMGUI_DISABLE_TEXT_MD) && !defined(CONTRIB_DISABLE_MARKDOWN_ROOT_ALIASES)
     // Top-level convenience aliases (matching ImGui::Text and ImGui::TextWrapped):
     inline void TextMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
         MD::Text(markdown_text, config_override);
@@ -1034,6 +1035,7 @@ namespace ImGui {
     inline LinkClickResult TextMDLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
         return MD::TextLink(markdown_text, config_override);
     }
+#endif // !CONTRIB_DISABLE_TEXT_MD
 
 } // namespace ImGui
 
