@@ -1,0 +1,63 @@
+name: Downstream Integration (FlyWithLua)
+
+on:
+  push:
+    branches: [ master, main, dev ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch: # Allows manual one-click trigger in GitHub Actions UI
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-flywithlua:
+    name: FlyWithLua on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-latest
+          - windows-latest
+
+    steps:
+      # 1. Clone FlyWithLua repository
+      - name: Checkout FlyWithLua repository
+        uses: actions/checkout@v4
+        with:
+          repository: sparker256/FlyWithLua
+          ref: master
+          submodules: recursive
+          path: FlyWithLua
+
+      # 2. Overlay your latest ImgWindow over FlyWithLua's submodule
+      - name: Overlay latest ImgWindow
+        uses: actions/checkout@v4
+        with:
+          path: FlyWithLua/src/ImgWindow
+
+      # 3. Windows environment setup (MinGW generator)
+      - name: "Windows: Configure MinGW environment"
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "CMAKE_GENERATOR=MinGW Makefiles" >> $GITHUB_ENV
+
+      # 4. Linux dependency setup
+      - name: "Linux: Install dependencies"
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install --no-install-recommends freeglut3-dev libopenal-dev libudev-dev
+
+      # 5. Configure CMake
+      - name: Configure CMake
+        run: |
+          cmake -S FlyWithLua/src -B FlyWithLua/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      # 6. Build FlyWithLua
+      - name: Compile FlyWithLua
+        run: |
+          cmake --build FlyWithLua/build --config ${{ env.BUILD_TYPE }}
