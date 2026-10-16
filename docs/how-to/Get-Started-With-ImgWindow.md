@@ -13,11 +13,11 @@
 
 ```mermaid
 flowchart TD
-    Stop1["🛫 Step 1: Grab the Starter Project\n(Clone or inspect sparker256/imgui4xp)"]
-    Stop2["📦 Step 2: Drop In ImgWindow v2\n(Add ImgWindow.h and ImgWindow.cpp)"]
+    Stop1["🛫 Step 1: Grab the Starter Project\n(git clone --recursive sparker256/imgui4xp)"]
+    Stop2["📦 Step 2: The Project Structure\n(ImgWindow lives intact in src/ImgWindow/)"]
     Stop3["🎨 Step 3: Subclass ImgWindow\n(Implement buildInterface with ImGui)"]
     Stop4["⚙️ Step 4: Choose Your Build Mode\n(Universal Dynamic Bridge vs Strict Modern)"]
-    Stop5["🛩️ Step 5: Ready for Takeoff!\n(Open your window in X-Plane & explore contrib/)"]
+    Stop5["🛩️ Step 5: Ready for Takeoff!\n(Run in X-Plane & explore contrib/)"]
 
     Stop1 --> Stop2 --> Stop3 --> Stop4 --> Stop5
 ```
@@ -46,41 +46,67 @@ Writing a cross-platform X-Plane plugin from scratch requires boilerplate: downl
 Rather than reinventing this wheel, the X-Plane community relies on Bill Good's ([@sparker256](https://github.com/sparker256)) canonical open-source template: **[`imgui4xp`](https://github.com/sparker256/imgui4xp)**.
 
 ```bash
-# Clone the starter template
-git clone https://github.com/sparker256/imgui4xp.git my-xplane-plugin
+# Clone the starter template WITH submodules (pulls down ImgWindow automatically!):
+git clone --recursive https://github.com/sparker256/imgui4xp.git my-xplane-plugin
 cd my-xplane-plugin
 ```
 
-`imgui4xp` provides the complete build scaffolding, CMake configuration, and standard plugin entry points out of the box.
+> [!TIP]
+> If you already cloned the repository without `--recursive`, you can initialize the submodules at any time:
+> ```bash
+> git submodule update --init --recursive
+> ```
+
+`imgui4xp` provides the complete build scaffolding, CMake configuration, Dear ImGui core, and standard plugin entry points out of the box.
 
 ---
 
-## 📦 Step 2: Drop In `ImgWindow v2`
+## 📦 Step 2: The Project Structure (Keep `ImgWindow` Whole!)
 
-`ImgWindow` is designed as a **pure drop-in component**. It does not require a custom package manager or precompiled binaries.
+Because `ImgWindow` is tracked as a git submodule in `imgui4xp`, it already lives neatly inside `src/ImgWindow/`:
 
-Copy the following core files from the [`ImgWindow` repository](https://github.com/slgoldberg/ImgWindow) into your plugin's source directory (e.g. `src/`):
-
-```
+```text
 my-xplane-plugin/
 ├── src/
-│   ├── ImgWindow.h          <-- Core window wrapper & event dispatcher
-│   ├── ImgWindow.cpp        <-- Dynamic bridge (Panel Graphics + OpenGL)
-│   ├── ImgFontAtlas.h       <-- (Optional) Font management & glyph ranges
-│   ├── ImgFontAtlas.cpp     <-- (Optional) Font atlas builder
-│   └── MyPlugin.cpp         <-- Your plugin logic and XPlugin entry points
-└── CMakeLists.txt
+│   ├── ImgWindow/                <-- Complete ImgWindow module (Core + contrib/)
+│   │   ├── ImgWindow.h / .cpp    <-- Core window wrapper & dynamic bridge
+│   │   ├── ImgFontAtlas.h / .cpp <-- Font management & glyph ranges
+│   │   ├── contrib.h             <-- Master header for the contrib UX suite
+│   │   └── contrib/              <-- Animated switches, wheel dials, tooltips, markdown
+│   ├── imgui/                    <-- Dear ImGui core library
+│   ├── imgui_starter_window.cpp  <-- Reference starter window (customize or replace)
+│   ├── imgui_starter_window.h
+│   ├── imgui4xp.cpp              <-- X-Plane plugin lifecycle entry points
+│   └── CMakeLists.txt            <-- Complete cross-platform CMake build recipe
 ```
 
-In your `CMakeLists.txt`, add `ImgWindow.cpp` to your plugin library sources:
+### Developing *In-Situ*
+You develop your plugin directly inside this project tree:
+* `src/CMakeLists.txt` is already configured for you! It includes `src/ImgWindow` in its header search paths:
+  ```cmake
+  include_directories("${CMAKE_SOURCE_DIR}/ImgWindow")
+  ```
+  and compiles the core `ImgWindow` sources automatically:
+  ```cmake
+  list(APPEND IMGUI4XP_SRCS
+      ...
+      ImgWindow/ImgFontAtlas.cpp
+      ImgWindow/ImgWindow.cpp
+  )
+  ```
+* You can customize the sample window in `imgui_starter_window.cpp` directly, or add your own window classes to `src/` and append them to `IMGUI4XP_SRCS` in `CMakeLists.txt`.
 
-```cmake
-add_library(${PROJECT_NAME} MODULE
-    src/MyPlugin.cpp
-    src/ImgWindow.cpp
-    # Add ImgFontAtlas.cpp here if using custom TrueType/OpenType fonts
-)
-```
+> [!WARNING]
+> **Never Rip Out Loose Files!**
+> Do **not** cherry-pick loose `.h` and `.cpp` files from `ImgWindow` and scatter them into your root `src/` folder. `ImgWindow` is an integrated package: keeping the `ImgWindow/` folder intact allows you to update cleanly via `git submodule update`, and gives your plugin instant access to the entire **[`contrib/` UX Suite](../../contrib/README.md)** (`#include "contrib.h"`).
+
+> [!NOTE]
+> **Adding to an Existing Plugin (Not Seeded from `imgui4xp`):**
+> If you already have an established C++ plugin repository, the best practice is to add `ImgWindow` as a git submodule:
+> ```bash
+> git submodule add https://github.com/slgoldberg/ImgWindow.git src/ImgWindow
+> ```
+> Then add `include_directories("${CMAKE_SOURCE_DIR}/ImgWindow")` and compile `ImgWindow/ImgWindow.cpp` (and `ImgFontAtlas.cpp`) in your `CMakeLists.txt`.
 
 ---
 
@@ -101,8 +127,8 @@ public:
         // Set the window title displayed in the X-Plane title bar
         SetWindowTitle("Flight Deck Settings");
 
-        // Optional: Window styling & sizing constraints
-        SetMinWindowSize(320, 240);
+        // Optional: Window styling & sizing constraints (minW, minH, maxW, maxH)
+        SetWindowResizingLimits(320, 240, 1024, 768);
     }
 
 protected:
