@@ -111,6 +111,7 @@ Use the clean, collision-free `ImGui::MD` namespace, which mirrors Dear ImGui's 
 * **`ImGui::MD::TextUnformatted` & `ImGui::MD::Text`:** Do **not** auto-wrap by default (matching `ImGui::TextUnformatted` and `ImGui::Text`—lines only break on explicit `\n` unless an active `ImGui::PushTextWrapPos()` is on the stack or an explicit `wrap_width` / `ImVec2 wrap_size` argument is passed).
 * **`ImGui::MD::TextWrapped`:** Automatically wraps to the available window content width (`GetContentRegionAvail().x`), or to an explicit `wrap_width` / `ImVec2 wrap_size` if provided.
 * **`ImGui::MD::TextLink` / `TextUnformattedLink` / `TextWrappedLink`:** Renders Markdown with `ImGuiMouseCursor_Hand` on hover and returns `ImGui::LinkClickResult` (supporting automatic click-to-toggle tooltips when the return value is not tested in `if (...)`).
+* **Root Namespace Shorthands:** For developers who prefer a single namespace jump, **`ImGui::TextMD(...)`**, **`ImGui::TextWrappedMD(...)`**, and **`ImGui::TextMDLink(...)`** are available directly in the root `ImGui::` namespace.
 
 ```cpp
 // Single-line / non-wrapping Markdown (unless \n or PushTextWrapPos is used):

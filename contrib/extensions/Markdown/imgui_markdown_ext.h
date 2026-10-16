@@ -1013,6 +1013,23 @@ namespace ImGui {
 
 } // namespace MD
 
+    // Top-level convenience aliases (matching ImGui::Text and ImGui::TextWrapped):
+    inline void TextMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+        MD::Text(markdown_text, config_override);
+    }
+
+    inline void TextMD(const char* markdown_text, const MarkdownConfig* config_override = nullptr) {
+        MD::TextUnformatted(markdown_text, nullptr, config_override);
+    }
+
+    inline void TextWrappedMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+        MD::TextWrapped(markdown_text, config_override);
+    }
+
+    inline void TextWrappedMD(const char* markdown_text, const MarkdownConfig* config_override = nullptr) {
+        MD::TextWrapped(std::string(markdown_text ? markdown_text : ""), config_override);
+    }
+
     // Top-level convenience alias for clickable Markdown text links:
     inline LinkClickResult TextMDLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
         return MD::TextLink(markdown_text, config_override);
