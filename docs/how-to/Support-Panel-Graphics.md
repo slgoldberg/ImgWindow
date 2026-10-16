@@ -14,7 +14,7 @@
 ```mermaid
 flowchart TD
     Stop1["📦 Step 1: Drop In ImgWindow v2\n(Replace ImgWindow.h and ImgWindow.cpp)"]
-    Stop2["⚙️ Step 2: Configure Compiler Flags\n(Add -DIMGWINDOW_USE_PANEL_GRAPHICS; avoid XPLM440)"]
+    Stop2["⚙️ Step 2: Configure Compiler Flags\n(Add &#8209;DIMGWINDOW_USE_PANEL_GRAPHICS; avoid XPLM440)"]
     Stop3["🧹 Step 3: Enforce Lifecycle Symmetry\n(Call ImgWindow::Shutdown to flush deferred queues)"]
     Stop4["🔍 Step 4: Verify in Log.txt\n(Confirm Dynamic Bridge routing at runtime)"]
     Fork{"Does your plugin draw\ncustom .png/.jpg images?"}

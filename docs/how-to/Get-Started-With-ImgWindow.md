@@ -85,10 +85,12 @@ my-xplane-plugin/
 You develop your plugin directly inside this project tree:
 * `src/CMakeLists.txt` is already configured for you! It includes `src/ImgWindow` in its header search paths:
   ```cmake
+  # (Already in imgui4xp's CMakeLists.txt -- you do not need to add this yourself!)
   include_directories("${CMAKE_SOURCE_DIR}/ImgWindow")
   ```
   and compiles the core `ImgWindow` sources automatically:
   ```cmake
+  # (Already in imgui4xp's CMakeLists.txt -- you do not need to add these yourself!)
   list(APPEND IMGUI4XP_SRCS
       ...
       ImgWindow/ImgFontAtlas.cpp
@@ -107,7 +109,18 @@ You develop your plugin directly inside this project tree:
 > ```bash
 > git submodule add https://github.com/slgoldberg/ImgWindow.git src/ImgWindow
 > ```
-> Then add `include_directories("${CMAKE_SOURCE_DIR}/ImgWindow")` and compile `ImgWindow/ImgWindow.cpp` (and `ImgFontAtlas.cpp`) in your `CMakeLists.txt`.
+> In this case (since you aren't using `imgui4xp`'s preconfigured CMake file), you **must** configure your build manually:
+> 1. Add `ImgWindow` to your compiler's header search paths:
+>    ```cmake
+>    include_directories("${CMAKE_SOURCE_DIR}/ImgWindow")
+>    ```
+> 2. Add both `ImgWindow.cpp` (and `ImgFontAtlas.cpp`) to your plugin's source file list in `CMakeLists.txt`:
+>    ```cmake
+>    list(APPEND YOUR_PLUGIN_SRCS
+>        src/ImgWindow/ImgWindow.cpp
+>        src/ImgWindow/ImgFontAtlas.cpp
+>    )
+>    ```
 
 ---
 
@@ -196,8 +209,8 @@ The only decision you need to make is your target simulator compatibility in `CM
 flowchart TD
     Decision{"What X-Plane versions\ndo you want to support?"}
 
-    Decision -->|"X-Plane 12.4.4+ AND\nX-Plane 11 / older XP12"| PathA["Option A (Recommended):\nUniversal Dynamic Bridge\n-DIMGWINDOW_USE_PANEL_GRAPHICS"]
-    Decision -->|"X-Plane 12.4.4+ ONLY\n(Drop older simulators)"| PathB["Option B:\nStrict Modern Mode\n-DXPLM440=1"]
+    Decision -->|"X-Plane 12.4.4+ AND\nX-Plane 11 / older XP12"| PathA["Option A (Recommended):\nUniversal Dynamic Bridge\n&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS"]
+    Decision -->|"X-Plane 12.4.4+ ONLY\n(Drop older simulators)"| PathB["Option B:\nStrict Modern Mode\n&#8209;DXPLM440=1"]
 ```
 
 ### Option A: The Universal Dynamic Bridge (Recommended)
