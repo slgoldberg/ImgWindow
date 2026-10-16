@@ -173,18 +173,18 @@ protected:
         }
 
         // Welcome banner using Markdown formatting:
-        ImGui::Markdown("# Flight Deck Quick Settings\nTelemetry and avionics are **active**.");
+        ImGui::MD::Text("# Flight Deck Quick Settings\nTelemetry and avionics are **active**.");
         ImGui::Separator();
 
-        // 1. Toggle with sticky-note TimedTooltip
+        // 1. Toggle with polite, hover-delayed TimedTooltip
         static bool s_HudEnabled = true;
         ImGui::Checkbox("Enable Synthetic Vision HUD", &s_HudEnabled);
-        ImGui::TimedTooltip::Text("Sticky note tooltip -- automatically fades after 3 seconds so it won't block your instruments!");
+        ImGui::TimedTooltip::Text("Only appears on an intentional hover pause -- won't flash when sweeping past!");
 
         // 2. Mouse-wheel slider with fine tuning
         static float s_Brightness = 0.85f;
         ImGui::MouseWheelSlider("HUD Brightness", &s_Brightness, 0.0f, 1.0f, "%.0f%%");
-        ImGui::TimedTooltip::Text("Hover and scroll your mouse wheel to adjust smoothly.");
+        ImGui::TimedTooltip::Text("Hover and scroll your mouse wheel. Anchors cleanly and dismisses after reading.");
 
         // 3. Action button
         if (ImGui::Button("Recalibrate Gyros")) {
@@ -198,8 +198,8 @@ protected:
 > [!TIP]
 > **Notice the Cockpit-Ready UI Features?**
 > In the example above, you might notice a few widgets that don't exist in vanilla Dear ImGui:
-> * **`ImGui::Markdown(...)`**: Renders bold text, headers, and bullet lists directly without writing custom string parsers.
-> * **`ImGui::TimedTooltip::Text(...)`**: Stationary, sticky-note tooltips that stay readable while flying and automatically vanish after a configurable duration—preventing tooltips from getting stuck over flight instruments!
+> * **`ImGui::MD::Text(...)`**: Renders headers, bold emphasis, and bullet lists directly using standard Markdown syntax—matching standard `ImGui::Text()` layout without custom string parsing.
+> * **`ImGui::TimedTooltip::Text(...)`**: Classic desktop-style tooltips that behave politely. Unlike default ImGui tooltips (which pop up instantly on first contact and follow your cursor around like an annoying swarm of gnats), `TimedTooltip` waits for an intentional hover pause before appearing, locks into a stationary position so it is easy to read, and automatically dismisses after reading so it never stays permanently stuck over flight instruments.
 > * **`ImGui::MouseWheelSlider(...)`**: Sliders and dials that respond naturally to mouse-wheel scrolling without awkward click-dragging.
 >
 > These widgets are part of `ImgWindow`'s bundled **[`contrib/` UX Suite](../../contrib/README.md)**. If you want to use them in your window, simply include `#include "contrib.h"`. (If you prefer 100% vanilla Dear ImGui, standard `ImGui::Text()`, `ImGui::SliderFloat()`, and `ImGui::SetItemTooltip()` work identically!).
