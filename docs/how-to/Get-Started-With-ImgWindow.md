@@ -121,6 +121,7 @@ You develop your plugin directly inside this project tree:
 >        src/ImgWindow/ImgFontAtlas.cpp
 >    )
 >    ```
+> *(Note: We show CMake directives for brevity throughout this guide, but you can configure the equivalent include paths, source files, and preprocessor definitions in GNU Make, Visual Studio, Xcode, Meson, or whichever build system your project uses).*
 
 ---
 
