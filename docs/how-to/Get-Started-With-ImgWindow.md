@@ -127,7 +127,19 @@ You develop your plugin directly inside this project tree:
 
 ## 🎨 Step 3: Subclass `ImgWindow` (The Core Abstraction)
 
-In `ImgWindow`, you never touch X-Plane's low-level window callbacks, coordinate transformations, or mouse event records. Instead, you create an object that inherits from `ImgWindow` and implement a single virtual method: **`buildInterface()`**.
+In `ImgWindow`, you never touch X-Plane's low-level window callbacks, coordinate transformations, or raw mouse/keyboard event records. Instead, you create a C++ class that inherits from `ImgWindow`.
+
+### The Lifecycle Container
+`ImgWindow` acts as a complete lifecycle container for your window. While **`buildInterface()`** is the primary pure-virtual method where your UI drawing loop lives, `ImgWindow` provides several optional lifecycle hooks that give you total control over how and when your window renders:
+
+* **`buildInterface()` (Required)**: The heart of your window. Called every frame your window is visible to construct widgets, handle events, and dispatch plugin logic.
+* **`beforeBegin()` (Optional)**: Called immediately before `ImGui::Begin()`. Override this to return custom window flags (such as `ImGuiWindowFlags_MenuBar` or `ImGuiWindowFlags_NoScrollbar`) or prepare per-frame layout state before the ImGui window frame opens.
+* **`afterRendering()` (Optional)**: Called after Dear ImGui finishes drawing, right before X-Plane's window draw callback returns. Perfect for post-frame cleanup or operations that would conflict with active drawing.
+* **`onShow()` (Optional)**: An interception hook called before the window becomes visible. Return `false` to suppress display (e.g. if required avionics bus power is offline).
+* **`mFirstRender` (Protected Flag)**: A built-in boolean guard you can check inside `buildInterface()` to perform one-time setup (like default table column widths or initial focus) on the very first frame.
+* **`SafeDelete()`**: Schedules deferred self-destruction of the window instance from within its own event handlers or click callbacks, safely deleting the object after the frame finishes rendering without dangling pointers.
+
+---
 
 ### 1. Define Your Window Class
 
@@ -147,26 +159,50 @@ public:
     }
 
 protected:
-    // This method is called automatically every frame your window is visible:
+    // Optional: Inject custom window flags before ImGui::Begin() is called:
+    ImGuiWindowFlags_ beforeBegin() override {
+        // e.g. Add a menu bar, or customize window chrome:
+        return ImGuiWindowFlags_MenuBar;
+    }
+
+    // Required: This method is called automatically every frame your window is visible:
     void buildInterface() override {
-        ImGui::TextUnformatted("Welcome to your first ImgWindow!");
+        // One-time initialization guard (built into ImgWindow):
+        if (mFirstRender) {
+            // Set up initial focus or table column defaults here!
+        }
+
+        // Welcome banner using Markdown formatting:
+        ImGui::Markdown("# Flight Deck Quick Settings\nTelemetry and avionics are **active**.");
         ImGui::Separator();
 
-        // 1. A simple checkbox bound to a boolean variable
+        // 1. Toggle with sticky-note TimedTooltip
         static bool s_HudEnabled = true;
-        ImGui::Checkbox("Enable Cockpit HUD", &s_HudEnabled);
+        ImGui::Checkbox("Enable Synthetic Vision HUD", &s_HudEnabled);
+        ImGui::TimedTooltip::Text("Sticky note tooltip -- automatically fades after 3 seconds so it won't block your instruments!");
 
-        // 2. A slider bound to a float
+        // 2. Mouse-wheel slider with fine tuning
         static float s_Brightness = 0.85f;
-        ImGui::SliderFloat("Display Brightness", &s_Brightness, 0.0f, 1.0f, "%.0f%%");
+        ImGui::MouseWheelSlider("HUD Brightness", &s_Brightness, 0.0f, 1.0f, "%.0f%%");
+        ImGui::TimedTooltip::Text("Hover and scroll your mouse wheel to adjust smoothly.");
 
-        // 3. An action button
-        if (ImGui::Button("Recalibrate Sensors")) {
+        // 3. Action button
+        if (ImGui::Button("Recalibrate Gyros")) {
             // Trigger your plugin systems logic here!
         }
+        ImGui::TimedTooltip::Text("Zeroes drift offsets for the attitude director indicator.");
     }
 };
 ```
+
+> [!TIP]
+> **Notice the Cockpit-Ready UI Features?**
+> In the example above, you might notice a few widgets that don't exist in vanilla Dear ImGui:
+> * **`ImGui::Markdown(...)`**: Renders bold text, headers, and bullet lists directly without writing custom string parsers.
+> * **`ImGui::TimedTooltip::Text(...)`**: Stationary, sticky-note tooltips that stay readable while flying and automatically vanish after a configurable duration—preventing tooltips from getting stuck over flight instruments!
+> * **`ImGui::MouseWheelSlider(...)`**: Sliders and dials that respond naturally to mouse-wheel scrolling without awkward click-dragging.
+>
+> These widgets are part of `ImgWindow`'s bundled **[`contrib/` UX Suite](../../contrib/README.md)**. If you want to use them in your window, simply include `#include "contrib.h"`. (If you prefer 100% vanilla Dear ImGui, standard `ImGui::Text()`, `ImGui::SliderFloat()`, and `ImGui::SetItemTooltip()` work identically!).
 
 ### 2. Instantiate and Open Your Window
 
@@ -194,7 +230,7 @@ void ToggleSettingsWindow() {
 
 > [!TIP]
 > **Window Destruction Rule:**
-> If the user clicks the "X" close box on your window, `ImgWindow` automatically hides the window (`SetVisible(false)`). You do not need to delete and recreate the C++ object every time it is closed—simply keep the instance alive and call `SetVisible(true)` when the user re-opens it.
+> If the user clicks the "X" close box on your window, `ImgWindow` automatically hides the window (`SetVisible(false)`). You do not need to delete and recreate the C++ object every time it is closed—simply keep the instance alive and call `SetVisible(true)` when the user re-opens it. (If you ever genuinely want a window to self-destruct from inside its own UI, e.g. from an "Unload" button, call `SafeDelete()` to safely destroy the instance at the end of the frame without dangling pointers).
 
 ---
 

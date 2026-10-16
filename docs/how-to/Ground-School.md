@@ -54,7 +54,7 @@ Rather than inventing another proprietary widget library to replace `XPWidgets`,
 
 ### Immediate-Mode vs. Declarative UI at a Glance
 
-If you are coming from `XPWidgets`, the shift to Dear ImGui inside an `ImgWindow` subclass feels like taking off ankle weights. Instead of declaring widget trees during startup and passing messages back and forth, **your UI code simply runs top-to-bottom inside `buildInterface()` whenever your window is visible**:
+If you are coming from `XPWidgets`, the shift to Dear ImGui inside an `ImgWindow` subclass feels like taking off ankle weights. Instead of declaring widget trees during startup and passing messages back and forth, **your UI code simply runs top-to-bottom inside your window's `buildInterface()` draw loop whenever your window is visible** (managed seamlessly by `ImgWindow`'s lifecycle container alongside `onShow()`, `beforeBegin()`, and `afterRendering()` hooks):
 
 ```cpp
 // Inside your ImgWindow subclass:
