@@ -58,7 +58,16 @@ The Markdown system is structured as a clean two-layer architecture:
 ### 1. Include the Header
 ```cpp
 #include "contrib/extensions/Markdown/imgui_markdown_ext.h"
+// (Or simply: #include "contrib.h")
 ```
+
+> [!IMPORTANT]
+> **Migrating from Upstream `imgui_markdown`: Remove Old Includes!**
+> If your plugin previously included upstream `imgui_markdown.h` directly:
+> 1. **Remove your old `#include "imgui_markdown.h"`** lines and delete any loose copies of `imgui_markdown.h` from your project's header search paths.
+> 2. **Include `#include "contrib.h"` (or `#include "contrib/extensions/Markdown/imgui_markdown_ext.h"`) instead.**
+>
+> `imgui_markdown_ext.h` automatically includes our modernized, patched engine (`contrib/extensions/Markdown/imgui_markdown.h`) under the hood. Keeping an older upstream copy in your project tree risks compiling against the unpatched upstream engine, which lacks our typographic lookahead, mathematical hanging indents, and `ImGui::MD::` widget suite!
 
 ### 2. Configure Default Styles & Fonts (Optional)
 

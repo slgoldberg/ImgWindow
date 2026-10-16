@@ -1307,7 +1307,111 @@ namespace TimedTooltip {
         return res;
     }
 
+    // Bidirectional Channel A: ImGui::TimedTooltip::MD::
+    namespace MD {
+        inline bool Text(const TooltipConfig* config, const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = TextMDV(config, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool Text(const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = TextMDV(nullptr, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool Text(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+            return TextMD(config, "%s", markdown_text.c_str());
+        }
+
+        inline bool TextUnformatted(const char* markdown_text, const TooltipConfig* config = nullptr) {
+            return TextMDUnformatted(markdown_text, config);
+        }
+
+        inline bool TextUnformatted(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+            return TextMDUnformatted(markdown_text, config);
+        }
+
+        inline bool TextLink(const TooltipConfig* config, const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = TextMDLinkV(config, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool TextLink(const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = TextMDLinkV(nullptr, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool TextLink(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+            return TextMDLink(config, "%s", markdown_text.c_str());
+        }
+    } // namespace MD
+
 } // namespace TimedTooltip
+
+namespace MD {
+    // Bidirectional Channel B: ImGui::MD::TimedTooltip::
+    namespace TimedTooltip {
+        inline bool Text(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = ImGui::TimedTooltip::TextMDV(config, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool Text(const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = ImGui::TimedTooltip::TextMDV(nullptr, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool Text(const std::string& markdown_text, const ImGui::TimedTooltip::TooltipConfig* config = nullptr) {
+            return ImGui::TimedTooltip::TextMD(config, "%s", markdown_text.c_str());
+        }
+
+        inline bool TextUnformatted(const char* markdown_text, const ImGui::TimedTooltip::TooltipConfig* config = nullptr) {
+            return ImGui::TimedTooltip::TextMDUnformatted(markdown_text, config);
+        }
+
+        inline bool TextUnformatted(const std::string& markdown_text, const ImGui::TimedTooltip::TooltipConfig* config = nullptr) {
+            return ImGui::TimedTooltip::TextMDUnformatted(markdown_text, config);
+        }
+
+        inline bool TextLink(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = ImGui::TimedTooltip::TextMDLinkV(config, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool TextLink(const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = ImGui::TimedTooltip::TextMDLinkV(nullptr, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool TextLink(const std::string& markdown_text, const ImGui::TimedTooltip::TooltipConfig* config = nullptr) {
+            return ImGui::TimedTooltip::TextMDLink(config, "%s", markdown_text.c_str());
+        }
+    } // namespace TimedTooltip
+} // namespace MD
 
 } // namespace ImGui
 #endif // IMGUI_MARKDOWN_EXT_H && IMGUI_TOOLTIP_EXT_H
