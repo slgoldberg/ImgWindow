@@ -47,7 +47,8 @@ Rather than reinventing this wheel, the X-Plane community relies on Bill Good's 
 
 ```bash
 # Clone the starter template WITH submodules (pulls down ImgWindow automatically!):
-git clone --recursive https://github.com/sparker256/imgui4xp.git my-xplane-plugin
+# (Note: --recurse-submodules and --recursive are exact synonyms in Git)
+git clone --recurse-submodules https://github.com/sparker256/imgui4xp.git my-xplane-plugin
 cd my-xplane-plugin
 ```
 
