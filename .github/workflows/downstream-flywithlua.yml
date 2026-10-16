@@ -23,12 +23,12 @@ jobs:
           - windows-latest
 
     steps:
-      # 1. Clone FlyWithLua fork
+      # 1. Clone FlyWithLua repository
       - name: Checkout FlyWithLua repository
         uses: actions/checkout@v4
         with:
-          repository: slgoldberg/FlyWithLua
-          ref: imgwindow-panel-graphics
+          repository: sparker256/FlyWithLua
+          ref: master
           submodules: recursive
           path: FlyWithLua
 
