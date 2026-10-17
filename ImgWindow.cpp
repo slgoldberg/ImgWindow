@@ -490,6 +490,15 @@ ImgWindow::ImgWindow(
         };
         mWindowID = XPLMCreateWindowEx(&windowParams);
     }
+
+#if defined(XPLM301)
+    // Initialize VR window geometry with the window's initial aspect ratio:
+    int winW = right - left;
+    int winH = top - bottom;
+    if (mWindowID && winW > 0 && winH > 0) {
+        XPLMSetWindowGeometryVR(mWindowID, winW, winH);
+    }
+#endif
 }
 
 ImgWindow::~ImgWindow()
@@ -523,6 +532,96 @@ ImgWindow::~ImgWindow()
     }
     ImGui::DestroyContext(mImGuiContext);
     XPLMDestroyWindow(mWindowID);
+}
+
+WindowGeometry
+WindowGeometry::Centered(int width, int height)
+{
+    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+    int sWidth  = sRight - sLeft;
+    int sHeight = sTop - sBottom;
+
+    int l = sLeft + (sWidth - width) / 2;
+    int b = sBottom + (sHeight - height) / 2;
+    return WindowGeometry(l, b + height, l + width, b);
+}
+
+WindowGeometry
+WindowGeometry::Sanitize(
+    int l, int t, int r, int b,
+    int defaultW, int defaultH,
+    int minVisibleMargin,
+    WindowSanitizeMode mode)
+{
+    if (mode == WindowSanitizeMode::None) {
+        return WindowGeometry(l, t, r, b);
+    }
+
+    XPLMDataRef vrRef = XPLMFindDataRef("sim/graphics/VR/enabled");
+    if (vrRef && XPLMGetDatai(vrRef)) {
+        int w = r - l;
+        int h = t - b;
+        if (w <= 0) w = defaultW;
+        if (h <= 0) h = defaultH;
+        return WindowGeometry(0, h, w, 0);
+    }
+
+    int w = r - l;
+    int h = t - b;
+    if (w <= 0 || h <= 0) {
+        return Centered(defaultW > 0 ? defaultW : 640, defaultH > 0 ? defaultH : 480);
+    }
+
+    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+
+    int interLeft   = (std::max)(l, sLeft);
+    int interRight  = (std::min)(r, sRight);
+    int interBottom = (std::max)(b, sBottom);
+    int interTop    = (std::min)(t, sTop);
+
+    int interW = interRight - interLeft;
+    int interH = interTop - interBottom;
+
+    if (interW <= 0 || interH <= 0) {
+        return Centered(w > 0 ? w : defaultW, h > 0 ? h : defaultH);
+    }
+
+    if (mode == WindowSanitizeMode::SnapToCenter) {
+        if (interW < w || interH < h) {
+            return Centered(w, h);
+        }
+        return WindowGeometry(l, t, r, b);
+    }
+
+    if (interW >= minVisibleMargin && interH >= minVisibleMargin && t <= sTop) {
+        return WindowGeometry(l, t, r, b);
+    }
+
+    int newL = l, newT = t, newR = r, newB = b;
+    if (newR < sLeft + minVisibleMargin) {
+        newL = sLeft + minVisibleMargin - w;
+        newR = sLeft + minVisibleMargin;
+    }
+    if (newL > sRight - minVisibleMargin) {
+        newL = sRight - minVisibleMargin;
+        newR = newL + w;
+    }
+    if (newT < sBottom + minVisibleMargin) {
+        newB = sBottom + minVisibleMargin - h;
+        newT = sBottom + minVisibleMargin;
+    }
+    if (newB > sTop - minVisibleMargin) {
+        newB = sTop - minVisibleMargin;
+        newT = newB + h;
+    }
+    if (newT > sTop) {
+        newT = sTop;
+        newB = newT - h;
+    }
+
+    return WindowGeometry(newL, newT, newR, newB);
 }
 
 void

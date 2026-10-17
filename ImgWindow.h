@@ -37,8 +37,8 @@
 
 // Version format: MmmPP (Major, 2-digit Minor, 2-digit Patch)
 // e.g., v2.0.0 becomes 20000. v1.12.3 becomes 11203.
-#define IMGWINDOW_VERSION       "2.1.0"
-#define IMGWINDOW_VERSION_NUM   20100
+#define IMGWINDOW_VERSION       "2.2.0"
+#define IMGWINDOW_VERSION_NUM   20200
 
 #include "SystemGL.h"
 
@@ -85,6 +85,50 @@
  *     be trivially adapted from this one by adjusting the way the space is
  *     translated and mapped in the DrawWindowCB and constructor.
  */
+/** WindowSanitizeMode controls how off-screen or out-of-bounds window coordinates
+ * are handled when restoring saved geometry from disk.
+ */
+enum class WindowSanitizeMode {
+    None,              // O.G. style: Do not touch coordinates, leave exactly as passed
+    KeepVisibleMargin, // "Poor-Man's Docking": If partially off-screen, keep at least N boxels visible; if 100% lost, snap to center
+    SnapToCenter       // Strict: If lost or off-screen, forcibly re-center on the primary monitor
+};
+
+/** WindowGeometry is a lightweight parameter object for window bounds.
+ * It eliminates inverted-Y boxel math and provides safe coordinate sanitization.
+ */
+struct WindowGeometry {
+    int left   = 0;
+    int top    = 0;
+    int right  = 0;
+    int bottom = 0;
+
+    int Width()  const { return right - left; }
+    int Height() const { return top - bottom; }
+
+    // 1. Default (empty)
+    WindowGeometry() = default;
+
+    // 2. Direct boxels (left, top, right, bottom)
+    WindowGeometry(int l, int t, int r, int b)
+        : left(l), top(t), right(r), bottom(b) {}
+
+    // 3. Top-left origin (x, y) + (width, height)
+    static WindowGeometry FromTopLeft(int x, int y, int width, int height) {
+        return WindowGeometry(x, y, x + width, y - height);
+    }
+
+    // 4. Auto-centered on main monitor
+    static WindowGeometry Centered(int width, int height);
+
+    // 5. Smart Auditing & Sanitization
+    static WindowGeometry Sanitize(
+        int l, int t, int r, int b,
+        int defaultW = 640, int defaultH = 480,
+        int minVisibleMargin = 40,
+        WindowSanitizeMode mode = WindowSanitizeMode::KeepVisibleMargin);
+};
+
 class
 ImgWindow {
 public:
@@ -278,6 +322,38 @@ protected:
         XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle,
         XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows,
         bool cursors = false);
+
+    /** Construct a window using a WindowGeometry parameter object.
+     *
+     * @param geometry WindowGeometry parameter object containing boxel coordinates.
+     * @param decoration The decoration style to use.
+     * @param layer The preferred layer to present this window in.
+     * @param cursors Switch to ImGui mouse cursors inside window.
+     */
+    ImgWindow(
+        const WindowGeometry& geometry,
+        XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle,
+        XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows,
+        bool cursors = false)
+        : ImgWindow(geometry.left, geometry.top, geometry.right, geometry.bottom, decoration, layer, cursors)
+    {}
+
+    /** Construct a window auto-centered on the main monitor by width and height.
+     *
+     * @param width Desired window width in boxels.
+     * @param height Desired window height in boxels.
+     * @param decoration The decoration style to use.
+     * @param layer The preferred layer to present this window in.
+     * @param cursors Switch to ImGui mouse cursors inside window.
+     */
+    ImgWindow(
+        int width,
+        int height,
+        XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle,
+        XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows,
+        bool cursors = false)
+        : ImgWindow(WindowGeometry::Centered(width, height), decoration, layer, cursors)
+    {}
     
     /** An ImgWindow object must not be copied!
      */
