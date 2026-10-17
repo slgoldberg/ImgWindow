@@ -162,10 +162,13 @@ namespace ImGui
     };
 
     //-----------------------------------------------------------------------------
-    // External interface
+    // External interface (Low-Level Rendering Engine)
     //-----------------------------------------------------------------------------
 
-    inline void Markdown( const char* markdown_, size_t markdownLength_, const MarkdownConfig& mdConfig_ );
+    namespace Markdown
+    {
+        inline void Render( const char* markdown_, size_t markdownLength_, const MarkdownConfig& mdConfig_ );
+    }
 
     //-----------------------------------------------------------------------------
     // Internals
@@ -218,7 +221,7 @@ namespace ImGui
 
     struct TextRegion
     {
-        TextRegion() : indentX( 0.0f ), leadIndents( 0 ), wrapWidth( 0.0f )
+        TextRegion() : wrapWidth( 0.0f ), indentX( 0.0f ), leadIndents( 0 )
         {
         }
         ~TextRegion()
@@ -459,8 +462,10 @@ namespace ImGui
         mdConfig_.formatCallback( formatInfo, false );
     }
     
-    // render markdown
-    inline void Markdown( const char* markdown_, size_t markdownLength_, const MarkdownConfig& mdConfig_ )
+    // render markdown (low-level rendering pipeline)
+    namespace Markdown
+    {
+        inline void Render( const char* markdown_, size_t markdownLength_, const MarkdownConfig& mdConfig_ )
     {
         static const char* linkHoverStart = NULL; // we need to preserve status of link hovering between frames
         Line        line;
@@ -913,6 +918,7 @@ namespace ImGui
             }
         }
     }
+    } // namespace Markdown
 
     inline bool TextRegion::RenderLinkText( const char* text_, const char* text_end_, const Link& link_,
         const char* markdown_, const MarkdownConfig& mdConfig_, const char** linkHoverStart_ )

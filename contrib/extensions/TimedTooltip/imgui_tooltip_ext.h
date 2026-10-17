@@ -334,6 +334,7 @@ else // only *add* to max timeout if it's not very short per above:
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(config->frame_padding.x * scale, config->frame_padding.y * scale));
             ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, config->indent_spacing * scale);
             bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+            (void)open;
             if (scale != 1.0f) {
                 ImGui::SetWindowFontScale(scale);
             }
@@ -617,6 +618,7 @@ namespace TimedTooltip {
             if (!config) config = &fallback_config;
 
             TooltipState& state = GetTooltipStateMap()[id];
+            (void)state;
             
             float scale = GetActiveFontScale(config);
             if (scale <= 0.0f) scale = 1.0f;

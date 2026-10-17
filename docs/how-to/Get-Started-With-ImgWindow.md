@@ -198,7 +198,7 @@ protected:
 > [!TIP]
 > **Notice the Cockpit-Ready UI Features?**
 > In the example above, you might notice a few widgets that don't exist in vanilla Dear ImGui:
-> * **`ImGui::MD::Text(...)`**: Renders headers, bold emphasis, and bullet lists directly using standard Markdown syntax—matching standard `ImGui::Text()` layout without custom string parsing.
+> * **`ImGui::MD::Text(...)`** (or **`ImGui::Markdown::Text(...)`**): Renders headers, bold emphasis, and bullet lists directly using standard Markdown syntax—matching standard `ImGui::Text()` layout without custom string parsing. (`MD` is the official shorthand alias for `Markdown`).
 > * **`ImGui::TimedTooltip::Text(...)`**: Classic desktop-style tooltips that behave politely. Unlike default ImGui tooltips (which pop up instantly on first contact and follow your cursor around like an annoying swarm of gnats), `TimedTooltip` waits for an intentional hover pause before appearing, locks into a stationary position so it is easy to read, and automatically dismisses after reading so it never stays permanently stuck over flight instruments.
 > * **`ImGui::MouseWheelSlider(...)`**: Sliders and dials that respond naturally to mouse-wheel scrolling without awkward click-dragging.
 >

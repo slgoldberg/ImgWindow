@@ -41,6 +41,7 @@
 // #define CONTRIB_DISABLE_TIMED_TOOLTIP          // Exclude TimedTooltip extension
 // #define CONTRIB_DISABLE_MARKDOWN               // Exclude Markdown extension
 // #define CONTRIB_DISABLE_TEXT_MD                // Exclude root ImGui::TextMD / TextWrappedMD aliases
+// #define CONTRIB_ENABLE_GLOBAL_NAMESPACES       // Publish TimedTooltip:: and Markdown:: to global scope
 
 // --- Widget Collections (contrib/widgets/) ---
 // #define CONTRIB_DISABLE_TOGGLE_BUTTONS         // Exclude ToggleButton & ToggleButtons
@@ -74,6 +75,15 @@
 // ============================================================================
 
 #include "widgets.h"
+
+// ============================================================================
+// 3. OPT-IN GLOBAL NAMESPACES (Only active if explicitly requested)
+// ============================================================================
+
+#if defined(CONTRIB_ENABLE_GLOBAL_NAMESPACES) || \
+    defined(IMGUI_CONTRIB_ENABLE_GLOBAL_NAMESPACES)
+#include "contrib-global.h"
+#endif
 
 #endif // !CONTRIB_DISABLE_ALL
 

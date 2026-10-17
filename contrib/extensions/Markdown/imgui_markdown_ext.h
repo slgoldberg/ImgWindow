@@ -563,7 +563,7 @@ namespace ImGui {
             GetActiveMarkdownConfig() = prev;
         };
 
-        Markdown(markdown_text, markdown_len, local_config);
+        Markdown::Render(markdown_text, markdown_len, local_config);
 
         GetActiveMarkdownConfig() = prev_active;
     }
@@ -733,7 +733,7 @@ namespace Detail {
 
 namespace ImGui {
 
-    namespace MD {
+    namespace Markdown {
 
         using Config = MarkdownConfig;
 
@@ -1011,29 +1011,53 @@ namespace ImGui {
         return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
     }
 
-} // namespace MD
+} // namespace Markdown
+
+    // Canonical namespace alias: ImGui::MD is identical to ImGui::Markdown
+    namespace MD = Markdown;
 
 #if !defined(CONTRIB_DISABLE_TEXT_MD) && !defined(IMGUI_DISABLE_TEXT_MD) && !defined(CONTRIB_DISABLE_MARKDOWN_ROOT_ALIASES)
     // Top-level convenience aliases (matching ImGui::Text and ImGui::TextWrapped):
     inline void TextMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
-        MD::Text(markdown_text, config_override);
+        Markdown::Text(markdown_text, config_override);
     }
 
     inline void TextMD(const char* markdown_text, const MarkdownConfig* config_override = nullptr) {
-        MD::TextUnformatted(markdown_text, nullptr, config_override);
+        Markdown::TextUnformatted(markdown_text, nullptr, config_override);
     }
 
     inline void TextWrappedMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
-        MD::TextWrapped(markdown_text, config_override);
+        Markdown::TextWrapped(markdown_text, config_override);
     }
 
     inline void TextWrappedMD(const char* markdown_text, const MarkdownConfig* config_override = nullptr) {
-        MD::TextWrapped(std::string(markdown_text ? markdown_text : ""), config_override);
+        Markdown::TextWrapped(std::string(markdown_text ? markdown_text : ""), config_override);
     }
 
     // Top-level convenience alias for clickable Markdown text links:
     inline LinkClickResult TextMDLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
-        return MD::TextLink(markdown_text, config_override);
+        return Markdown::TextLink(markdown_text, config_override);
+    }
+
+    // Full-name root convenience aliases:
+    inline void TextMarkdown(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+        Markdown::Text(markdown_text, config_override);
+    }
+
+    inline void TextMarkdown(const char* markdown_text, const MarkdownConfig* config_override = nullptr) {
+        Markdown::TextUnformatted(markdown_text, nullptr, config_override);
+    }
+
+    inline void TextWrappedMarkdown(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+        Markdown::TextWrapped(markdown_text, config_override);
+    }
+
+    inline void TextWrappedMarkdown(const char* markdown_text, const MarkdownConfig* config_override = nullptr) {
+        Markdown::TextWrapped(std::string(markdown_text ? markdown_text : ""), config_override);
+    }
+
+    inline LinkClickResult TextMarkdownLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+        return Markdown::TextLink(markdown_text, config_override);
     }
 #endif // !CONTRIB_DISABLE_TEXT_MD
 
@@ -1307,8 +1331,8 @@ namespace TimedTooltip {
         return res;
     }
 
-    // Bidirectional Channel A: ImGui::TimedTooltip::MD::
-    namespace MD {
+    // Bidirectional Channel A: ImGui::TimedTooltip::Markdown:: & ImGui::TimedTooltip::MD::
+    namespace Markdown {
         inline bool Text(const TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -1337,6 +1361,8 @@ namespace TimedTooltip {
             return TextMDUnformatted(markdown_text, config);
         }
 
+#pragma push_macro("TextLink")
+#undef TextLink
         inline bool TextLink(const TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -1356,12 +1382,35 @@ namespace TimedTooltip {
         inline bool TextLink(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
             return TextMDLink(config, "%s", markdown_text.c_str());
         }
-    } // namespace MD
+
+        inline bool TextLinkContrib(const TooltipConfig* config, const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = TextMDLinkV(config, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool TextLinkContrib(const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = TextMDLinkV(nullptr, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool TextLinkContrib(const std::string& markdown_text, const TooltipConfig* config = nullptr) {
+            return TextMDLink(config, "%s", markdown_text.c_str());
+        }
+#pragma pop_macro("TextLink")
+    } // namespace Markdown
+
+    namespace MD = Markdown;
 
 } // namespace TimedTooltip
 
-namespace MD {
-    // Bidirectional Channel B: ImGui::MD::TimedTooltip::
+namespace Markdown {
+    // Bidirectional Channel B: ImGui::Markdown::TimedTooltip:: & ImGui::MD::TimedTooltip::
     namespace TimedTooltip {
         inline bool Text(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) {
             va_list args;
@@ -1391,6 +1440,8 @@ namespace MD {
             return ImGui::TimedTooltip::TextMDUnformatted(markdown_text, config);
         }
 
+#pragma push_macro("TextLink")
+#undef TextLink
         inline bool TextLink(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -1410,8 +1461,29 @@ namespace MD {
         inline bool TextLink(const std::string& markdown_text, const ImGui::TimedTooltip::TooltipConfig* config = nullptr) {
             return ImGui::TimedTooltip::TextMDLink(config, "%s", markdown_text.c_str());
         }
+
+        inline bool TextLinkContrib(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = ImGui::TimedTooltip::TextMDLinkV(config, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool TextLinkContrib(const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+            bool res = ImGui::TimedTooltip::TextMDLinkV(nullptr, fmt, args);
+            va_end(args);
+            return res;
+        }
+
+        inline bool TextLinkContrib(const std::string& markdown_text, const ImGui::TimedTooltip::TooltipConfig* config = nullptr) {
+            return ImGui::TimedTooltip::TextMDLink(config, "%s", markdown_text.c_str());
+        }
+#pragma pop_macro("TextLink")
     } // namespace TimedTooltip
-} // namespace MD
+} // namespace Markdown
 
 } // namespace ImGui
 #endif // IMGUI_MARKDOWN_EXT_H && IMGUI_TOOLTIP_EXT_H

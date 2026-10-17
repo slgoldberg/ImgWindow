@@ -21,15 +21,22 @@ The Markdown system is structured as a clean two-layer architecture:
 
 2. **ImgWindow Extension Wrapper (`imgui_markdown_ext.h`):**
    * High-level, ergonomic C++ layer designed specifically for X-Plane plugins and modern ImGui applications.
-   * Encapsulates all functionality inside the second-level `ImGui::MD::` namespace (following Omar Cornut's standard `namespace ImGui` while eliminating global naming collisions).
-   * Introduces an XML/HTML-style inline tag pre-processor (`<tag>`, `<color>`, `<backdrop>`, `<badge>`, `<btn>`) with custom tag callback registration via `ImGui::MD::RegisterTag`.
+   * Encapsulates all functionality inside the second-level `ImGui::Markdown::` namespace, with `ImGui::MD::` provided as an official, zero-overhead namespace alias (`namespace ImGui { namespace MD = Markdown; }`).
+   * Eliminates the upstream symbol collision: Upstream's raw C-style function `ImGui::Markdown(text, len, config)` has been moved to `ImGui::Markdown::Render(...)` (and `ImGui::MD::Render(...)`). This prevents beginners from accidentally invoking the raw unconfigured parser and frees `ImGui::Markdown` to be a clean, first-class C++ namespace.
+   * Introduces an XML/HTML-style inline tag pre-processor (`<tag>`, `<color>`, `<backdrop>`, `<badge>`, `<btn>`) with custom tag callback registration via `ImGui::Markdown::RegisterTag`.
    * Solves Dear ImGui layout hurdles: typographic line-wrap lookahead (eliminating mid-word breaks across styles and links), mathematical hanging indents for wrapped multi-line bullets, and ambient font scale inheritance (`ImGui::GetFontScale()`).
-   * Provides non-rendering layout measurement via `ImGui::MD::CalcTextSize` (defeating ImGui viewport culling to measure exact dimensions for floating windows and stationary tooltips).
-   * Directly interfaces with the companion `TimedTooltip` extension to attach rich, multi-line Markdown tooltips with a single function call (`ImGui::TimedTooltip::TextMD`).
+   * Provides non-rendering layout measurement via `ImGui::Markdown::CalcTextSize` (defeating ImGui viewport culling to measure exact dimensions for floating windows and stationary tooltips).
+   * Directly interfaces with the companion `TimedTooltip` extension via bidirectional bridges (`ImGui::TimedTooltip::Markdown::Text` / `ImGui::TimedTooltip::MD::Text` and `ImGui::Markdown::TimedTooltip::Text` / `ImGui::MD::TimedTooltip::Text`).
 
 ---
 
 ## Architectural Enhancements over Upstream
+
+* **Collision-Free Canonical Namespace (`ImGui::Markdown::` & `ImGui::MD::`):**
+  * Primary namespace is `ImGui::Markdown::Text(...)` for full clarity.
+  * Shorthand alias `ImGui::MD::Text(...)` is 100% interchangeable.
+  * Root convenience aliases `ImGui::TextMD(...)` / `ImGui::TextMarkdown(...)` allow drop-in usage matching `ImGui::Text(...)`.
+  * Opt-in global convenience (`#define CONTRIB_ENABLE_GLOBAL_NAMESPACES` or `#include "contrib/contrib-global.h"`) publishes `Markdown::Text(...)` and `MD::Text(...)` to the global scope for developers seeking minimum boilerplate.
 
 * **Smart Line-Break Lookahead (Zero Mid-Word Breaks):**
   * Upstream `imgui_markdown` evaluates emphasis (`**bold**`, `*italic*`) and link tokens as isolated chunks, causing Dear ImGui's word-wrapper to sever words mid-syllable at line edges.
