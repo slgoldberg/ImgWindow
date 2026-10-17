@@ -21,7 +21,7 @@ flowchart TD
 
     Stop1 --> Stop2 --> Stop3 --> Stop4 --> Fork
     Fork -->|"Yes (Uses ImGui::Image)"| Stop5["🖼️ Continue to TripTik 3\n(Render-Custom-Textures.md)"]
-    Fork -->|"No (Standard ImGui UI)"| Stop6["🎉 You're Done!\n(Explore contrib/ for cockpit UX)"]
+    Fork -->|"No (Standard ImGui UI)"| Stop6["🎉 You're Done!\n(Explore contrib/ for enhanced UI)"]
 ```
 
 ---

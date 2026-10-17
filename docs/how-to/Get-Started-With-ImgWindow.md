@@ -400,15 +400,28 @@ private:
             }
         }
 
-        // 3. Pop-Out / Pop-In Toggle Button:
-        ImGui::SameLine(ImGui::GetWindowWidth() - 105.0f);
+        // 3. Pop-Out / Pop-In & Close Buttons:
+        // (If you use imgui4xp, IconsFontAwesome5.h provides crisp vector icons out of the box!)
+#if defined(ICON_FA_WINDOW_MAXIMIZE)
+        const char* btnPopOut = ICON_FA_WINDOW_MAXIMIZE;
+        const char* btnPopIn  = ICON_FA_WINDOW_RESTORE;
+        const char* btnClose  = ICON_FA_WINDOW_CLOSE;
+        const float rightOffset = 65.0f;
+#else
+        const char* btnPopOut = "Pop Out";
+        const char* btnPopIn  = "Pop In";
+        const char* btnClose  = "X";
+        const float rightOffset = 105.0f;
+#endif
+
+        ImGui::SameLine(ImGui::GetWindowWidth() - rightOffset);
         if (IsPoppedOut()) {
-            if (ImGui::SmallButton("Pop In")) {
+            if (ImGui::SmallButton(btnPopIn)) {
                 scheduleModeChange(xplm_WindowPositionFree);
             }
             ImGui::TimedTooltip::Text("Move this window back inside the X-Plane simulator");
         } else {
-            if (ImGui::SmallButton("Pop Out")) {
+            if (ImGui::SmallButton(btnPopOut)) {
                 scheduleModeChange(xplm_WindowPopOut);
             }
             ImGui::TimedTooltip::Text("Pop out into an independent operating system window");
@@ -416,7 +429,7 @@ private:
 
         // 4. Close Button:
         ImGui::SameLine();
-        if (ImGui::SmallButton("X")) {
+        if (ImGui::SmallButton(btnClose)) {
             SetVisible(false); // Simply hide the window
         }
         ImGui::TimedTooltip::Text("Close this window");
@@ -425,6 +438,16 @@ private:
     }
 };
 ```
+
+> [!TIP]
+> **Built-in Font Awesome Icons in `imgui4xp`:**
+> If you seeded your project from `imgui4xp` (Step 1), you don't have to settle for plain text `"Pop Out"` or `"X"` buttons! `imgui4xp` already bundles **Font Awesome 5** (`IconsFontAwesome5.h`) and automatically merges standard icons into `ImgWindow::sFontAtlas` during startup (in `imgui_starter_window.cpp`'s `configureImgWindow()`).
+> 
+> Simply `#include "IconsFontAwesome5.h"` to use crisp vector icons directly:
+> * `ICON_FA_WINDOW_MAXIMIZE` — Standard OS pop-out icon
+> * `ICON_FA_WINDOW_RESTORE` — Standard return-to-sim / pop-in icon
+> * `ICON_FA_WINDOW_CLOSE` (or `ICON_FA_TIMES`) — Standard "X" close icon
+> * `ICON_FA_EXTERNAL_LINK_SQUARE_ALT` — Move window to VR headset
 
 ---
 
@@ -507,11 +530,11 @@ Vanilla Dear ImGui was built for video game debug menus. To turn your window int
 #include "contrib.h" // Turnkey access to all widgets and extensions
 ```
 
-### 2. Loading Custom `.png` / `.jpg` Images?
-If your plugin loads custom icons, aircraft diagrams, or navigational maps to draw via `ImGui::Image()`, follow:
-* 🖼️ **[TripTik 3: Render Custom Textures (`Render-Custom-Textures.md`)](Render-Custom-Textures.md)** to learn how `ImgWindow::CreateTexture()` lets you delete 100% of custom OpenGL texture code.
-
-### 3. Upgrading an Existing v1 Plugin?
+### 2. Upgrading an Existing v1 Plugin?
 If you already maintain an older `ImgWindow` or `xsb_public` plugin and want to upgrade it to v2:
 * 🚀 **[TripTik 2: Support Panel Graphics (`Support-Panel-Graphics.md`)](Support-Panel-Graphics.md)** walks through the 10-minute migration checklist.
+
+### 3. Loading Custom `.png` / `.jpg` Images?
+If your plugin loads custom icons, aircraft diagrams, or navigational maps to draw via `ImGui::Image()`, follow:
+* 🖼️ **[TripTik 3: Render Custom Textures (`Render-Custom-Textures.md`)](Render-Custom-Textures.md)** to learn how `ImgWindow::CreateTexture()` lets you delete 100% of custom OpenGL texture code.
 

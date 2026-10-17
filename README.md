@@ -106,7 +106,7 @@ The area we are most interested in finding other plugins to test for us -- besid
 ## 🗺️ How-To Guides ("TripTiks")
 
 For quick, scenario-based walkthroughs with copy-pasteable CMake snippets and code:
-* 🚀 **[TripTik 1: Get Started With ImgWindow](docs/how-to/Get-Started-With-ImgWindow.md)** — The 5-step starter guide for creating your first window, integrating cockpit widgets, and choosing your build mode.
+* 🚀 **[TripTik 1: Get Started With ImgWindow](docs/how-to/Get-Started-With-ImgWindow.md)** — The 6-step starter guide for creating your first window, command-first dispatching, and choosing your build mode.
 * 🛠️ **[TripTik 2: Support Panel Graphics](docs/how-to/Support-Panel-Graphics.md)** — The 10-minute migration checklist for updating existing v1 plugins.
 * 🖼️ **[TripTik 3: Render Custom Textures](docs/how-to/Render-Custom-Textures.md)** — Using `ImgWindow::CreateTexture()` to draw images without raw OpenGL pipeline code.
 * 🎓 **[Ground School](docs/how-to/Ground-School.md)** — Fundamental Dear ImGui immediate-mode principles in X-Plane.
