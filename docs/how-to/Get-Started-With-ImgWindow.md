@@ -14,12 +14,13 @@
 ```mermaid
 flowchart TD
     Stop1["🛫 Step 1: Grab the Starter Project\n(git clone --recursive sparker256/imgui4xp)"]
-    Stop2["📦 Step 2: The Project Structure\n(ImgWindow lives intact in src/ImgWindow/)"]
-    Stop3["🎨 Step 3: Subclass ImgWindow\n(Implement buildInterface with ImGui)"]
-    Stop4["⚙️ Step 4: Choose Your Build Mode\n(Universal Dynamic Bridge vs Strict Modern)"]
-    Stop5["🛩️ Step 5: Ready for Takeoff!\n(Run in X-Plane & explore contrib/)"]
+    Stop2["📦 Step 2: Project Structure & In-Situ Dev\n(Keep ImgWindow whole in src/ImgWindow/)"]
+    Stop3["🎨 Step 3: Subclass ImgWindow & Commands\n(Minimal window & XPLMAppendMenuItemWithCommand)"]
+    Stop4["🛠️ Step 4: Spiraling into the Meat\n(Custom chrome, pop-outs, onShow & SafeDelete)"]
+    Stop5["⚙️ Step 5: Choose Your Build Mode\n(Universal Dynamic Bridge vs Strict Modern)"]
+    Stop6["🛩️ Step 6: Ready for Takeoff!\n(Run in X-Plane & explore contrib/)"]
 
-    Stop1 --> Stop2 --> Stop3 --> Stop4 --> Stop5
+    Stop1 --> Stop2 --> Stop3 --> Stop4 --> Stop5 --> Stop6
 ```
 
 ---
@@ -125,116 +126,321 @@ You develop your plugin directly inside this project tree:
 
 ---
 
-## 🎨 Step 3: Subclass `ImgWindow` (The Core Abstraction)
+## 🎨 Step 3: Subclass `ImgWindow` & Modern Command Dispatch
 
 In `ImgWindow`, you never touch X-Plane's low-level window callbacks, coordinate transformations, or raw mouse/keyboard event records. Instead, you create a C++ class that inherits from `ImgWindow`.
 
-### The Lifecycle Container
-`ImgWindow` acts as a complete lifecycle container for your window. While **`buildInterface()`** is the primary pure-virtual method where your UI drawing loop lives, `ImgWindow` provides several optional lifecycle hooks that give you total control over how and when your window renders:
+### 1. The Minimal "Hello, World" Starter Window
 
-* **`buildInterface()` (Required)**: The heart of your window. Called every frame your window is visible to construct widgets, handle events, and dispatch plugin logic.
-* **`beforeBegin()` (Optional)**: Called immediately before `ImGui::Begin()`. Override this to return custom window flags (such as `ImGuiWindowFlags_MenuBar` or `ImGuiWindowFlags_NoScrollbar`) or prepare per-frame layout state before the ImGui window frame opens.
-* **`afterRendering()` (Optional)**: Called after Dear ImGui finishes drawing, right before X-Plane's window draw callback returns. Perfect for post-frame cleanup or operations that would conflict with active drawing.
-* **`onShow()` (Optional)**: An interception hook called before the window becomes visible. Return `false` to suppress display (e.g. if required avionics bus power is offline).
-* **`mFirstRender` (Protected Flag)**: A built-in boolean guard you can check inside `buildInterface()` to perform one-time setup (like default table column widths or initial focus) on the very first frame.
-* **`SafeDelete()`**: Schedules deferred self-destruction of the window instance from within its own event handlers or click callbacks, safely deleting the object after the frame finishes rendering without dangling pointers.
-
----
-
-### 1. Define Your Window Class
+Let's begin with the simplest possible window subclass. To get pixels rendering on screen, you only need to override one pure-virtual method: **`buildInterface()`**.
 
 ```cpp
 #include "ImgWindow.h"
 
-class FlightDeckSettingsWindow : public ImgWindow {
+class PluginSettingsWindow : public ImgWindow {
 public:
-    FlightDeckSettingsWindow(int left, int top, int right, int bottom)
+    // Left, top, right, bottom (in global simulator pixel coordinates)
+    PluginSettingsWindow(int left, int top, int right, int bottom)
         : ImgWindow(left, top, right, bottom, xplm_WindowDecorationRoundRectangle)
     {
         // Set the window title displayed in the X-Plane title bar
-        SetWindowTitle("Flight Deck Settings");
+        SetWindowTitle("Plugin Settings");
 
-        // Optional: Window styling & sizing constraints (minW, minH, maxW, maxH)
-        SetWindowResizingLimits(320, 240, 1024, 768);
+        // Optional: Window sizing constraints (minW, minH, maxW, maxH)
+        SetWindowResizingLimits(320, 200, 1024, 768);
     }
 
 protected:
-    // Optional: Inject custom window flags before ImGui::Begin() is called:
-    ImGuiWindowFlags_ beforeBegin() override {
-        // e.g. Add a menu bar, or customize window chrome:
-        return ImGuiWindowFlags_MenuBar;
-    }
-
-    // Required: This method is called automatically every frame your window is visible:
+    // Required: Called automatically every frame your window is visible:
     void buildInterface() override {
-        // One-time initialization guard (built into ImgWindow):
-        if (mFirstRender) {
-            // Set up initial focus or table column defaults here!
-        }
-
-        // Welcome banner using Markdown formatting:
-        ImGui::MD::Text("# Flight Deck Quick Settings\nTelemetry and avionics are **active**.");
+        ImGui::TextUnformatted("Hello, World from ImgWindow!");
         ImGui::Separator();
 
-        // 1. Toggle with polite, hover-delayed TimedTooltip
-        static bool s_HudEnabled = true;
-        ImGui::Checkbox("Enable Synthetic Vision HUD", &s_HudEnabled);
-        ImGui::TimedTooltip::Text("Only appears on an intentional hover pause -- won't flash when sweeping past!");
-
-        // 2. Mouse-wheel slider with fine tuning
-        static float s_Brightness = 0.85f;
-        ImGui::MouseWheelSlider("HUD Brightness", &s_Brightness, 0.0f, 1.0f, "%.0f%%");
-        ImGui::TimedTooltip::Text("Hover and scroll your mouse wheel. Anchors cleanly and dismisses after reading.");
-
-        // 3. Action button
-        if (ImGui::Button("Recalibrate Gyros")) {
-            // Trigger your plugin systems logic here!
+        if (ImGui::Button("Click Me")) {
+            // Handle your action here!
         }
-        ImGui::TimedTooltip::Text("Zeroes drift offsets for the attitude director indicator.");
     }
 };
 ```
 
-> [!TIP]
-> **Notice the Cockpit-Ready UI Features?**
-> In the example above, you might notice a few widgets that don't exist in vanilla Dear ImGui:
-> * **`ImGui::MD::Text(...)`** (or **`ImGui::Markdown::Text(...)`**): Renders headers, bold emphasis, and bullet lists directly using standard Markdown syntax—matching standard `ImGui::Text()` layout without custom string parsing. (`MD` is the official shorthand alias for `Markdown`).
-> * **`ImGui::TimedTooltip::Text(...)`**: Classic desktop-style tooltips that behave politely. Unlike default ImGui tooltips (which pop up instantly on first contact and follow your cursor around like an annoying swarm of gnats), `TimedTooltip` waits for an intentional hover pause before appearing, locks into a stationary position so it is easy to read, and automatically dismisses after reading so it never stays permanently stuck over flight instruments.
-> * **`ImGui::MouseWheelSlider(...)`**: Sliders and dials that respond naturally to mouse-wheel scrolling without awkward click-dragging.
->
-> These widgets are part of `ImgWindow`'s bundled **[`contrib/` UX Suite](../../contrib/README.md)**. If you want to use them in your window, simply include `#include "contrib.h"`. (If you prefer 100% vanilla Dear ImGui, standard `ImGui::Text()`, `ImGui::SliderFloat()`, and `ImGui::SetItemTooltip()` work identically!).
+---
 
-### 2. Instantiate and Open Your Window
+### 2. "Commands for Everything" (Modern Command-First Dispatching)
 
-In your plugin's main entry point (or inside a menu handler created via `XPLMAppendMenuItem`), instantiate your window pointer:
+Now that you have a window class, how should your plugin open and close it?
+
+In older tutorials, you might see authors call `XPLMAppendMenuItem()` to create a bare menu item that opens a window. **In modern X-Plane development, do not do this.** 
+
+The canonical, best-practice pattern is **"Commands for Everything"** using **`XPLMAppendMenuItemWithCommand()`**:
+
+1. **Automatic Shortcut Display**: When a user assigns a keyboard key or joystick button to your command in X-Plane's Settings, X-Plane automatically prints their custom hotkey directly inside your plugin's menu item!
+2. **Universal Accessibility**: External scripts (such as `FlyWithLua`), hardware cockpit panels (StreamDecks, custom switch panels), and other plugins can trigger your command directly via `XPLMCommandOnce(...)`.
+3. **Single Source of Truth**: You write **one** command handler that toggles window visibility. Your menu item simply points to that command—eliminating redundant menu callbacks and state synchronization.
+
+Here is the turnkey pattern to register your command and menu item:
 
 ```cpp
 #include <memory>
+#include "XPLMUtilities.h"
+#include "XPLMMenus.h"
 
-static std::unique_ptr<FlightDeckSettingsWindow> g_SettingsWindow;
+// 1. Static pointers for our window instance and registered command:
+static std::unique_ptr<PluginSettingsWindow> g_SettingsWindow;
+static XPLMCommandRef g_ToggleSettingsCmd = nullptr;
 
-// Called when the user clicks your plugin's menu item:
-void ToggleSettingsWindow() {
-    if (!g_SettingsWindow) {
-        // Position: left = 100, top = 600, right = 500, bottom = 200 (in global sim coordinates)
-        g_SettingsWindow = std::unique_ptr<FlightDeckSettingsWindow>(
-            new FlightDeckSettingsWindow(100, 600, 500, 200)
+// 2. The Command Handler: Toggles window visibility on demand:
+static int ToggleSettingsCommandHandler(XPLMCommandRef inCommand,
+                                        XPLMCommandPhase inPhase,
+                                        void* inRefcon)
+{
+    // Execute on key-down / command start:
+    if (inPhase == xplm_CommandBegin) {
+        if (!g_SettingsWindow) {
+            // Lazy instantiation on first invocation:
+            // Screen coords: left = 100, top = 600, right = 500, bottom = 200
+            g_SettingsWindow = std::unique_ptr<PluginSettingsWindow>(
+                new PluginSettingsWindow(100, 600, 500, 200)
+            );
+        }
+
+        // Toggle visibility:
+        bool isVisible = g_SettingsWindow->GetVisible();
+        g_SettingsWindow->SetVisible(!isVisible);
+    }
+    return 1; // 1 = allow other plugins or X-Plane to process if desired
+}
+
+// 3. In your XPluginEnable() entry point:
+PLUGIN_API int XPluginEnable(void) {
+    // A. Create the command:
+    g_ToggleSettingsCmd = XPLMCreateCommand(
+        "my_plugin/toggle_settings",
+        "Toggle Settings Window"
+    );
+
+    // B. Register our command handler:
+    XPLMRegisterCommandHandler(
+        g_ToggleSettingsCmd,
+        ToggleSettingsCommandHandler,
+        1,       // 1 = execute before X-Plane
+        nullptr  // optional refcon
+    );
+
+    // C. Bind the command directly to your plugin's menu:
+    XPLMMenuID pluginsMenu = XPLMFindPluginsMenu();
+    XPLMAppendMenuItemWithCommand(
+        pluginsMenu,
+        "My Plugin Settings",
+        g_ToggleSettingsCmd
+    );
+
+    return 1;
+}
+
+// 4. In your XPluginDisable() entry point:
+PLUGIN_API void XPluginDisable(void) {
+    // Unregister command handler on shutdown:
+    if (g_ToggleSettingsCmd) {
+        XPLMUnregisterCommandHandler(
+            g_ToggleSettingsCmd,
+            ToggleSettingsCommandHandler,
+            1,
+            nullptr
         );
     }
 
-    // Toggle visibility:
-    bool isVisible = g_SettingsWindow->GetVisible();
-    g_SettingsWindow->SetVisible(!isVisible);
+    // Clean up window instance:
+    g_SettingsWindow.reset();
 }
 ```
 
 > [!TIP]
-> **Window Destruction Rule:**
-> If the user clicks the "X" close box on your window, `ImgWindow` automatically hides the window (`SetVisible(false)`). You do not need to delete and recreate the C++ object every time it is closed—simply keep the instance alive and call `SetVisible(true)` when the user re-opens it. (If you ever genuinely want a window to self-destruct from inside its own UI, e.g. from an "Unload" button, call `SafeDelete()` to safely destroy the instance at the end of the frame without dangling pointers).
+> **Window Lifecycle Rule:**
+> When the user closes your window, `ImgWindow` automatically hides it (`SetVisible(false)`). You do **not** need to delete and recreate the C++ object every time it is closed! Keep the instance alive and simply call `SetVisible(true)` when reopened.
 
 ---
 
-## ⚙️ Step 4: Choose Your Build Mode (The One Decision)
+## 🛠️ Step 4: Spiraling into the Meat (Custom Chrome, Pop-Outs & Lifecycle Hooks)
+
+Once your minimal window is up and running, real-world plugins quickly demand more: custom title bars with drag handles, OS pop-out support, visibility guards, and safe self-destruction.
+
+### The Lifecycle Container
+
+`ImgWindow` acts as a complete lifecycle container with several optional hooks:
+
+* **`buildInterface()` (Required)**: Called every frame your window is visible to construct widgets and dispatch plugin logic.
+* **`onShow()` (Optional)**: Called immediately before the window becomes visible. Return `false` to suppress display (e.g. if required systems or avionics power are offline).
+* **`beforeBegin()` (Optional)**: Called right before `ImGui::Begin()`. Return custom `ImGuiWindowFlags_` (such as `ImGuiWindowFlags_NoTitleBar` or `ImGuiWindowFlags_MenuBar`).
+* **`afterRendering()` (Optional)**: Called after Dear ImGui finishes drawing, right before X-Plane's window draw callback returns.
+* **`mFirstRender` (Protected Flag)**: A built-in boolean guard you can check inside `buildInterface()` to perform one-time setup (like default table column widths or initial focus) on the very first frame.
+* **`SafeDelete()`**: Schedules deferred self-destruction of the window instance from within its own event handlers or click callbacks, safely deleting the object at the flight loop boundary without dangling pointers.
+
+---
+
+### Production-Ready Window Implementation
+
+Here is a complete, real-world window demonstrating custom title bar chrome (drag handle, pop-out button, close button), `onShow()` validation, and `SafeDelete()`:
+
+```cpp
+#include "ImgWindow.h"
+#include "contrib.h" // Turnkey access to Markdown, TimedTooltip, and MouseWheel controls
+
+class PluginSettingsWindow : public ImgWindow {
+public:
+    PluginSettingsWindow(int left, int top, int right, int bottom)
+        // Use self-decorated resizable mode for custom window chrome:
+        : ImgWindow(left, top, right, bottom, xplm_WindowDecorationSelfDecoratedResizable)
+    {
+        SetWindowTitle("Plugin Settings");
+        SetWindowResizingLimits(360, 240, 1024, 768);
+
+        // 1. Define a drag strip across the top (left = 0, top = 0, right = INT_MAX, bottom = 28)
+        // Enables left-click window dragging without an OS title bar!
+        SetWindowDragArea(0, 0, INT_MAX, 28);
+
+        // 2. Flight loop callback to safely defer window mode changes outside drawing:
+        XPLMCreateFlightLoop_t flDef = {
+            sizeof(flDef),
+            xplm_FlightLoop_Phase_BeforeFlightModel,
+            FlightLoopCallback,
+            this
+        };
+        mFlightLoopId = XPLMCreateFlightLoop(&flDef);
+    }
+
+    ~PluginSettingsWindow() override {
+        if (mFlightLoopId) {
+            XPLMDestroyFlightLoop(mFlightLoopId);
+            mFlightLoopId = nullptr;
+        }
+    }
+
+protected:
+    // Optional: Intercept visibility. Return false to abort opening!
+    bool onShow() override {
+        // Real-world example: Verify that required plugin systems or avionics power
+        // are online before allowing the window to pop up:
+        // if (XPLMGetDatai(g_AvionicsOnRef) == 0) {
+        //     return false; // Suppress display -- window stays hidden!
+        // }
+        return true; // Allow display
+    }
+
+    // Optional: Inject ImGui window flags before ImGui::Begin():
+    ImGuiWindowFlags_ beforeBegin() override {
+        // Clean borderless window without default ImGui collapse or title bar:
+        return (ImGuiWindowFlags_)(ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
+    }
+
+    // Required: Called every frame the window is visible:
+    void buildInterface() override {
+        // Step 1: Draw custom window chrome at the top:
+        drawCustomTitleBar();
+
+        // Step 2: Main UI content using contrib/ widgets:
+        ImGui::MD::Text("# Plugin Quick Settings\nPlugin services and background telemetry are **active**.");
+        ImGui::Separator();
+
+        static bool s_TelemetryEnabled = true;
+        ImGui::Checkbox("Enable High-Rate Telemetry", &s_TelemetryEnabled);
+        ImGui::TimedTooltip::Text("Only appears on an intentional hover pause -- won't flash when sweeping past!");
+
+        static float s_Scale = 1.0f;
+        ImGui::MouseWheelSlider("UI Scale Factor", &s_Scale, 0.5f, 2.0f, "%.2fx");
+        ImGui::TimedTooltip::Text("Hover and scroll your mouse wheel. Anchors cleanly and dismisses after reading.");
+
+        ImGui::Spacing();
+        ImGui::Separator();
+
+        // Step 3: Deferred self-destruction example:
+        if (ImGui::Button("Unload Plugin Window")) {
+            SafeDelete(); // Schedules safe deletion at the next flight loop boundary!
+        }
+        ImGui::TimedTooltip::Text("Safely destroys the C++ window instance without crashing the active draw loop.");
+    }
+
+private:
+    XPLMFlightLoopID mFlightLoopId = nullptr;
+    XPLMWindowPositioningMode mPendingMode = (XPLMWindowPositioningMode)-1;
+
+    // Deferred mode switcher: Changing OS window hierarchy in the middle of active
+    // ImGui drawing can cause driver crashes. Deferring to a flight loop is the gold standard!
+    static float FlightLoopCallback(float, float, int, void* inRefcon) {
+        auto* self = static_cast<PluginSettingsWindow*>(inRefcon);
+        if (self && self->mPendingMode != (XPLMWindowPositioningMode)-1) {
+            self->SetWindowPositioningMode(self->mPendingMode);
+            self->mPendingMode = (XPLMWindowPositioningMode)-1;
+        }
+        return 0.0f; // 0.0f = do not repeat (one-shot execution)
+    }
+
+    void scheduleModeChange(XPLMWindowPositioningMode newMode) {
+        mPendingMode = newMode;
+        if (mFlightLoopId) {
+            XPLMScheduleFlightLoop(mFlightLoopId, -1.0f, 1); // Trigger on next frame
+        }
+    }
+
+    void drawCustomTitleBar() {
+        // 1. Title Text
+        ImGui::TextUnformatted("Plugin Settings");
+
+        // 2. Drag handle grip lines (subtle 3-line visual indicator):
+        ImGui::SameLine();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImVec2 start = ImGui::GetCursorScreenPos();
+        float availX = ImGui::GetContentRegionAvail().x;
+        float gripWidth = availX - 110.0f; // Leave room for Pop-Out and Close buttons
+
+        if (gripWidth > 20.0f) {
+            start.y += 6.0f;
+            for (int i = 0; i < 3; ++i) {
+                dl->AddLine(start, ImVec2(start.x + gripWidth, start.y), IM_COL32(160, 160, 160, 180), 1.0f);
+                start.y += 4.0f;
+            }
+        }
+
+        // 3. Pop-Out / Pop-In Toggle Button:
+        ImGui::SameLine(ImGui::GetWindowWidth() - 105.0f);
+        if (IsPoppedOut()) {
+            if (ImGui::SmallButton("Pop In")) {
+                scheduleModeChange(xplm_WindowPositionFree);
+            }
+            ImGui::TimedTooltip::Text("Move this window back inside the X-Plane simulator");
+        } else {
+            if (ImGui::SmallButton("Pop Out")) {
+                scheduleModeChange(xplm_WindowPopOut);
+            }
+            ImGui::TimedTooltip::Text("Pop out into an independent operating system window");
+        }
+
+        // 4. Close Button:
+        ImGui::SameLine();
+        if (ImGui::SmallButton("X")) {
+            SetVisible(false); // Simply hide the window
+        }
+        ImGui::TimedTooltip::Text("Close this window");
+
+        ImGui::Separator();
+    }
+};
+```
+
+---
+
+### Notice the Extended UI Controls?
+
+In the example above, you might notice a few widgets that don't exist in vanilla Dear ImGui:
+
+* **`ImGui::MD::Text(...)`** (or **`ImGui::Markdown::Text(...)`**): Renders headers, bold emphasis, and bullet lists directly using standard Markdown syntax—matching standard `ImGui::Text()` layout without custom string parsing. (`MD` is the official shorthand alias for `Markdown`).
+* **`ImGui::TimedTooltip::Text(...)`**: Classic desktop-style tooltips that behave politely. Unlike default ImGui tooltips (which pop up instantly on first contact and follow your cursor around like an annoying swarm of gnats), `TimedTooltip` waits for an intentional hover pause before appearing, locks into a stationary position so it is easy to read, and automatically dismisses after reading so it never stays permanently stuck on screen obstructing your view.
+* **`ImGui::MouseWheelSlider(...)`**: Sliders and dials that respond naturally to mouse-wheel scrolling without awkward click-dragging.
+
+These widgets are part of `ImgWindow`'s bundled **[`contrib/` UX Suite](../../contrib/README.md)**. If you want to use them in your window, simply include `#include "contrib.h"`. (If you prefer 100% vanilla Dear ImGui, standard `ImGui::Text()`, `ImGui::SliderFloat()`, and `ImGui::SetItemTooltip()` work identically!).
+
+---
+
+## ⚙️ Step 5: Choose Your Build Mode (The One Decision)
 
 Here is the secret of `ImgWindow v2`: **You never write graphics pipeline code.** 
 
@@ -275,7 +481,7 @@ In this mode, all legacy OpenGL code paths are completely compiled out, producin
 
 ---
 
-## 🛩️ Step 5: Ready for Takeoff!
+## 🛩️ Step 6: Ready for Takeoff!
 
 Compile your plugin, drop the resulting `.xpl` into your `X-Plane/Resources/plugins/` directory, and launch the simulator.
 
@@ -286,7 +492,7 @@ ImgWindow: Rendering via XPLM v4.4 Panel Graphics
 ```
 *(On older simulator versions, it will automatically log: `ImgWindow: Rendering via Legacy OpenGL`).*
 
-Open your menu item, and your Dear ImGui window will appear floating smoothly over the cockpit!
+Trigger your command (or click your menu item), and your Dear ImGui window will appear floating smoothly in the simulator!
 
 ---
 
@@ -294,8 +500,8 @@ Open your menu item, and your Dear ImGui window will appear floating smoothly ov
 
 Now that your window infrastructure is rock-solid, where should you go next?
 
-### 1. Elevate Your UI with `contrib/` (Cockpit-Grade Ergonomics)
-Vanilla Dear ImGui was built for video game debug menus. To turn your window into a polished, commercial-grade flight instrument—with animated toggle switches, mouse-wheel dials and sliders, 1-click resets with undo, and stationary Markdown tooltips—check out the **[`contrib/` UX Suite](../../contrib/README.md)**. You can activate the entire suite in one line:
+### 1. Elevate Your UI with `contrib/` (Enhanced UI Ergonomics)
+Vanilla Dear ImGui was built for video game debug menus. To turn your window into a polished, desktop-grade interface—with animated toggle switches, mouse-wheel dials and sliders, 1-click resets with undo, and stationary Markdown tooltips—check out the **[`contrib/` UX Suite](../../contrib/README.md)**. You can activate the entire suite in one line:
 
 ```cpp
 #include "contrib.h" // Turnkey access to all widgets and extensions
@@ -308,3 +514,4 @@ If your plugin loads custom icons, aircraft diagrams, or navigational maps to dr
 ### 3. Upgrading an Existing v1 Plugin?
 If you already maintain an older `ImgWindow` or `xsb_public` plugin and want to upgrade it to v2:
 * 🚀 **[TripTik 2: Support Panel Graphics (`Support-Panel-Graphics.md`)](Support-Panel-Graphics.md)** walks through the 10-minute migration checklist.
+
