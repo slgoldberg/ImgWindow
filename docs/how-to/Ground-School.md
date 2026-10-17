@@ -20,23 +20,19 @@ Historically, developers had to choose between two extremes:
 ```mermaid
 flowchart LR
     subgraph Legacy["1. Legacy C/C++ SDK"]
-        XPW["XPWidgets\n(XPCreateWidget)"]
+        XPW["<b>XPWidgets (XPCreateWidget)</b><br/>• Manual pixel bounding boxes<br/>• Declarative callback message trees<br/>• 1990s retained-mode architecture"]
     end
 
     subgraph Scripting["2. Lua Scripting Frameworks"]
-        FWL["FlyWithLua NG+"]
-        SASL["SASL (v2 / v3)"]
-        XLua["XLua / XTlua"]
+        Lua["<b>FlyWithLua NG+ / SASL / XLua</b><br/>• Interpreted script execution overhead<br/>• Prototyping ceiling as plugins grow<br/>• Dependent on host Lua environments"]
     end
 
     subgraph Modern["3. Modern Native C++ UI"]
-        ImGui["Dear ImGui +\nImgWindow v2"]
+        ImGui["<b>Dear ImGui + ImgWindow v2</b><br/>• Clean immediate-mode loop (buildInterface)<br/>• Native 60fps compiled C++ speed<br/>• Automated Panel Graphics & zero OpenGL"]
     end
 
-    XPW -.->|"Escape declarative\npixel-math & callbacks"| ImGui
-    FWL -.->|"Graduate from prototype\nto native C++ speed"| ImGui
-    SASL -.->|"Compile to native binary\nwithout Lua overhead"| ImGui
-    XLua -.->|"Add rich 2D windows\nto C++ systems"| ImGui
+    XPW ==>|"Escape declarative callbacks"| ImGui
+    Lua ==>|"Graduate to standalone native .xpl"| ImGui
 ```
 
 1. **The Legacy C API (`XPWidgets`):**
