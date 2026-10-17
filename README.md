@@ -67,6 +67,11 @@ installed (no less than ImGui v1.84 WIP, with native support for the new `ImFont
 * **Dynamic X-Plane 12.4.4+ Panel Graphics support** - Enable your build to render ImGui via **Panel Graphics** _or_ **OpenGL fallback**, depending on which version of X-Plane it is loaded on! (I.e., build a single backward-compatible binary for each target platform.)
   - _Note: this includes an option to build with the entire v4.4 SDK, **only** supporting Panel Graphics on X-Plane v12.4.4 and later (**without** backwards compatibility support for OpenGL rendering)._
 * `ImgPanelGraphics::` - Dynamic runtime symbol proxy namespace for zero-dependency backward compatibility (!!). Details within.
+* **`contrib/` UI Suite** - Bundled flight-deck-grade Dear ImGui extensions and immediate-mode widgets (see [`contrib/README.md`](contrib/README.md)):
+  - **`TimedTooltip`**: Polite, hover-delayed stationary tooltips that lock in place and auto-dismiss after reading.
+  - **`Markdown` (`ImGui::Markdown` & `ImGui::MD`)**: Rich CommonMark parsing and rendering with dynamic font scaling, token lookahead, hanging bullet indents, and custom styling tags.
+  - **Widgets**: Animated toggle switches (`ToggleButton`), mouse-wheel sliders/combos (`MouseWheelSlider`), 1-click resets with undo history, and clickable web/doc links (`ButtonLink`, `TextLink`).
+  - **Turnkey Inclusion**: `#include "contrib.h"` activates the entire suite in one line, with 3-tier namespacing (sub-namespaces, root `ImGui::` shorthands, or opt-in global namespaces).
 
 ## No longer supported (see original repository):
 
@@ -95,6 +100,16 @@ The area we are most interested in finding other plugins to test for us -- besid
 
 > [!IMPORTANT]
 > **The 64-bit ImTextureID Trap:** If you use these unified texture APIs to migrate an older OpenGL plugin, you **must** refactor any variables holding texture IDs from `GLuint` (32-bit) to `ImTextureID` (`ImU64` integer). Assigning the unified texture return value to an old 32-bit `GLuint` will silently truncate the handle and instantly crash X-Plane 12 Vulkan! See the Migration Guide for full details.
+
+---
+
+## 🗺️ How-To Guides ("TripTiks")
+
+For quick, scenario-based walkthroughs with copy-pasteable CMake snippets and code:
+* 🚀 **[TripTik 1: Get Started With ImgWindow](docs/how-to/Get-Started-With-ImgWindow.md)** — The 5-step starter guide for creating your first window, integrating cockpit widgets, and choosing your build mode.
+* 🛠️ **[TripTik 2: Support Panel Graphics](docs/how-to/Support-Panel-Graphics.md)** — The 10-minute migration checklist for updating existing v1 plugins.
+* 🖼️ **[TripTik 3: Render Custom Textures](docs/how-to/Render-Custom-Textures.md)** — Using `ImgWindow::CreateTexture()` to draw images without raw OpenGL pipeline code.
+* 🎓 **[Ground School](docs/how-to/Ground-School.md)** — Fundamental Dear ImGui immediate-mode principles in X-Plane.
 
 ---
 

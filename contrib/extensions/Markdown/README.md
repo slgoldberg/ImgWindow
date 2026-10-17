@@ -123,25 +123,29 @@ ImGui::SetDefaultMarkdownConfig(&mdConfig);
 > * `monoFont` falls back to the ambient window font.
 
 ### 3. Rendering Markdown in Windows
-Use the clean, collision-free `ImGui::MD` namespace, which mirrors Dear ImGui's native wrapping contract:
-* **`ImGui::MD::TextUnformatted` & `ImGui::MD::Text`:** Do **not** auto-wrap by default (matching `ImGui::TextUnformatted` and `ImGui::Text`—lines only break on explicit `\n` unless an active `ImGui::PushTextWrapPos()` is on the stack or an explicit `wrap_width` / `ImVec2 wrap_size` argument is passed).
-* **`ImGui::MD::TextWrapped`:** Automatically wraps to the available window content width (`GetContentRegionAvail().x`), or to an explicit `wrap_width` / `ImVec2 wrap_size` if provided.
-* **`ImGui::MD::TextLink` / `TextUnformattedLink` / `TextWrappedLink`:** Renders Markdown with `ImGuiMouseCursor_Hand` on hover and returns `ImGui::LinkClickResult` (supporting automatic click-to-toggle tooltips when the return value is not tested in `if (...)`).
-* **Root Namespace Shorthands:** For developers who prefer a single namespace jump, **`ImGui::TextMD(...)`**, **`ImGui::TextWrappedMD(...)`**, and **`ImGui::TextMDLink(...)`** are available directly in the root `ImGui::` namespace.
+Use either the canonical **`ImGui::Markdown`** namespace or the **`ImGui::MD`** shorthand alias (`namespace MD = Markdown;`). Both mirror Dear ImGui's native wrapping contract:
+* **`ImGui::Markdown::Text` & `ImGui::MD::Text`:** Do **not** auto-wrap by default (matching `ImGui::TextUnformatted` and `ImGui::Text`—lines only break on explicit `\n` unless an active `ImGui::PushTextWrapPos()` is on the stack or an explicit `wrap_width` / `ImVec2 wrap_size` argument is passed).
+* **`ImGui::Markdown::TextWrapped` & `ImGui::MD::TextWrapped`:** Automatically wraps to the available window content width (`GetContentRegionAvail().x`), or to an explicit `wrap_width` / `ImVec2 wrap_size` if provided.
+* **`ImGui::Markdown::TextLink` & `ImGui::MD::TextLink`:** Renders Markdown with `ImGuiMouseCursor_Hand` on hover and returns `ImGui::LinkClickResult` (supporting automatic click-to-toggle tooltips when the return value is not tested in `if (...)`).
+* **Root Namespace Shorthands:** For developers who prefer a single namespace jump without sub-namespaces, **`ImGui::TextMD(...)`**, **`ImGui::TextMarkdown(...)`**, **`ImGui::TextWrappedMD(...)`**, and **`ImGui::TextWrappedMarkdown(...)`** are available directly in the root `ImGui::` namespace.
+* **Opt-In Global Syntax:** Defining `#define CONTRIB_ENABLE_GLOBAL_NAMESPACES` before including `contrib.h` lets you skip `ImGui::` completely: `Markdown::Text(...)` and `MD::Text(...)`.
 
 ```cpp
-// Single-line / non-wrapping Markdown (unless \n or PushTextWrapPos is used):
-ImGui::MD::Text("### System Status\nEngine 1: **Normal** | Fuel: *Sufficient*");
-ImGui::MD::TextUnformatted("Status: **ACTIVE**");
+// 1. Canonical syntax:
+ImGui::Markdown::Text("### System Status\nEngine 1: **Normal** | Fuel: *Sufficient*");
 
-// Markdown block with automatic wrapping matching available window width:
+// 2. Shorthand alias syntax:
+ImGui::MD::Text("Status: **ACTIVE**");
 ImGui::MD::TextWrapped(
     "Check this option to enable **custom cursors**. "
     "Changes take effect immediately without requiring a simulator restart."
 );
 
-// Clickable Markdown text link:
-if (ImGui::MD::TextLink("Open **Avionics Settings**")) {
+// 3. Root convenience shorthand:
+ImGui::TextMD("Fast alert: **Engine fire detected!**");
+
+// 4. Clickable Markdown text link:
+if (ImGui::Markdown::TextLink("Open **Avionics Settings**")) {
     OpenSettings();
 }
 ```

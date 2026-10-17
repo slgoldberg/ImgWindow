@@ -39,3 +39,4 @@ namespace MD       = ImGui::Markdown;
 #endif // !CONTRIB_DISABLE_GLOBAL_NAMESPACES
 
 #endif // IMGUI_CONTRIB_GLOBAL_H
+

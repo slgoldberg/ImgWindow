@@ -29,13 +29,14 @@ Look at the spectrum of UI tasks a flight sim plugin author faces, and how `cont
 
 ## Ecosystem Organization
 
-To keep contributions modular and easy to include at any level of granularity, the ecosystem is organized into two primary categories with uniform **`includes.h`** roll-up headers and top-level concentrators:
+To keep contributions modular and easy to include at any level of granularity, the ecosystem is organized into two primary categories with uniform **`includes.h`** roll-up headers, top-level concentrators, and opt-in global convenience:
 
 ```
 ImgWindow/
 ├── contrib.h                              # Top-level concentrator (-> contrib/includes.h)
 └── contrib/
     ├── includes.h                         # Master roll-up for all extensions & widgets
+    ├── contrib-global.h                   # Opt-in top-level global namespace aliases
     ├── extensions.h                       # Concentrator for all extensions (-> extensions/includes.h)
     ├── widgets.h                          # Concentrator for all widgets    (-> widgets/includes.h)
     │
@@ -51,9 +52,77 @@ ImgWindow/
         └── imgui_clickable_links.h        # ButtonLink, TextLink, MenuItemLink & AttachItemCursor affordances
 ```
 
+---
+
+## 🏛️ Namespacing Philosophy: Accommodating All Developer Preferences
+
+Different flight sim developers have strong, differing philosophies when it comes to API ergonomics:
+* Some developers prioritize **strict, collision-free sub-namespaces** to avoid polluting `ImGui::` and ensure 100% future-proof safety against upstream Dear ImGui updates.
+* Other developers (like Sa'ar and many rapid-prototyping plugin authors) find second-level namespaces tedious to type and want **direct access under `ImGui::`** or even directly at **global scope**.
+
+`contrib/` satisfies **both camps** without compromise through a 3-tier access model:
+
+### Tier 1: Canonical Second-Level Sub-Namespaces (Production Best Practice)
+Extensions live in clean, second-level sub-namespaces that mirror Dear ImGui's native vocabulary without colliding with core functions:
+* `ImGui::Markdown::Text("...")` / `ImGui::Markdown::TextWrapped("...")`
+* `ImGui::TimedTooltip::Text("...")` / `ImGui::TimedTooltip::TextUnformatted("...")`
+
+### Tier 2: S-Tier Shorthands & Root `ImGui::` Convenience
+* **`ImGui::MD::` Shorthand Alias:** `namespace MD = Markdown;` provides an official, zero-overhead shorthand:
+  ```cpp
+  ImGui::MD::Text("# Flight Deck"); // 100% identical to ImGui::Markdown::Text
+  ```
+* **Root `ImGui::` Widgets & Shorthands:** All widgets (`ToggleButton`, `MouseWheelSlider`, `PercentSlider`, `ButtonLink`) live directly in root `ImGui::`. Additionally, root Markdown shorthands matching native `ImGui::Text` are provided directly under `ImGui::`:
+  ```cpp
+  ImGui::TextMD("**Active** waypoint: %s", wpt);        // Shorthand for ImGui::Markdown::Text
+  ImGui::TextWrappedMD("Weather briefing notes...");    // Shorthand for ImGui::Markdown::TextWrapped
+  ImGui::TextMarkdown("Alternative spelling...");
+  ```
+* **Bidirectional Cross-Extension Bridges:** Call features from either direction:
+  * `ImGui::TimedTooltip::Markdown::Text(...)` *or* `ImGui::TimedTooltip::MD::Text(...)`
+  * `ImGui::Markdown::TimedTooltip::Text(...)` *or* `ImGui::MD::TimedTooltip::Text(...)`
+
+### Tier 3: Opt-In Global Namespaces (Minimum Boilerplate)
+For developers who want to bypass `ImGui::` entirely for extension calls, including [`contrib/contrib-global.h`](contrib-global.h) (or defining `#define CONTRIB_ENABLE_GLOBAL_NAMESPACES`) publishes top-level aliases to the global namespace:
+```cpp
+#define CONTRIB_ENABLE_GLOBAL_NAMESPACES
+#include "contrib.h"
+
+// Direct global calls (no ImGui:: required):
+Markdown::Text("Status: **Optimal**");
+MD::Text("Warning: *Check Fuel*");
+TimedTooltip::Text("Stationary delayed tooltip");
+```
+
+---
+
+## 🎛️ Configuration Matrix: Opt-In vs. Opt-Out
+
+Everything in `contrib/` is **active and available by default** when you include `contrib.h`. You only define macros if you want to selectively disable features or opt into global aliases:
+
+| Macro Directive | Type | Default | Description |
+| :--- | :---: | :---: | :--- |
+| **`CONTRIB_ENABLE_GLOBAL_NAMESPACES`** | **Opt-In** | *Off* | Publishes `Markdown::`, `MD::`, and `TimedTooltip::` to global namespace. |
+| **`CONTRIB_DISABLE_EXTENSIONS`** | **Opt-Out** | *Off* | Excludes all extensions (`contrib/extensions/`). |
+| **`CONTRIB_DISABLE_WIDGETS`** | **Opt-Out** | *Off* | Excludes all contributed widgets (`contrib/widgets/`). |
+| **`CONTRIB_DISABLE_TIMED_TOOLTIP`** | **Opt-Out** | *Off* | Excludes the `TimedTooltip` extension. |
+| **`CONTRIB_DISABLE_MARKDOWN`** | **Opt-Out** | *Off* | Excludes the `Markdown` extension. |
+| **`CONTRIB_DISABLE_TEXT_MD`** | **Opt-Out** | *Off* | Excludes root `ImGui::TextMD` / `TextWrappedMD` aliases. |
+| **`CONTRIB_DISABLE_TOGGLE_BUTTONS`** | **Opt-Out** | *Off* | Excludes `ToggleButton` and `ToggleButtons`. |
+| **`CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL`**| **Opt-Out** | *Off* | Excludes mouse-wheel toggling on `ToggleButton`. |
+| **`CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS`**| **Opt-Out** | *Off* | Excludes mouse-wheel sliders, drags, cyclers, and combos. |
+| **`CONTRIB_DISABLE_CLICKABLE_LINKS`** | **Opt-Out** | *Off* | Excludes `ButtonLink`, `TextLink`, `MenuItemLink`, and `AttachItemCursor`. |
+| **`CONTRIB_DISABLE_PERCENT_SLIDER`** | **Opt-Out** | *Off* | Excludes `PercentSlider` and `SliderPercent`. |
+| **`CONTRIB_DISABLE_MOUSE_WHEEL_COMBO`** | **Opt-Out** | *Off* | Excludes `MouseWheelCombo` and `ComboWithReset`. |
+| **`IMGUI_CONTRIB_DISABLE_RESET_UNDO`** | **Opt-Out** | *Off* | Disables 1-click Reset-with-Undo on reset buttons. |
+
+*(Note: Prefixes `IMGUI_CONTRIB_DISABLE_*`, `IMGUI_DISABLE_CONTRIB_*`, and legacy `IMGUI_DISABLE_EXTRA_*` are also honored automatically).*
+
+---
+
 ### 1. Packages & Extensions (`contrib/extensions/`)
 * **What they are:** Feature-rich additions that maintain their own internal state, use configuration structs, or integrate external libraries.
-* **Namespacing:** Scoped within a dedicated sub-namespace (`ImGui::<PackageName>::`, e.g. `ImGui::TimedTooltip::Text(...)`, `ImGui::MD::TextWrapped(...)`) to avoid polluting the root `ImGui::` namespace.
+* **Namespacing:** Primary canonical sub-namespace (`ImGui::Markdown::`, `ImGui::TimedTooltip::`), shorthand alias (`ImGui::MD::`), root convenience aliases (`ImGui::TextMD(...)`), and opt-in global namespaces (`contrib-global.h`).
 * **Inclusion:**
   * **Everything in `contrib/`:** `#include "ImgWindow/contrib.h"` (or `"ImgWindow/contrib/includes.h"`)
   * **All extensions:** `#include "ImgWindow/contrib/extensions.h"` (or `"ImgWindow/contrib/extensions/includes.h"`)
