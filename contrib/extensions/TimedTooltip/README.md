@@ -54,34 +54,18 @@ if (ImGui::Button("Save Flight Plan")) {
 ImGui::TimedTooltip::Text("Saves the active route to disk as an .fms file.");
 ```
 
-### 3. Markdown Tooltips & Bidirectional Bridges
-If using the companion **Markdown** extension, include `imgui_markdown_ext.h` (in either order, or simply via `#include "contrib.h"`). You can call Markdown tooltips through whichever syntax fits your mental model best:
+### 3. Markdown Tooltips
+If using the companion **Markdown** extension, simply call `TextMD`:
 
 ```cpp
 #include "contrib.h"
 
 ImGui::Button("Autopilot Nav");
-
-// 1. Classic convenience syntax:
 ImGui::TimedTooltip::TextMD("Arms **LNAV** mode. *Requires active GPS waypoint.*");
-
-// 2. Bidirectional Channel A (TimedTooltip -> Markdown):
-ImGui::TimedTooltip::Markdown::Text("Configures # NAV1 frequency.");
-ImGui::TimedTooltip::MD::Text("Configures # NAV1 frequency."); // Shorthand alias
-
-// 3. Bidirectional Channel B (Markdown -> TimedTooltip):
-ImGui::Markdown::TimedTooltip::Text("Zero-drift **inertial** reference.");
-ImGui::MD::TimedTooltip::Text("Zero-drift **inertial** reference."); // Shorthand alias
-
-// 4. Clickable Markdown Link Tooltips:
-ImGui::TimedTooltip::TextMDLink("Click here to [learn more](docs/nav.md) about GPS modes.");
-ImGui::TimedTooltip::Markdown::TextLink("Direct [manual link](docs/nav.md)");
-
-// 5. Global Syntax (with #define CONTRIB_ENABLE_GLOBAL_NAMESPACES):
-TimedTooltip::Text("Stationary delayed tooltip");
-Markdown::TimedTooltip::Text("Markdown in stationary tooltip");
-MD::TimedTooltip::Text("Markdown in stationary tooltip");
 ```
+
+> [!TIP]
+> **Forgiving Aliases:** Prefer explicit sub-namespaces? `ImGui::TimedTooltip::Markdown::Text(...)` and `ImGui::TimedTooltip::MD::Text(...)` work too! If you prefer flipping the order (`ImGui::Markdown::TimedTooltip::Text`), that works identically. Clickable links inside tooltips are supported via `TextMDLink(...)`.
 
 ---
 

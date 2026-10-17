@@ -37,31 +37,17 @@ namespace ImGui {
 ```
 
 * **Zero Root Pollution:** The root `ImGui::` namespace stays clean, pristine, and safe from symbol collisions.
-* **Mirroring Native ImGui Vocabulary:** Sub-namespaces allow us to reuse Dear ImGui's standard, battle-tested vocabulary (`Text`, `TextWrapped`, `CalcTextSize`) rather than inventing arbitrary or clunky new verbs (like `DrawMarkdownText` or `CalculateMarkdownDimensions`):
+* **Mirroring Native ImGui Vocabulary:** Sub-namespaces allow us to reuse Dear ImGui's standard vocabulary (`Text`, `TextWrapped`, `CalcTextSize`):
   ```cpp
-  // Natural, native-feeling API design:
   ImGui::Markdown::TextWrapped("Configure your **settings** below.");
-  ImGui::MD::TextWrapped("Configure your **settings** below."); // Zero-overhead shorthand alias!
-  ImVec2 size = ImGui::Markdown::CalcTextSize(id, 1, docString, wrapWidth);
-
-  // Bidirectional cross-extension bridges:
-  ImGui::TimedTooltip::Markdown::Text("Current mode: *%s*", modeStr);
-  ImGui::TimedTooltip::MD::Text("Current mode: *%s*", modeStr);
+  ImGui::TimedTooltip::Text("Hover-delayed stationary tooltip.");
   ```
 
-#### 3. Eradicating the Upstream Symbol Collision
-In upstream `imgui_markdown.h`, the third-party library defined a free C-function `void ImGui::Markdown(...)`. In C++, having a function named `Markdown` directly in `namespace ImGui` makes declaring `namespace ImGui { namespace Markdown { ... } }` a fatal compiler symbol error.
-
-In `ImgWindow`, we eliminated this trap by relocating upstream's raw rendering pipeline to:
-```cpp
-ImGui::Markdown::Render(markdown_text, length, config);
-```
-This frees up `namespace ImGui::Markdown` to be a pristine, first-class C++ namespace, prevents developers from accidentally invoking the raw unconfigured parser, and provides `namespace ImGui { namespace MD = Markdown; }` as an official shorthand!
-
-#### 4. The 3 Tiers of Access (From Strict Scoping to Zero Boilerplate)
-1. **Canonical**: `ImGui::Markdown::Text(...)` and `ImGui::TimedTooltip::Text(...)`
-2. **Shorthands & Root Aliases**: `ImGui::MD::Text(...)`, `ImGui::TextMD(...)`, and `ImGui::TextMarkdown(...)` directly in root `ImGui::`.
-3. **Opt-In Global Convenience**: Include [`contrib/contrib-global.h`](../contrib-global.h) (or define `#define CONTRIB_ENABLE_GLOBAL_NAMESPACES`) to use `Markdown::Text(...)`, `MD::Text(...)`, and `TimedTooltip::Text(...)` directly in the global scope.
+> [!TIP]
+> **Forgiving Aliases ("It Just Works"):** Prefer shorter names or don't want to think about namespaces?
+> * **`ImGui::MD::`** is an official, zero-overhead shorthand alias for **`ImGui::Markdown::`**.
+> * Root shorthands like **`ImGui::TextMD(...)`** and cross-extension bridges like **`ImGui::TimedTooltip::MD::Text`** work seamlessly.
+> * Want to skip `ImGui::` entirely? `#define CONTRIB_ENABLE_GLOBAL_NAMESPACES` publishes `Markdown::`, `MD::`, and `TimedTooltip::` directly to the global scope.
 
 ---
 
