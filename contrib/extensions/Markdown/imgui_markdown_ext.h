@@ -56,11 +56,19 @@ namespace ImGui {
         std::string str = raw_str;
         for (char& c : str) c = (char)tolower((unsigned char)c);
 
-        // Strip optional key= prefix (e.g. color=0xFFA500, col=orange, bg=#FF0000)
-        if (str.rfind("color=", 0) == 0)     str = str.substr(6);
-        else if (str.rfind("col=", 0) == 0)  str = str.substr(4);
-        else if (str.rfind("bg=", 0) == 0)   str = str.substr(3);
-        else if (str.rfind("fg=", 0) == 0)   str = str.substr(3);
+        // Strip optional key= prefix (e.g. color=0xFFA500, col=orange, bg=#FF0000, text=white)
+        if (str.rfind("bgcolor=", 0) == 0)       str = str.substr(8);
+        else if (str.rfind("bgcol=", 0) == 0)    str = str.substr(6);
+        else if (str.rfind("bg=", 0) == 0)       str = str.substr(3);
+        else if (str.rfind("fgcolor=", 0) == 0)  str = str.substr(8);
+        else if (str.rfind("fgcol=", 0) == 0)    str = str.substr(6);
+        else if (str.rfind("fg=", 0) == 0)       str = str.substr(3);
+        else if (str.rfind("color=", 0) == 0)    str = str.substr(6);
+        else if (str.rfind("col=", 0) == 0)      str = str.substr(4);
+        else if (str.rfind("text=", 0) == 0)     str = str.substr(5);
+        if (str.size() >= 2 && ((str.front() == '"' && str.back() == '"') || (str.front() == '\'' && str.back() == '\''))) {
+            str = str.substr(1, str.size() - 2);
+        }
         if (str.empty()) return false;
         
         // Named UI colors
@@ -78,6 +86,10 @@ namespace ImGui {
         if (str == "gold")    { out_col = ImVec4(1.0f,  0.84f, 0.0f,  1.0f); return true; }
         if (str == "dark")    { out_col = ImVec4(0.18f, 0.18f, 0.22f, 1.0f); return true; }
         if (str == "light")   { out_col = ImVec4(0.90f, 0.90f, 0.92f, 1.0f); return true; }
+        if (str == "danger")  { out_col = ImVec4(0.85f, 0.15f, 0.15f, 1.0f); return true; }
+        if (str == "warning") { out_col = ImVec4(0.95f, 0.75f, 0.10f, 1.0f); return true; }
+        if (str == "success") { out_col = ImVec4(0.15f, 0.70f, 0.25f, 1.0f); return true; }
+        if (str == "info")    { out_col = ImVec4(0.20f, 0.55f, 0.90f, 1.0f); return true; }
 
         // Hex formats: #RRGGBB, #RRGGBBAA, 0xRRGGBB, 0xRRGGBBAA
         size_t start = 0;
@@ -117,7 +129,9 @@ namespace ImGui {
     // 3. Custom Markdown Styling Tags Pre-Processor
     struct MarkdownTagStyle {
         std::string clean_text;
-        std::string color_param;
+        std::string color_param; // Legacy single-color parameter
+        std::string bg_color;    // Background color override or primary color
+        std::string fg_color;    // Foreground / text color override
         bool is_bold = false;
         bool is_italic = false;
         bool is_mono = false;
@@ -126,6 +140,13 @@ namespace ImGui {
     inline MarkdownTagStyle ParseMarkdownTagStyle(const std::string& inner_text, const std::string& param) {
         MarkdownTagStyle style;
         style.clean_text = inner_text;
+
+        auto strip_quotes = [](std::string s) -> std::string {
+            if (s.size() >= 2 && ((s.front() == '"' && s.back() == '"') || (s.front() == '\'' && s.back() == '\''))) {
+                return s.substr(1, s.size() - 2);
+            }
+            return s;
+        };
 
         // 1. Check if param contains 'bold', 'italic', 'mono', or color tokens
         std::string p = param;
@@ -152,23 +173,49 @@ namespace ImGui {
                 style.is_mono = true;
                 found_explicit_style = true;
             } else {
-                // Strip optional color= / col= / bg= / fg= key prefix if present:
-                if (t.rfind("color=", 0) == 0)     token = token.substr(6);
-                else if (t.rfind("col=", 0) == 0)  token = token.substr(4);
-                else if (t.rfind("bg=", 0) == 0)   token = token.substr(3);
-                else if (t.rfind("fg=", 0) == 0)   token = token.substr(3);
-                if (!token.empty()) {
-                    if (style.color_param.empty()) {
-                        style.color_param = token;
-                    } else {
-                        style.color_param += " " + token;
+                if (t.rfind("fgcolor=", 0) == 0) {
+                    style.fg_color = strip_quotes(token.substr(8));
+                } else if (t.rfind("fgcol=", 0) == 0) {
+                    style.fg_color = strip_quotes(token.substr(6));
+                } else if (t.rfind("fg=", 0) == 0) {
+                    style.fg_color = strip_quotes(token.substr(3));
+                } else if (t.rfind("text=", 0) == 0) {
+                    style.fg_color = strip_quotes(token.substr(5));
+                } else if (t.rfind("bgcolor=", 0) == 0) {
+                    style.bg_color = strip_quotes(token.substr(8));
+                } else if (t.rfind("bgcol=", 0) == 0) {
+                    style.bg_color = strip_quotes(token.substr(6));
+                } else if (t.rfind("bg=", 0) == 0) {
+                    style.bg_color = strip_quotes(token.substr(3));
+                } else if (t.rfind("color=", 0) == 0) {
+                    std::string val = strip_quotes(token.substr(6));
+                    if (style.bg_color.empty()) style.bg_color = val;
+                    else style.fg_color = val;
+                } else if (t.rfind("col=", 0) == 0) {
+                    std::string val = strip_quotes(token.substr(4));
+                    if (style.bg_color.empty()) style.bg_color = val;
+                    else style.fg_color = val;
+                } else {
+                    // Bare token (e.g. "green", "#ff0000", "danger")
+                    std::string val = strip_quotes(token);
+                    if (!val.empty()) {
+                        if (style.bg_color.empty()) {
+                            style.bg_color = val;
+                        } else if (style.fg_color.empty()) {
+                            style.fg_color = val;
+                        }
                     }
                 }
             }
             pos = end;
         }
-        if (style.color_param.empty() && !found_explicit_style) {
-            style.color_param = param;
+        if (!style.bg_color.empty()) {
+            style.color_param = style.bg_color;
+        } else if (!style.fg_color.empty()) {
+            style.color_param = style.fg_color;
+        } else if (!found_explicit_style && !param.empty()) {
+            style.color_param = strip_quotes(param);
+            style.bg_color = style.color_param;
         }
 
         // 2. Normalize any UTF-8 non-breaking spaces (\xC2\xA0, e.g. macOS Option+Space)
@@ -292,7 +339,8 @@ namespace ImGui {
                 EnsureTagFitsOnLine(text_size.x);
 
                 ImVec4 col(1.0f, 1.0f, 1.0f, 1.0f);
-                bool has_col = ParseMarkdownColor(style.color_param, col);
+                std::string col_str = !style.fg_color.empty() ? style.fg_color : (!style.color_param.empty() ? style.color_param : style.bg_color);
+                bool has_col = ParseMarkdownColor(col_str, col);
                 if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
 
                 bool no_wrap = (config && config->wrapWidth < 0.0f);
@@ -321,7 +369,8 @@ namespace ImGui {
                 PushMarkdownTagFont(config, style);
 
                 ImVec4 bg_col(1.0f, 0.90f, 0.20f, 0.65f); // default soft yellow highlight
-                ParseMarkdownColor(style.color_param, bg_col);
+                std::string bg_str = !style.bg_color.empty() ? style.bg_color : style.color_param;
+                ParseMarkdownColor(bg_str, bg_col);
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
                 float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
@@ -342,14 +391,25 @@ namespace ImGui {
                     col_u32, rounding
                 );
 
-                // Auto-contrast text color if background is dark
-                float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
-                if (lum < 0.35f) {
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-                    ImGui::TextUnformatted(style.clean_text.c_str());
-                    ImGui::PopStyleColor();
+                if (!style.fg_color.empty()) {
+                    ImVec4 fg_col;
+                    if (ParseMarkdownColor(style.fg_color, fg_col)) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, fg_col);
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        ImGui::PopStyleColor();
+                    } else {
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                    }
                 } else {
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    // Auto-contrast text color if background is dark
+                    float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
+                    if (lum < 0.35f) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        ImGui::PopStyleColor();
+                    } else {
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                    }
                 }
 
                 PopMarkdownTagFont(config, style);
@@ -368,19 +428,26 @@ namespace ImGui {
                 ImVec4 bg_col = ImVec4(0.25f, 0.25f, 0.30f, 1.0f); // default charcoal
                 ImVec4 text_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 
-                if (style.color_param == "danger" || style.color_param == "red") {
+                std::string bg_str = !style.bg_color.empty() ? style.bg_color : style.color_param;
+
+                if (bg_str == "danger" || bg_str == "red") {
                     bg_col = ImVec4(0.85f, 0.15f, 0.15f, 1.0f);
-                } else if (style.color_param == "warning" || style.color_param == "yellow") {
+                } else if (bg_str == "warning" || bg_str == "yellow") {
                     bg_col = ImVec4(0.95f, 0.75f, 0.10f, 1.0f);
                     text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
-                } else if (style.color_param == "success" || style.color_param == "green") {
+                } else if (bg_str == "success" || bg_str == "green") {
                     bg_col = ImVec4(0.15f, 0.70f, 0.25f, 1.0f);
-                } else if (style.color_param == "info" || style.color_param == "blue") {
+                } else if (bg_str == "info" || bg_str == "blue") {
                     bg_col = ImVec4(0.20f, 0.55f, 0.90f, 1.0f);
-                } else {
-                    ParseMarkdownColor(style.color_param, bg_col);
+                } else if (!bg_str.empty()) {
+                    ParseMarkdownColor(bg_str, bg_col);
                     float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
                     if (lum > 0.65f) text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+                }
+
+                // If explicit foreground/text color is specified, override the automatic contrast color:
+                if (!style.fg_color.empty()) {
+                    ParseMarkdownColor(style.fg_color, text_col);
                 }
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
@@ -461,8 +528,9 @@ namespace ImGui {
 
                 // Default: subtle translucent gray rounded pill behind code
                 ImVec4 bg_col(0.5f, 0.5f, 0.5f, 0.24f);
-                if (!style.color_param.empty()) {
-                    ParseMarkdownColor(style.color_param, bg_col);
+                std::string bg_str = !style.bg_color.empty() ? style.bg_color : style.color_param;
+                if (!bg_str.empty()) {
+                    ParseMarkdownColor(bg_str, bg_col);
                 }
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
@@ -482,7 +550,16 @@ namespace ImGui {
                     col_u32, rounding
                 );
 
-                if (!style.color_param.empty()) {
+                if (!style.fg_color.empty()) {
+                    ImVec4 fg_col;
+                    if (ParseMarkdownColor(style.fg_color, fg_col)) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, fg_col);
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        ImGui::PopStyleColor();
+                    } else {
+                        ImGui::TextUnformatted(style.clean_text.c_str());
+                    }
+                } else if (!bg_str.empty()) {
                     float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
                     if (lum < 0.35f) {
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
