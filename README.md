@@ -67,6 +67,16 @@ installed (no less than ImGui v1.84 WIP, with native support for the new `ImFont
 * **Dynamic X-Plane 12.4.4+ Panel Graphics support** - Enable your build to render ImGui via **Panel Graphics** _or_ **OpenGL fallback**, depending on which version of X-Plane it is loaded on! (I.e., build a single backward-compatible binary for each target platform.)
   - _Note: this includes an option to build with the entire v4.4 SDK, **only** supporting Panel Graphics on X-Plane v12.4.4 and later (**without** backwards compatibility support for OpenGL rendering)._
 * `ImgPanelGraphics::` - Dynamic runtime symbol proxy namespace for zero-dependency backward compatibility (!!). Details within.
+* **Modern Window Geometry & Ergonomic Constructors (v2.2+)** - Eliminates inverted $Y$ boxel math and prevents off-screen window bugs via `WindowGeometry` and C++11 delegating constructors:
+  - **Auto-Centered**: `ImgWindow(width, height)` auto-centers on the primary display with zero coordinate boilerplate.
+  - **Top-Left Origin**: `WindowGeometry::FromTopLeft(x, y, w, h)` provides natural 2D desktop origin coordinates.
+  - **Safe Out-of-Bounds Recovery**: `WindowGeometry::Sanitize(...)` audits saved window coordinates on startup, recovering windows from disconnected monitors or resolution shifts while preserving "poor-man's docking" margins.
+  - **VR-Ready**: Automatically initializes VR window geometry and aspect ratio via `XPLMSetWindowGeometryVR`.
+* **`contrib/` UI Suite** - Bundled flight-deck-grade Dear ImGui extensions and immediate-mode widgets (see [`contrib/README.md`](contrib/README.md)):
+  - **`TimedTooltip`**: Polite, hover-delayed stationary tooltips that lock in place and auto-dismiss after reading.
+  - **`Markdown` (`ImGui::Markdown` & `ImGui::MD`)**: Rich CommonMark parsing and rendering with dynamic font scaling, token lookahead, hanging bullet indents, and custom styling tags.
+  - **Widgets**: Animated toggle switches (`ToggleButton`), mouse-wheel sliders/combos (`MouseWheelSlider`), 1-click resets with undo history, and clickable web/doc links (`ButtonLink`, `TextLink`).
+  - **Turnkey Inclusion**: `#include "contrib.h"` activates the entire suite in one line, with 3-tier namespacing (sub-namespaces, root `ImGui::` shorthands, or opt-in global namespaces).
 
 ## No longer supported (see original repository):
 
@@ -77,24 +87,21 @@ the goal of this `ImgWindow`-focused project to support `XSquawkBox` anymore.
 
 ---
 
-## Community Testing & Status (October, 2026)
+## Production Status & Architecture
 
-The new dynamic Panel Graphics bridge has been verified stable across **Windows, macOS (Metal), and Linux (Vulkan)** in both legacy OpenGL fallback mode and native XPLM 4.4 Panel Graphics mode, as well as the fully functional, hybrid "bridge" mode where *both* `OpenGL` *and* `Panel Graphics` are supported (based on the current running version of X-Plane). Detailed documentation is included and provides simple ways for plugin authors to migrate to using the new Panel Graphics support, among other things.
+`ImgWindow v2` is production-ready and verified stable across **Windows, macOS (Metal), and Linux (Vulkan)**. It delivers a unified, zero-boilerplate bridge supporting native **XPLM 4.4 Panel Graphics** on modern X-Plane 12 while maintaining 100% backward compatibility with legacy **OpenGL** on earlier simulator releases.
 
-> [!WARNING]
-> `XPLM v4.4` is not yet "final" though `XPLM v4.4b3` is the likely candidate. _(As of 1-October-2026)_<br>
-> X-Plane 12.4.4b3 is not the last beta release (according to Laminar Research) -- and until v12.4.4 is *final*, this release of `ImgWindow v2` is also not *final*.  So, developers should be aware:
->   * The last-minute changes in XPLM v4.4b3 caused us to change our API, thus accelerating the version of this repository to become `ImgWindow v2.0.0` just a few days ago.
->   * As a result, developers should very _carefully_ read the &rarr;[`ImgWindow v2` Migration Guide](Panel-Graphics-Migration.md) to learn of the changes from v1.3 to v2!
->     - The short version:  The XPLM v4.4b3 SDK mandates that we **deprecate** our previous `ImgWindow::SafeDeleteTexture()` function. You are now **required** to call `ImgWindow::DeleteTexture(texID)` instead! (You _must_ call this and you _must not_ call ~~`XPLMDestroyTexture()`~~ nor  ~~`ImgPanelGraphics::DestroyTexture()`~~!)
->  * This version (2.0.0) will replace the current `ImgWindow v1.3` on the `master` repository very soon -- you may be reading this in the master `ImgWindow` repository even now!  If so, this is it! Use it!
+If you maintain an existing plugin that uses `ImgWindow`, you can safely drop in this update to modernize your rendering pipeline. We continue to welcome developer feedback and contributions via the issue tracker and pull requests!
 
-If you maintain a plugin that uses `ImgWindow`, you can safely drop in this update to modernize your rendering pipeline. We continue to welcome developer feedback, edge-case testing, and contributions via the issue tracker and pull requests!
+---
 
-The area we are most interested in finding other plugins to test for us -- besides the basic bridge functionality to choose between Panel Graphics and OpenGL -- is plugins that manage custom **textures**, because this can be a difficult problem due to the differing architectural requirements of Panel Graphics versus legacy OpenGL.  With the support of `ImgWindow::CreateTexture()` and `ImgWindow::DeleteTexture()` for example, we mitigate these issues by providing a unified texture multiplexing API. This allows developers to seamlessly create and destroy textures that work across both backends without having to write separate `#ifdef` pipelines, saving hours of development time. Read more below and on the referenced user guide.
+## 🗺️ How-To Guides ("TripTiks")
 
-> [!IMPORTANT]
-> **The 64-bit ImTextureID Trap:** If you use these unified texture APIs to migrate an older OpenGL plugin, you **must** refactor any variables holding texture IDs from `GLuint` (32-bit) to `ImTextureID` (`ImU64` integer). Assigning the unified texture return value to an old 32-bit `GLuint` will silently truncate the handle and instantly crash X-Plane 12 Vulkan! See the Migration Guide for full details.
+For quick, scenario-based walkthroughs with copy-pasteable CMake snippets and code:
+* 🚀 **[TripTik 1: Get Started With ImgWindow](docs/how-to/Get-Started-With-ImgWindow.md)** — The 6-step starter guide for creating your first window, command-first dispatching, and choosing your build mode.
+* 🛠️ **[TripTik 2: Support Panel Graphics](docs/how-to/Support-Panel-Graphics.md)** — The 10-minute migration checklist for updating existing v1 plugins.
+* 🖼️ **[TripTik 3: Render Custom Textures](docs/how-to/Render-Custom-Textures.md)** — Using `ImgWindow::CreateTexture()` to draw images without raw OpenGL pipeline code.
+* 🎓 **[Ground School](docs/how-to/Ground-School.md)** — Fundamental Dear ImGui immediate-mode principles in X-Plane.
 
 ---
 
@@ -120,16 +127,16 @@ Once your plugin begins scaling up to multiple windows, complex tooltips, and be
 
 ## Modern Panel Graphics Support (Vulkan / Metal)
 
-`ImgWindow` features full, production-ready support for X-Plane's modern **Panel Graphics API** (introduced in the XPLM v4.4 SDK / X-Plane 12.4.4b3+). This allows your plugin to render UI natively through X-Plane's Vulkan/Metal graphics pipeline, bypassing legacy OpenGL completely.
+`ImgWindow` features full, production-ready support for X-Plane's modern **Panel Graphics API** (introduced in the XPLM v4.4 SDK / X-Plane 12.4.4+). This allows your plugin to render UI natively through X-Plane's Vulkan/Metal graphics pipeline, bypassing legacy OpenGL completely.
 
 The transition to native **Panel Graphics** brings substantially **improved rendering performance**, eliminates OpenGL context overhead, and **future-proofs** your plugin against the eventual deprecation of OpenGL. 
 
 ### Why Use `ImgWindow` for Panel Graphics?
-* **Zero-Downtime Backward Compatibility:** With our dynamic bridge (`ImgPanelGraphics`), a single binary will run on modern Vulkan/Metal on X-Plane 12.4.4b3+ while seamlessly falling back to OpenGL on X-Plane 11.10 through early betas of 12.4.4 (b1 and b2). You do **not** need to build separate plugin binaries or force users to update their simulator.
+* **Zero-Downtime Backward Compatibility:** With our dynamic bridge (`ImgPanelGraphics`), a single binary will run on modern Vulkan/Metal on X-Plane 12.4.4+ while seamlessly falling back to OpenGL on X-Plane 11 and earlier X-Plane 12 releases. You do **not** need to build separate plugin binaries or force users to update their simulator.
 * **Internal Lifecycle & Atlas Safeguards:** The framework automatically manages the shared font atlas across multi-window environments and guards against Vulkan null-descriptor pipeline crashes.
 
-### 🛠️ Developing with `ImgWindow` (X-Plane 12.4.4b3+)
-Because Laminar Research relaxed the strict Panel Graphics phase restrictions in X-Plane 12.4.4b3, developing for modern Vulkan/Metal now feels exactly like legacy OpenGL! You can safely create and destroy textures or manage windows directly inside your draw callbacks without manually managing deferred flight-loops.
+### 🛠️ Developing with `ImgWindow` (X-Plane 12.4.4+)
+Because Laminar Research relaxed earlier Panel Graphics phase restrictions in X-Plane 12.4.4, developing for modern Vulkan/Metal now feels exactly like legacy OpenGL! You can safely create and destroy textures or manage windows directly inside your draw callbacks without manually managing deferred flight-loops.
 
 Just keep these two simple rules in mind:
 

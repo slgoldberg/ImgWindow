@@ -1,6 +1,6 @@
 # Migration Guide: `ImgWindow v2`
 
-Welcome to the `ImgWindow v2` Migration Guide. With the release of X-Plane 12.4.4b3, Laminar fundamentally upgraded their Vulkan rendering pipeline, allowing us to drop several restrictive hacks and unify our APIs.
+Welcome to the `ImgWindow v2` Migration Guide. With the release of X-Plane 12.4.4+, Laminar fundamentally upgraded their Vulkan rendering pipeline, allowing us to drop several restrictive hacks and unify our APIs.
 
 Depending on what version of `ImgWindow` your plugin is currently using, choose your migration path below:
 
@@ -10,19 +10,19 @@ Depending on what version of `ImgWindow` your plugin is currently using, choose 
 
 If you were an early adopter of `ImgWindow` v1.3.0 (which brought initial Panel Graphics support during the X-Plane 12.4.4b1 and b2 betas), you successfully navigated a highly restrictive, asynchronous rendering era under the authoritarian rule of King Laminar "bee-wan" and his son, Laminar "bee-too".
 
-Fortunately, Prince I-Am-GeeWin-Dough II (b3) has democratized the kingdom! A new polymorphic era of true happiness has arrived for the citizens of *Panelgraphica* and *Opengeel*, who can now live in peace and harmony thanks to the new Bridge of Synchrony!
+Fortunately, Prince I-Am-GeeWin-Dough II (b4) has democratized the kingdom! A new polymorphic era of true happiness has arrived for the citizens of *Panelgraphica* and *Opengeel*, who can now live in peace and harmony thanks to the new Bridge of Synchrony!
 
 > [!NOTE]
 > **API Name Changes in v2.1.0**
 > The texture API methods introduced in early v2.0 drafts (`CreateCustomTexture` and `DestroyCustomTexture`) have been officially renamed to `ImgWindow::CreateTexture()` and `ImgWindow::DeleteTexture()`. The old names are still available for backward compatibility but are marked as `[[deprecated]]`.
 
-Because X-Plane 12.4.4b3 now natively handles deferred Vulkan command encoding, we have stripped out the complex Flight Loop Callback (FLCB) garbage collection queues. 
+Because X-Plane 12.4.4+ now natively handles deferred Vulkan command encoding, we have stripped out the complex Flight Loop Callback (FLCB) garbage collection queues. 
 
 ### Required Code Changes for v2:
 1. **Texture Destruction:** The `SafeDeleteTexture()` method is officially deprecated.
    * **Migration:** Replace all calls to `SafeDeleteTexture(tex)` with the new, unified `ImgWindow::DeleteTexture(tex)` method. You can safely call this synchronously from the main thread!
 2. **Texture Bake Delays:** The `SetTextureBakeDelay()` method is officially deprecated. Panel Graphics now builds and binds textures instantly and synchronously.
-   * **Migration:** You can completely delete any calls to `SetTextureBakeDelay()`. (The method has been stubbed out as an inline no-op, so your code will still compile if you forget, but it is no longer doing anything).
+   * **Migration:** You can completely delete any calls to `SetTextureBakeDelay()`. (The method has been stubbed out as an inline no-op, so your code will still compile if you forget, but it is no longer doing anything.)
 
 *That's it! Everything else from v1.3.0 works perfectly.*
 
@@ -39,9 +39,9 @@ With the release of X-Plane 12.4.4b1, Laminar Research introduced the **Panel Gr
 There is no need to maintain two separate codebases or force your users to upgrade X-Plane. The framework detects the host simulator's capabilities at runtime and routes the ImGui draw data accordingly.
 
 > [!NOTE]
-> **Beta Warning:** The XPLM Panel Graphics API is currently a moving target. Laminar Research recently introduced breaking phase relaxations in **X-Plane 12.4.4b3** that are fully supported by this version of `ImgWindow`. 
+> **Historical Note (Early Betas):** During the initial **X-Plane 12.4.4b1** and **b2** betas, the Panel Graphics API had breaking phase restrictions that required asynchronous queuing. Laminar relaxed these in **12.4.4b3** and finalized them in **12.4.4+**.
 > 
-> Because of these breaking changes, native Panel Graphics support is physically locked out on the earlier `b1` and `b2` betas to prevent crashes. If you run a dynamic bridge plugin on `b1` or `b2`, it will safely fall back to legacy OpenGL. Throughout this document, any unqualified references to "X-Plane 12.4.4" assume you are targeting the final release API introduced in `b3`.
+> Because of those early breaking changes, native Panel Graphics support is physically locked out on the earlier `b1` and `b2` betas to prevent crashes. If you run a dynamic bridge plugin on `b1` or `b2`, it will safely fall back to legacy OpenGL. Throughout this document, references to "X-Plane 12.4.4+" assume the final release API.
 
 ### 1. Build Configurations
 
@@ -49,8 +49,8 @@ You control how `ImgWindow` interacts with Panel Graphics entirely through compi
 
 | Build Flags | Rendering Pipeline | Simulator Compatibility |
 | :--- | :--- | :--- |
-| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code><br>~~XPLM440~~&nbsp;_must&nbsp;**NOT**&nbsp;be&nbsp;defined_ | **Dynamic Bridge (Recommended).** Uses Panel Graphics if XPLM 4.4 is detected at runtime. Falls back to legacy OpenGL otherwise. | **Maximum.** X-Plane 11.10+ through X-Plane 12.4.4+ |
-| <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code><br> <code>&#8209;DXPLM440=1</code>&nbsp;defined | **Strict Panel Graphics.** Forces modern rendering and strips the OpenGL fallback logic. *(See Caveat below regarding X-Plane 11)* | **Modern Only.** X-Plane 12.4.4 and newer. |
+| <nobr><code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code></nobr><br>~~XPLM440~~&nbsp;_must&nbsp;**NOT**&nbsp;be&nbsp;defined_ | **Dynamic Bridge (Recommended).** Uses Panel Graphics if XPLM 4.4 is detected at runtime. Falls back to legacy OpenGL otherwise. | **Maximum.** X-Plane 11.10+ through X-Plane 12.4.4+ |
+| <nobr><code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code></nobr><br><nobr><code>&#8209;DXPLM440=1</code></nobr>&nbsp;defined | **Strict Panel Graphics.** Forces modern rendering and strips the OpenGL fallback logic. *(See Caveat below regarding X-Plane 11)* | **Modern Only.** X-Plane 12.4.4 and newer. |
 | *(None)* | **Strict OpenGL.** Ignores Panel Graphics entirely and forces legacy OpenGL rendering. | **Standard.** X-Plane 11.10+ through current. |
 
 **To enable the recommended Dynamic Bridge in CMake:**
@@ -60,7 +60,7 @@ add_definitions(-DIMGWINDOW_USE_PANEL_GRAPHICS)
 # Laminar's headers check `#if defined(XPLM440)`. Defining it at all (even as XPLM440=0)
 # will break the dynamic bridge and force Strict Panel Graphics mode.
 ```
-*(Note: Be sure to run a `make clean` or clear your CMake cache after altering these definitions to ensure precompiled headers are rebuilt correctly).*
+*(Note: Be sure to run a `make clean` or clear your CMake cache after altering these definitions to ensure precompiled headers are rebuilt correctly.)*
 
 ---
 
@@ -69,6 +69,8 @@ add_definitions(-DIMGWINDOW_USE_PANEL_GRAPHICS)
 When your plugin initializes its first ImGui window, `ImgWindow` will log its routing decision to X-Plane's `Log.txt`. To verify that Panel Graphics is active, look for the following line:
 
 > `ImgWindow: Rendering via XPLM v4.4 Panel Graphics`
+
+*(Note: If the simulator lacks Panel Graphics support and falls back to legacy OpenGL, `ImgWindow` operates completely silently without emitting a log entry.)*
 
 ---
 
@@ -88,7 +90,7 @@ X-Plane's scenery, aircraft liveries, and `.obj` textures are managed natively.
 
 First, the **good news**:
 
-Any discussion you heard previously about Panel Graphics requiring complex flight-loop refactoring to safely create or destroy textures outside the `draw` callback is now officially _outdated_ (and invalid). As of `XPLM v4.4b3` (and presumably the final release), which starts with `X-Plane 12.4.4b3`, you can **keep your existing synchronous code structure!** I.e., you can safely create and destroy textures right inside your draw callbacks if you like. Panel Graphics will provide an almost identical developer experience to the OpenGL pipeline.
+Any discussion you heard previously about Panel Graphics requiring complex flight-loop refactoring to safely create or destroy textures outside the `draw` callback is now officially _outdated_ (and invalid). As of `XPLM v4.4` (which starts with `X-Plane 12.4.4+`), you can **keep your existing synchronous code structure!** I.e., you can safely create and destroy textures right inside your draw callbacks if you like. Panel Graphics will provide an almost identical developer experience to the OpenGL pipeline.
 
 However, you **must** use the new Panel Graphics API to allocate those textures, since you cannot send OpenGL texture handles through the Panel Graphics pipeline without a hard crash!
 
@@ -149,7 +151,7 @@ To make it so you can have your plugin support _either_ backend (OpenGL _or_ Pan
 These multiplexers automatically determine the active rendering pipeline (Panel Graphics vs. OpenGL), and create the correct type of texture for you **under the hood** -- safely returning an agnostic `ImTextureID` that you can pass directly to ImGui!  These common IDs can be used regardless of whether ImGui is rendering via Panel Graphics, or using OpenGL on older versions of X-Plane that don't support Panel Graphics. Basically, it lets developers focus on the *what* in ImGui terms, not the *how* in low-level rendering pipeline terms.
 
 ##### 1. Creating the Texture (Force 4 Channels!)
-When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graphics API strictly requires a 4-channel RGBA8 buffer. If you feed it a 3-channel RGB buffer, the simulator will instantly crash due to a buffer overrun!  _(To be clear: don't pass 3 or 0 as the final parameter to `stbi_load()` -- **explicitly pass 4**)._
+When loading external images (e.g., PNGs via `stb_image`), X-Plane's Panel Graphics API strictly requires a 4-channel RGBA8 buffer. If you feed it a 3-channel RGB buffer, the simulator will instantly crash due to a buffer overrun!  _(To be clear: don't pass 3 or 0 as the final parameter to `stbi_load()` -- **explicitly pass 4**.)_
 
 ```cpp
 // 1. Define your texture handle globally or in your plugin class
@@ -190,7 +192,7 @@ void MyWindow::buildInterface() {
 ```
 
 ##### 3. Cleaning Up
-Thanks to X-Plane 12.4.4 handling memory deferral _natively_ (as of v12.4.4b3), you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely. 
+Thanks to X-Plane 12.4.4+ handling memory deferral _natively_, you no longer have to manually branch texture destruction or build flight loops to protect Vulkan queues. Just hand the texture back to ImgWindow to destroy it safely. 
 
 *(Note: Just like creating textures, destroying them is an XPLM SDK call under the hood. You must **never** call `ImgWindow::DeleteTexture()` from a background worker thread!)*
 
@@ -248,7 +250,7 @@ The Panel Graphics Vulkan/Metal backend has no knowledge of legacy OpenGL textur
 
 #### Caveat E: The Boilerplate CMake Trap (`XPLM440`)
 It is common practice for developers to blindly append the latest SDK version to their compiler flags, e.g.:<br>
-<code>&#8209;DXPLM200=1 &#8209;DXPLM210=1 ... &#8209;DXPLM430=1 &#8209;DXPLM440=1</code><br>
+<nobr><code>&#8209;DXPLM200=1 &#8209;DXPLM210=1 ... &#8209;DXPLM430=1 &#8209;DXPLM440=1</code></nobr><br>
 
 **&rarr; Don't do this!**  I.e., do not set `XPLM440` if you want the Dynamic Bridge to use Panel Graphics when it's available, and falling back to OpenGL when it's not (i.e., on older versions of X-Plane back to v11.10).
 
@@ -256,18 +258,10 @@ However, if you are defining `XPLM440` as a build requirement because you are us
 
 *   **The Trap:** If you define `XPLM440` (or even `XPLM440=0`!), then `ImgWindow` is forced to compile its `XPLMCreateWindow_t` struct to the size defined in the XPLM v4.4 SDK! If this plugin is loaded into X-Plane 11 or even earlier versions of X-Plane 12 that don't support Panel Graphics, the `ImgWindow` dynamic bridge will correctly fall back to legacy OpenGL, but it will attempt to pass the massive v4.4 SDK's window-creation struct to an older SDK that has no idea how to read it. (While X-Plane's forward-compatibility may allow this "Frankenstein" window to spawn, it is unsupported behavior.)
 
-*   **The Fix:** If the only reason you want the v4.4 SDK is to use Panel Graphics, and you want full backwards compatibility with older versions of X-Plane, then define <code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code> but stop at `-DXPLM430=1`. (In other words, do *not* define `XPLM440`. You don't need it with `ImgWindow`'s panel graphics bridge support!)
+*   **The Fix:** If the only reason you want the v4.4 SDK is to use Panel Graphics, and you want full backwards compatibility with older versions of X-Plane, then define <nobr><code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code></nobr> but stop at <nobr><code>&#8209;DXPLM430=1</code></nobr>. (In other words, do *not* define `XPLM440`. You don't need it with `ImgWindow`'s panel graphics bridge support!)
 
 > [!NOTE]
-> **Only define `XPLM440` in your build configuration** if you explicitly intend to abandon X-Plane 11 through 12.4.4b2 compatibility, dropping support for users who don't or can't update to X-Plane v12.4.4b3 or later. But understand that you don't _need_ to abandon support if the _only_ v4.4 feature you need is Panel Graphics, since `ImgWindow` provides that for "free" when you define `IMGWINDOW_USE_PANEL_GRAPHICS`! (This provides the entire Panel Graphics API through the `ImgPanelGraphics::` namespaced proxy that lets you use the API if it's available, else it gracefully degrades to OpenGL rendering instead!)
-
----
-
-### Call for Errata or Omissions
-
-As with the main [README](../README.md), please feel free to submit a PR or feedback directly to the author if you are interested in improving this document, correcting any inaccuracies or outright errors, and/or adding more relevant examples, tools, documentation, or references.
-
-This file was last updated in *October, 2026* by Steven L. Goldberg, for `ImgWindow v2`.
+> **Only define `XPLM440` in your build configuration** if you explicitly intend to abandon X-Plane 11 through early X-Plane 12 compatibility, dropping support for users who don't or can't update to X-Plane v12.4.4+ or later. But understand that you don't _need_ to abandon support if the _only_ v4.4 feature you need is Panel Graphics, since `ImgWindow` provides that for "free" when you define <nobr><code>&#8209;DIMGWINDOW_USE_PANEL_GRAPHICS</code></nobr>! (This provides the entire Panel Graphics API through the `ImgPanelGraphics::` namespaced proxy that lets you use the API if it's available, else it gracefully degrades to OpenGL rendering instead!)
 
 ---
 
@@ -282,4 +276,12 @@ However, if your plugin is being disabled or stopped (e.g., inside `XPluginDisab
     ImgWindow::Shutdown();
     ```
     
-    This instantly bypasses the 1-frame delay and wipes the queue clean, ensuring a safe exit. *(For a complete, copy-pasteable example of a safe font atlas teardown block, see the "Safe Teardown Example" section in the [Basic Usage Guide](Basic-Usage-Guide.md)).*
+    This instantly bypasses the 1-frame delay and wipes the queue clean, ensuring a safe exit. *(For a complete, copy-pasteable example of a safe font atlas teardown block, see the "Safe Teardown Example" section in the [Basic Usage Guide](Basic-Usage-Guide.md).)*
+
+---
+
+### Call for Errata or Omissions
+
+As with the main [README](../README.md), please feel free to submit a PR or feedback directly to the author if you are interested in improving this document, correcting any inaccuracies or outright errors, and/or adding more relevant examples, tools, documentation, or references.
+
+This file was last updated in *October, 2026* by Steven L. Goldberg, for `ImgWindow v2`.

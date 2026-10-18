@@ -109,8 +109,23 @@ To create an actual window, you **must** subclass the `ImgWindow` base class. Th
 When creating your custom window class, you must invoke the base `ImgWindow` constructor. The base constructor signature looks like this:
 
 ```cpp
+// 1. Direct Simulator Coordinates (O.G. Style):
 ImgWindow(
     int left, int top, int right, int bottom,
+    XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle,
+    XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows,
+    bool cursors = false);
+
+// 2. Auto-Centered on Main Monitor (Added in v2.2.0):
+ImgWindow(
+    int width, int height,
+    XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle,
+    XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows,
+    bool cursors = false);
+
+// 3. Via WindowGeometry Parameter Object (Added in v2.2.0):
+ImgWindow(
+    const WindowGeometry& geometry,
     XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle,
     XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows,
     bool cursors = false);
@@ -118,7 +133,9 @@ ImgWindow(
 
 **Base Constructor Options:**
 * **`left, top, right, bottom`**: The initial bounds of the window in global X-Plane screen coordinates. 
-* **`decoration`**: Dictates how X-Plane borders the window. The default (`xplm_WindowDecorationRoundRectangle`) provides the standard translucent X-Plane 11/12 bezel. If you want ImGui to render its own square borders and title bars without the X-Plane bezel, you can pass `xplm_WindowDecorationSelfDecorated`.
+* **`width, height`**: Initial window dimensions; the window is centered automatically on the primary monitor.
+* **`geometry`**: A `WindowGeometry` parameter object (supports `WindowGeometry::Centered(w, h)`, `WindowGeometry::FromTopLeft(x, y, w, h)`, and safe out-of-bounds recovery via `WindowGeometry::Sanitize(...)`).
+* **`decoration`**: Dictates how X-Plane borders the window. The default (`xplm_WindowDecorationRoundRectangle`) provides the standard translucent X-Plane 11/12 bezel. If you want ImGui to render its own square borders and title bars without the X-Plane bezel, you can pass `xplm_WindowDecorationSelfDecorated` (or `xplm_WindowDecorationSelfDecoratedResizable`).
 * **`layer`**: Dictates the Z-order of the window. The default (`xplm_WindowLayerFloatingWindows`) keeps the window above the cockpit but below system alerts.
 * **`cursors`**: If set to true, allows ImGui to render its own *software* cursors (e.g., a hand icon over links, or an I-beam over text inputs) inside the window's content area. This provides cursor variety that X-Plane historically lacks. The framework automatically negotiates the hand-off so X-Plane retains hardware cursor control over the outer window edges for standard resizing interactions. Because ImGui's cursors are drawn during the UI frame cycle, they may feel slightly less snappy than the native X-Plane hardware cursor. By default (`false`), X-Plane strictly manages the standard hardware arrow cursor everywhere.
 
@@ -126,7 +143,7 @@ ImgWindow(
 #### The Basic Subclass Pattern
 For most plugins, you will simply create one custom C++ class for each unique window in your UI, and have it inherit directly from `ImgWindow` (e.g., `class MySettingsWindow : public ImgWindow`). 
 
-*(If your plugin has many different windows that all need to share the same custom fonts, styling, or behaviors, you can create your own intermediate base class to centralize that logic. To learn how to implement that pattern, see the &rarr;[Advanced Architecture Patterns Guide](Advanced-Architecture-Patterns.md)).*
+*(If your plugin has many different windows that all need to share the same custom fonts, styling, or behaviors, you can create your own intermediate base class to centralize that logic. To learn how to implement that pattern, see the &rarr;[Advanced Architecture Patterns Guide](Advanced-Architecture-Patterns.md).)*
 
 For this basic guide, we will stick to the standard approach: inheriting directly from `ImgWindow`.
 #### Designing Your Subclass Constructor

@@ -1,0 +1,226 @@
+# Ground School: How Dear ImGui, ImgWindow v2, and X-Plane Fit Together
+
+> [!TIP]
+> **How to use this guide:**
+> This document is the **"Regional Overview Map"** for the [`docs/how-to/`](README.md) TripTik series. It explains the big-picture architecture—with zero code changes required yet—so that nothing in the step-by-step guides feels like "black magic."
+>
+> **Already know the lay of the land?** Jump straight to your turn-by-turn TripTik:
+> * 🛫 **[TripTik 1: Get Started with ImgWindow](Get-Started-With-ImgWindow.md)** *(New C++ plugin, or moving from `XPWidgets`, `FlyWithLua`, `SASL`, `XLua`, or `XPPython3`)*
+> * 🚀 **[TripTik 2: Support Panel Graphics](Support-Panel-Graphics.md)** *(Upgrading an existing `ImgWindow` plugin to `ImgWindow v2`)*
+> * 🖼️ **[TripTik 3: Render Custom Textures](Render-Custom-Textures.md)** *(Deleting custom OpenGL `glTexImage2D` / `SystemGL.h` code for `.png`/`.jpg` images)*
+
+---
+
+## 1. The X-Plane Plugin UI Landscape: How We Got Here
+
+If you have built X-Plane plugins (or aircraft scripts) over the years, you have probably encountered X-Plane's historic UI dilemma: **how do you build a rich, modern, interactive 2D window inside the simulator?**
+
+Historically, developers had to choose between two extremes:
+
+```mermaid
+flowchart LR
+    subgraph Legacy["1. Legacy C/C++ SDK"]
+        XPW["<b>XPWidgets (XPCreateWidget)</b><br/>• Manual pixel bounding boxes<br/>• Declarative callback message trees<br/>• 1990s retained-mode architecture"]
+    end
+
+    subgraph Scripting["2. Scripting Frameworks (Lua & Python)"]
+        Lua["<b>FlyWithLua / SASL / XLua / XPPython3</b><br/>• Interpreted script execution overhead<br/>• Prototyping ceiling as plugins grow<br/>• Dependent on host runtime environments"]
+    end
+
+    subgraph Modern["3. Modern Native C++ UI"]
+        ImGui["<b>Dear ImGui + ImgWindow v2</b><br/>• Clean immediate-mode loop (buildInterface)<br/>• Native 60fps compiled C++ speed<br/>• Automated Panel Graphics & zero OpenGL"]
+    end
+
+    XPW ==>|"Escape declarative callbacks"| ImGui
+    Lua ==>|"Graduate to standalone native .xpl"| ImGui
+```
+
+1. **The Legacy C API (`XPWidgets`):**
+   For decades, the only official UI toolkit bundled in the X-Plane SDK was **`XPWidgets`** (`XPWidgets.h` / `XPStandardWidgets.h`). Because it is a 1990s-style *retained-mode, declarative* C API, building even a simple settings window requires manually computing pixel bounding boxes (`left, top, right, bottom`) for every label, button, and scrollbar, creating a tree of widget handles via `XPCreateWidget()`, and wiring up giant `XPWidgetFunc_t` event-loop callbacks to intercept `xpMsg_PushButtonPressed` and `xpMsg_ScrollBarSliderPositionChanged` messages.
+2. **Scripting Frameworks (Lua & Python):**
+   Many developers prototype or build add-ons in scripting languages—such as **FlyWithLua NG+** (popular for utility scripts and custom windows), commercial avionics in **SASL**, aircraft systems in Laminar's **XLua** (historically headless, with **XLua 2.0** gaining Panel Graphics and ImGui bindings in X-Plane 12.4.4), or Python via **XPPython3**. Scripting is fantastic for rapid iteration, but as a project matures, developers often hit the ceiling of interpreter overhead, third-party runtime dependencies, or binary distribution and want to graduate to a compiled, self-contained native C++ plugin (`.xpl`).
+
+### Why Laminar Doesn't Ship a C++ ImGui Wrapper—And Where `ImgWindow` Fits In
+
+When **Dear ImGui** (Omar Cornut's immediate-mode C++ graphical user interface library) took the graphics world by storm, X-Plane developers—and Laminar Research itself—realized it was the perfect fit for simulator tools and windows.
+
+Rather than inventing another proprietary widget library to replace `XPWidgets`, Laminar made a smart architectural split:
+* **Laminar Research provides the low-level windowing and GPU rendering hooks** in the X-Plane SDK (`XPLMDisplay`'s Modern Windows API and `XPLMPanelGraphics`).
+* **Open-source C++ frameworks like `ImgWindow` provide the bridge** that connects Dear ImGui's immediate-mode UI loop to X-Plane's windows, coordinate systems (including VR and multi-monitor DPI scaling), mouse/keyboard input, and rendering pipelines.
+
+### Immediate-Mode vs. Declarative UI at a Glance
+
+If you are coming from `XPWidgets`, the shift to Dear ImGui inside an `ImgWindow` subclass feels like taking off ankle weights. Instead of declaring widget trees during startup and passing messages back and forth, **your UI code simply runs top-to-bottom inside your window's `buildInterface()` draw loop whenever your window is visible** (managed seamlessly by `ImgWindow`'s lifecycle container alongside `onShow()`, `beforeBegin()`, and `afterRendering()` hooks):
+
+```cpp
+// Inside your ImgWindow subclass:
+void MySettingsWindow::buildInterface() {
+    ImGui::TextUnformatted("Camera Field of View:");
+
+    // 1. One line draws the slider, handles mouse/keyboard input, AND updates mFov!
+    if (ImGui::SliderFloat("FOV (degrees)", &mFov, 40.0f, 120.0f, "%.1f deg")) {
+        XPLMSetDataf(mFovDataRef, mFov); // Only runs on the exact frame the user moves the slider
+    }
+
+    // 2. Flight-deck-ready tooltip (polite, hover-delayed, auto-dismissing):
+    ImGui::TimedTooltip::Text("Adjusts lateral peripheral vision (Default: 60.0°).");
+}
+```
+
+> [!NOTE]
+> **Look ma, no event-callback spaghetti!**
+> Notice how `ImGui::TimedTooltip::Text(...)` sits directly beneath the widget it annotates—with zero timers, coordinates, or mouse-tracking state. In `XPWidgets`, building a slider with an interactive tooltip required registering multiple widget trees, manual layout math, and an event pump. In Dear ImGui, your UI code matches your visual layout line-for-line.
+
+---
+
+### 🖱️ Zero-Callback Input: How Mouse & Keyboard Flow Through `ImgWindow`
+
+In `XPWidgets` or raw XPLM windows, intercepting user input required registering monolithic callback procedures and unpacking raw message records (`xpMsg_MouseDown`, `xpMsg_MouseDrag`, `xpMsg_KeyPress`).
+
+In `ImgWindow`, you **never write input callbacks**. `ImgWindow` intercepts X-Plane’s low-level window event hooks (`handleMouseClickFunc`, `handleKeyFunc`, `handleMouseWheelFunc`, and `handleCursorFunc`) and continuously translates simulator events directly into `ImGui::GetIO()`:
+
+* **Instant Hover & Click Detection:** Inside `buildInterface()`, `ImGui::IsItemHovered()` and `ImGui::IsItemClicked()` work immediately. Buttons and controls return `true` on the exact frame clicked.
+* **Mouse-Wheel Scrolling:** ImGui’s native scrolling and `contrib/` mouse-wheel adjustments work instantly across sliders, combos, and custom widgets.
+* **Native-Grade Text Editing (`ImGui::InputText`):**
+  * `ImgWindow` intercepts X-Plane keystrokes and maps OS-level modifier keys seamlessly across platforms. You get standard desktop editing shortcuts out of the box:
+    * **Copy / Cut / Paste:** `Ctrl+C` / `Ctrl+X` / `Ctrl+V` on Windows & Linux, `Cmd+C` / `Cmd+X` / `Cmd+V` on macOS.
+    * **Select All:** `Ctrl+A` / `Cmd+A`.
+    * **Undo & Redo:** `Ctrl+Z` / `Ctrl+Y` on Windows & Linux, `Cmd+Z` / `Cmd+Shift+Z` on macOS.
+    * **Word Navigation & Selection:** `Ctrl`/`Option` + Arrow Keys, `Shift` + Arrow Keys, and `Home`/`End`.
+  * **VR Floating-Window Polish:** Includes defensive input filtering (such as auto-resetting stuck Backspace repeats in VR) so text editing feels reliable inside headsets.
+* **Cursor Passthrough:** ImGui's requested mouse cursors (Arrow, Hand, Text I-Beam, Resize EW/NS) pass cleanly through to X-Plane's cursor system.
+
+---
+
+### 🕹️ The Command System: How Modern X-Plane Plugins Dispatch Actions
+
+In modern X-Plane development, you should never bind UI openings or actions directly to raw keyboard scancodes or bare menu callbacks. Instead, the gold standard architectural best practice is **"Commands for Everything"**—where every window toggle, UI action, and adjustment in your plugin is anchored by an X-Plane Command (`XPLMCommandRef`).
+
+#### The Power of the "Commands for Everything" Model:
+1. **User Freedom:** Users can bind your command to any keyboard shortcut, joystick button, or throttle quadrant detent in X-Plane’s native Settings UI.
+2. **Hardware & Cockpit Integration:** External hardware (StreamDecks, Elgato panels, Arduino/Leo Bodnar button boxes, and physical cockpit switches) trigger commands directly via `XPLMCommandOnce(...)`.
+3. **Script Interoperability:** Lua (`FlyWithLua`) and Python (`XPPython3`) scripts can trigger your plugin's actions seamlessly.
+4. **Automatic Menu Shortcut Labels:** When you bind a menu item to a command using `XPLMAppendMenuItemWithCommand()`, X-Plane automatically prints the user's custom keyboard shortcut right next to the menu text!
+
+#### The 3-Phase Command Lifecycle
+When a user presses and releases a bound key or button, X-Plane invokes your command handler across three distinct phases:
+* `xplm_CommandBegin`: Fired on the initial press (key-down / button transition).
+* `xplm_CommandContinue`: Fired repeatedly on **every single flight loop frame** while the button or key is held down.
+* `xplm_CommandEnd`: Fired on release (key-up / button release).
+
+#### The Two Command Archetypes: Momentary vs. Continuous
+Depending on what your command does, you handle these phases differently:
+
+1. **Discrete / Trigger Commands (Momentary Actions):**
+   * *Examples:* Toggling a settings window, resetting a timer, centering a view, or toggling an overlay.
+   * *Pattern:* Trigger your action once on `xplm_CommandBegin`. Ignore `Continue` and `End`.
+2. **Continuous / Repeating Commands (Held Actions):**
+   * *Examples:* Camera panning, smooth zooming, pitch trim adjustments, or slewing sliders.
+   * *Pattern:* Execute or accumulate movement on every frame during `xplm_CommandContinue`.
+   * *Acceleration Curves:* The longer the user holds the command, the more you can accelerate the rate of change (e.g. slow fine-tuning for the first 0.5 seconds, smoothly accelerating to fast travel for longer holds).
+   * *Cleanup:* Reset velocities or finalize state on `xplm_CommandEnd`.
+
+#### The Golden Rules of Command Dispatching
+
+* **Return `0` to Consume, Return `1` to Pass Through:**
+  * `return 0;` tells X-Plane: *"I have consumed this command. Halt processing and do not pass it to X-Plane or other plugins."*
+  * `return 1;` tells X-Plane: *"Pass this command along to other plugins and the simulator."*
+  * For custom commands created by your plugin, **you own the command**—always consume it by returning `0;`.
+* **The Phase Consistency Rule (Stanza $X$):**
+  * Whatever value you return on `xplm_CommandBegin`, you **must** return on `xplm_CommandContinue` and `xplm_CommandEnd`!
+  * If a handler returns `0` on `Begin` (consuming the press) but returns `1` on `End`, downstream handlers receive an orphaned `End` without ever seeing the `Begin`. This desynchronizes X-Plane's internal dispatch table, causing phantom button repeats, stuck keys, and broken state machines across the simulator.
+* **The Unified Multiplexer Pattern:**
+  * Instead of scattering 10 separate callback functions across your codebase, register **one unified command handler** for related commands. Check `inCommand == g_MyCmd1` (or pass an enum in `inRefcon`) to dispatch cleanly from a single central switchboard.
+
+---
+
+## 2. What Is `ImgWindow v2`? (More Than Just Panel Graphics!)
+
+For years, the original `ImgWindow` (created by Christopher Collins / `@kuroneko` as part of `xsb_public`) was passed around the X-Plane C++ community like an oral tradition. Developers copied a snapshot of `ImgWindow.h` and `ImgWindow.cpp` into their repositories—including Bill Good's (`@sparker256`) popular [`imgui4xp`](https://github.com/sparker256/imgui4xp) starter template, `LiveTraffic`, `xPilot`, and `A-Better-Camera (ABC)`—and fixed bugs or added features in isolated forks.
+
+**`ImgWindow v2` (v2.0 / v2.1+)** is the unified, modernized roll-up of that entire lineage into a single, drop-in repository:
+
+| Pillar | What `ImgWindow v2` Gives You Out of the Box |
+| :--- | :--- |
+| **1. Community Roll-Up** | Incorporates years of community fixes and enhancements across known `ImgWindow` forks (VR window attach/detach handling, boxel/HiDPI scaling, window positioning/gravity helpers, safe popup closure, and Dear ImGui v1.89.7+ / v1.92+ compatibility). |
+| **2. Native Panel Graphics + Backward Compatibility** | Automatically renders via X-Plane 12.4.4+'s native **Panel Graphics (`XPLMPanelGraphics`)** pipeline when available, while falling back to OpenGL at runtime on X-Plane 11.10–12.4.3—**from a single compiled `.xpl` binary**. |
+| **3. Zero-OpenGL Texture Management** | Built-in `ImgWindow::CreateTexture()` and `ImgWindow::DeleteTexture()` APIs let you render `.png`/`.jpg` images via `ImGui::Image()` without writing a single line of OpenGL code. |
+| **4. Optional `contrib/` Suite** | A header-only collection (`#include "contrib/includes.h"`) of X-Plane-ready ImGui widgets and extensions: mouse-wheel sliders/combos with 1-click Reset/Undo, Markdown rendering (`ImGui::MD`), clickable links, stationary sticky-note `TimedTooltip`s, and toggle buttons. |
+
+---
+
+## 3. Under the Hood: The `ImDrawList` "Firehose" & Why Dual-Backend Support Isn't Magic
+
+Many long-time `ImgWindow` users never even knew their plugin was using OpenGL under the hood—they just subclassed `ImgWindow`, configured an `ImgFontAtlas`, and wrote `ImGui::*` calls.
+
+So how does Dear ImGui actually put pixels on the screen inside X-Plane, and why can `ImgWindow v2` support **both** legacy OpenGL and modern Panel Graphics in the same binary without changing a single line of your UI code?
+
+### Step-by-Step: What Happens During One X-Plane UI Frame
+
+```mermaid
+flowchart TD
+    subgraph Phase1["1. Your Plugin Code (CPU Only)"]
+        UI["MyWindow::buildInterface()\nImGui::Text(), ImGui::Button(), ImGui::SliderFloat()"]
+    end
+
+    subgraph Phase2["2. Dear ImGui Engine (In-Memory Caching)"]
+        Firehose["The 'Firehose' of ImDrawLists\n(Flat arrays of 2D vertices, 32-bit indices, UV coords & clip rects)"]
+    end
+
+    subgraph Phase3["3. ImgWindow v2 Dynamic Switchyard"]
+        Router{"Is XPLMPanelGraphics\npresent at runtime?\n(X-Plane 12.4.4+)"}
+        PG["Lane A: Native Panel Graphics\n(renderInterfacePanelGraphics)\nDirect zero-overhead handoff to X-Plane's\nVulkan / Metal 2D renderer"]
+        GL["Lane B: OpenGL Bridge\n(renderInterfaceGL)\nUploads VBOs/Triangles to X-Plane's\nOpenGL-to-Vulkan/Metal bridge"]
+    end
+
+    subgraph Phase4["4. X-Plane Compositor (GPU)"]
+        Screen["X-Plane 2D Window / Pop-Out / VR Pad\n(Vulkan on Win/Linux, Metal on macOS)"]
+    end
+
+    UI -->|"Zero GPU calls during UI layout!"| Firehose
+    Firehose --> Router
+    Router -->|"YES (XP 12.4.4+)"| PG
+    Router -->|"NO (XP 11.10 – 12.4.3)"| GL
+    PG --> Screen
+    GL --> Screen
+```
+
+1. **Your UI Code Does Zero GPU Work (`buildInterface()`):**
+   When X-Plane is in its 2D UI drawing phase and calls your window to draw, Dear ImGui runs your `buildInterface()` function. Thanks to Dear ImGui's immediate-mode design and aggressive internal layout caching, calling `ImGui::Button()` or `ImGui::Text()` does **not** talk to OpenGL, Vulkan, or Metal. It simply calculates 2D rectangles and appends colored triangles and font UV coordinates into an in-memory buffer called an **`ImDrawList`**.
+2. **The `ImDrawList` "Firehose":**
+   At the end of your window's frame, Dear ImGui hands `ImgWindow` a "firehose" of `ImDrawList` payloads—essentially flat C arrays of 2D vertices (`x, y, u, v, rgba`), 32-bit triangle indices, and texture/clip-rectangle commands.
+3. **Two High-Efficiency Receptacles for the Same Firehose:**
+   Ever since X-Plane 11.50 and X-Plane 12, X-Plane's core rendering engine has run on **Vulkan** (Windows/Linux) and **Metal** (macOS). How does that engine ingest `ImgWindow`'s `ImDrawList` firehose?
+   * **Receptacle 1 — X-Plane's OpenGL Bridge (XP 11.10 through XP 12.x):**
+     Laminar Research invested heavily in open-source and custom OpenGL translation layers so that plugins emitting standard OpenGL draw calls (`glDrawElementsBaseVertex`) are ingested into X-Plane's Vulkan/Metal pipeline during render time. It works well, but it still requires setting up and tearing down an OpenGL state machine every frame.
+   * **Receptacle 2 — Native Panel Graphics (`XPLMPanelGraphics`, XP 12.4.4+):**
+     Laminar recognized that almost every modern C++ plugin UI is powered by Dear ImGui's `ImDrawList` firehose. So in X-Plane 12.4.4 (SDK 4.4.0 / `XPLM440`), they introduced **Panel Graphics**—a rendering API shaped *specifically* as a direct, native receptacle for Dear ImGui vertex and index buffers! It bypasses the OpenGL state machine completely and hands your `ImDrawList` arrays straight to X-Plane's native Vulkan/Metal compositor.
+4. **Why Dual-Backend Support Isn't "Pure Magic":**
+   Because your `buildInterface()` code and Dear ImGui's `ImDrawList` firehose are **100% identical** regardless of which receptacle catches them at the bottom, `ImgWindow v2` simply checks at runtime (via `XPLMFindSymbol`) whether X-Plane's Panel Graphics receptacle exists:
+   * On **X-Plane 12.4.4+**, `ImgWindow v2` pours the `ImDrawList` firehose directly into **Panel Graphics**.
+   * On **older X-Plane 12 or X-Plane 11**, `ImgWindow v2` pours the exact same firehose into the **OpenGL Bridge**.
+
+---
+
+## 4. What About Custom Images (`.png` / `.jpg`)?
+
+There is only **one** place where a plugin author's own code ever needed to care about the graphics backend: **loading custom textures** (such as displaying a `.png` diagram or `.jpg` icon via `ImGui::Image()`).
+
+Historically, `ImgWindow` v1 only managed the **Font Atlas texture** for you. If you wanted to draw your own image, you had to include `#include "SystemGL.h"`, call `XPLMGenerateTextureNumbers()`, bind it with `XPLMBindTexture2d()`, and upload pixels yourself via `glTexImage2D()`.
+
+In **`ImgWindow v2`**, you don't even have to do that anymore!
+* `ImgWindow::CreateTexture(rgba_pixels, width, height)` takes your raw RGBA image bytes and creates the underlying texture on whichever backend X-Plane is running (Panel Graphics or OpenGL) behind the scenes, returning a standard `ImTextureID` you can pass straight to `ImGui::Image()`.
+* That means **you can delete 100% of custom OpenGL code from your plugin**, let `ImgWindow v2` manage all of your textures alongside the font atlas, and get native Panel Graphics + OpenGL compatibility for free.
+
+---
+
+## 5. Ready for Takeoff? Pick Your TripTik!
+
+Now that you have the lay of the land, choose the turn-by-turn TripTik that matches where you are starting from today:
+
+| Your Starting Point | Which TripTik to Follow |
+| :--- | :--- |
+| **1. Building a New Plugin UI (or Migrating from `XPWidgets` / `FlyWithLua` / `SASL` / `XLua` / `XPPython3`)**<br>*No OpenGL or Panel Graphics knowledge needed. Shows how to use `imgui4xp` + `ImgWindow v2` + `contrib/` to build a future-proof C++ UI from scratch.* | 👉 **[Get-Started-With-ImgWindow.md](Get-Started-With-ImgWindow.md)** |
+| **2. Upgrading an Existing `ImgWindow` Plugin to `ImgWindow v2`**<br>*You already use `ImgWindow` and just want the drop-in upgrade for native X-Plane 12.4.4+ Panel Graphics with full backward compatibility.* | 👉 **[Support-Panel-Graphics.md](Support-Panel-Graphics.md)** |
+| **3. Removing Custom OpenGL Texture Code (`glTexImage2D` / `SystemGL.h`)**<br>*Your plugin renders `.png`/`.jpg` images via `ImGui::Image()`, and you want to replace your custom OpenGL texture code with `ImgWindow::CreateTexture()`.* | 👉 **[Render-Custom-Textures.md](Render-Custom-Textures.md)** |
+

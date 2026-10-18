@@ -202,7 +202,9 @@ void SmartWidget::buildInterface() {
     XPLMGetWindowGeometry(mWindowID, &left, &top, &right, &bottom);
     
     if ((right - left) != targetWidth || (top - bottom) != targetHeight) {
-        XPLMSetWindowGeometry(mWindowID, left, top, left + targetWidth, top - targetHeight);
+        // Modern WindowGeometry (v2.2+) eliminates manual inverted-Y calculations:
+        auto geom = WindowGeometry::FromTopLeft(left, top, targetWidth, targetHeight);
+        XPLMSetWindowGeometry(mWindowID, geom.left, geom.top, geom.right, geom.bottom);
     }
 }
 ```
@@ -225,13 +227,14 @@ void SmartWidget::snapToTopRight() {
     // Calculate a 20px padding margin
     int margin = 20;
     
-    // Reposition the window to the top right corner
-    XPLMSetWindowGeometry(mWindowID, 
+    // Reposition the window to the top-right corner using WindowGeometry (v2.2+):
+    auto geom = WindowGeometry::FromTopLeft(
         screenRight - width - margin, 
         screenTop - margin, 
-        screenRight - margin, 
-        screenTop - height - margin
+        width, 
+        height
     );
+    XPLMSetWindowGeometry(mWindowID, geom.left, geom.top, geom.right, geom.bottom);
 }
 ```
 By combining these concepts inside a dedicated `SmartWidget` base class, your status bars and popups will automatically resize and smoothly slide into position across the screen whenever their internal content changes!
