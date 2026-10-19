@@ -210,6 +210,7 @@ struct SpoofedXPLMCreateWindow_t_440 {
 namespace ImgPanelGraphics {
     // True if runtime supports Panel Graphics
     bool IsAvailable();
+    const char* GetFallbackReason();
     
 
     // Dynamically loaded Panel Graphics API wrappers

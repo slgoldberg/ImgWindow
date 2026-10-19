@@ -39,6 +39,7 @@
 #include <XPLMDataAccess.h>
 #include <XPLMDisplay.h>
 #include <XPLMGraphics.h>
+#include <XPLMPlugin.h>
 
 #include "imgui_internal.h"
 
@@ -681,6 +682,34 @@ ImgWindow::boxelsToNative(int x, int y, int &outX, int &outY)
     outY = static_cast<int>((ndc[1] * 0.5f + 0.5f) * mViewport[3] + mViewport[1]);
 }
 
+static void LogBackendOnce(bool isPanelGraphics, const char* reason = nullptr)
+{
+    static bool s_logged = false;
+    if (s_logged) return;
+    s_logged = true;
+
+    char pluginName[256] = {0};
+    XPLMPluginID myID = XPLMGetMyID();
+    if (myID != XPLM_NO_PLUGIN_ID) {
+        XPLMGetPluginInfo(myID, pluginName, nullptr, nullptr, nullptr);
+    }
+
+    char buf[512];
+    const char* namePrefix = (pluginName[0] != '\0') ? pluginName : "Unknown Plugin";
+
+    if (isPanelGraphics) {
+        snprintf(buf, sizeof(buf), "ImgWindow v%s: [%s] using Panel Graphics for ImGui rendering.\n",
+                 IMGWINDOW_VERSION, namePrefix);
+    } else if (reason && reason[0] != '\0') {
+        snprintf(buf, sizeof(buf), "ImgWindow v%s: [%s] using OpenGL for ImGui rendering (%s).\n",
+                 IMGWINDOW_VERSION, namePrefix, reason);
+    } else {
+        snprintf(buf, sizeof(buf), "ImgWindow v%s: [%s] using OpenGL for ImGui rendering.\n",
+                 IMGWINDOW_VERSION, namePrefix);
+    }
+    XPLMDebugString(buf);
+}
+
 void
 ImgWindow::RenderImGui(ImDrawData *draw_data)
 {
@@ -698,11 +727,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
 
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     if (ImgPanelGraphics::IsAvailable()) {
-        static bool s_logged_backend = false;
-        if (!s_logged_backend) {
-            XPLMDebugString("ImgWindow: Rendering via XPLM v4.4 Panel Graphics\n");
-            s_logged_backend = true;
-        }
+        LogBackendOnce(true);
 
         if (mFontTexture == (ImTextureID)0 || draw_data->CmdListsCount == 0)
             return;
@@ -773,9 +798,12 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         }
         
         ImgPanelGraphics::TransformPop();
-    } else
-#endif
+    } else {
+        LogBackendOnce(false, ImgPanelGraphics::GetFallbackReason());
+#else
     {
+        LogBackendOnce(false);
+#endif
     updateMatrices();
 
     // We are using the OpenGL fixed pipeline because messing with the
@@ -1558,6 +1586,7 @@ namespace ImgPanelGraphics {
 
     static bool s_initialized = false;
     static bool s_available = false;
+    static const char* s_fallbackReason = nullptr;
 
     static void InitDynamic() {
         if (s_initialized) return;
@@ -1586,18 +1615,25 @@ namespace ImgPanelGraphics {
             if (hasSafePanelGraphicsVersion) {
                 // Fully safe to use Panel Graphics!
                 s_available = true;
+                s_fallbackReason = nullptr;
             } else {
-                // SDK v4.4b1/b2 detected: unsafe destruction deferral; force OpenGL fallback with special log entry to alert the user.
-                //FIXME: Consider throwing a fatal error here (or an assert) if XPLM440+ is required by the build configuration. (In that case, we should probably honor the contract to *only* use Panel Graphics, and not fall back to OpenGL.)
-                XPLMDebugString("ImgWindow WARNING: X-Plane Panel Graphics API detected, but requires X-Plane 12.4.4b3 or later. Falling back to legacy OpenGL to prevent instability.\n");
                 s_available = false;
+                s_fallbackReason = "requires X-Plane 12.4.4b3+ for Panel Graphics";
             }
+        } else {
+            s_available = false;
+            s_fallbackReason = "would need XPLM v4.4 for Panel Graphics rendering";
         }
     }
 
     bool IsAvailable() {
         InitDynamic();
         return s_available;
+    }
+
+    const char* GetFallbackReason() {
+        InitDynamic();
+        return s_fallbackReason;
     }
 
     void* CreateTexture(const unsigned char* rgba_image, int width, int height) {

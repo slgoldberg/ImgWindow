@@ -68,9 +68,9 @@ add_definitions(-DIMGWINDOW_USE_PANEL_GRAPHICS)
 
 When your plugin initializes its first ImGui window, `ImgWindow` will log its routing decision to X-Plane's `Log.txt`. To verify that Panel Graphics is active, look for the following line:
 
-> `ImgWindow: Rendering via XPLM v4.4 Panel Graphics`
+> `ImgWindow v2.2.1: [YourPlugin] using Panel Graphics for ImGui rendering.`
 
-*(Note: If the simulator lacks Panel Graphics support and falls back to legacy OpenGL, `ImgWindow` operates completely silently without emitting a log entry.)*
+*(Note: When running on OpenGL or falling back on earlier sim versions, `ImgWindow` logs the active backend and specific reason, e.g. `ImgWindow v2.2.1: [YourPlugin] using OpenGL for ImGui rendering (would need XPLM v4.4 for Panel Graphics rendering).`)*
 
 ---
 

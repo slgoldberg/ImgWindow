@@ -59,7 +59,7 @@ API**, available in the XPLM v4.4 SDK (starting with X-Plane v12.4.4).
 Components in this library assume the availability of the X-Plane XPLM3 or
 later SDK, and rely on the developer including these files within their own
 build projects for any X-Plane plugins that use ImGui, which must also be
-installed (no less than ImGui v1.84 WIP, with native support for the new `ImFontAtlas` API in ImGui v1.92+). Later versions may work fine, but no guarantees are made.
+installed (compatible with Dear ImGui v1.78 WIP through v1.92+, with native support for the new `ImFontAtlas` API in ImGui v1.92+). Later versions may work fine, but no guarantees are made.
 
 ## Components in this Repository
 

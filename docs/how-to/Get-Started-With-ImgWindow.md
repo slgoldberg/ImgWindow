@@ -531,9 +531,9 @@ Compile your plugin, drop the resulting `.xpl` into your `X-Plane/Resources/plug
 Look at X-Plane's `Log.txt` to verify `ImgWindow` initializing its modern graphics bridge:
 
 ```text
-ImgWindow: Rendering via XPLM v4.4 Panel Graphics
+ImgWindow v2.2.1: [YourPlugin] using Panel Graphics for ImGui rendering.
 ```
-*(On older simulator versions, `ImgWindow` falls back to its legacy OpenGL pipeline silently.)*
+*(On older simulator versions without Panel Graphics support, `ImgWindow` falls back to its legacy OpenGL pipeline and logs the reason.)*
 
 Trigger your command (or click your menu item), and your Dear ImGui window will appear floating smoothly in the simulator!
 
