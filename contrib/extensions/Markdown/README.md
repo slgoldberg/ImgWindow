@@ -314,11 +314,21 @@ The following tags are pre-registered and active by default:
 | :--- | :--- | :--- | :--- |
 | **`color` / `col`** | `<color=COLOR>text</color>`<br>`<color COLOR [bold] [italic] [mono]>text</color>` | Named colors (`red`, `green`, `blue`, `yellow`, `orange`, `purple`, `violet`, `cyan`, `magenta`, `white`, `black`, `gray`, `gold`, `dark`, `light`) or hex (`#RRGGBB`, `#RRGGBBAA`, `0xRRGGBB`, `0xRRGGBBAA`). Optional flags: `bold`, `italic`, `mono`. | Renders `text` in the specified color and font style. |
 | **`backdrop` / `bg` / `highlight`** | `<backdrop=COLOR>text</backdrop>`<br>`<backdrop COLOR [bold] [italic] [mono]>text</backdrop>` | Accepts any named color or hex code. Optional attribute flags: `bold`, `italic`, `mono`. | Renders a rounded background rectangle ("pill") optically centered behind the text bounding box. Backdrops auto-contrast text color against dark backgrounds and never split awkwardly across lines. |
-| **`badge` / `pill` / `tag`** | `<badge=VARIANT>text</badge>`<br>`<pill COLOR [bold] [italic] [mono]>text</pill>` | Semantic variants (`danger`, `warning`, `success`, `info`), named colors, or custom hex color. Optional flags: `bold`, `italic`, `mono`. | Renders a sleek, rounded pill badge with thematic background and auto-contrasting text. |
+| **`badge` / `pill` / `tag`** | `<badge=VARIANT>text</badge>`<br>`<pill COLOR [bold] [italic] [mono]>text</pill>`<br>`<pill bg=BG fg=FG>text</pill>` | Semantic variants (`danger`, `warning`, `success`, `info`), named colors, or custom hex color. Supports explicit dual-color attributes (`bg=COLOR fg=COLOR`, `color=COLOR text=COLOR`, or positional tokens like `<pill green white>`). Optional flags: `bold`, `italic`, `mono`. | Renders a sleek, rounded pill badge with thematic background and auto-contrasting (or explicit) text. |
 | **`btn`** | `<btn=ID>label</btn>`<br>`<btn [bold] [italic] [mono]>label</btn>` | Unique button ID or style flags (`bold`, `italic`, `mono`). | Renders an inline, clickable `ImGui::SmallButton` directly within text flow. |
-| **`mono` / `code`** | `<mono>text</mono>`<br>`<code [COLOR]>text</code>` | Accepts optional custom background color or hex parameter. | Renders `text` in monospace (`mdConfig.monoFont`) inside a subtle, translucent rounded background pill. |
+| **`mono` / `code`** | `<mono>text</mono>`<br>`<code [COLOR]>text</code>` | Accepts optional custom background color or hex parameter (and optional `fg=COLOR`). | Renders `text` in monospace (`mdConfig.monoFont`) inside a subtle, translucent rounded background pill. |
 
 *(To disable default tags, define `#define IMGUI_DISABLE_MARKDOWN_DEFAULT_TAGS` before including the header.)*
+
+#### Two-Color Pills & Badges (`bg=` and `fg=`)
+
+By default, `<badge>`, `<pill>`, and `<backdrop>` automatically contrast the text color against the background (e.g., using dark text on yellow, light text on dark blue). When you want explicit artistic control over both colors, specify `bg` (background) and `fg` (text/foreground):
+
+```markdown
+Status: <pill bg=warning fg=black>CAUTION</pill>
+Release: <badge bg=#1a3a5a fg=#40c0ff bold>v2.2.1</badge>
+Dual-tone: <pill purple white italic>SPECIAL</pill>
+```
 
 #### Inner Markdown vs. Tag Attributes
 
