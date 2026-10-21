@@ -934,6 +934,38 @@ ImgWindow::updateImgui()
     // in boxels, we're always scale 1, 1.
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 
+    // Audit mouse cursor position and invalidate if cursor has left the window content area.
+    // This prevents "phantom stuck cursors" when the mouse exits into the sim, and cleanly
+    // invalidates hover states on blur or Alt-Tab.
+    if (!IsInVR()) {
+        int mouseX = 0, mouseY = 0;
+#if defined(XPLM300)
+        XPLMGetMouseLocationGlobal(&mouseX, &mouseY);
+#else
+        XPLMGetMouseLocation(&mouseX, &mouseY);
+#endif
+
+        const bool isMouseInside = (mouseX >= mLeft && mouseX <= mRight &&
+                                    mouseY >= mBottom && mouseY <= mTop);
+
+        const bool isInsideContent = isMouseInside &&
+            !(IsInsideSim() && bHandleWndResize &&
+              (mouseX < (mLeft + WND_RESIZE_LEFT_WIDTH) ||
+               mouseX > (mRight - WND_RESIZE_RIGHT_WIDTH) ||
+               mouseY > (mTop - WND_RESIZE_TOP_WIDTH) ||
+               mouseY < (mBottom + WND_RESIZE_BOTTOM_WIDTH)));
+
+        if (!isInsideContent) {
+            if (bUseImgCursors) {
+                io.MouseDrawCursor = false;
+            }
+#ifdef IMGUI_V190_REFACTOR
+            io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+#endif
+            io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+        }
+    }
+
 #ifdef IMGUI_V192_REFACTOR
     // Just-in-time rebuild:
     // If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
@@ -1058,8 +1090,11 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
     ImGui::SetCurrentContext(mImGuiContext);
     ImGuiIO& io = ImGui::GetIO();
 
-    // Tell ImGui the mous position relative to the window
+    // Tell ImGui the mouse position relative to the window
     translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
+#ifdef IMGUI_V190_REFACTOR
+    io.AddMousePosEvent(io.MousePos.x, io.MousePos.y);
+#endif
     const int loc_x = int(io.MousePos.x);       // local x, relative to top/left corner
     const int loc_y = int(io.MousePos.y);
     const int dx = x - lastMouseDragX;          // dragged how far since last down/drag event?
@@ -1116,6 +1151,9 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                 SetWindowGeometry(mLeft, mTop, mRight, mBottom);
                 // now that the window has moved under the mouse we need to update relative mouse pos
                 translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
+#ifdef IMGUI_V190_REFACTOR
+                io.AddMousePosEvent(io.MousePos.x, io.MousePos.y);
+#endif
                 // Update the last handled position
                 lastMouseDragX = x;
                 lastMouseDragY = y;
@@ -1184,9 +1222,14 @@ ImgWindow::HandleKeyFuncCB(
     // Loosing focus? That's not exactly something ImGui allows us to do...
     // we try convincing ImGui to let it go by sending an [Esc] key for the legacy version, or by sending a focus-lost event for the modern version.
     if (blosingFocus) {
+        if (thisWindow->bUseImgCursors) {
+            io.MouseDrawCursor = false;
+        }
 #ifdef IMGUI_V190_REFACTOR
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
         io.AddFocusEvent(false); // tell ImGui it lost focus
 #endif /* IMGUI_V190_REFACTOR */
+        io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
         if (ImGui::GetCurrentContext()) {
             // Clear any active ID, to prevent ImGui from thinking it still has focus:
             ImGui::ClearActiveID();
@@ -1300,18 +1343,43 @@ ImgWindow::HandleCursorFuncCB(
     ImGuiIO& io = ImGui::GetIO();
     float outX, outY;
     thisWindow->translateToImguiSpace(x, y, outX, outY);
+
+    // If coordinates fall outside the window's client bounds, invalidate mouse and release cursor:
+    if (outX == -FLT_MAX || outY == -FLT_MAX) {
+        if (thisWindow->bUseImgCursors) {
+            io.MouseDrawCursor = false;
+        }
+#ifdef IMGUI_V190_REFACTOR
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+#endif
+        io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+        return xplm_CursorDefault;
+    }
+
+#ifdef IMGUI_V190_REFACTOR
+    io.AddMousePosEvent(outX, outY);
+#endif
     io.MousePos = ImVec2(outX, outY);
     
     // Don't use ImGui mouse cursor handling if disabled, or if cursor is
     // within special XPLM self-styled resize handling regions.
-    if (!thisWindow->bUseImgCursors ||
-        (thisWindow->IsInsideSim() && thisWindow->bHandleWndResize &&
-         (x < (thisWindow->mLeft + WND_RESIZE_LEFT_WIDTH) ||
-          x > (thisWindow->mRight - WND_RESIZE_RIGHT_WIDTH) ||
-          y > (thisWindow->mTop - WND_RESIZE_TOP_WIDTH) ||
-          y < (thisWindow->mBottom + WND_RESIZE_BOTTOM_WIDTH))))
+    if (thisWindow->IsInsideSim() && thisWindow->bHandleWndResize &&
+        (x < (thisWindow->mLeft + WND_RESIZE_LEFT_WIDTH) ||
+         x > (thisWindow->mRight - WND_RESIZE_RIGHT_WIDTH) ||
+         y > (thisWindow->mTop - WND_RESIZE_TOP_WIDTH) ||
+         y < (thisWindow->mBottom + WND_RESIZE_BOTTOM_WIDTH)))
     {
-        // Defer to XPLM's hand cursor if disabled, or when inside the XPLM-managed resize grab regions:
+        // Defer to XPLM's resize cursor when inside the XPLM-managed resize grab regions:
+        io.MouseDrawCursor = false;
+#ifdef IMGUI_V190_REFACTOR
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+#endif
+        io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+        return xplm_CursorDefault;
+    }
+
+    if (!thisWindow->bUseImgCursors) {
+        // Defer to XPLM's default hardware cursor if dynamic ImGui cursors are not enabled:
         io.MouseDrawCursor = false;
         return xplm_CursorDefault;
     }
@@ -1342,6 +1410,9 @@ ImgWindow::HandleMouseWheelFuncCB(
 
     float outX, outY;
     thisWindow->translateToImguiSpace(x, y, outX, outY);
+#ifdef IMGUI_V190_REFACTOR
+    io.AddMousePosEvent(outX, outY);
+#endif
     io.MousePos = ImVec2(outX, outY);
     switch (wheel) {
     case 0:
@@ -1393,6 +1464,17 @@ ImgWindow::SetVisible(bool inIsVisible)
             // chance to early abort.
             return;
         }
+    } else {
+        // Invalidate mouse cursor and position when hiding window
+        ImGui::SetCurrentContext(mImGuiContext);
+        ImGuiIO& io = ImGui::GetIO();
+        if (bUseImgCursors) {
+            io.MouseDrawCursor = false;
+        }
+#ifdef IMGUI_V190_REFACTOR
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+#endif
+        io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
     }
     XPLMSetWindowIsVisible(mWindowID, inIsVisible);
 }

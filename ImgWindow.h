@@ -37,8 +37,8 @@
 
 // Version format: MmmPP (Major, 2-digit Minor, 2-digit Patch)
 // e.g., v2.0.0 becomes 20000. v1.12.3 becomes 11203.
-#define IMGWINDOW_VERSION       "2.2.1"
-#define IMGWINDOW_VERSION_NUM   20201
+#define IMGWINDOW_VERSION       "2.2.2"
+#define IMGWINDOW_VERSION_NUM   20202
 
 #include "SystemGL.h"
 
@@ -428,6 +428,10 @@ protected:
     /** Enables/disables ImGui handling of all mouse cursors inside window. */
     inline void SetImgCursorHandling (bool inIsEnabled)
     { bUseImgCursors = inIsEnabled; }
+
+    /** Returns whether ImGui handling of mouse cursors is enabled for this window. */
+    inline bool GetImgCursorHandling () const
+    { return bUseImgCursors; }
 
 private:
     std::shared_ptr<ImgFontAtlas> mFontAtlas;

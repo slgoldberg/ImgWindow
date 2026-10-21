@@ -95,6 +95,7 @@ namespace ImGui
 		char                    emphasisChar  = '\0';                      // The character used for emphasis (e.g. *, _, ^, >)
         bool                    itemHovered = false;                       // Currently only set for links when mouse hovered, only valid when start_ == false
         const MarkdownConfig*   config  = NULL;
+        bool                    isStartOfDoc = false;                      // True if this block is at start of markdown document/text (no preceding non-whitespace content)
     };
 
     typedef void                MarkdownLinkCallback( MarkdownLinkCallbackData data );    
@@ -424,6 +425,22 @@ namespace ImGui
         // render
         MarkdownFormatInfo formatInfo;
         formatInfo.config = &mdConfig_;
+
+        // Determine if this line/block is at the start of the markdown document (no preceding non-whitespace content)
+        bool isAtStart = true;
+        int checkLimit = line_.lineStart + line_.leadSpaceCount;
+        for( int k = 0; k < checkLimit; ++k )
+        {
+            char ch = markdown_[k];
+            if( ch == '\0' ) { break; }
+            if( ch != ' ' && ch != '\t' && ch != '\r' && ch != '\n' )
+            {
+                isAtStart = false;
+                break;
+            }
+        }
+        formatInfo.isStartOfDoc = isAtStart;
+
         int textStart = line_.lastRenderPosition + 1;
         int textSize = line_.lineEnd - textStart;
         if( line_.isUnorderedListStart )    // render unordered list
@@ -1116,7 +1133,10 @@ namespace ImGui
                 {
                     ImGui::PushFont( fmt.font );
                 }
-                ImGui::NewLine();
+                if( !markdownFormatInfo_.isStartOfDoc )
+                {
+                    ImGui::NewLine();
+                }
             }
             else
             {
