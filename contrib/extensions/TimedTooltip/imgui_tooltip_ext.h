@@ -671,7 +671,7 @@ namespace TimedTooltip {
     inline bool TextProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        bool res = TextProxyV(id, is_hovered, config, fmt, args);
+        bool res = TextProxyV(id, is_hovered, config, fmt, args, ImGui::IsItemClicked());
         va_end(args);
         return res;
     }
@@ -679,7 +679,7 @@ namespace TimedTooltip {
     inline bool TextProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        bool res = TextProxyV(id, is_hovered, nullptr, fmt, args);
+        bool res = TextProxyV(id, is_hovered, nullptr, fmt, args, ImGui::IsItemClicked());
         va_end(args);
         return res;
     }
@@ -687,9 +687,13 @@ namespace TimedTooltip {
     inline bool TextProxy(const char* str_id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        bool res = TextProxyV(ImGui::GetID(str_id), is_hovered, nullptr, fmt, args);
+        bool res = TextProxyV(ImGui::GetID(str_id), is_hovered, nullptr, fmt, args, ImGui::IsItemClicked());
         va_end(args);
         return res;
+    }
+
+    inline bool TextProxy(ImGuiID id, bool is_hovered, const std::string& text, const TooltipConfig* config = nullptr) {
+        return TextProxy(id, is_hovered, config, "%s", text.c_str());
     }
 
     inline bool TextProxy(const char* str_id, bool is_hovered, const std::string& text, const TooltipConfig* config = nullptr) {

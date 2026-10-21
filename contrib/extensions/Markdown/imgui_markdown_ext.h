@@ -1305,7 +1305,7 @@ namespace TimedTooltip {
     inline bool TextMDProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        bool res = TextMDProxyV(id, is_hovered, config, fmt, args);
+        bool res = TextMDProxyV(id, is_hovered, config, fmt, args, ImGui::IsItemClicked());
         va_end(args);
         return res;
     }
@@ -1313,7 +1313,7 @@ namespace TimedTooltip {
     inline bool TextMDProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        bool res = TextMDProxyV(id, is_hovered, nullptr, fmt, args);
+        bool res = TextMDProxyV(id, is_hovered, nullptr, fmt, args, ImGui::IsItemClicked());
         va_end(args);
         return res;
     }
@@ -1321,7 +1321,7 @@ namespace TimedTooltip {
     inline bool TextMDProxy(const char* str_id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        bool res = TextMDProxyV(ImGui::GetID(str_id), is_hovered, nullptr, fmt, args);
+        bool res = TextMDProxyV(ImGui::GetID(str_id), is_hovered, nullptr, fmt, args, ImGui::IsItemClicked());
         va_end(args);
         return res;
     }

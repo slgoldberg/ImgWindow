@@ -1237,7 +1237,7 @@ namespace ImGui {
         ImDrawFlags round_flags = abutting ? ImDrawFlags_RoundCornersRight : ImDrawFlags_RoundCornersAll;
 #endif
         draw_list->AddRectFilled(p, ImVec2(p.x + width, p.y + height), bg_col, rounding, round_flags);
-        if (style.FrameBorderSize > 0.0f) {
+        if (style.FrameBorderSize > 0.0f && !abutting) {
             draw_list->AddRect(p, ImVec2(p.x + width, p.y + height), GetColorU32(ImGuiCol_Border), rounding, round_flags, style.FrameBorderSize);
         }
 

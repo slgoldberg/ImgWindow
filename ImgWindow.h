@@ -233,6 +233,9 @@ public:
     /** Is Window in front of Z-order? */
     bool IsWindowInFront () const { return XPLMIsWindowInFront(mWindowID) != 0; }
     
+    /** Is the window actively being moved or resized by the user? */
+    bool IsWindowMoving() const { return (bool)dragWhat; }
+    
     /** @brief Define Window drag area, ie. an area in which dragging with the mouse
      * moves the entire window.
      * @details Useful for windows without decoration.
