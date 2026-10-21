@@ -1153,6 +1153,7 @@ namespace ImGui
                 ImGui::PopStyleColor();
                 if( markdownFormatInfo_.itemHovered )
                 {
+                    ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
                     ImGui::UnderLine( ImGui::GetStyle().Colors[ ImGuiCol_ButtonHovered ] );
                 }
                 else
