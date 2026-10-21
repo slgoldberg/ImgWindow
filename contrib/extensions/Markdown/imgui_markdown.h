@@ -159,6 +159,7 @@ namespace ImGui
         ImFont*                 boldFont = nullptr;                 // If nullptr, falls back to headingFormats[3].font
         ImFont*                 italicFont = nullptr;               // If nullptr, falls back to ImGuiCol_TextDisabled
         ImFont*                 monoFont = nullptr;                 // If nullptr, falls back to ambient window font
+        ImFont*                 regularFont = nullptr;              // If nullptr, falls back to ambient window font
     };
 
     //-----------------------------------------------------------------------------
@@ -1032,6 +1033,12 @@ namespace ImGui
         switch( markdownFormatInfo_.type )
         {
         case MarkdownFormatType::NORMAL_TEXT:
+        case MarkdownFormatType::UNORDERED_LIST:
+            if( markdownFormatInfo_.config && markdownFormatInfo_.config->regularFont )
+            {
+                if( start_ ) ImGui::PushFont( markdownFormatInfo_.config->regularFont );
+                else         ImGui::PopFont();
+            }
             break;
 		case MarkdownFormatType::EMPHASIS:
         {
@@ -1136,8 +1143,6 @@ namespace ImGui
             }
             break;
         }
-        case MarkdownFormatType::UNORDERED_LIST:
-            break;
         case MarkdownFormatType::LINK:
             if( start_ )
             {

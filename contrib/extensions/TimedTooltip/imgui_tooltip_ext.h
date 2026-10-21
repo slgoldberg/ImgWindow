@@ -31,7 +31,7 @@ namespace TimedTooltip {
     using std::max;
 
     struct TooltipConfig {
-        int hover_delay_cycles = 65;      // Low Watermark: Cycles before appearing
+        int hover_delay_cycles = 25;      // Low Watermark: Cycles before appearing (~0.4s at 60fps)
         int max_display_cycles = 504;     // High Watermark: Cycles before auto-hiding
         int grace_period_cycles = 12;     // Forgiveness cycles for slipping off the widget
         float size_skew_multiplier = 0.5f;// Add extra cycles per pixel of height for massive manuals
@@ -46,6 +46,7 @@ namespace TimedTooltip {
         float indent_spacing = 20.0f;                            // Isolated standard indent spacing
         float bullet_spacing = 4.0f;                             // Gap between bullet glyph and text (default 4.0f)
         float font_scale = 0.0f;                                 // 0.0f = inherit ambient font scale; >0.0f = custom window font scale
+        ImFont* font = nullptr;                                  // Custom font for tooltip overlay window (if nullptr, uses ambient)
         
         ImVec4 bg_color = ImVec4(1.0f, 0.95f, 0.6f, 1.0f);      // Yellow Sticky Note (100% opaque)
         ImVec4 border_color = ImVec4(0.8f, 0.75f, 0.4f, 1.0f);   // Slightly darker border
@@ -103,6 +104,7 @@ namespace TimedTooltip {
         ImVec2 perfect_size = ImVec2(0, 0);
         bool is_displayed = false;
         bool is_cooldown = false; // Prevents reappearing if they remain perfectly still after auto-hide
+        bool font_pushed = false;
         int last_frame_updated = 0;
         ImGuiContext* last_context_updated = nullptr;
     };
@@ -340,6 +342,12 @@ else // only *add* to max timeout if it's not very short per above:
             }
             ImGui::PushStyleColor(ImGuiCol_Text, config->text_color); // Pushed AFTER Begin to affect window contents!
             ImGui::PushStyleColor(ImGuiCol_Separator, config->text_color); // Ensures markdown horizontal lines match the text color!
+            if (config->font) {
+                ImGui::PushFont(config->font);
+                state.font_pushed = true;
+            } else {
+                state.font_pushed = false;
+            }
             // Once Begin() is called, always return true so caller invokes EndStationaryTooltip()
             // to properly close the window and pop styles, avoiding 1-frame titlebar blips on appearance.
             return true;
@@ -365,6 +373,10 @@ else // only *add* to max timeout if it's not very short per above:
         
         // Capture size mathematically so the next frame can calculate the skew ratio!
         state.last_size = ImGui::GetWindowSize();
+        if (state.font_pushed) {
+            ImGui::PopFont();
+            state.font_pushed = false;
+        }
         ImGui::PopStyleColor(2); // Pop Text and Separator
         ImGui::End();
         ImGui::PopStyleVar(4);    // Pop WindowPadding, ItemSpacing, FramePadding, IndentSpacing

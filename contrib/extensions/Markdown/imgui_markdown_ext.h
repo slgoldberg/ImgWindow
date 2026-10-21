@@ -500,6 +500,8 @@ namespace ImGui {
             s_CustomTags["badge"] = badgeHandler;
             s_CustomTags["pill"]  = badgeHandler;
             s_CustomTags["tag"]   = badgeHandler;
+            s_CustomTags["kbd"]   = badgeHandler;
+            s_CustomTags["key"]   = badgeHandler;
 
             // Built-in Tag 4: <btn=...>
             s_CustomTags["btn"] = [](const std::string& inner_text, const std::string& param) {
