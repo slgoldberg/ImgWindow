@@ -28,8 +28,8 @@ Here are the major additions to the framework since it was forked:
 > This is a **critical build choice!**
 > If you just define `IMGWINDOW_USE_PANEL_GRAPHICS` in your build, the framework automatically uses dynamic bindings to render via Panel Graphics on XP12.4.4+, but gracefully falls back to legacy OpenGL on older simulators. If you define `XPLM440=1` instead, you will hard-break backwards compatibility with older versions of X-Plane and OpenGL. Don't do that unless you genuinely only want to support the bleeding edge. Read the [Panel Graphics Migration Guide](docs/Panel-Graphics-Migration.md) for the gory details.
 
-+ **Right-drag window moving:**<br>
-An opt-in feature allowing the framework to move in-simulator windows automatically if the user right-clicks and drags anywhere on the window (saving them from hunting for a tiny drag region).
++ **Right-drag window moving & drag state detection:**<br>
+An opt-in feature allowing the framework to move in-simulator windows automatically if the user right-clicks and drags anywhere on the window (saving them from hunting for a tiny drag region). Callers can also query `IsWindowMoving()` during their `buildInterface()` loop to detect when the user is actively dragging or resizing the window (e.g. to pause heavy computations or graph updates during movement).
 
 + **Cursor invalidation on blur:**<br>
 Automatically invalidates the cursor position when the window loses focus, ensuring it updates correctly when the user clicks back in.

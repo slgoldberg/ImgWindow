@@ -285,13 +285,14 @@ Once your minimal window is up and running, real-world plugins quickly demand mo
 
 ### The Lifecycle Container
 
-`ImgWindow` acts as a complete lifecycle container with several optional hooks:
+`ImgWindow` acts as a complete lifecycle container with several optional hooks and runtime queries:
 
 * **`buildInterface()` (Required)**: Called every frame your window is visible to construct widgets and dispatch plugin logic.
 * **`onShow()` (Optional)**: Called immediately before the window becomes visible. Return `false` to suppress display (e.g. if required systems or avionics power are offline).
 * **`beforeBegin()` (Optional)**: Called right before `ImGui::Begin()`. Return custom `ImGuiWindowFlags_` (such as `ImGuiWindowFlags_NoTitleBar` or `ImGuiWindowFlags_MenuBar`).
 * **`afterRendering()` (Optional)**: Called after Dear ImGui finishes drawing, right before X-Plane's window draw callback returns.
 * **`mFirstRender` (Protected Flag)**: A built-in boolean guard you can check inside `buildInterface()` to perform one-time setup (like default table column widths or initial focus) on the very first frame.
+* **`IsWindowMoving()` (Runtime Query)**: Returns `true` if the user is actively dragging or resizing the window. Essential for freezing heavy computations, pausing live graph updates, or deferring layout adjustments until the window settles.
 * **`SafeDelete()`**: Schedules deferred self-destruction of the window instance from within its own event handlers or click callbacks, safely deleting the object at the flight loop boundary without dangling pointers.
 
 ---

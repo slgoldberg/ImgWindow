@@ -200,14 +200,24 @@ The `ImgWindow` API provides several optional hooks you can override to tightly 
 * **`afterRendering()`**: Called after all ImGui rendering is complete, right before the XPLM draw callback returns. Useful for custom state cleanup.
 * **`onShow()`**: Called before the window is made visible. Returning `false` will suppress the window from showing.
 
-### 3.4 VR Handling
+### 3.4 Runtime State & Positioning Queries
+`ImgWindow` provides several lightweight queries you can evaluate inside your `buildInterface()` draw loop to adapt your UI based on how the window is currently positioned or handled:
+
+* **`IsWindowMoving()`**: Returns `true` while the window is actively being moved or resized by the user. Useful for deferring expensive calculations, pausing high-frequency chart updates, or preventing layout thrashing during drags.
+* **`IsPoppedOut()`**: Returns `true` if the window has been popped out into an independent operating system window.
+* **`IsInVR()`**: Returns `true` if the window is currently inside the X-Plane VR world.
+* **`IsInsideSim()`**: Returns `true` if the window is floating within the 2D X-Plane simulator canvas (`!IsPoppedOut() && !IsInVR()`).
+* **`IsWindowInFront()`**: Returns `true` if the window is currently at the top of the Z-order stack.
+* **`GetVisible()`**: Returns `true` if the window is currently visible.
+
+### 3.5 VR Handling
 The `ImgWindow` framework includes built-in support for seamlessly displaying your windows in X-Plane's VR environment.
 
 By default, windows are created in the 2D layered window system (e.g., `xplm_WindowLayerFloatingWindows`). However, if a user opens your window while they are actively in VR, the framework's `moveForVR()` logic automatically intercepts this and forces the window to spawn in the VR world (`xplm_WindowVR`) instead. 
 
 *(Note: The framework checks the VR state automatically whenever you call `SetVisible(true)`. It does not continuously poll the VR state in the background. If you want an already-open 2D window to instantly teleport into VR the moment the user puts their headset on, your plugin will need to track the VR DataRef and explicitly toggle the window's visibility to trigger the transition!)*
 
-### 3.5 Safe Window Destruction
+### 3.6 Safe Window Destruction
 Never use the standard C++ `delete` operator to destroy your window instance (and thus the window itself) from inside an ImGui callback (like a button press which happens in a "draw" cycle callback). Doing so will destroy the object while ImGui is still actively processing its draw tree, causing an instant crash.
 
 Instead, always call **`SafeDelete()`**, which is an `ImgWindow` helper method. This **queues the window instance for destruction**, deferring the actual deletion to a static XPLM Flight Loop Callback that safely destroys the window pointer in the `BeforeFlightModel` phase (entirely outside of the ImGui and X-Plane drawing loops).

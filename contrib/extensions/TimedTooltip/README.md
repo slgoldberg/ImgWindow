@@ -174,6 +174,14 @@ Tooltips automatically check the active display dimensions (`ImGui::GetIO().Disp
 
 ---
 
+## Click Forwarding & Automatic Dismissal
+
+Tooltips attached to interactive or proxy-instrumented widgets (like `ButtonLink`, chevron menus, or `TextProxy` / `TextMDProxy` items) automatically intercept clicks via `ImGui::IsItemClicked()`:
+* **Immediate Dismissal:** Clicking an active widget immediately dismisses the active tooltip, preventing tooltips from lingering over open menus or blocking post-click interactions.
+* **Toggle on Idle Click:** Clicking an idle/non-actionable widget (such as a dimmed reset button or standalone info link) cleanly toggles the explanation tooltip on/off.
+
+---
+
 ## X-Plane 12 Panel Graphics (Linear Blending & Font Scaling)
 
 ### 1. 100% Solid Opacity (`alpha = 1.0f`)
@@ -208,6 +216,7 @@ namespace ImGui {
         // High-level Plain Text Proxy (explicit ID and hover state):
         bool TextProxy(ImGuiID id, bool is_hovered, const char* fmt, ...);
         bool TextProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...);
+        bool TextProxy(ImGuiID id, bool is_hovered, const std::string& text, const TooltipConfig* config = nullptr);
         bool TextProxy(const char* str_id, bool is_hovered, const char* fmt, ...);
         bool TextProxy(const char* str_id, bool is_hovered, const std::string& text, const TooltipConfig* config = nullptr);
         bool TextUnformattedProxy(ImGuiID id, bool is_hovered, const char* text, const char* text_end = nullptr, const TooltipConfig* config = nullptr);

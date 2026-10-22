@@ -208,6 +208,7 @@ Full-featured compound controls (overloaded for `float*` and `int*`, also aliase
 * **Dual Icon Configuration (`#define` or Runtime Setter) & Vector Fallback:**
   * With zero font configuration, draws crisp, DPI-scaled procedural vector arrows directly in `ImDrawList`: counter-clockwise **`↺`** for Reset, and clockwise **`↻`** for Restore-Previous.
   * Or configure custom FontAwesome / icon-font strings at compile time (`#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL ICON_FA_UNDO` and `#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT ICON_FA_REDO` / `IMGUI_CONTRIB_DEFAULT_REDO_LABEL`) or at runtime via `ImGui::SetDefaultResetButtonLabel(reset_label, restore_label)`. Button width is automatically sized across both glyphs so the control never shifts by 1px when toggling states.
+* **Seamless Abutting Frame Borders:** When abutting an active control (`abutting == true`), `ResetButton` automatically suppresses redundant internal frame borders (`FrameBorderSize > 0.0f`), ensuring the control track and reset button share a single clean outer frame without an unwanted vertical box seam between them.
 
 ```cpp
 static float s_Heading = 180.0f;
