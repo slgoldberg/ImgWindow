@@ -1275,6 +1275,33 @@ namespace ImGui {
 // imgui_markdown_ext.h was #included first!
 #if defined(IMGUI_MARKDOWN_EXT_H) && defined(IMGUI_TOOLTIP_EXT_H) && !defined(IMGUI_TIMED_TOOLTIP_MD_BRIDGE_DEFINED)
 #define IMGUI_TIMED_TOOLTIP_MD_BRIDGE_DEFINED
+
+namespace ImGui {
+namespace MarkdownDetail {
+    inline void InitializeCodeBlockTooltipBridge() {
+        GetCodeBlockTooltipFn() = []( ImGuiID id, bool hovered, const char* text ) {
+            ImGui::Detail::RegisterItemTooltipToggle( true );
+            ImGui::TimedTooltip::TextProxy( id, hovered, "%s", text );
+        };
+        GetDisabledCopyTooltipFn() = []( ImGuiID id, bool hovered ) {
+#if (defined(APL) && APL) || defined(__APPLE__)
+            ImGui::TimedTooltip::TextProxy( id, hovered, "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
+#elif (defined(LIN) && LIN) || defined(__linux__)
+            ImGui::TimedTooltip::TextProxy( id, hovered, "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
+#else
+            ImGui::TimedTooltip::TextProxy( id, hovered, "System clipboard integration is not enabled on this platform build." );
+#endif
+        };
+    }
+    struct CodeBlockTooltipBridgeRunner {
+        CodeBlockTooltipBridgeRunner() {
+            InitializeCodeBlockTooltipBridge();
+        }
+    };
+    static CodeBlockTooltipBridgeRunner s_CodeBlockTooltipBridgeRunner;
+} // namespace MarkdownDetail
+} // namespace ImGui
+
 namespace ImGui {
 namespace TimedTooltip {
 

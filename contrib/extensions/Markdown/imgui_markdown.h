@@ -704,6 +704,21 @@ namespace ImGui
         }
     }
 
+    namespace MarkdownDetail {
+        typedef void (*CodeBlockTooltipFn)( ImGuiID id, bool hovered, const char* text );
+        typedef void (*DisabledCopyTooltipFn)( ImGuiID id, bool hovered );
+
+        inline CodeBlockTooltipFn& GetCodeBlockTooltipFn() {
+            static CodeBlockTooltipFn s_Fn = nullptr;
+            return s_Fn;
+        }
+
+        inline DisabledCopyTooltipFn& GetDisabledCopyTooltipFn() {
+            static DisabledCopyTooltipFn s_Fn = nullptr;
+            return s_Fn;
+        }
+    }
+
     inline bool IsMarkdownClipboardSupported( const MarkdownConfig& config )
     {
         // 1. Explicit host callback always satisfies clipboard support:
@@ -912,10 +927,10 @@ namespace ImGui
                     else tip_text = "Plain text (Unrecognized language)";
                 }
 
-#if defined(IMGUI_TOOLTIP_EXT_H)
-                ImGui::Detail::RegisterItemTooltipToggle( true );
-                ImGui::TimedTooltip::Text( "%s", tip_text );
-#endif
+                if( MarkdownDetail::GetCodeBlockTooltipFn() )
+                {
+                    MarkdownDetail::GetCodeBlockTooltipFn()( (int)code_id + 3, chip_hovered, tip_text );
+                }
                 ImGui::PopID();
 
                 // Style colors:
@@ -1022,20 +1037,14 @@ namespace ImGui
 
                     ImGui::Button( copy_label );
 
-#if defined(IMGUI_TOOLTIP_EXT_H)
-#if (defined(APL) && APL) || defined(__APPLE__)
-                    ImGui::TimedTooltip::Text( "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
-#elif (defined(LIN) && LIN) || defined(__linux__)
-                    ImGui::TimedTooltip::Text( "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
-#else
-                    ImGui::TimedTooltip::Text( "System clipboard integration is not enabled on this platform build." );
-#endif
-#else
-                    if( ImGui::IsItemHovered() )
+                    if( MarkdownDetail::GetDisabledCopyTooltipFn() )
+                    {
+                        MarkdownDetail::GetDisabledCopyTooltipFn()( ImGui::GetItemID(), ImGui::IsItemHovered() );
+                    }
+                    else if( ImGui::IsItemHovered() )
                     {
                         ImGui::SetTooltip( "System clipboard integration is not enabled on this platform build." );
                     }
-#endif
 
                     ImGui::PopStyleVar( 2 );
                     ImGui::PopStyleColor( 4 );
