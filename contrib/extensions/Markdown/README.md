@@ -225,6 +225,23 @@ You have two complementary options for rendering monospace text:
 * **Inline Backtick Spans (`` `code` ``):** Standard CommonMark inline backticks switch cleanly to `mdConfig.monoFont` while preserving the surrounding text color and sentence flow.
 * **Code Tags (`<code>foobar</code>` or `<mono>foobar</mono>`):** Switches to `mdConfig.monoFont` and automatically draws a subtle, translucent rounded pill background (`IM_COL32(128, 128, 128, 60)`) behind the text bounding box, providing a sleek styled code badge (similar to GitHub and documentation sites). Accepts optional background tinting via parameter (e.g. `<code=#334455>foobar</code>`).
 
+#### 4. Multi-Line Fenced Code Blocks (`` ```lang `` / `` ~~~lang ``)
+For multi-line snippets, function signatures, configuration files, and terminal logs, use standard CommonMark triple backticks (or tildes):
+
+````markdown
+```cpp
+void Initialize() {
+    ImGui::Badge("ONLINE", ImGui::ImGuiBadgeVariant_Success);
+}
+```
+````
+
+* **Features:**
+  * **Automatic Monospace Typography:** Uses `mdConfig.monoFont` (or ambient monospace font) line-by-line without word-wrapping or accidental markup parsing.
+  * **Shaded Framed Box:** Renders an attractive, rounded charcoal background box with a subtle border using two-pass draw list channels (`ChannelsSplit`).
+  * **Language Chip Indicator:** Displays the language identifier (e.g., `cpp`, `lua`, `python`, `json`, `plaintext`) as a neat badge chip in the upper corner of the block.
+  * **CommonMark Compliant:** Supports both backticks (`` ``` ``) and tildes (`~~~`) with optional indentation and variable fence lengths.
+
 ### Per-Call Configuration Overrides
 Every rendering function in `ImGui::MD` accepts an optional `const MarkdownConfig*` pointer if a specific widget requires unique fonts, callbacks, or bullet spacing:
 

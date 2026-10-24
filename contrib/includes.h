@@ -49,6 +49,7 @@
 // #define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS   // Exclude all wheel sliders, drags, cyclers & combos
 // #define CONTRIB_DISABLE_CLICKABLE_LINKS        // Exclude ButtonLink, TextLink & AttachItemCursor
 // #define CONTRIB_DISABLE_BADGES                 // Exclude Badge, Pill & Kbd widgets
+// #define CONTRIB_DISABLE_SPINNERS               // Exclude Spinner, RadialTimer & CountdownTimer
 
 // --- Fine-Grained Mouse-Wheel Control Opt-Outs & Style Defaults ---
 // #define CONTRIB_DISABLE_GET_MOUSE_WHEEL        // Exclude GetMouseWheel* primitives

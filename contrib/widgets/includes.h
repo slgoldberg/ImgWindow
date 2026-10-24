@@ -17,6 +17,7 @@
 //   #define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS  // Exclude all wheel sliders, drags, cyclers & combos
 //   #define CONTRIB_DISABLE_CLICKABLE_LINKS       // Exclude ButtonLink, TextLink & AttachItemCursor
 //   #define CONTRIB_DISABLE_BADGES                // Exclude Badge, Pill & Kbd widgets
+//   #define CONTRIB_DISABLE_SPINNERS              // Exclude Spinner, RadialTimer & CountdownTimer
 //
 // Fine-grained opt-outs within imgui_mouse_wheel_controls.h:
 //   #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Exclude GetMouseWheel* primitives
@@ -51,6 +52,7 @@
 #include "imgui_mouse_wheel_controls.h"
 #include "imgui_clickable_links.h"
 #include "imgui_badges.h"
+#include "imgui_spinners.h"
 
 #endif // !CONTRIB_DISABLE_WIDGETS
 

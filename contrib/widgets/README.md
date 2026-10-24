@@ -29,6 +29,7 @@ If your project defines a function with the same name, define any of the followi
 #define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS  // Disables all wheel sliders, drags, cyclers & combos
 #define CONTRIB_DISABLE_CLICKABLE_LINKS       // Disables ButtonLink, TextLink & AttachItemCursor
 #define CONTRIB_DISABLE_BADGES                // Disables Badge, Pill & Kbd widgets
+#define CONTRIB_DISABLE_SPINNERS              // Disables Spinner, RadialTimer & CountdownTimer
 
 // Fine-grained opt-outs & style defaults within imgui_mouse_wheel_controls.h:
 #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Disables GetMouseWheel* primitives
@@ -398,6 +399,39 @@ ImGui::Text("to open Command Palette.");
   * **Intelligent Auto-Contrast:** Computes ITU-R BT.601 perceptual luminance of the background color and automatically selects crisp dark (`#000000`) or light (`#FFFFFF`) text when foreground color is omitted.
   * **3D Key Caps (`ImGui::Kbd`):** Renders tactile keyboard shortcut chips with rounded borders and a bottom bevel shadow.
   * **Zero Markdown Overhead:** Standalone immediate-mode C++ functions usable anywhere in pure ImGui panels. Markdown's `<badge>`, `<pill>`, and `<kbd>` tags delegate directly to these widgets.
+
+---
+
+### 5. Procedural Spinners & Countdown Dials (`imgui_spinners.h`)
+
+Smooth, procedural immediate-mode activity indicators and radial timers rendered directly via `ImDrawList` antialiased paths. No texture assets, no font hacks, and zero memory allocations.
+
+```cpp
+#include "contrib/widgets/imgui_spinners.h"
+
+// 1. Organic Activity Spinner (loading / busy state):
+ImGui::Spinner("##loading"); // Auto-scales to font size
+ImGui::SameLine();
+ImGui::Text("Syncing telemetry...");
+
+// With custom radius, thickness, color, and label:
+ImGui::Spinner("Downloading airport navdata", 14.0f, 3.0f, IM_COL32(0, 200, 255, 255));
+
+// 2. Radial Countdown Timer (fraction remaining: 0.0f .. 1.0f):
+float timeoutRemaining = GetRemainingFraction(); // e.g., 0.65f
+ImGui::RadialTimer("Auto-dismiss in 5s", timeoutRemaining);
+
+// 3. Countdown Timer Helper (current seconds vs max duration):
+float alertTimeLeft = 3.2f;
+float alertMaxTime  = 10.0f;
+ImGui::CountdownTimer("Alert Timeout", alertTimeLeft, alertMaxTime);
+```
+
+* **Features:**
+  * **Organic Breathing Arc Animation:** Rather than a rigid rotating stick, `ImGui::Spinner` uses a sinusoidal expansion-and-contraction cycle that mimics modern Material/Apple loading spinners.
+  * **Clockwise/Counter-Clockwise Dials:** `ImGui::RadialTimer` starts cleanly at 12 o'clock (`-90°`) with an ambient background track ring, sweeping smoothly around to indicate elapsed or remaining time.
+  * **True Ambient Scaling:** Radius and stroke thickness automatically scale to the ambient font size (`ImGui::GetFontSize()`) when left as `0.0f`, looking sharp on standard and high-DPI displays alike.
+  * **Built-in Text Label Affordance:** Labels without leading `##` automatically render beside the spinner or dial with standard item alignment and spacing.
 
 ---
 

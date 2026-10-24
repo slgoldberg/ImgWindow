@@ -87,6 +87,7 @@ namespace ImGui
          ORDERED_LIST,
          LINK,
          EMPHASIS,
+         CODE_BLOCK,
     };
 
     struct MarkdownFormatInfo
@@ -97,6 +98,8 @@ namespace ImGui
         bool                    itemHovered = false;                       // Currently only set for links when mouse hovered, only valid when start_ == false
         const MarkdownConfig*   config  = NULL;
         bool                    isStartOfDoc = false;                      // True if this block is at start of markdown document/text (no preceding non-whitespace content)
+        const char*             blockLang = nullptr;                       // Language identifier for CODE_BLOCK (e.g. "cpp", "lua")
+        int32_t                 blockLangLength = 0;
     };
 
     typedef void                MarkdownLinkCallback( MarkdownLinkCallbackData data );    
@@ -531,6 +534,92 @@ namespace ImGui
         }
         mdConfig_.formatCallback( formatInfo, false );
     }
+
+    inline void RenderCodeBlock( const char* code_, size_t codeLength_, const char* lang_, size_t langLength_, const MarkdownConfig& mdConfig_ )
+    {
+        if( !code_ ) return;
+
+        ImGuiContext& g = *GImGui;
+        ImGuiWindow* window = g.CurrentWindow;
+        if( !window ) return;
+
+        float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+        float pad_x = 8.0f * scale;
+        float pad_y = 6.0f * scale;
+        float rounding = 4.0f * scale;
+
+        ImFont* mono_font = mdConfig_.monoFont;
+        if( mono_font )
+        {
+            ImGui::PushFont( mono_font );
+        }
+
+        ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
+
+        ImVec2 start_pos = ImGui::GetCursorScreenPos();
+        float avail_width = ( mdConfig_.wrapWidth > 0.0f ) ? mdConfig_.wrapWidth : ImGui::GetContentRegionAvail().x;
+        if( avail_width <= 20.0f ) avail_width = 200.0f;
+
+        ImDrawList* dl = window->DrawList;
+        dl->ChannelsSplit( 2 );
+        dl->ChannelsSetCurrent( 1 ); // Foreground text channel
+
+        ImGui::SetCursorScreenPos( ImVec2( start_pos.x + pad_x, start_pos.y + pad_y ) );
+        ImGui::BeginGroup();
+
+        if( langLength_ > 0 && lang_ )
+        {
+            std::string lang_tag( lang_, langLength_ );
+            ImVec2 chip_size = ImGui::CalcTextSize( lang_tag.c_str() );
+            float chip_w = chip_size.x + 8.0f * scale;
+            float chip_x = start_pos.x + avail_width - chip_w - pad_x;
+            if( chip_x > start_pos.x + pad_x )
+            {
+                ImVec2 chip_min( chip_x, start_pos.y + pad_y * 0.5f );
+                ImVec2 chip_max( chip_x + chip_w, start_pos.y + pad_y * 0.5f + chip_size.y + 2.0f * scale );
+                dl->AddRectFilled( chip_min, chip_max, IM_COL32( 60, 60, 70, 220 ), 3.0f * scale );
+                dl->AddText( ImVec2( chip_x + 4.0f * scale, chip_min.y + 1.0f * scale ), IM_COL32( 210, 210, 220, 255 ), lang_tag.c_str() );
+            }
+        }
+
+        const char* p = code_;
+        const char* end = code_ + codeLength_;
+        while( p < end )
+        {
+            const char* line_start = p;
+            while( p < end && *p != '\n' && *p != '\r' ) ++p;
+            const char* line_end = p;
+
+            ImGui::TextUnformatted( line_start, line_end );
+
+            if( p < end && *p == '\r' ) ++p;
+            if( p < end && *p == '\n' ) ++p;
+        }
+
+        ImGui::EndGroup();
+
+        ImVec2 content_max = ImGui::GetItemRectMax();
+        float block_width = ImMax( avail_width, content_max.x - start_pos.x + pad_x );
+        float block_height = content_max.y - start_pos.y + pad_y;
+
+        ImVec2 box_min = start_pos;
+        ImVec2 box_max = ImVec2( start_pos.x + block_width, start_pos.y + block_height );
+
+        dl->ChannelsSetCurrent( 0 );
+        ImU32 bg_col = IM_COL32( 22, 22, 26, 240 );
+        ImU32 border_col = IM_COL32( 60, 60, 70, 180 );
+        dl->AddRectFilled( box_min, box_max, bg_col, rounding );
+        dl->AddRect( box_min, box_max, border_col, rounding, 0, 1.0f * scale );
+
+        dl->ChannelsMerge();
+
+        if( mono_font )
+        {
+            ImGui::PopFont();
+        }
+
+        ImGui::SetCursorScreenPos( ImVec2( start_pos.x, box_max.y + 4.0f * scale ) );
+    }
     
     // render markdown (low-level rendering pipeline)
     namespace Markdown
@@ -617,6 +706,96 @@ namespace ImGui
                             em = Emphasis();
                             continue;
                         }
+                    }
+                    else if( ( c == '`' || c == '~' ) && i + 2 < (int)markdownLength_ &&
+                             markdown_[ i + 1 ] == c && markdown_[ i + 2 ] == c )
+                    {
+                        char fence_char = c;
+                        int fence_len = 0;
+                        while( i + fence_len < (int)markdownLength_ && markdown_[ i + fence_len ] == fence_char )
+                        {
+                            ++fence_len;
+                        }
+
+                        // Info string (language identifier, e.g. "cpp", "lua")
+                        int info_start = i + fence_len;
+                        while( info_start < (int)markdownLength_ && ( markdown_[ info_start ] == ' ' || markdown_[ info_start ] == '\t' ) )
+                        {
+                            ++info_start;
+                        }
+                        int info_end = info_start;
+                        while( info_end < (int)markdownLength_ && markdown_[ info_end ] != '\n' && markdown_[ info_end ] != '\r' )
+                        {
+                            ++info_end;
+                        }
+                        int trimmed_info_end = info_end;
+                        while( trimmed_info_end > info_start && ( markdown_[ trimmed_info_end - 1 ] == ' ' || markdown_[ trimmed_info_end - 1 ] == '\t' ) )
+                        {
+                            --trimmed_info_end;
+                        }
+
+                        // Start of code block content
+                        int code_start = info_end;
+                        if( code_start < (int)markdownLength_ && markdown_[ code_start ] == '\r' ) ++code_start;
+                        if( code_start < (int)markdownLength_ && markdown_[ code_start ] == '\n' ) ++code_start;
+
+                        int code_end = (int)markdownLength_;
+                        int scan = code_start;
+                        while( scan < (int)markdownLength_ )
+                        {
+                            int line_start = scan;
+                            int spaces = 0;
+                            while( line_start < (int)markdownLength_ && markdown_[ line_start ] == ' ' && spaces < 4 )
+                            {
+                                ++line_start;
+                                ++spaces;
+                            }
+                            if( line_start + fence_len <= (int)markdownLength_ )
+                            {
+                                bool is_match = true;
+                                for( int f = 0; f < fence_len; ++f )
+                                {
+                                    if( markdown_[ line_start + f ] != fence_char ) { is_match = false; break; }
+                                }
+                                if( is_match )
+                                {
+                                    int f_scan = line_start + fence_len;
+                                    while( f_scan < (int)markdownLength_ && markdown_[ f_scan ] == fence_char ) ++f_scan;
+                                    while( f_scan < (int)markdownLength_ && ( markdown_[ f_scan ] == ' ' || markdown_[ f_scan ] == '\t' ) ) ++f_scan;
+                                    if( f_scan >= (int)markdownLength_ || markdown_[ f_scan ] == '\n' || markdown_[ f_scan ] == '\r' )
+                                    {
+                                        code_end = scan;
+                                        if( code_end > code_start && markdown_[ code_end - 1 ] == '\n' ) --code_end;
+                                        if( code_end > code_start && markdown_[ code_end - 1 ] == '\r' ) --code_end;
+
+                                        while( f_scan < (int)markdownLength_ && ( markdown_[ f_scan ] == '\r' || markdown_[ f_scan ] == '\n' ) )
+                                        {
+                                            ++f_scan;
+                                        }
+                                        i = f_scan - 1;
+                                        break;
+                                    }
+                                }
+                            }
+                            while( scan < (int)markdownLength_ && markdown_[ scan ] != '\n' ) ++scan;
+                            if( scan < (int)markdownLength_ && markdown_[ scan ] == '\n' ) ++scan;
+                        }
+                        if( scan >= (int)markdownLength_ )
+                        {
+                            code_end = (int)markdownLength_;
+                            i = (int)markdownLength_ - 1;
+                        }
+
+                        RenderCodeBlock( markdown_ + code_start, (size_t)(code_end - code_start),
+                                         markdown_ + info_start, (size_t)(trimmed_info_end - info_start),
+                                         mdConfig_ );
+
+                        line = Line();
+                        line.isLeadingSpace = true;
+                        line.lineStart = i + 1;
+                        line.lastRenderPosition = i;
+                        em = Emphasis();
+                        continue;
                     }
                 }
             }
@@ -1320,6 +1499,8 @@ namespace ImGui
                     ImGui::UnderLine( ImGui::GetStyle().Colors[ ImGuiCol_Button ] );
                 }
             }
+            break;
+        case MarkdownFormatType::CODE_BLOCK:
             break;
         }
     }
