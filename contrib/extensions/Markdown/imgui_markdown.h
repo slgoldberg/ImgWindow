@@ -147,7 +147,7 @@ namespace ImGui
         MarkdownImageCallback*  imageCallback = NULL;
         MarkdownTagCallback*    tagCallback = NULL;
         const char*             linkIcon = "";                      // icon displayd in link tooltip
-        const char*             emphasisChars = "*_`~$";            // string of characters recognized as emphasis markers (*, _, `, ~, $)
+        const char*             emphasisChars = "*_`~$+";           // string of characters recognized as emphasis markers (*, _, `, ~, $, +)
         bool                    underlineWithUnderscores = false;   // If true, __text__ renders as underline instead of bold
         MarkdownHeadingFormat   headingFormats[ NUMHEADINGS ] = { { NULL, true }, { NULL, true }, { NULL, true }, { NULL, true } };
         void*                   userData = NULL;
@@ -1194,6 +1194,16 @@ namespace ImGui
             {
                 // Underline via __text__ when underlineWithUnderscores is enabled:
                 if( !start_ )
+                {
+                    DrawTextDecorationLine( ImGui::GetColorU32( ImGuiCol_Text ), false );
+                }
+                break;
+            }
+
+            if( markdownFormatInfo_.emphasisChar == '+' )
+            {
+                // Underline via ++text++ (CriticMarkup / Markdown Extended):
+                if( markdownFormatInfo_.level >= 2 && !start_ )
                 {
                     DrawTextDecorationLine( ImGui::GetColorU32( ImGuiCol_Text ), false );
                 }

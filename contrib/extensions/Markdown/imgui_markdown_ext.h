@@ -276,6 +276,11 @@ namespace ImGui {
             style.is_strike = true;
             core = core.substr(2, core.length() - 4);
         }
+        else if (core.length() >= 4 && core.rfind("++", 0) == 0 && core.compare(core.length() - 2, 2, "++") == 0)
+        {
+            style.is_underline = true;
+            core = core.substr(2, core.length() - 4);
+        }
         style.clean_text = lead_spaces + core + trail_spaces;
 
         return style;

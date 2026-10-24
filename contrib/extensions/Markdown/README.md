@@ -44,7 +44,7 @@ The Markdown system is structured as a clean two-layer architecture:
 
 * **Strikethrough & Underline Typography:**
   * **Strikethrough:** Full support for GitHub Flavored Markdown `~~deleted text~~` and legacy ABC `$$struck text$$`, as well as HTML tags (`<s>`, `<del>`, `<strike>`).
-  * **Underline:** Supports HTML tags (`<u>`, `<ins>`) out-of-the-box. Setting `mdConfig.underlineWithUnderscores = true` allows `__underlined text__` to render as underline instead of bold.
+  * **Underline:** Supports CriticMarkup / Markdown Extended `++underlined text++` and HTML tags (`<u>`, `<ins>`) out-of-the-box. Setting `mdConfig.underlineWithUnderscores = true` allows Discord/ABC-style `__underlined text__` to render as underline instead of bold.
   * **Pixel-Aligned Rules:** Centered midline for strikethrough and baseline-aligned underline scale cleanly across all display DPIs and custom font sizes.
 
 * **Ordered & Unordered Lists with True Hanging Indents:**
