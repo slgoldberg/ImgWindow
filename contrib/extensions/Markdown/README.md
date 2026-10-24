@@ -184,6 +184,11 @@ For clean namespace symmetry with `ImGui::TimedTooltip::Config`, the configurati
 | `h2Font` | `ImFont*` | `nullptr` | **[Semantic]** Font used for H2 headers (`## Header`). (Falls back to `headingFormats[1].font`.) |
 | `h3Font` | `ImFont*` | `nullptr` | **[Semantic]** Font used for H3 headers (`### Header`). (Falls back to `headingFormats[2].font`.) |
 | `bulletSpacing` | `float` | `0.0f` (`4.0f` active) | Horizontal gap in pixels between the bullet circle glyph and the following text. |
+| `codeBlockCallback` | `MarkdownCodeBlockCallback*` | `nullptr` | Optional host callback to customize syntax coloring, lexing, and custom token layout for fenced code blocks. |
+| `codeBlockDescriptionCallback` | `const char* (*)(const char*, size_t, void*)` | `nullptr` | Optional host callback returning tooltip documentation for custom or recognized code block languages. |
+| `setClipboardTextFn` | `void (*)(const char*, void*)` | `nullptr` | Optional host callback to forward code block copies directly to OS-level system clipboards (e.g. macOS NSPasteboard). |
+| `showCodeCopyButton` | `bool` | `true` | When true, renders an interactive one-click `[Copy]` button in the code block header bar. |
+| `tabSize` | `int` | `4` | Column-aligned tabstop expansion width for `\t` characters in code blocks. |
 | `headingFormats` | `HeadingFormat[4]` | `{}` | Upstream array fallback for H1 (`[0]`), H2 (`[1]`), H3 (`[2]`), and Bold (`[3]`). |
 | `linkCallback` | `LinkCallback` | `nullptr` | Upstream hook invoked when the user clicks a markdown `[link](url)`. |
 | `tooltipCallback` | `TooltipCallback` | `nullptr` | Upstream hook invoked when hovering a link with tooltip description. |
@@ -238,8 +243,11 @@ void Initialize() {
 
 * **Features:**
   * **Automatic Monospace Typography:** Uses `mdConfig.monoFont` (or ambient monospace font) line-by-line without word-wrapping or accidental markup parsing.
-  * **Shaded Framed Box:** Renders an attractive, rounded charcoal background box with a subtle border using two-pass draw list channels (`ChannelsSplit`).
-  * **Language Chip Indicator:** Displays the language identifier (e.g., `cpp`, `lua`, `python`, `json`, `plaintext`) as a neat badge chip in the upper corner of the block.
+  * **Smart Content-Hugging Width:** Dynamically fits the container width to the content lines plus padding (clamped to header controls width), activating horizontal scrolling only when content exceeds available window width.
+  * **Language Badge (Steve TextLink):** Renders the language identifier on the left of the header bar. Formats recognized by built-in highlighters (`lua`, `cpp`, `markdown`, `plaintext`) or host callbacks are color-branded (Lua blue, C++ cobalt, Markdown teal, Plain text slate, Custom purple); unrecognized languages are styled in muted neutral charcoal. Hovering triggers `ImGuiMouseCursor_Hand`; clicking toggles an informative persistent tooltip (e.g. `"C++ format (Syntax highlighted)"`).
+  * **Animated Raw / Preview Toggle:** For `markdown` or `md` containers, renders an animated sliding toggle switch (`Raw [===O] Preview`) with smooth thumb easing, mouse-wheel scrub support, and live re-entrant formatting (including nested child code blocks).
+  * **One-Click Clipboard Copy:** Integrated `[Copy]` button on the far right with a transient 1.5s `Copied!` visual feedback state, `ImGuiMouseCursor_Hand` hover cursor, and optional host `setClipboardTextFn` forwarding.
+  * **Tabstop Expansion:** Universal 4-character column-aligned tabstop expansion (`tabSize = 4`).
   * **CommonMark Compliant:** Supports both backticks (`` ``` ``) and tildes (`~~~`) with optional indentation and variable fence lengths.
 
 ### Per-Call Configuration Overrides
