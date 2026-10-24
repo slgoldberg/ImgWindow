@@ -35,6 +35,13 @@ Using `contrib/` requires zero setup or boilerplate. Simply include the master h
 #include "contrib.h"
 ```
 
+> [!IMPORTANT]
+> **macOS Developers: Enable OS Clipboard (`IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS`)**  
+> To enable one-click clipboard copying (`[Copy]` in code blocks) and text selection shortcuts (`Cmd+C`/`Cmd+V`) on macOS:
+> 1. Add `#define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS` to your `imconfig.h` (or pass it as a compiler flag).
+> 2. Link `-framework ApplicationServices` in your project linker flags.  
+> *(On Windows, clipboard works out of the box via `user32.lib`. On Linux, provide `MarkdownConfig::setClipboardTextFn` or set `ImGui::GetPlatformIO().Platform_SetClipboardTextFn`.)*
+
 All widgets and extensions immediately feel like native Dear ImGui:
 
 ```cpp

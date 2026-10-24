@@ -15,6 +15,13 @@ Here are the major additions to the framework since it was forked:
   
     * _**Note:**_<br>
 	_The "legacy" keyboard processing logic is **still supported** in `ImgWindow` for ImGui v1.8x! The framework **automatically** detects which version of ImGui you are using (based on `imgui.h` defining it in `IMGUI_VERSION_NUM`). As long as your version of ImGui contains this definition, and sets it correctly, `ImgWindow` will still support it with no changes needed vis-à-vis the original `ImgWindow` repository!_
+
+> [!IMPORTANT]
+> **Enabling Operating System Clipboard Integration (macOS / Linux / Windows):**  
+> To ensure clipboard copy/paste works seamlessly with the host OS clipboard (outside of X-Plane into TextEdit, browser, or IDE):
+> * **macOS (`APL=1` / `__APPLE__`):** You **MUST** define `#define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS` in your `imconfig.h` (or pass `-DIMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS` in your build flags) and link `-framework ApplicationServices`. Upstream Dear ImGui disables the macOS OS clipboard by default unless this macro is explicitly defined!
+> * **Windows (`IBM=1` / `_WIN32`):** OS clipboard works out of the box via Dear ImGui's built-in Win32 implementation (`user32.lib`).
+> * **Linux (`LIN=1` / `__linux__`):** Upstream Dear ImGui does not provide an out-of-the-box X11 clipboard implementation. Provide a clipboard callback via `ImGui::GetPlatformIO().Platform_SetClipboardTextFn` or `MarkdownConfig::setClipboardTextFn`.
   
   - **`ImGui v1.92` Font Atlas changes:**<br>
   The new `ImFontAtlas` features (like dynamic loading) are fully supported. Crucially, the `ImgFontAtlas` wrapper painstakingly preserves the _exact_ same "shared atlas" semantics that earlier versions used. You can still construct a single shared atlas at plugin-enable time, and it will fill in missing glyphs automatically.

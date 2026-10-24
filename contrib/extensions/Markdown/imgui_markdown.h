@@ -704,6 +704,38 @@ namespace ImGui
         }
     }
 
+    inline bool IsMarkdownClipboardSupported( const MarkdownConfig& config )
+    {
+        // 1. Explicit host callback always satisfies clipboard support:
+        if( config.setClipboardTextFn != nullptr )
+        {
+            return true;
+        }
+
+        // 2. Windows (IBM desktop plugin or _WIN32): Dear ImGui defaults to Win32 OpenClipboard/SetClipboardData
+#if (defined(IBM) && IBM) || defined(_WIN32)
+#if defined(IMGUI_DISABLE_WIN32_DEFAULT_CLIPBOARD_FUNCTIONS)
+        return false;
+#else
+        return true;
+#endif
+
+        // 3. macOS (APL desktop plugin or __APPLE__): Requires IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS
+#elif (defined(APL) && APL) || defined(__APPLE__)
+#if defined(IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS)
+        return true;
+#else
+        return false;
+#endif
+
+        // 4. Linux (LIN desktop plugin or __linux__): Vanilla Dear ImGui has no default X11 clipboard
+#elif (defined(LIN) && LIN) || defined(__linux__)
+        return false;
+#else
+        return false;
+#endif
+    }
+
     inline void RenderCodeBlock( const char* code_, size_t codeLength_, const char* lang_, size_t langLength_, const MarkdownConfig& mdConfig_ )
     {
         if( !code_ ) return;
@@ -963,34 +995,79 @@ namespace ImGui
             float cur_copy_w = cur_copy_size.x + 12.0f * scale;
             float cur_copy_x = box_max.x - cur_copy_w - pad_x;
 
+            bool is_clipboard_supported = IsMarkdownClipboardSupported( mdConfig_ );
+
             if( mdConfig_.showCodeCopyButton )
             {
                 ImGui::SetCursorScreenPos( ImVec2( cur_copy_x, control_y ) );
                 ImGui::PushID( (int)code_id + 2 );
-                ImGui::PushStyleColor( ImGuiCol_Button, is_recently_copied ? IM_COL32( 35, 100, 50, 220 ) : IM_COL32( 45, 46, 56, 200 ) );
-                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, is_recently_copied ? IM_COL32( 45, 120, 60, 240 ) : IM_COL32( 65, 68, 80, 240 ) );
-                ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 80, 84, 98, 255 ) );
-                ImGui::PushStyleColor( ImGuiCol_Text, is_recently_copied ? IM_COL32( 160, 240, 170, 255 ) : IM_COL32( 200, 205, 215, 255 ) );
-                ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, 3.0f * scale );
-                ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 5.0f * scale, ( control_h - font_sz ) * 0.5f ) );
 
-                if( ImGui::Button( copy_label ) )
+                if( is_clipboard_supported )
                 {
-                    std::string clip_text( code_, codeLength_ );
-                    if( mdConfig_.setClipboardTextFn )
+                    ImGui::PushStyleColor( ImGuiCol_Button, is_recently_copied ? IM_COL32( 35, 100, 50, 220 ) : IM_COL32( 45, 46, 56, 200 ) );
+                    ImGui::PushStyleColor( ImGuiCol_ButtonHovered, is_recently_copied ? IM_COL32( 45, 120, 60, 240 ) : IM_COL32( 65, 68, 80, 240 ) );
+                    ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 80, 84, 98, 255 ) );
+                    ImGui::PushStyleColor( ImGuiCol_Text, is_recently_copied ? IM_COL32( 160, 240, 170, 255 ) : IM_COL32( 200, 205, 215, 255 ) );
+                    ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, 3.0f * scale );
+                    ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 5.0f * scale, ( control_h - font_sz ) * 0.5f ) );
+
+                    if( ImGui::Button( copy_label ) )
                     {
-                        mdConfig_.setClipboardTextFn( clip_text.c_str(), mdConfig_.userData );
+                        std::string clip_text( code_, codeLength_ );
+                        if( mdConfig_.setClipboardTextFn )
+                        {
+                            mdConfig_.setClipboardTextFn( clip_text.c_str(), mdConfig_.userData );
+                        }
+                        ImGui::SetClipboardText( clip_text.c_str() );
+                        s_lastCopiedId = code_id;
+                        s_lastCopiedTime = ImGui::GetTime();
                     }
-                    ImGui::SetClipboardText( clip_text.c_str() );
-                    s_lastCopiedId = code_id;
-                    s_lastCopiedTime = ImGui::GetTime();
+                    if( ImGui::IsItemHovered() )
+                    {
+                        ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
+                    }
+                    ImGui::PopStyleVar( 2 );
+                    ImGui::PopStyleColor( 4 );
                 }
-                if( ImGui::IsItemHovered() )
+                else
                 {
-                    ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
+                    // Disabled styling when OS clipboard is not enabled in build configuration
+                    ImGui::PushStyleColor( ImGuiCol_Button, IM_COL32( 38, 40, 46, 120 ) );
+                    ImGui::PushStyleColor( ImGuiCol_ButtonHovered, IM_COL32( 38, 40, 46, 120 ) );
+                    ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 38, 40, 46, 120 ) );
+                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 115, 120, 130, 160 ) );
+                    ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, 3.0f * scale );
+                    ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 5.0f * scale, ( control_h - font_sz ) * 0.5f ) );
+
+                    ImGui::Button( copy_label );
+
+                    if( ImGui::IsItemHovered() )
+                    {
+                        ImGui::SetMouseCursor( ImGuiMouseCursor_Arrow );
+                        ImGui::BeginTooltip();
+#if (defined(APL) && APL) || defined(__APPLE__)
+                        ImGui::TextUnformatted( "macOS system clipboard integration is disabled." );
+                        ImGui::Spacing();
+                        ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.2f, 1.0f ), "To enable:" );
+                        ImGui::BulletText( "Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h" );
+                        ImGui::BulletText( "Link -framework ApplicationServices in your build flags" );
+                        ImGui::BulletText( "Or provide MarkdownConfig::setClipboardTextFn" );
+#elif (defined(LIN) && LIN) || defined(__linux__)
+                        ImGui::TextUnformatted( "Linux system clipboard integration requires a handler." );
+                        ImGui::Spacing();
+                        ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.2f, 1.0f ), "To enable:" );
+                        ImGui::BulletText( "Provide MarkdownConfig::setClipboardTextFn callback" );
+                        ImGui::BulletText( "Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
+#else
+                        ImGui::TextUnformatted( "System clipboard integration is not enabled on this platform build." );
+#endif
+                        ImGui::EndTooltip();
+                    }
+
+                    ImGui::PopStyleVar( 2 );
+                    ImGui::PopStyleColor( 4 );
                 }
-                ImGui::PopStyleVar( 2 );
-                ImGui::PopStyleColor( 4 );
+
                 ImGui::PopID();
             }
 

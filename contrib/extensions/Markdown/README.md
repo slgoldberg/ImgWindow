@@ -246,9 +246,15 @@ void Initialize() {
   * **Smart Content-Hugging Width:** Dynamically fits the container width to the content lines plus padding (clamped to header controls width), activating horizontal scrolling only when content exceeds available window width.
   * **Language Badge (Steve TextLink):** Renders the language identifier on the left of the header bar. Formats recognized by built-in highlighters (`lua`, `cpp`, `markdown`, `plaintext`) or host callbacks are color-branded (Lua blue, C++ cobalt, Markdown teal, Plain text slate, Custom purple); unrecognized languages are styled in muted neutral charcoal. Hovering triggers `ImGuiMouseCursor_Hand`; clicking toggles an informative persistent tooltip (e.g. `"C++ format (Syntax highlighted)"`).
   * **Animated Raw / Preview Toggle:** For `markdown` or `md` containers, renders an animated sliding toggle switch (`Raw [===O] Preview`) with smooth thumb easing, mouse-wheel scrub support, and live re-entrant formatting (including nested child code blocks).
-  * **One-Click Clipboard Copy:** Integrated `[Copy]` button on the far right with a transient 1.5s `Copied!` visual feedback state, `ImGuiMouseCursor_Hand` hover cursor, and optional host `setClipboardTextFn` forwarding.
+  * **One-Click Clipboard Copy:** Integrated `[Copy]` button on the far right with a transient 1.5s `Copied!` visual feedback state, `ImGuiMouseCursor_Hand` hover cursor, and optional host `setClipboardTextFn` forwarding. Automatically detects whether OS clipboard integration is active on the current platform, rendering a disabled button with setup guidance if unconfigured.
   * **Tabstop Expansion:** Universal 4-character column-aligned tabstop expansion (`tabSize = 4`).
   * **CommonMark Compliant:** Supports both backticks (`` ``` ``) and tildes (`~~~`) with optional indentation and variable fence lengths.
+
+> [!IMPORTANT]
+> **Operating System Clipboard Integration Across Platforms:**  
+> * **macOS (`APL=1` / `__APPLE__`):** Upstream Dear ImGui compiles with OS clipboard support disabled unless `#define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS` is defined in your `imconfig.h` (and `-framework ApplicationServices` linked). If unconfigured, the `[Copy]` button automatically renders as a disabled button with an on-hover guidance tooltip.
+> * **Windows (`IBM=1` / `_WIN32`):** OS clipboard works out of the box via Dear ImGui's built-in Win32 implementation (`user32.lib`).
+> * **Linux (`LIN=1` / `__linux__`):** Upstream Dear ImGui does not provide an out-of-the-box X11 clipboard implementation. To enable system copying on Linux, assign `MarkdownConfig::setClipboardTextFn` or set `ImGui::GetPlatformIO().Platform_SetClipboardTextFn`.
 
 ### Per-Call Configuration Overrides
 Every rendering function in `ImGui::MD` accepts an optional `const MarkdownConfig*` pointer if a specific widget requires unique fonts, callbacks, or bullet spacing:
