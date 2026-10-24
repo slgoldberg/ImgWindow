@@ -596,11 +596,13 @@ namespace ImGui
             if( p < end && *p == '\n' ) ++p;
         }
 
+        // Add bottom container padding inside the group so CursorMaxPos accounts for it
+        ImGui::Dummy( ImVec2( 0.0f, pad_y ) );
         ImGui::EndGroup();
 
         ImVec2 content_max = ImGui::GetItemRectMax();
         float block_width = ImMax( avail_width, content_max.x - start_pos.x + pad_x );
-        float block_height = content_max.y - start_pos.y + pad_y;
+        float block_height = content_max.y - start_pos.y;
 
         ImVec2 box_min = start_pos;
         ImVec2 box_max = ImVec2( start_pos.x + block_width, start_pos.y + block_height );
@@ -618,7 +620,9 @@ namespace ImGui
             ImGui::PopFont();
         }
 
-        ImGui::SetCursorScreenPos( ImVec2( start_pos.x, box_max.y + 4.0f * scale ) );
+        // Align cursor to box bottom and submit spacing item cleanly
+        ImGui::SetCursorScreenPos( ImVec2( start_pos.x, box_max.y ) );
+        ImGui::Dummy( ImVec2( 0.0f, 4.0f * scale ) );
     }
     
     // render markdown (low-level rendering pipeline)
