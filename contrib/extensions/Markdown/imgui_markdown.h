@@ -141,6 +141,17 @@ namespace ImGui
     };
     typedef void                MarkdownTagCallback( const MarkdownTagData& data );
 
+    struct MarkdownCodeBlockData
+    {
+        const char*             code = nullptr;
+        size_t                  codeLength = 0;
+        const char*             language = nullptr;
+        size_t                  languageLength = 0;
+        const MarkdownConfig*   config = nullptr;
+        void*                   userData = nullptr;
+    };
+    typedef void                MarkdownCodeBlockCallback( const MarkdownCodeBlockData& data );
+
     struct MarkdownConfig
     {
         static const int        NUMHEADINGS = 4;
@@ -149,6 +160,9 @@ namespace ImGui
         MarkdownTooltipCallback* tooltipCallback = NULL;
         MarkdownImageCallback*  imageCallback = NULL;
         MarkdownTagCallback*    tagCallback = NULL;
+        MarkdownCodeBlockCallback* codeBlockCallback = NULL;        // Optional host custom syntax/layout handler
+        bool                    showCodeCopyButton = true;          // If true, shows one-click [Copy] button in code header
+        int                     tabSize = 4;                        // Tab stop width for \t expansion (default: 4)
         const char*             linkIcon = "";                      // icon displayd in link tooltip
         const char*             emphasisChars = "*_`~$+";           // string of characters recognized as emphasis markers (*, _, `, ~, $, +)
         bool                    underlineWithUnderscores = false;   // If true, __text__ renders as underline instead of bold
@@ -535,6 +549,159 @@ namespace ImGui
         mdConfig_.formatCallback( formatInfo, false );
     }
 
+    inline void ExpandTabs( const char* line_start, const char* line_end, std::string& out, int tab_size = 4 )
+    {
+        out.clear();
+        int col = 0;
+        for( const char* p = line_start; p < line_end; ++p )
+        {
+            if( *p == '\t' )
+            {
+                int spaces = tab_size - ( col % tab_size );
+                if( spaces == 0 ) spaces = tab_size;
+                out.append( spaces, ' ' );
+                col += spaces;
+            }
+            else
+            {
+                out.push_back( *p );
+                ++col;
+            }
+        }
+    }
+
+    inline void DefaultRenderCodeLine( const std::string& line_str, bool is_lua, bool is_cpp )
+    {
+        if( line_str.empty() )
+        {
+            ImGui::NewLine();
+            return;
+        }
+
+        if( !is_lua && !is_cpp )
+        {
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 220, 225, 235, 255 ) );
+            ImGui::TextUnformatted( line_str.c_str() );
+            ImGui::PopStyleColor();
+            return;
+        }
+
+        // Check if line is purely leading whitespace + comment or preprocessor
+        size_t first_non_space = line_str.find_first_not_of( " \t" );
+        if( first_non_space != std::string::npos )
+        {
+            if( is_lua && first_non_space + 1 < line_str.length() && line_str[first_non_space] == '-' && line_str[first_non_space + 1] == '-' )
+            {
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 106, 153, 85, 255 ) ); // Comment green
+                ImGui::TextUnformatted( line_str.c_str() );
+                ImGui::PopStyleColor();
+                return;
+            }
+            if( is_cpp && first_non_space + 1 < line_str.length() && line_str[first_non_space] == '/' && line_str[first_non_space + 1] == '/' )
+            {
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 106, 153, 85, 255 ) ); // Comment green
+                ImGui::TextUnformatted( line_str.c_str() );
+                ImGui::PopStyleColor();
+                return;
+            }
+            if( is_cpp && line_str[first_non_space] == '#' )
+            {
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 198, 120, 221, 255 ) ); // Preprocessor purple
+                ImGui::TextUnformatted( line_str.c_str() );
+                ImGui::PopStyleColor();
+                return;
+            }
+        }
+
+        // Scan tokens across the line
+        size_t pos = 0;
+        size_t len = line_str.length();
+        while( pos < len )
+        {
+            // 1. Comments:
+            if( ( is_lua && pos + 1 < len && line_str[pos] == '-' && line_str[pos + 1] == '-' ) ||
+                ( is_cpp && pos + 1 < len && line_str[pos] == '/' && line_str[pos + 1] == '/' ) )
+            {
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 106, 153, 85, 255 ) );
+                ImGui::TextUnformatted( line_str.c_str() + pos );
+                ImGui::PopStyleColor();
+                break;
+            }
+
+            // 2. Strings:
+            if( line_str[pos] == '\"' || line_str[pos] == '\'' )
+            {
+                char q = line_str[pos];
+                size_t q_end = pos + 1;
+                while( q_end < len && line_str[q_end] != q )
+                {
+                    if( line_str[q_end] == '\\' && q_end + 1 < len ) ++q_end;
+                    ++q_end;
+                }
+                if( q_end < len ) ++q_end;
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 152, 195, 121, 255 ) ); // Soft string green/coral
+                ImGui::TextUnformatted( line_str.c_str() + pos, line_str.c_str() + q_end );
+                ImGui::PopStyleColor();
+                pos = q_end;
+                if( pos < len ) ImGui::SameLine( 0.0f, 0.0f );
+                continue;
+            }
+
+            // 3. Identifiers / words:
+            if( isalpha( (unsigned char)line_str[pos] ) || line_str[pos] == '_' )
+            {
+                size_t w_end = pos;
+                while( w_end < len && ( isalnum( (unsigned char)line_str[w_end] ) || line_str[w_end] == '_' ) )
+                {
+                    ++w_end;
+                }
+                std::string word = line_str.substr( pos, w_end - pos );
+                bool is_kw = false;
+                if( is_lua )
+                {
+                    static const char* kws[] = { "local", "function", "if", "then", "else", "elseif", "end", "return", "for", "while", "do", "break", "nil", "true", "false", nullptr };
+                    for( int k = 0; kws[k]; ++k ) { if( word == kws[k] ) { is_kw = true; break; } }
+                }
+                else if( is_cpp )
+                {
+                    static const char* kws[] = { "int", "float", "double", "bool", "void", "char", "auto", "const", "class", "struct", "if", "else", "return", "for", "while", "true", "false", "nullptr", nullptr };
+                    for( int k = 0; kws[k]; ++k ) { if( word == kws[k] ) { is_kw = true; break; } }
+                }
+
+                if( is_kw )
+                {
+                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 198, 120, 221, 255 ) ); // Keyword purple
+                    ImGui::TextUnformatted( word.c_str() );
+                    ImGui::PopStyleColor();
+                }
+                else
+                {
+                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 220, 225, 235, 255 ) ); // Code text
+                    ImGui::TextUnformatted( word.c_str() );
+                    ImGui::PopStyleColor();
+                }
+                pos = w_end;
+                if( pos < len ) ImGui::SameLine( 0.0f, 0.0f );
+                continue;
+            }
+
+            // 4. Other characters (whitespace, punctuation, numbers):
+            size_t other_end = pos;
+            while( other_end < len && !isalpha( (unsigned char)line_str[other_end] ) && line_str[other_end] != '_' &&
+                   line_str[other_end] != '\"' && line_str[other_end] != '\'' &&
+                   !( is_lua && other_end + 1 < len && line_str[other_end] == '-' && line_str[other_end + 1] == '-' ) &&
+                   !( is_cpp && other_end + 1 < len && line_str[other_end] == '/' && line_str[other_end + 1] == '/' ) )
+            {
+                ++other_end;
+            }
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 220, 225, 235, 255 ) );
+            ImGui::TextUnformatted( line_str.c_str() + pos, line_str.c_str() + other_end );
+            ImGui::PopStyleColor();
+            pos = other_end;
+            if( pos < len ) ImGui::SameLine( 0.0f, 0.0f );
+        }
+    }
+
     inline void RenderCodeBlock( const char* code_, size_t codeLength_, const char* lang_, size_t langLength_, const MarkdownConfig& mdConfig_ )
     {
         if( !code_ ) return;
@@ -560,34 +727,69 @@ namespace ImGui
         float avail_width = ( mdConfig_.wrapWidth > 0.0f ) ? mdConfig_.wrapWidth : ImGui::GetContentRegionAvail().x;
         if( avail_width <= 20.0f ) avail_width = 200.0f;
 
-        ImDrawList* dl = window->DrawList;
-        dl->ChannelsSplit( 2 );
-        dl->ChannelsSetCurrent( 1 ); // Foreground text channel
-
-        float header_h = 0.0f;
         std::string lang_tag;
         if( langLength_ > 0 && lang_ )
         {
             lang_tag.assign( lang_, langLength_ );
-            ImVec2 chip_size = ImGui::CalcTextSize( lang_tag.c_str() );
-            header_h = chip_size.y + 6.0f * scale;
         }
+        bool is_markdown = ( lang_tag == "markdown" || lang_tag == "md" );
+        bool is_lua = ( lang_tag == "lua" || lang_tag == "lua51" );
+        bool is_cpp = ( lang_tag == "cpp" || lang_tag == "c" || lang_tag == "h" || lang_tag == "hpp" );
+
+        ImGuiID code_id = ImGui::GetID( (const void*)code_ );
+        bool is_preview = false;
+        if( is_markdown )
+        {
+            is_preview = ImGui::GetStateStorage()->GetBool( code_id, false );
+        }
+
+        float header_h = 0.0f;
+        if( lang_tag.length() > 0 || mdConfig_.showCodeCopyButton || is_markdown )
+        {
+            header_h = ImGui::GetFontSize() + 8.0f * scale;
+        }
+
+        ImDrawList* dl = window->DrawList;
+        dl->ChannelsSplit( 2 );
+        dl->ChannelsSetCurrent( 1 ); // Foreground text channel
 
         ImGui::SetCursorScreenPos( ImVec2( start_pos.x + pad_x, start_pos.y + header_h + pad_y ) );
         ImGui::BeginGroup();
 
-        const char* p = code_;
-        const char* end = code_ + codeLength_;
-        while( p < end )
+        if( is_markdown && is_preview )
         {
-            const char* line_start = p;
-            while( p < end && *p != '\n' && *p != '\r' ) ++p;
-            const char* line_end = p;
+            if( mono_font ) ImGui::PopFont();
+            ImGui::Markdown::Render( code_, codeLength_, mdConfig_ );
+            if( mono_font ) ImGui::PushFont( mono_font );
+        }
+        else if( mdConfig_.codeBlockCallback )
+        {
+            MarkdownCodeBlockData cbData;
+            cbData.code = code_;
+            cbData.codeLength = codeLength_;
+            cbData.language = lang_;
+            cbData.languageLength = langLength_;
+            cbData.config = &mdConfig_;
+            cbData.userData = mdConfig_.userData;
+            mdConfig_.codeBlockCallback( cbData );
+        }
+        else
+        {
+            const char* p = code_;
+            const char* end = code_ + codeLength_;
+            std::string line_buf;
+            while( p < end )
+            {
+                const char* line_start = p;
+                while( p < end && *p != '\n' && *p != '\r' ) ++p;
+                const char* line_end = p;
 
-            ImGui::TextUnformatted( line_start, line_end );
+                ExpandTabs( line_start, line_end, line_buf, mdConfig_.tabSize > 0 ? mdConfig_.tabSize : 4 );
+                DefaultRenderCodeLine( line_buf, is_lua, is_cpp );
 
-            if( p < end && *p == '\r' ) ++p;
-            if( p < end && *p == '\n' ) ++p;
+                if( p < end && *p == '\r' ) ++p;
+                if( p < end && *p == '\n' ) ++p;
+            }
         }
 
         // Add bottom container padding inside the group so CursorMaxPos accounts for it
@@ -595,7 +797,15 @@ namespace ImGui
         ImGui::EndGroup();
 
         ImVec2 content_max = ImGui::GetItemRectMax();
-        float block_width = ImMax( avail_width, content_max.x - start_pos.x + pad_x );
+        float content_w = ( content_max.x - start_pos.x ) + pad_x;
+
+        float chip_w = ( lang_tag.length() > 0 ) ? ( ImGui::CalcTextSize( lang_tag.c_str() ).x + 8.0f * scale ) : 0.0f;
+        float toggle_w = is_markdown ? ( ImGui::CalcTextSize( is_preview ? "Raw" : "Preview" ).x + 12.0f * scale ) : 0.0f;
+        float copy_w = mdConfig_.showCodeCopyButton ? ( ImGui::CalcTextSize( "Copied!" ).x + 12.0f * scale ) : 0.0f;
+        float min_header_w = pad_x * 2.0f + chip_w + ( toggle_w > 0.0f ? ( toggle_w + 6.0f * scale ) : 0.0f ) + ( copy_w > 0.0f ? ( copy_w + 6.0f * scale ) : 0.0f );
+
+        float needed_width = ImMax( min_header_w, content_w );
+        float block_width = ImMax( needed_width, 100.0f * scale );
         float block_height = content_max.y - start_pos.y;
 
         ImVec2 box_min = start_pos;
@@ -616,20 +826,85 @@ namespace ImGui
 #endif
             dl->AddRectFilled( box_min, header_max, header_bg, rounding, ImDrawFlags_RoundCornersTop );
             dl->AddLine( ImVec2( box_min.x, header_max.y ), header_max, divider_col, 1.0f * scale );
-
-            ImVec2 chip_size = ImGui::CalcTextSize( lang_tag.c_str() );
-            float chip_w = chip_size.x + 8.0f * scale;
-            float chip_x = start_pos.x + block_width - chip_w - pad_x;
-            if( chip_x > start_pos.x + pad_x )
-            {
-                ImVec2 chip_min( chip_x, start_pos.y + ( header_h - chip_size.y - 2.0f * scale ) * 0.5f );
-                ImVec2 chip_max( chip_x + chip_w, chip_min.y + chip_size.y + 2.0f * scale );
-                dl->AddRectFilled( chip_min, chip_max, IM_COL32( 55, 56, 68, 220 ), 3.0f * scale );
-                dl->AddText( ImVec2( chip_x + 4.0f * scale, chip_min.y + 1.0f * scale ), IM_COL32( 210, 210, 220, 255 ), lang_tag.c_str() );
-            }
         }
 
         dl->AddRect( box_min, box_max, border_col, rounding, 0, 1.0f * scale );
+
+        dl->ChannelsSetCurrent( 1 );
+
+        if( header_h > 0.0f )
+        {
+            // 1. Language pill on the LEFT:
+            if( lang_tag.length() > 0 )
+            {
+                ImVec2 chip_min( start_pos.x + pad_x, start_pos.y + ( header_h - ( ImGui::GetFontSize() + 2.0f * scale ) ) * 0.5f );
+                ImVec2 chip_max( chip_min.x + chip_w, chip_min.y + ImGui::GetFontSize() + 2.0f * scale );
+                dl->AddRectFilled( chip_min, chip_max, IM_COL32( 55, 56, 68, 220 ), 3.0f * scale );
+                dl->AddText( ImVec2( chip_min.x + 4.0f * scale, chip_min.y + 1.0f * scale ), IM_COL32( 210, 210, 220, 255 ), lang_tag.c_str() );
+            }
+
+            // 2. Copy button on far RIGHT:
+            static ImGuiID s_lastCopiedId = 0;
+            static double  s_lastCopiedTime = 0.0;
+            bool is_recently_copied = ( s_lastCopiedId == code_id && ( ImGui::GetTime() - s_lastCopiedTime ) < 1.5 );
+            const char* copy_label = is_recently_copied ? "Copied!" : "Copy";
+            ImVec2 cur_copy_size = ImGui::CalcTextSize( copy_label );
+            float cur_copy_w = cur_copy_size.x + 8.0f * scale;
+            float cur_copy_h = cur_copy_size.y + 4.0f * scale;
+            float cur_copy_x = box_max.x - cur_copy_w - pad_x;
+            float cur_copy_y = start_pos.y + ( header_h - cur_copy_h ) * 0.5f;
+
+            if( mdConfig_.showCodeCopyButton )
+            {
+                ImGui::SetCursorScreenPos( ImVec2( cur_copy_x, cur_copy_y ) );
+                ImGui::PushID( (int)code_id + 2 );
+                ImGui::PushStyleColor( ImGuiCol_Button, is_recently_copied ? IM_COL32( 35, 100, 50, 220 ) : IM_COL32( 45, 46, 56, 200 ) );
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, is_recently_copied ? IM_COL32( 45, 120, 60, 240 ) : IM_COL32( 65, 68, 80, 240 ) );
+                ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 80, 84, 98, 255 ) );
+                ImGui::PushStyleColor( ImGuiCol_Text, is_recently_copied ? IM_COL32( 160, 240, 170, 255 ) : IM_COL32( 200, 205, 215, 255 ) );
+                ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, 3.0f * scale );
+                ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 4.0f * scale, 1.0f * scale ) );
+
+                if( ImGui::Button( copy_label ) )
+                {
+                    std::string clip_text( code_, codeLength_ );
+                    ImGui::SetClipboardText( clip_text.c_str() );
+                    s_lastCopiedId = code_id;
+                    s_lastCopiedTime = ImGui::GetTime();
+                }
+                ImGui::PopStyleVar( 2 );
+                ImGui::PopStyleColor( 4 );
+                ImGui::PopID();
+            }
+
+            // 3. Markdown Preview Toggle button:
+            if( is_markdown )
+            {
+                const char* toggle_label = is_preview ? "Raw" : "Preview";
+                ImVec2 cur_toggle_size = ImGui::CalcTextSize( toggle_label );
+                float cur_toggle_w = cur_toggle_size.x + 8.0f * scale;
+                float cur_toggle_h = cur_toggle_size.y + 4.0f * scale;
+                float cur_toggle_x = ( mdConfig_.showCodeCopyButton ? cur_copy_x : ( box_max.x - pad_x ) ) - cur_toggle_w - 6.0f * scale;
+                float cur_toggle_y = start_pos.y + ( header_h - cur_toggle_h ) * 0.5f;
+
+                ImGui::SetCursorScreenPos( ImVec2( cur_toggle_x, cur_toggle_y ) );
+                ImGui::PushID( (int)code_id + 1 );
+                ImGui::PushStyleColor( ImGuiCol_Button, is_preview ? IM_COL32( 40, 75, 120, 220 ) : IM_COL32( 45, 46, 56, 200 ) );
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, IM_COL32( 60, 95, 150, 240 ) );
+                ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 70, 110, 180, 255 ) );
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 220, 225, 235, 255 ) );
+                ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, 3.0f * scale );
+                ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 4.0f * scale, 1.0f * scale ) );
+
+                if( ImGui::Button( toggle_label ) )
+                {
+                    ImGui::GetStateStorage()->SetBool( code_id, !is_preview );
+                }
+                ImGui::PopStyleVar( 2 );
+                ImGui::PopStyleColor( 4 );
+                ImGui::PopID();
+            }
+        }
 
         dl->ChannelsMerge();
 
@@ -638,9 +913,9 @@ namespace ImGui
             ImGui::PopFont();
         }
 
-        // Align cursor to box bottom and submit spacing item cleanly
+        // Align cursor to box bottom and submit spacing item cleanly with block_width
         ImGui::SetCursorScreenPos( ImVec2( start_pos.x, box_max.y ) );
-        ImGui::Dummy( ImVec2( 0.0f, 4.0f * scale ) );
+        ImGui::Dummy( ImVec2( block_width, 4.0f * scale ) );
     }
     
     // render markdown (low-level rendering pipeline)

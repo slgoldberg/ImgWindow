@@ -327,7 +327,9 @@ namespace ImGui {
 
                 float prev = *valRef;
                 float next = *valRef + scale * clicks;
-                *valRef = (minVal < maxVal) ? Clamp(next, minVal, maxVal) : next;
+                float lower = std::min(minVal, maxVal);
+                float upper = std::max(minVal, maxVal);
+                *valRef = (lower < upper) ? Clamp(next, lower, upper) : lower;
                 if (*valRef != prev) {
                     isHandled = true;
 #if defined(IMGUI_TOOLTIP_EXT_H)
@@ -370,7 +372,9 @@ namespace ImGui {
 
                 int prev = *valRef;
                 int next = *valRef + delta;
-                *valRef = (minVal < maxVal) ? Clamp(next, minVal, maxVal) : next;
+                int lower = std::min(minVal, maxVal);
+                int upper = std::max(minVal, maxVal);
+                *valRef = (lower < upper) ? Clamp(next, lower, upper) : lower;
                 if (*valRef != prev) {
                     isHandled = true;
 #if defined(IMGUI_TOOLTIP_EXT_H)
@@ -1498,7 +1502,9 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
+                float lower = std::min(v_min, v_max);
+                float upper = std::max(v_min, v_max);
+                *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
         }
@@ -1608,7 +1614,9 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
+                int lower = std::min(v_min, v_max);
+                int upper = std::max(v_min, v_max);
+                *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
         }
@@ -1721,7 +1729,9 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
+                float lower = std::min(v_min, v_max);
+                float upper = std::max(v_min, v_max);
+                *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
         }
@@ -1835,7 +1845,9 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
+                float lower = std::min(v_min, v_max);
+                float upper = std::max(v_min, v_max);
+                *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
         }
@@ -1947,7 +1959,9 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                *v = (v_min < v_max) ? WheelSliderDetail::Clamp(restore_val, v_min, v_max) : restore_val;
+                int lower = std::min(v_min, v_max);
+                int upper = std::max(v_min, v_max);
+                *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
         }
