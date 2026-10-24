@@ -27,6 +27,7 @@
 #include <cstdio>
 #include <cstring>
 #include "imgui_markdown.h"
+#include "../../widgets/imgui_badges.h"
 
 namespace ImGui {
 
@@ -135,6 +136,8 @@ namespace ImGui {
         bool is_bold = false;
         bool is_italic = false;
         bool is_mono = false;
+        bool is_strike = false;
+        bool is_underline = false;
     };
 
     inline MarkdownTagStyle ParseMarkdownTagStyle(const std::string& inner_text, const std::string& param) {
@@ -171,6 +174,12 @@ namespace ImGui {
                 found_explicit_style = true;
             } else if (t == "mono" || t == "monospace" || t == "code" || t == "m" || t == "font=mono" || t == "style=mono") {
                 style.is_mono = true;
+                found_explicit_style = true;
+            } else if (t == "strike" || t == "strikethrough" || t == "del" || t == "s") {
+                style.is_strike = true;
+                found_explicit_style = true;
+            } else if (t == "underline" || t == "u" || t == "ins") {
+                style.is_underline = true;
                 found_explicit_style = true;
             } else {
                 if (t.rfind("fgcolor=", 0) == 0) {
@@ -256,6 +265,16 @@ namespace ImGui {
         {
             style.is_mono = true;
             core = core.substr(1, core.length() - 2);
+        }
+        else if (core.length() >= 4 && core.rfind("~~", 0) == 0 && core.compare(core.length() - 2, 2, "~~") == 0)
+        {
+            style.is_strike = true;
+            core = core.substr(2, core.length() - 4);
+        }
+        else if (core.length() >= 4 && core.rfind("$$", 0) == 0 && core.compare(core.length() - 2, 2, "$$") == 0)
+        {
+            style.is_strike = true;
+            core = core.substr(2, core.length() - 4);
         }
         style.clean_text = lead_spaces + core + trail_spaces;
 
@@ -354,6 +373,13 @@ namespace ImGui {
                     ImGui::PopTextWrapPos();
                 }
 
+                if (style.is_strike) {
+                    DrawTextDecorationLine(ImGui::GetColorU32(has_col ? col : ImGui::GetStyle().Colors[ImGuiCol_Text]), true);
+                }
+                if (style.is_underline) {
+                    DrawTextDecorationLine(ImGui::GetColorU32(has_col ? col : ImGui::GetStyle().Colors[ImGuiCol_Text]), false);
+                }
+
                 if (has_col) ImGui::PopStyleColor();
 
                 PopMarkdownTagFont(config, style);
@@ -418,8 +444,8 @@ namespace ImGui {
             s_CustomTags["bg"]        = backdropHandler;
             s_CustomTags["highlight"] = backdropHandler;
 
-            // Built-in Tag 3: <badge=...>, <pill=...>, <tag=...>
-            // Renders a sleek pill/badge with colored background and contrasting text
+            // Built-in Tag 3: <badge=...>, <tag=...>
+            // Delegates directly to ImGui::Badge standalone C++ widget
             auto badgeHandler = [](const std::string& inner_text, const std::string& param) {
                 auto style = ParseMarkdownTagStyle(inner_text, param);
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
@@ -445,8 +471,8 @@ namespace ImGui {
                     if (lum > 0.65f) text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
                 }
 
-                // If explicit foreground/text color is specified, override the automatic contrast color:
-                if (!style.fg_color.empty()) {
+                bool has_explicit_fg = !style.fg_color.empty();
+                if (has_explicit_fg) {
                     ParseMarkdownColor(style.fg_color, text_col);
                 }
 
@@ -454,54 +480,73 @@ namespace ImGui {
                 float btn_width = text_size.x + ImGui::GetStyle().FramePadding.x * 2.0f;
                 EnsureTagFitsOnLine(btn_width);
 
-                bool has_ascii_text = false;
-                for (char c : style.clean_text) {
-                    if ((unsigned char)c > ' ' && (unsigned char)c < 0x80) {
-                        has_ascii_text = true;
-                        break;
-                    }
-                }
-
-                if (has_ascii_text) {
-                    // For text pills (with ascenders/descenders like 'p', 'g', 'y'), SmallButton's
-                    // FramePadding.y = 0 leaves 0px below descenders and ~2px of diacritic headroom at top.
-                    // Draw the rounded pill shifted +1px down so ascenders and descenders are balanced:
-                    float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
-                    ImVec2 pos = ImGui::GetCursorScreenPos();
-                    if (ImGui::GetCurrentWindow() && ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset > 0.0f) {
-                        pos.y += ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset;
-                    }
-                    float rounding = ImMax(3.0f * scale, ImGui::GetStyle().FrameRounding);
-                    ImGui::GetWindowDrawList()->AddRectFilled(
-                        ImVec2(pos.x, pos.y + 0.5f * scale),
-                        ImVec2(pos.x + btn_width, pos.y + text_size.y + 1.0f * scale),
-                        ImGui::GetColorU32(bg_col), rounding
-                    );
-                    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-                    ImGui::PushStyleColor(ImGuiCol_Text, text_col);
-                    ImGui::SmallButton(style.clean_text.c_str());
-                    ImGui::PopStyleColor(4);
-                    ImGui::PopStyleVar();
-                } else {
-                    // Icon-only pill (e.g., FontAwesome glyph): keep standard SmallButton frame bounds
-                    ImGui::PushStyleColor(ImGuiCol_Button, bg_col);
-                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, bg_col);
-                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg_col);
-                    ImGui::PushStyleColor(ImGuiCol_Text, text_col);
-                    ImGui::SmallButton(style.clean_text.c_str());
-                    ImGui::PopStyleColor(4);
-                }
+                ImGui::Badge(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr);
 
                 PopMarkdownTagFont(config, style);
             };
+
+            // Built-in Tag 3b: <pill=...>
+            // Delegates directly to ImGui::Pill standalone C++ widget
+            auto pillHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+
+                ImVec4 bg_col = ImVec4(0.25f, 0.25f, 0.30f, 1.0f);
+                ImVec4 text_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+                std::string bg_str = !style.bg_color.empty() ? style.bg_color : style.color_param;
+
+                if (bg_str == "danger" || bg_str == "red") {
+                    bg_col = ImVec4(0.85f, 0.15f, 0.15f, 1.0f);
+                } else if (bg_str == "warning" || bg_str == "yellow") {
+                    bg_col = ImVec4(0.95f, 0.75f, 0.10f, 1.0f);
+                    text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+                } else if (bg_str == "success" || bg_str == "green") {
+                    bg_col = ImVec4(0.15f, 0.70f, 0.25f, 1.0f);
+                } else if (bg_str == "info" || bg_str == "blue") {
+                    bg_col = ImVec4(0.20f, 0.55f, 0.90f, 1.0f);
+                } else if (!bg_str.empty()) {
+                    ParseMarkdownColor(bg_str, bg_col);
+                    float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
+                    if (lum > 0.65f) text_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+                }
+
+                bool has_explicit_fg = !style.fg_color.empty();
+                if (has_explicit_fg) {
+                    ParseMarkdownColor(style.fg_color, text_col);
+                }
+
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                float btn_width = text_size.x + ImGui::GetStyle().FramePadding.x * 2.0f;
+                EnsureTagFitsOnLine(btn_width);
+
+                ImGui::Pill(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr);
+
+                PopMarkdownTagFont(config, style);
+            };
+
+            // Built-in Tag 3c: <kbd>, <key>
+            // Delegates directly to ImGui::Kbd standalone C++ widget
+            auto kbdHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                float pad_x = ImGui::GetStyle().FramePadding.x * 1.2f;
+                EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
+
+                ImGui::Kbd(style.clean_text.c_str());
+
+                PopMarkdownTagFont(config, style);
+            };
+
             s_CustomTags["badge"] = badgeHandler;
-            s_CustomTags["pill"]  = badgeHandler;
             s_CustomTags["tag"]   = badgeHandler;
-            s_CustomTags["kbd"]   = badgeHandler;
-            s_CustomTags["key"]   = badgeHandler;
+            s_CustomTags["pill"]  = pillHandler;
+            s_CustomTags["kbd"]   = kbdHandler;
+            s_CustomTags["key"]   = kbdHandler;
 
             // Built-in Tag 4: <btn=...>
             s_CustomTags["btn"] = [](const std::string& inner_text, const std::string& param) {
@@ -586,6 +631,79 @@ namespace ImGui {
             };
             s_CustomTags["mono"] = monoCodeHandler;
             s_CustomTags["code"] = monoCodeHandler;
+
+            // Built-in Tag 6: <u>, <ins> (Underline)
+            auto underlineHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+
+                ImVec4 col = ImGui::GetStyle().Colors[ImGuiCol_Text];
+                bool has_col = false;
+                std::string col_str = !style.fg_color.empty() ? style.fg_color : style.color_param;
+                if (!col_str.empty()) {
+                    has_col = ParseMarkdownColor(col_str, col);
+                    if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
+                }
+
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                EnsureTagFitsOnLine(text_size.x);
+
+                bool no_wrap = (config && config->wrapWidth < 0.0f);
+                float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
+                if (no_wrap || text_size.x <= avail_w) {
+                    ImGui::TextUnformatted(style.clean_text.c_str());
+                } else {
+                    float wrap_pos = (config && config->wrapWidth > 0.0f) ? (ImGui::GetCursorPos().x + config->wrapWidth) : 0.0f;
+                    ImGui::PushTextWrapPos(wrap_pos);
+                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    ImGui::PopTextWrapPos();
+                }
+
+                DrawTextDecorationLine(ImGui::GetColorU32(has_col ? col : ImGui::GetStyle().Colors[ImGuiCol_Text]), false);
+
+                if (has_col) ImGui::PopStyleColor();
+                PopMarkdownTagFont(config, style);
+            };
+            s_CustomTags["u"]   = underlineHandler;
+            s_CustomTags["ins"] = underlineHandler;
+
+            // Built-in Tag 7: <s>, <del>, <strike> (Strikethrough)
+            auto strikeHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+
+                ImVec4 col = ImGui::GetStyle().Colors[ImGuiCol_Text];
+                bool has_col = false;
+                std::string col_str = !style.fg_color.empty() ? style.fg_color : style.color_param;
+                if (!col_str.empty()) {
+                    has_col = ParseMarkdownColor(col_str, col);
+                    if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
+                }
+
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                EnsureTagFitsOnLine(text_size.x);
+
+                bool no_wrap = (config && config->wrapWidth < 0.0f);
+                float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
+                if (no_wrap || text_size.x <= avail_w) {
+                    ImGui::TextUnformatted(style.clean_text.c_str());
+                } else {
+                    float wrap_pos = (config && config->wrapWidth > 0.0f) ? (ImGui::GetCursorPos().x + config->wrapWidth) : 0.0f;
+                    ImGui::PushTextWrapPos(wrap_pos);
+                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    ImGui::PopTextWrapPos();
+                }
+
+                DrawTextDecorationLine(ImGui::GetColorU32(has_col ? col : ImGui::GetStyle().Colors[ImGuiCol_Text]), true);
+
+                if (has_col) ImGui::PopStyleColor();
+                PopMarkdownTagFont(config, style);
+            };
+            s_CustomTags["s"]      = strikeHandler;
+            s_CustomTags["del"]    = strikeHandler;
+            s_CustomTags["strike"] = strikeHandler;
 #endif
         }
         return s_CustomTags;

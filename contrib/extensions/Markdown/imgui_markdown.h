@@ -84,6 +84,7 @@ namespace ImGui
          NORMAL_TEXT,
          HEADING,
          UNORDERED_LIST,
+         ORDERED_LIST,
          LINK,
          EMPHASIS,
     };
@@ -146,7 +147,8 @@ namespace ImGui
         MarkdownImageCallback*  imageCallback = NULL;
         MarkdownTagCallback*    tagCallback = NULL;
         const char*             linkIcon = "";                      // icon displayd in link tooltip
-        const char*             emphasisChars = "*_`";              // string of characters recognized as emphasis markers
+        const char*             emphasisChars = "*_`~$";            // string of characters recognized as emphasis markers (*, _, `, ~, $)
+        bool                    underlineWithUnderscores = false;   // If true, __text__ renders as underline instead of bold
         MarkdownHeadingFormat   headingFormats[ NUMHEADINGS ] = { { NULL, true }, { NULL, true }, { NULL, true }, { NULL, true } };
         void*                   userData = NULL;
         MarkdownFormalCallback* formatCallback = defaultMarkdownFormatCallback;
@@ -314,6 +316,27 @@ namespace ImGui
             RenderTextWrapped( text_, text_end_ );
         }
 
+        void ApplyOrderedNumber( const char* num_str, const char* num_str_end, float custom_spacing = -1.0f )
+        {
+            float startX = ImGui::GetCursorScreenPos().x;
+            ImGui::TextUnformatted( num_str, num_str_end );
+            float spacing = ( custom_spacing >= 0.0f ) ? custom_spacing : ( ImGui::GetStyle().ItemSpacing.x * 0.5f );
+            ImGui::SameLine( 0.0f, spacing );
+            float textStartX = ImGui::GetCursorScreenPos().x;
+            float numIndent = textStartX - startX;
+            if( numIndent > 0.0f )
+            {
+                ImGui::Indent( numIndent );
+                indentX += numIndent;
+            }
+        }
+
+        void RenderOrderedListTextWrapped( const char* num_str, const char* num_str_end, const char* text_, const char* text_end_, float custom_spacing = -1.0f )
+        {
+            ApplyOrderedNumber( num_str, num_str_end, custom_spacing );
+            RenderTextWrapped( text_, text_end_ );
+        }
+
         bool RenderLinkText( const char* text_, const char* text_end_, const Link& link_, 
             const char* markdown_, const MarkdownConfig& mdConfig_, const char** linkHoverStart_ );
 
@@ -364,6 +387,9 @@ namespace ImGui
         bool isHeading = false;
         bool isEmphasis = false;
         bool isUnorderedListStart = false;
+        bool isOrderedListStart = false;
+        int  orderedListNumStart = 0;
+        int  orderedListNumEnd = 0;
         bool isLeadingSpace = true;     // spaces at start of line
         int  leadSpaceCount = 0;
         int  headingCount = 0;
@@ -409,12 +435,27 @@ namespace ImGui
         char sym;
 	};
 
-    inline void UnderLine( ImColor col_ )
+    inline void DrawTextDecorationLine( ImColor col_, bool is_strikethrough_ )
     {
         ImVec2 min = ImGui::GetItemRectMin();
         ImVec2 max = ImGui::GetItemRectMax();
-        min.y = max.y;
-        ImGui::GetWindowDrawList()->AddLine( min, max, col_, 1.0f );
+        float y = is_strikethrough_ ? std::floor( ( min.y + max.y ) * 0.5f ) : std::floor( max.y - 1.0f );
+        ImGui::GetWindowDrawList()->AddLine( ImVec2( min.x, y ), ImVec2( max.x, y ), col_, 1.0f );
+    }
+
+    inline void UnderLine( ImColor col_ )
+    {
+        DrawTextDecorationLine( col_, false );
+    }
+
+    inline bool IsMarkdownEscapable( char c_ )
+    {
+        return ( c_ == '!' || c_ == '\"' || c_ == '#' || c_ == '$' || c_ == '%' || c_ == '&' ||
+                 c_ == '\'' || c_ == '(' || c_ == ')' || c_ == '*' || c_ == '+' || c_ == ',' ||
+                 c_ == '-' || c_ == '.' || c_ == '/' || c_ == ':' || c_ == ';' || c_ == '<' ||
+                 c_ == '=' || c_ == '>' || c_ == '?' || c_ == '@' || c_ == '[' || c_ == '\\' ||
+                 c_ == ']' || c_ == '^' || c_ == '_' || c_ == '`' || c_ == '{' || c_ == '|' ||
+                 c_ == '}' || c_ == '~' );
     }
 
     inline void RenderLine( const char* markdown_, Line& line_, TextRegion& textRegion_, const MarkdownConfig& mdConfig_ )
@@ -452,6 +493,17 @@ namespace ImGui
             const char* textEnd = text + textSize - 1;
             while( text < textEnd && *text == ' ' ) { ++text; }
             textRegion_.RenderListTextWrapped( text, textEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+        }
+        else if( line_.isOrderedListStart ) // render ordered list (e.g. 1. , 2. )
+        {
+            formatInfo.type = MarkdownFormatType::ORDERED_LIST;
+            mdConfig_.formatCallback( formatInfo, true );
+            const char* numStart = markdown_ + line_.orderedListNumStart;
+            const char* numEnd = markdown_ + line_.orderedListNumEnd;
+            const char* text = markdown_ + textStart;
+            const char* textEnd = text + textSize;
+            while( text < textEnd && *text == ' ' ) { ++text; }
+            textRegion_.RenderOrderedListTextWrapped( numStart, numEnd, text, textEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
         }
         else if( line_.isHeading )          // render heading
         {
@@ -518,6 +570,23 @@ namespace ImGui
                         ++line.lastRenderPosition;
                         continue;
                     }
+                    else if( c >= '0' && c <= '9' )
+                    {
+                        int d = i;
+                        while( d < (int)markdownLength_ && markdown_[d] >= '0' && markdown_[d] <= '9' && (d - i) < 9 )
+                        {
+                            ++d;
+                        }
+                        if( d > i && d + 1 < (int)markdownLength_ && ( markdown_[d] == '.' || markdown_[d] == ')' ) && markdown_[d + 1] == ' ' )
+                        {
+                            line.isOrderedListStart = true;
+                            line.orderedListNumStart = i;
+                            line.orderedListNumEnd = d + 1; // includes '.' or ')'
+                            i = d + 1; // advances past the delimiter
+                            line.lastRenderPosition = i;
+                            continue;
+                        }
+                    }
                     else if( c == '#' )
                     {
                         line.headingCount++;
@@ -550,6 +619,24 @@ namespace ImGui
                         }
                     }
                 }
+            }
+
+            // Test to see if we have an escaped character via backslash (\* or \# or \<)
+            if( c == '\\' && i + 1 < (int)markdownLength_ && IsMarkdownEscapable( markdown_[ i + 1 ] ) )
+            {
+                // Render any preceding plain text before the backslash
+                line.lineEnd = i;
+                if( line.lineEnd > line.lineStart && line.lineEnd > line.lastRenderPosition + 1 )
+                {
+                    RenderLine( markdown_, line, textRegion, mdConfig_ );
+                    ImGui::SameLine( 0.0f, 0.0f );
+                }
+                // Skip the backslash character so it is never displayed
+                ++i;
+                line.lineStart = i;
+                line.lastRenderPosition = i - 1;
+                // markdown_[i] is now an escaped literal character; skip normal markup checks for this character
+                continue;
             }
 
             // Test to see if we have a custom styling tag <tag=param>...</tag>
@@ -610,6 +697,13 @@ namespace ImGui
                                 textRegion.ApplyLeadIndent( numLeadIndents );
                                 textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
                                 line.isUnorderedListStart = false;
+                            }
+                            else if( line.isOrderedListStart )
+                            {
+                                int numLeadIndents = line.leadSpaceCount / 2;
+                                textRegion.ApplyLeadIndent( numLeadIndents );
+                                textRegion.ApplyOrderedNumber( markdown_ + line.orderedListNumStart, markdown_ + line.orderedListNumEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                                line.isOrderedListStart = false;
                             }
 
                             MarkdownTagData tagData;
@@ -729,6 +823,13 @@ namespace ImGui
                         textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
                         line.isUnorderedListStart = false;
                     }
+                    else if( line.isOrderedListStart )
+                    {
+                        int numLeadIndents = line.leadSpaceCount / 2;
+                        textRegion.ApplyLeadIndent( numLeadIndents );
+                        textRegion.ApplyOrderedNumber( markdown_ + line.orderedListNumStart, markdown_ + line.orderedListNumEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                        line.isOrderedListStart = false;
+                    }
                     link.url.stop = i;
                     if( link.isImage )
                     {
@@ -843,6 +944,13 @@ namespace ImGui
                             textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
                             line.isUnorderedListStart = false;
                         }
+                        else if( line.isOrderedListStart )
+                        {
+                            int numLeadIndents = line.leadSpaceCount / 2;
+                            textRegion.ApplyLeadIndent( numLeadIndents );
+                            textRegion.ApplyOrderedNumber( markdown_ + line.orderedListNumStart, markdown_ + line.orderedListNumEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                            line.isOrderedListStart = false;
+                        }
 						line.isEmphasis = true;
 						line.lastRenderPosition = em.text.start - 1;
                         line.lineStart = em.text.start;
@@ -904,7 +1012,7 @@ namespace ImGui
                     if( spaceCount >= 2 && next < (int)markdownLength_ )
                     {
                         char nextC = markdown_[next];
-                        if( nextC != '*' && nextC != '-' && nextC != '+' && nextC != '#' && nextC != '\n' && nextC != '\r' )
+                        if( nextC != '*' && nextC != '-' && nextC != '+' && nextC != '#' && !( nextC >= '0' && nextC <= '9' ) && nextC != '\n' && nextC != '\r' )
                         {
                             isNextContinuation = true;
                         }
@@ -1051,6 +1159,7 @@ namespace ImGui
         {
         case MarkdownFormatType::NORMAL_TEXT:
         case MarkdownFormatType::UNORDERED_LIST:
+        case MarkdownFormatType::ORDERED_LIST:
             if( markdownFormatInfo_.config && markdownFormatInfo_.config->regularFont )
             {
                 if( start_ ) ImGui::PushFont( markdownFormatInfo_.config->regularFont );
@@ -1067,6 +1176,26 @@ namespace ImGui
                 {
                     if( start_ ) ImGui::PushFont( mono_font );
                     else         ImGui::PopFont();
+                }
+                break;
+            }
+
+            if( markdownFormatInfo_.emphasisChar == '~' || markdownFormatInfo_.emphasisChar == '$' )
+            {
+                // GFM Strikethrough (~~text~~) or ABC legacy strikethrough ($$text$$):
+                if( !start_ )
+                {
+                    DrawTextDecorationLine( ImGui::GetColorU32( ImGuiCol_Text ), true );
+                }
+                break;
+            }
+
+            if( markdownFormatInfo_.emphasisChar == '_' && markdownFormatInfo_.config && markdownFormatInfo_.config->underlineWithUnderscores && markdownFormatInfo_.level == 2 )
+            {
+                // Underline via __text__ when underlineWithUnderscores is enabled:
+                if( !start_ )
+                {
+                    DrawTextDecorationLine( ImGui::GetColorU32( ImGuiCol_Text ), false );
                 }
                 break;
             }

@@ -80,7 +80,8 @@ ImgWindow/
     └── widgets/                           # Lightweight, immediate-mode ImGui:: UI controls
         ├── imgui_toggle_buttons.h         # Animated toggle switches & segmented button pairs
         ├── imgui_mouse_wheel_controls.h   # Sliders, drags, combos & chasers with mouse-wheel support
-        └── imgui_clickable_links.h        # ButtonLink, TextLink, MenuItemLink & AttachItemCursor affordances
+        ├── imgui_clickable_links.h        # ButtonLink, TextLink, MenuItemLink & AttachItemCursor affordances
+        └── imgui_badges.h                 # Standalone C++ status badges, pills, and 3D keycaps (<kbd>)
 ```
 
 ### 1. Packages & Extensions (`contrib/extensions/`)
@@ -107,6 +108,7 @@ Everything in `contrib/` is **active and ready by default**. If your project hap
 | **`CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL`**| **Opt-Out** | *Off* | Excludes mouse-wheel toggling on `ToggleButton`. |
 | **`CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS`**| **Opt-Out** | *Off* | Excludes mouse-wheel sliders, drags, cyclers, and combos. |
 | **`CONTRIB_DISABLE_CLICKABLE_LINKS`** | **Opt-Out** | *Off* | Excludes `ButtonLink`, `TextLink`, `MenuItemLink`, and `AttachItemCursor`. |
+| **`CONTRIB_DISABLE_BADGES`**          | **Opt-Out** | *Off* | Excludes standalone `Badge`, `Pill`, and `Kbd` widgets. |
 | **`CONTRIB_DISABLE_PERCENT_SLIDER`** | **Opt-Out** | *Off* | Excludes `PercentSlider` and `SliderPercent`. |
 | **`CONTRIB_DISABLE_MOUSE_WHEEL_COMBO`** | **Opt-Out** | *Off* | Excludes `MouseWheelCombo` and `ComboWithReset`. |
 | **`IMGUI_CONTRIB_DISABLE_RESET_UNDO`** | **Opt-Out** | *Off* | Disables 1-click Reset-with-Undo on reset buttons. |

@@ -38,14 +38,19 @@ The Markdown system is structured as a clean two-layer architecture:
   * Root convenience aliases `ImGui::TextMD(...)` / `ImGui::TextMarkdown(...)` allow drop-in usage matching `ImGui::Text(...)`.
   * Opt-in global convenience (`#define CONTRIB_ENABLE_GLOBAL_NAMESPACES` or `#include "contrib/contrib-global.h"`) publishes `Markdown::Text(...)` and `MD::Text(...)` to the global scope for developers seeking minimum boilerplate.
 
-* **Smart Line-Break Lookahead (Zero Mid-Word Breaks):**
-  * Upstream `imgui_markdown` evaluates emphasis (`**bold**`, `*italic*`) and link tokens as isolated chunks, causing Dear ImGui's word-wrapper to sever words mid-syllable at line edges.
-  * Our engine checks if an upcoming emphasized token would fit on the next line and pushes it down cleanly via lookahead, keeping words intact.
-  * Typographic lookahead prevents orphaned opening delimiters (`"`, `'`, `(`, `[`, `{`) and severed contractions (`don't`) or hyphens (`system-level`).
-  * Conforms to CommonMark punctuation rules: standard punctuation (`/`, `(`, `[`, `{`, `-`, `:`, etc.) can immediately precede emphasis tokens (e.g., `#2/**"Cerise"**` or `(**Important**)`), while preserving strict intra-word identifier safety (`variable_name`).
-* **Hanging Indents & Bullet List Typography:**
-  * Replaces cramped upstream bullet spacing with scalable, comfortable breathing room (`bulletSpacing` defaulting to a clean 4px).
-  * Mathematically maintains true hanging indents across wrapped multi-line list items and continuation lines, keeping all wrapped text cleanly aligned to the text column rather than under the bullet glyph.
+* **CommonMark Backslash Escaping:**
+  * Escapes any ASCII punctuation character (`\*`, `\#`, `\_`, `\<`, `\>`, `\[`, `\]`, `\(`, `\)`, `\\`, etc.) to render literally without triggering emphasis, headers, HTML tags, or links.
+  * Ensures clean display of technical expressions like `C\*` or `[X-Plane 12]\(build\)`.
+
+* **Strikethrough & Underline Typography:**
+  * **Strikethrough:** Full support for GitHub Flavored Markdown `~~deleted text~~` and legacy ABC `$$struck text$$`, as well as HTML tags (`<s>`, `<del>`, `<strike>`).
+  * **Underline:** Supports HTML tags (`<u>`, `<ins>`) out-of-the-box. Setting `mdConfig.underlineWithUnderscores = true` allows `__underlined text__` to render as underline instead of bold.
+  * **Pixel-Aligned Rules:** Centered midline for strikethrough and baseline-aligned underline scale cleanly across all display DPIs and custom font sizes.
+
+* **Ordered & Unordered Lists with True Hanging Indents:**
+  * **Ordered Lists:** Automatically recognizes numbered items (`1. `, `2. `, etc.) and formats the number prefix with a clean hanging indent matching unordered bullets.
+  * **Unordered Lists:** Replaces cramped upstream bullet spacing with scalable, comfortable breathing room (`bulletSpacing` defaulting to a clean 4px).
+  * Mathematically maintains true hanging indents across wrapped multi-line list items and continuation lines, keeping all wrapped text cleanly aligned to the text column rather than under the bullet glyph or number.
   * Preserves leading space depth across emphasis chunks and links so nested sub-bullets never pop out of alignment.
   * Broadens list marker syntax to standard Markdown (`*`, `-`, `+`) with or without leading whitespace, with strict token isolation so bullet glyphs never hijack inline styling into rogue italic runs.
 * **Layout Pre-Calculation (`CalcSize` / `CalcTextSize`):**
@@ -314,7 +319,10 @@ The following tags are pre-registered and active by default:
 | :--- | :--- | :--- | :--- |
 | **`color` / `col`** | `<color=COLOR>text</color>`<br>`<color COLOR [bold] [italic] [mono]>text</color>` | Named colors (`red`, `green`, `blue`, `yellow`, `orange`, `purple`, `violet`, `cyan`, `magenta`, `white`, `black`, `gray`, `gold`, `dark`, `light`) or hex (`#RRGGBB`, `#RRGGBBAA`, `0xRRGGBB`, `0xRRGGBBAA`). Optional flags: `bold`, `italic`, `mono`. | Renders `text` in the specified color and font style. |
 | **`backdrop` / `bg` / `highlight`** | `<backdrop=COLOR>text</backdrop>`<br>`<backdrop COLOR [bold] [italic] [mono]>text</backdrop>` | Accepts any named color or hex code. Optional attribute flags: `bold`, `italic`, `mono`. | Renders a rounded background rectangle ("pill") optically centered behind the text bounding box. Backdrops auto-contrast text color against dark backgrounds and never split awkwardly across lines. |
-| **`badge` / `pill` / `tag`** | `<badge=VARIANT>text</badge>`<br>`<pill COLOR [bold] [italic] [mono]>text</pill>`<br>`<pill bg=BG fg=FG>text</pill>` | Semantic variants (`danger`, `warning`, `success`, `info`), named colors, or custom hex color. Supports explicit dual-color attributes (`bg=COLOR fg=COLOR`, `color=COLOR text=COLOR`, or positional tokens like `<pill green white>`). Optional flags: `bold`, `italic`, `mono`. | Renders a sleek, rounded pill badge with thematic background and auto-contrasting (or explicit) text. |
+| **`badge` / `pill` / `tag`** | `<badge=VARIANT>text</badge>`<br>`<pill COLOR [bold] [italic] [mono]>text</pill>`<br>`<pill bg=BG fg=FG>text</pill>` | Semantic variants (`danger`, `warning`, `success`, `info`), named colors, or custom hex color. Supports explicit dual-color attributes (`bg=COLOR fg=COLOR`, `color=COLOR text=COLOR`). Optional flags: `bold`, `italic`, `mono`. | Delegates directly to `ImGui::Badge` / `ImGui::Pill` standalone C++ widgets. Renders sleek rounded badges with auto-contrasting text. |
+| **`kbd` / `key`** | `<kbd>Key</kbd>`<br>`<key>Ctrl+C</key>` | Keyboard key or shortcut label. | Delegates directly to `ImGui::Kbd`. Renders a 3D tactile keyboard keycap with bottom bevel/shadow. |
+| **`u` / `ins`** | `<u>text</u>`<br>`<ins>text</ins>` | Optional color attribute (`<u #FFCC00>`). | Renders text with a pixel-aligned underline rule along the baseline. |
+| **`s` / `del` / `strike`** | `<s>text</s>`<br>`<del>text</del>`<br>`<strike>text</strike>` | Optional color attribute (`<s red>`). | Renders text with a pixel-aligned strikethrough rule across the vertical midline. |
 | **`btn`** | `<btn=ID>label</btn>`<br>`<btn [bold] [italic] [mono]>label</btn>` | Unique button ID or style flags (`bold`, `italic`, `mono`). | Renders an inline, clickable `ImGui::SmallButton` directly within text flow. |
 | **`mono` / `code`** | `<mono>text</mono>`<br>`<code [COLOR]>text</code>` | Accepts optional custom background color or hex parameter (and optional `fg=COLOR`). | Renders `text` in monospace (`mdConfig.monoFont`) inside a subtle, translucent rounded background pill. |
 

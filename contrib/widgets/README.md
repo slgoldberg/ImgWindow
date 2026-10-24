@@ -28,6 +28,7 @@ If your project defines a function with the same name, define any of the followi
 #define CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL    // Disables mouse-wheel support on ToggleButton & ToggleButtons
 #define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS  // Disables all wheel sliders, drags, cyclers & combos
 #define CONTRIB_DISABLE_CLICKABLE_LINKS       // Disables ButtonLink, TextLink & AttachItemCursor
+#define CONTRIB_DISABLE_BADGES                // Disables Badge, Pill & Kbd widgets
 
 // Fine-grained opt-outs & style defaults within imgui_mouse_wheel_controls.h:
 #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Disables GetMouseWheel* primitives
@@ -359,6 +360,44 @@ ImGui::AttachItemCursor();
 ImGui::Button("Splitter");
 ImGui::AttachItemCursor(ImGuiMouseCursor_ResizeEW);
 ```
+
+---
+
+### 4. Badges, Pills & Key Caps (`imgui_badges.h`)
+
+Sleek, standalone C++ UI indicators designed for status tags, version numbers, notification counters, and keyboard shortcut chips without requiring any Markdown parsing.
+
+```cpp
+#include "contrib/widgets/imgui_badges.h"
+
+// 1. Semantic Status Badges (Default, Primary, Success, Warning, Danger, Info):
+ImGui::Badge("ONLINE", ImGui::ImGuiBadgeVariant_Success);
+ImGui::SameLine();
+ImGui::Badge("EXPIRING", ImGui::ImGuiBadgeVariant_Warning);
+ImGui::SameLine();
+ImGui::Badge("FAULT", ImGui::ImGuiBadgeVariant_Danger);
+
+// 2. Fully-rounded Pills:
+ImGui::Pill("v1.92", ImGui::ImGuiBadgeVariant_Primary);
+ImGui::SameLine();
+ImGui::Pill("PRO", ImVec4(0.85f, 0.40f, 0.10f, 1.0f)); // Custom ImVec4 background
+
+// 3. Custom Hex or ImU32 Backgrounds with Automatic Contrast Calculation:
+ImGui::Badge("BETA", ImGui::GetColorU32(ImVec4(0.9f, 0.9f, 0.1f, 1.0f))); // Auto-selects dark text
+
+// 4. Keyboard Key Caps (<kbd>):
+ImGui::Text("Press");
+ImGui::SameLine();
+ImGui::Kbd("Ctrl+Shift+P");
+ImGui::SameLine();
+ImGui::Text("to open Command Palette.");
+```
+
+* **Features:**
+  * **Pixel-Balanced Rounded Geometry:** Uses TrueType baseline alignment and font-scale compensation so ascenders and descenders ('p', 'g', 'y') stay centered with identical visual margins.
+  * **Intelligent Auto-Contrast:** Computes ITU-R BT.601 perceptual luminance of the background color and automatically selects crisp dark (`#000000`) or light (`#FFFFFF`) text when foreground color is omitted.
+  * **3D Key Caps (`ImGui::Kbd`):** Renders tactile keyboard shortcut chips with rounded borders and a bottom bevel shadow.
+  * **Zero Markdown Overhead:** Standalone immediate-mode C++ functions usable anywhere in pure ImGui panels. Markdown's `<badge>`, `<pill>`, and `<kbd>` tags delegate directly to these widgets.
 
 ---
 
