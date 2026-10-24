@@ -736,22 +736,26 @@ namespace ImGui
         bool is_lua = ( lang_tag == "lua" || lang_tag == "lua51" );
         bool is_cpp = ( lang_tag == "cpp" || lang_tag == "c" || lang_tag == "h" || lang_tag == "hpp" );
 
-        ImGuiID code_id = ImGui::GetID( (const void*)code_ );
+        ImGuiID code_id = ImGui::GetID( code_, code_ + codeLength_ );
         bool is_preview = false;
         if( is_markdown )
         {
             is_preview = ImGui::GetStateStorage()->GetBool( code_id, false );
         }
 
+        float font_sz = ImGui::GetFontSize();
+        float control_h = font_sz + 4.0f * scale;
         float header_h = 0.0f;
         if( lang_tag.length() > 0 || mdConfig_.showCodeCopyButton || is_markdown )
         {
-            header_h = ImGui::GetFontSize() + 8.0f * scale;
+            header_h = control_h + 8.0f * scale;
         }
+        float control_y = start_pos.y + ( header_h - control_h ) * 0.5f + 0.5f * scale;
 
         ImDrawList* dl = window->DrawList;
-        dl->ChannelsSplit( 2 );
-        dl->ChannelsSetCurrent( 1 ); // Foreground text channel
+        ImDrawListSplitter splitter;
+        splitter.Split( dl, 2 );
+        splitter.SetCurrentChannel( dl, 1 ); // Foreground text channel
 
         ImGui::SetCursorScreenPos( ImVec2( start_pos.x + pad_x, start_pos.y + header_h + pad_y ) );
         ImGui::BeginGroup();
@@ -799,9 +803,9 @@ namespace ImGui
         ImVec2 content_max = ImGui::GetItemRectMax();
         float content_w = ( content_max.x - start_pos.x ) + pad_x;
 
-        float chip_w = ( lang_tag.length() > 0 ) ? ( ImGui::CalcTextSize( lang_tag.c_str() ).x + 8.0f * scale ) : 0.0f;
-        float toggle_w = is_markdown ? ( ImGui::CalcTextSize( is_preview ? "Raw" : "Preview" ).x + 12.0f * scale ) : 0.0f;
-        float copy_w = mdConfig_.showCodeCopyButton ? ( ImGui::CalcTextSize( "Copied!" ).x + 12.0f * scale ) : 0.0f;
+        float chip_w = ( lang_tag.length() > 0 ) ? ( ImGui::CalcTextSize( lang_tag.c_str() ).x + 10.0f * scale ) : 0.0f;
+        float toggle_w = is_markdown ? ( ImGui::CalcTextSize( "Raw" ).x + ImGui::CalcTextSize( "Preview" ).x + 28.0f * scale ) : 0.0f;
+        float copy_w = mdConfig_.showCodeCopyButton ? ( ImGui::CalcTextSize( "Copied!" ).x + 14.0f * scale ) : 0.0f;
         float min_header_w = pad_x * 2.0f + chip_w + ( toggle_w > 0.0f ? ( toggle_w + 6.0f * scale ) : 0.0f ) + ( copy_w > 0.0f ? ( copy_w + 6.0f * scale ) : 0.0f );
 
         float needed_width = ImMax( min_header_w, content_w );
@@ -811,7 +815,7 @@ namespace ImGui
         ImVec2 box_min = start_pos;
         ImVec2 box_max = ImVec2( start_pos.x + block_width, start_pos.y + block_height );
 
-        dl->ChannelsSetCurrent( 0 );
+        splitter.SetCurrentChannel( dl, 0 ); // Background channel
         ImU32 bg_col = IM_COL32( 22, 22, 26, 240 );
         ImU32 border_col = IM_COL32( 60, 60, 70, 180 );
         dl->AddRectFilled( box_min, box_max, bg_col, rounding );
@@ -830,17 +834,17 @@ namespace ImGui
 
         dl->AddRect( box_min, box_max, border_col, rounding, 0, 1.0f * scale );
 
-        dl->ChannelsSetCurrent( 1 );
+        splitter.SetCurrentChannel( dl, 1 ); // Foreground channel
 
         if( header_h > 0.0f )
         {
             // 1. Language pill on the LEFT:
             if( lang_tag.length() > 0 )
             {
-                ImVec2 chip_min( start_pos.x + pad_x, start_pos.y + ( header_h - ( ImGui::GetFontSize() + 2.0f * scale ) ) * 0.5f );
-                ImVec2 chip_max( chip_min.x + chip_w, chip_min.y + ImGui::GetFontSize() + 2.0f * scale );
+                ImVec2 chip_min( start_pos.x + pad_x, control_y );
+                ImVec2 chip_max( chip_min.x + chip_w, control_y + control_h );
                 dl->AddRectFilled( chip_min, chip_max, IM_COL32( 55, 56, 68, 220 ), 3.0f * scale );
-                dl->AddText( ImVec2( chip_min.x + 4.0f * scale, chip_min.y + 1.0f * scale ), IM_COL32( 210, 210, 220, 255 ), lang_tag.c_str() );
+                dl->AddText( ImVec2( chip_min.x + 5.0f * scale, control_y + ( control_h - font_sz ) * 0.5f ), IM_COL32( 210, 210, 220, 255 ), lang_tag.c_str() );
             }
 
             // 2. Copy button on far RIGHT:
@@ -849,21 +853,19 @@ namespace ImGui
             bool is_recently_copied = ( s_lastCopiedId == code_id && ( ImGui::GetTime() - s_lastCopiedTime ) < 1.5 );
             const char* copy_label = is_recently_copied ? "Copied!" : "Copy";
             ImVec2 cur_copy_size = ImGui::CalcTextSize( copy_label );
-            float cur_copy_w = cur_copy_size.x + 8.0f * scale;
-            float cur_copy_h = cur_copy_size.y + 4.0f * scale;
+            float cur_copy_w = cur_copy_size.x + 10.0f * scale;
             float cur_copy_x = box_max.x - cur_copy_w - pad_x;
-            float cur_copy_y = start_pos.y + ( header_h - cur_copy_h ) * 0.5f;
 
             if( mdConfig_.showCodeCopyButton )
             {
-                ImGui::SetCursorScreenPos( ImVec2( cur_copy_x, cur_copy_y ) );
+                ImGui::SetCursorScreenPos( ImVec2( cur_copy_x, control_y ) );
                 ImGui::PushID( (int)code_id + 2 );
                 ImGui::PushStyleColor( ImGuiCol_Button, is_recently_copied ? IM_COL32( 35, 100, 50, 220 ) : IM_COL32( 45, 46, 56, 200 ) );
                 ImGui::PushStyleColor( ImGuiCol_ButtonHovered, is_recently_copied ? IM_COL32( 45, 120, 60, 240 ) : IM_COL32( 65, 68, 80, 240 ) );
                 ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 80, 84, 98, 255 ) );
                 ImGui::PushStyleColor( ImGuiCol_Text, is_recently_copied ? IM_COL32( 160, 240, 170, 255 ) : IM_COL32( 200, 205, 215, 255 ) );
                 ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, 3.0f * scale );
-                ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 4.0f * scale, 1.0f * scale ) );
+                ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 5.0f * scale, ( control_h - font_sz ) * 0.5f ) );
 
                 if( ImGui::Button( copy_label ) )
                 {
@@ -877,36 +879,56 @@ namespace ImGui
                 ImGui::PopID();
             }
 
-            // 3. Markdown Preview Toggle button:
+            // 3. Markdown Mode Toggle [ Raw | Preview ]
             if( is_markdown )
             {
-                const char* toggle_label = is_preview ? "Raw" : "Preview";
-                ImVec2 cur_toggle_size = ImGui::CalcTextSize( toggle_label );
-                float cur_toggle_w = cur_toggle_size.x + 8.0f * scale;
-                float cur_toggle_h = cur_toggle_size.y + 4.0f * scale;
-                float cur_toggle_x = ( mdConfig_.showCodeCopyButton ? cur_copy_x : ( box_max.x - pad_x ) ) - cur_toggle_w - 6.0f * scale;
-                float cur_toggle_y = start_pos.y + ( header_h - cur_toggle_h ) * 0.5f;
+                ImVec2 raw_sz = ImGui::CalcTextSize( "Raw" );
+                ImVec2 prev_sz = ImGui::CalcTextSize( "Preview" );
+                float seg_pad_x = 6.0f * scale;
+                float raw_w = raw_sz.x + seg_pad_x * 2.0f;
+                float prev_w = prev_sz.x + seg_pad_x * 2.0f;
+                float toggle_total_w = raw_w + prev_w + 2.0f * scale;
 
-                ImGui::SetCursorScreenPos( ImVec2( cur_toggle_x, cur_toggle_y ) );
+                float toggle_x = ( mdConfig_.showCodeCopyButton ? cur_copy_x : ( box_max.x - pad_x ) ) - toggle_total_w - 6.0f * scale;
+
+                // Segment 1: Raw
+                ImGui::SetCursorScreenPos( ImVec2( toggle_x, control_y ) );
                 ImGui::PushID( (int)code_id + 1 );
-                ImGui::PushStyleColor( ImGuiCol_Button, is_preview ? IM_COL32( 40, 75, 120, 220 ) : IM_COL32( 45, 46, 56, 200 ) );
-                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, IM_COL32( 60, 95, 150, 240 ) );
-                ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 70, 110, 180, 255 ) );
-                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 220, 225, 235, 255 ) );
+                ImU32 raw_bg = !is_preview ? IM_COL32( 38, 80, 140, 230 ) : IM_COL32( 45, 46, 56, 180 );
+                ImU32 raw_fg = !is_preview ? IM_COL32( 255, 255, 255, 255 ) : IM_COL32( 160, 165, 175, 220 );
+                ImGui::PushStyleColor( ImGuiCol_Button, raw_bg );
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, IM_COL32( 50, 95, 160, 240 ) );
+                ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 60, 110, 180, 255 ) );
+                ImGui::PushStyleColor( ImGuiCol_Text, raw_fg );
                 ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, 3.0f * scale );
-                ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( 4.0f * scale, 1.0f * scale ) );
+                ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( seg_pad_x, ( control_h - font_sz ) * 0.5f ) );
 
-                if( ImGui::Button( toggle_label ) )
+                if( ImGui::Button( "Raw" ) )
                 {
-                    ImGui::GetStateStorage()->SetBool( code_id, !is_preview );
+                    ImGui::GetStateStorage()->SetBool( code_id, false );
                 }
-                ImGui::PopStyleVar( 2 );
                 ImGui::PopStyleColor( 4 );
+
+                // Segment 2: Preview
+                ImGui::SameLine( 0.0f, 2.0f * scale );
+                ImU32 prev_bg = is_preview ? IM_COL32( 38, 80, 140, 230 ) : IM_COL32( 45, 46, 56, 180 );
+                ImU32 prev_fg = is_preview ? IM_COL32( 255, 255, 255, 255 ) : IM_COL32( 160, 165, 175, 220 );
+                ImGui::PushStyleColor( ImGuiCol_Button, prev_bg );
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, IM_COL32( 50, 95, 160, 240 ) );
+                ImGui::PushStyleColor( ImGuiCol_ButtonActive, IM_COL32( 60, 110, 180, 255 ) );
+                ImGui::PushStyleColor( ImGuiCol_Text, prev_fg );
+
+                if( ImGui::Button( "Preview" ) )
+                {
+                    ImGui::GetStateStorage()->SetBool( code_id, true );
+                }
+                ImGui::PopStyleColor( 4 );
+                ImGui::PopStyleVar( 2 );
                 ImGui::PopID();
             }
         }
 
-        dl->ChannelsMerge();
+        splitter.Merge( dl );
 
         if( mono_font )
         {
