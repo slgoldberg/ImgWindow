@@ -25,20 +25,20 @@
     !defined(IMGUI_DISABLE_EXTENSIONS) && \
     !defined(IMGWINDOW_DISABLE_CONTRIB_EXTENSIONS)
 
-#if !defined(CONTRIB_DISABLE_MARKDOWN) && \
-    !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && \
-    !defined(IMGUI_DISABLE_CONTRIB_MARKDOWN) && \
-    !defined(IMGUI_DISABLE_MARKDOWN) && \
-    !defined(IMGWINDOW_DISABLE_CONTRIB_MARKDOWN)
-#include "Markdown/imgui_markdown_ext.h"
-#endif
-
 #if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && \
     !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && \
     !defined(IMGUI_DISABLE_CONTRIB_TIMED_TOOLTIP) && \
     !defined(IMGUI_DISABLE_TIMED_TOOLTIP) && \
     !defined(IMGWINDOW_DISABLE_CONTRIB_TIMED_TOOLTIP)
 #include "TimedTooltip/imgui_tooltip_ext.h"
+#endif
+
+#if !defined(CONTRIB_DISABLE_MARKDOWN) && \
+    !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && \
+    !defined(IMGUI_DISABLE_CONTRIB_MARKDOWN) && \
+    !defined(IMGUI_DISABLE_MARKDOWN) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_MARKDOWN)
+#include "Markdown/imgui_markdown_ext.h"
 #endif
 
 #endif // !CONTRIB_DISABLE_EXTENSIONS

@@ -890,47 +890,32 @@ namespace ImGui
 
                 ImGui::SetCursorScreenPos( chip_min );
                 ImGui::PushID( (int)code_id + 3 );
-                bool chip_clicked = ImGui::InvisibleButton( "##lang_chip", ImVec2( chip_w, control_h ) );
+                ImGui::InvisibleButton( "##lang_chip", ImVec2( chip_w, control_h ) );
                 bool chip_hovered = ImGui::IsItemHovered();
                 if( chip_hovered )
                 {
                     ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
                 }
 
-                ImGuiID tip_pinned_id = ImGui::GetID( "##chip_pinned" );
-                bool is_tip_pinned = ImGui::GetStateStorage()->GetBool( tip_pinned_id, false );
-                if( chip_clicked )
+                const char* tip_text = nullptr;
+                if( mdConfig_.codeBlockDescriptionCallback )
                 {
-                    is_tip_pinned = !is_tip_pinned;
-                    ImGui::GetStateStorage()->SetBool( tip_pinned_id, is_tip_pinned );
+                    tip_text = mdConfig_.codeBlockDescriptionCallback( lang_, langLength_, mdConfig_.userData );
+                }
+                if( !tip_text )
+                {
+                    if( is_cpp ) tip_text = "C++ format (Syntax highlighted)";
+                    else if( is_lua ) tip_text = "Lua format (Syntax highlighted)";
+                    else if( is_markdown ) tip_text = "Markdown format (Supports live Preview)";
+                    else if( is_plaintext ) tip_text = "Plain text format (Unformatted)";
+                    else if( is_custom ) tip_text = "Custom host language syntax";
+                    else tip_text = "Plain text (Unrecognized language)";
                 }
 
-                if( chip_hovered || is_tip_pinned )
-                {
-                    const char* tip_text = nullptr;
-                    if( mdConfig_.codeBlockDescriptionCallback )
-                    {
-                        tip_text = mdConfig_.codeBlockDescriptionCallback( lang_, langLength_, mdConfig_.userData );
-                    }
-                    if( !tip_text )
-                    {
-                        if( is_cpp ) tip_text = "C++ format (Syntax highlighted)";
-                        else if( is_lua ) tip_text = "Lua format (Syntax highlighted)";
-                        else if( is_markdown ) tip_text = "Markdown format (Supports live Preview)";
-                        else if( is_plaintext ) tip_text = "Plain text format (Unformatted)";
-                        else if( is_custom ) tip_text = "Custom host language syntax";
-                        else tip_text = "Plain text (Unrecognized language)";
-                    }
-
-                    ImGui::BeginTooltip();
-                    ImGui::TextUnformatted( tip_text );
-                    if( is_tip_pinned )
-                    {
-                        ImGui::Spacing();
-                        ImGui::TextDisabled( "(Click badge again to dismiss)" );
-                    }
-                    ImGui::EndTooltip();
-                }
+#if defined(IMGUI_TOOLTIP_EXT_H)
+                ImGui::Detail::RegisterItemTooltipToggle( true );
+                ImGui::TimedTooltip::Text( "%s", tip_text );
+#endif
                 ImGui::PopID();
 
                 // Style colors:
@@ -969,15 +954,11 @@ namespace ImGui
                     chip_fg = IM_COL32( 235, 215, 255, 255 );
                 }
 
-                ImU32 cur_bg = ( chip_hovered || is_tip_pinned ) ? chip_bg_hover : chip_bg;
+                ImU32 cur_bg = chip_hovered ? chip_bg_hover : chip_bg;
                 dl->AddRectFilled( chip_min, chip_max, cur_bg, 3.0f * scale );
                 if( !is_recognized )
                 {
                     dl->AddRect( chip_min, chip_max, IM_COL32( 65, 68, 75, 180 ), 3.0f * scale, 0, 1.0f * scale );
-                }
-                else if( chip_hovered || is_tip_pinned )
-                {
-                    dl->AddRect( chip_min, chip_max, IM_COL32( 255, 255, 255, 80 ), 3.0f * scale, 0, 1.0f * scale );
                 }
 
                 ImVec2 tag_sz = ImGui::CalcTextSize( lang_tag.c_str() );
@@ -1041,28 +1022,20 @@ namespace ImGui
 
                     ImGui::Button( copy_label );
 
+#if defined(IMGUI_TOOLTIP_EXT_H)
+#if (defined(APL) && APL) || defined(__APPLE__)
+                    ImGui::TimedTooltip::Text( "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
+#elif (defined(LIN) && LIN) || defined(__linux__)
+                    ImGui::TimedTooltip::Text( "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
+#else
+                    ImGui::TimedTooltip::Text( "System clipboard integration is not enabled on this platform build." );
+#endif
+#else
                     if( ImGui::IsItemHovered() )
                     {
-                        ImGui::SetMouseCursor( ImGuiMouseCursor_Arrow );
-                        ImGui::BeginTooltip();
-#if (defined(APL) && APL) || defined(__APPLE__)
-                        ImGui::TextUnformatted( "macOS system clipboard integration is disabled." );
-                        ImGui::Spacing();
-                        ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.2f, 1.0f ), "To enable:" );
-                        ImGui::BulletText( "Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h" );
-                        ImGui::BulletText( "Link -framework ApplicationServices in your build flags" );
-                        ImGui::BulletText( "Or provide MarkdownConfig::setClipboardTextFn" );
-#elif (defined(LIN) && LIN) || defined(__linux__)
-                        ImGui::TextUnformatted( "Linux system clipboard integration requires a handler." );
-                        ImGui::Spacing();
-                        ImGui::TextColored( ImVec4( 1.0f, 0.8f, 0.2f, 1.0f ), "To enable:" );
-                        ImGui::BulletText( "Provide MarkdownConfig::setClipboardTextFn callback" );
-                        ImGui::BulletText( "Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
-#else
-                        ImGui::TextUnformatted( "System clipboard integration is not enabled on this platform build." );
-#endif
-                        ImGui::EndTooltip();
+                        ImGui::SetTooltip( "System clipboard integration is not enabled on this platform build." );
                     }
+#endif
 
                     ImGui::PopStyleVar( 2 );
                     ImGui::PopStyleColor( 4 );
