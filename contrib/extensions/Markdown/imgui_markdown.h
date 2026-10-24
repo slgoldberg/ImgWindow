@@ -564,23 +564,17 @@ namespace ImGui
         dl->ChannelsSplit( 2 );
         dl->ChannelsSetCurrent( 1 ); // Foreground text channel
 
-        ImGui::SetCursorScreenPos( ImVec2( start_pos.x + pad_x, start_pos.y + pad_y ) );
-        ImGui::BeginGroup();
-
+        float header_h = 0.0f;
+        std::string lang_tag;
         if( langLength_ > 0 && lang_ )
         {
-            std::string lang_tag( lang_, langLength_ );
+            lang_tag.assign( lang_, langLength_ );
             ImVec2 chip_size = ImGui::CalcTextSize( lang_tag.c_str() );
-            float chip_w = chip_size.x + 8.0f * scale;
-            float chip_x = start_pos.x + avail_width - chip_w - pad_x;
-            if( chip_x > start_pos.x + pad_x )
-            {
-                ImVec2 chip_min( chip_x, start_pos.y + pad_y * 0.5f );
-                ImVec2 chip_max( chip_x + chip_w, start_pos.y + pad_y * 0.5f + chip_size.y + 2.0f * scale );
-                dl->AddRectFilled( chip_min, chip_max, IM_COL32( 60, 60, 70, 220 ), 3.0f * scale );
-                dl->AddText( ImVec2( chip_x + 4.0f * scale, chip_min.y + 1.0f * scale ), IM_COL32( 210, 210, 220, 255 ), lang_tag.c_str() );
-            }
+            header_h = chip_size.y + 6.0f * scale;
         }
+
+        ImGui::SetCursorScreenPos( ImVec2( start_pos.x + pad_x, start_pos.y + header_h + pad_y ) );
+        ImGui::BeginGroup();
 
         const char* p = code_;
         const char* end = code_ + codeLength_;
@@ -611,6 +605,30 @@ namespace ImGui
         ImU32 bg_col = IM_COL32( 22, 22, 26, 240 );
         ImU32 border_col = IM_COL32( 60, 60, 70, 180 );
         dl->AddRectFilled( box_min, box_max, bg_col, rounding );
+
+        if( header_h > 0.0f )
+        {
+            ImU32 header_bg = IM_COL32( 32, 33, 40, 240 );
+            ImU32 divider_col = IM_COL32( 50, 52, 62, 200 );
+            ImVec2 header_max( box_max.x, start_pos.y + header_h );
+#ifndef ImDrawFlags_RoundCornersTop
+#define ImDrawFlags_RoundCornersTop ( 1 | 2 ) // ImDrawCornerFlags_Top
+#endif
+            dl->AddRectFilled( box_min, header_max, header_bg, rounding, ImDrawFlags_RoundCornersTop );
+            dl->AddLine( ImVec2( box_min.x, header_max.y ), header_max, divider_col, 1.0f * scale );
+
+            ImVec2 chip_size = ImGui::CalcTextSize( lang_tag.c_str() );
+            float chip_w = chip_size.x + 8.0f * scale;
+            float chip_x = start_pos.x + block_width - chip_w - pad_x;
+            if( chip_x > start_pos.x + pad_x )
+            {
+                ImVec2 chip_min( chip_x, start_pos.y + ( header_h - chip_size.y - 2.0f * scale ) * 0.5f );
+                ImVec2 chip_max( chip_x + chip_w, chip_min.y + chip_size.y + 2.0f * scale );
+                dl->AddRectFilled( chip_min, chip_max, IM_COL32( 55, 56, 68, 220 ), 3.0f * scale );
+                dl->AddText( ImVec2( chip_x + 4.0f * scale, chip_min.y + 1.0f * scale ), IM_COL32( 210, 210, 220, 255 ), lang_tag.c_str() );
+            }
+        }
+
         dl->AddRect( box_min, box_max, border_col, rounding, 0, 1.0f * scale );
 
         dl->ChannelsMerge();
@@ -661,6 +679,7 @@ namespace ImGui
                         line.isUnorderedListStart = true;
                         ++i;
                         ++line.lastRenderPosition;
+                        line.lineStart = i + 1;
                         continue;
                     }
                     else if( c >= '0' && c <= '9' )
@@ -677,6 +696,7 @@ namespace ImGui
                             line.orderedListNumEnd = d + 1; // includes '.' or ')'
                             i = d + 1; // advances past the delimiter
                             line.lastRenderPosition = i;
+                            line.lineStart = i + 1;
                             continue;
                         }
                     }
@@ -872,6 +892,7 @@ namespace ImGui
                             {
                                 RenderLine( markdown_, line, textRegion, mdConfig_ );
                                 line.isUnorderedListStart = false;
+                                line.isOrderedListStart = false;
                                 ImGui::SameLine( 0.0f, 0.0f );
                             }
                             else if( line.isUnorderedListStart )
@@ -993,10 +1014,11 @@ namespace ImGui
                 {
                     em = Emphasis();
                     line.lineEnd = link.text.start - ( link.isImage ? 2 : 1 );
-                    if( line.lineEnd > line.lineStart )
+                    if( line.lineEnd > line.lineStart && line.lineEnd > line.lastRenderPosition + 1 )
                     {
                         RenderLine( markdown_, line, textRegion, mdConfig_ );
                         line.isUnorderedListStart = false;
+                        line.isOrderedListStart = false;
                         ImGui::SameLine( 0.0f, 0.0f );
                     }
                     else if( line.isUnorderedListStart )
@@ -1113,12 +1135,13 @@ namespace ImGui
 					if( line.emphasisCount < 3 && ( i - em.text.stop + 1 == line.emphasisCount ) )
                     {
                         int lineEnd = em.text.start - line.emphasisCount;
-                        if( lineEnd > line.lineStart )
+                        if( lineEnd > line.lineStart && lineEnd > line.lastRenderPosition + 1 )
                         {
                             line.lineEnd = lineEnd;
                             RenderLine( markdown_, line, textRegion, mdConfig_ );
 						    ImGui::SameLine( 0.0f, 0.0f );
                             line.isUnorderedListStart = false;
+                            line.isOrderedListStart = false;
                         }
                         else if( line.isUnorderedListStart )
                         {
