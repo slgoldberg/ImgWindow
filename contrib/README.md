@@ -22,6 +22,7 @@ Look at the spectrum of UI tasks a flight sim plugin author faces, and how `cont
 | **Two-Position Switches** | Clunky `[x]` checkboxes with no visual state distinction or dual-label tooltips. | **`ImGui::ToggleButton`**<br>Animated physical rocker/toggle switches with font-relative scaling, custom palettes, and automatic dual-state tooltips (`"Off Hint", "On Hint"`). |
 | **Avionics Dials & Adjusters** | Requires click-and-drag. The mouse wheel does nothing, requiring awkward custom tracking. | **`ImGui::MouseWheelSlider` / `MouseWheelDrag` / `MouseWheelCombo`**<br>Natural mouse-wheel stepping with configurable increments and fine-tune modifier keys. |
 | **Fearless Settings Tweaking** | No standard "revert to default" pattern; users hesitate to adjust complex tuning parameters. | **`ImGui::AdjustItemOnMouseWheel` & Reset Chasers**<br>Inline 1-click restore-to-default icon chaser with instant undo history. |
+| **One-Click Clipboard Copying** | Requires manual clipboard handling, lacks transient visual feedback, and twitches layout. | **`ImGui::CopyButton` & `CopyLastItemButton`**<br>Procedural vector icons (clipboard & checkmark), 1.5s feedback, anti-twitch sizing, and automatic chaser extraction from InputText. |
 | **External Docs & Web Links** | Raw text URLs or awkward styled buttons with default arrow cursors. | **`ImGui::ButtonLink`, `TextLink`, `MenuItemLink`**<br>Native OS hand cursors (`ImGuiMouseCursor_Hand`), hover underlines, and one-click browser launch via `XPLMOpenURL`. |
 
 
@@ -89,7 +90,8 @@ ImgWindow/
         ├── imgui_mouse_wheel_controls.h   # Sliders, drags, combos & chasers with mouse-wheel support
         ├── imgui_clickable_links.h        # ButtonLink, TextLink, MenuItemLink & AttachItemCursor affordances
         ├── imgui_badges.h                 # Standalone C++ status badges, pills, and 3D keycaps (<kbd>)
-        └── imgui_spinners.h               # Procedural activity spinners & radial countdown dials
+        ├── imgui_spinners.h               # Procedural activity spinners & radial countdown dials
+        └── imgui_copy_button.h            # Standalone & chaser copy buttons with vector icons & feedback
 ```
 
 ### 1. Packages & Extensions (`contrib/extensions/`)
@@ -118,6 +120,7 @@ Everything in `contrib/` is **active and ready by default**. If your project hap
 | **`CONTRIB_DISABLE_CLICKABLE_LINKS`** | **Opt-Out** | *Off* | Excludes `ButtonLink`, `TextLink`, `MenuItemLink`, and `AttachItemCursor`. |
 | **`CONTRIB_DISABLE_BADGES`**          | **Opt-Out** | *Off* | Excludes standalone `Badge`, `Pill`, and `Kbd` widgets. |
 | **`CONTRIB_DISABLE_SPINNERS`**        | **Opt-Out** | *Off* | Excludes `Spinner`, `RadialTimer`, and `CountdownTimer`. |
+| **`CONTRIB_DISABLE_COPY_BUTTON`**    | **Opt-Out** | *Off* | Excludes `CopyButton` and `CopyLastItemButton`. |
 | **`CONTRIB_DISABLE_PERCENT_SLIDER`** | **Opt-Out** | *Off* | Excludes `PercentSlider` and `SliderPercent`. |
 | **`CONTRIB_DISABLE_MOUSE_WHEEL_COMBO`** | **Opt-Out** | *Off* | Excludes `MouseWheelCombo` and `ComboWithReset`. |
 | **`IMGUI_CONTRIB_DISABLE_RESET_UNDO`** | **Opt-Out** | *Off* | Disables 1-click Reset-with-Undo on reset buttons. |

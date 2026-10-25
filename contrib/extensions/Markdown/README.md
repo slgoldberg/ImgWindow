@@ -53,6 +53,20 @@ The Markdown system is structured as a clean two-layer architecture:
   * Mathematically maintains true hanging indents across wrapped multi-line list items and continuation lines, keeping all wrapped text cleanly aligned to the text column rather than under the bullet glyph or number.
   * Preserves leading space depth across emphasis chunks and links so nested sub-bullets never pop out of alignment.
   * Broadens list marker syntax to standard Markdown (`*`, `-`, `+`) with or without leading whitespace, with strict token isolation so bullet glyphs never hijack inline styling into rogue italic runs.
+  * **Nested Indent Balance:** Accurately unindents when nested lists terminate, preventing indentation from leaking into subsequent paragraphs or blocks.
+* **Thematic Breaks / Horizontal Rules (CommonMark 4.1):**
+  * Full support for thematic breaks via `---`, `***`, or `___` (with optional internal/trailing whitespace).
+  * Automatically renders clean visual dividers via `ImGui::Separator()`.
+  * **Smart Spacing & Void Prevention:** Intelligently suppresses redundant vertical margins when separators immediately precede or follow headings, avoiding cavernous whitespace voids.
+* **Fenced Code Blocks with Width Clamping & Continuation Soft-Wrapping:**
+  * Multi-line code blocks (`` ``` `` and `~~~`) clamp their container width to available window content space (`avail_width`) while guaranteeing minimum toolbar control width.
+  * Continuation lines soft-wrap naturally without horizontal clipping.
+  * **CommonMark 4.5 Indentation Stripping:** Code blocks nested inside lists or indented sections automatically strip up to $N$ spaces of leading indentation matching the opening fence, preventing code from being pushed awkwardly to the right inside the container.
+  * **Indented Closing Fences:** Closing fences indented by $\ge 4$ spaces or tabs are properly recognized, preventing list continuation text from being accidentally swallowed.
+  * **Scoped Copy Button:** Integrated vector copy button with checkmark animation and 1.5s transient visual feedback. Scoped via `ImGuiStorage` to ensure multiple code blocks in the same window maintain their feedback independently.
+  * **Mode Toggle with Mouse-Wheel Scroll-Defeat:** The animated `Raw [===O] Preview` toggle switch automatically defeats mouse-wheel adjustments when inside scrollable parent viewports, preventing accidental mode switches when scrolling through documentation.
+* **Soft-Wrap Leading Space Suppression:**
+  * Forced line breaks on wrapped prose cleanly suppress carried-forward leading spaces, ensuring continuation lines align flush against the left text margin.
 * **Layout Pre-Calculation (`CalcSize` / `CalcTextSize`):**
   * Exposes `ImGui::MD::CalcSize(...)` (aliased as `CalcTextSize`) to pre-measure exact wrapped multi-line Markdown dimensions without rendering to the screen—crucial for sizing OS floating windows, child frames, and stationary tooltips.
   * Defeats ImGui viewport culling by employing pass-unique offscreen window hashes.
@@ -243,12 +257,27 @@ void Initialize() {
 
 * **Features:**
   * **Automatic Monospace Typography:** Uses `mdConfig.monoFont` (or ambient monospace font) line-by-line without word-wrapping or accidental markup parsing.
-  * **Smart Content-Hugging Width:** Dynamically fits the container width to the content lines plus padding (clamped to header controls width), activating horizontal scrolling only when content exceeds available window width.
+  * **Responsive Width Clamping & Soft-Wrapping:** Dynamically hugs content lines while clamping maximum container width to available window space (`avail_width`). Wrapped continuation lines flow naturally without horizontal overflow.
+  * **CommonMark 4.5 Indentation Stripping:** When code blocks are nested inside list items or indented sections, leading indentation matching the opening fence is automatically stripped from code content, preventing code from being pushed awkwardly to the right.
+  * **Indented Closing Fences:** Supports closing fences indented by $\ge 4$ spaces or tabs without swallowing subsequent markdown.
   * **Language Badge (Steve TextLink):** Renders the language identifier on the left of the header bar. Formats recognized by built-in highlighters (`lua`, `cpp`, `markdown`, `plaintext`) or host callbacks are color-branded (Lua blue, C++ cobalt, Markdown teal, Plain text slate, Custom purple); unrecognized languages are styled in muted neutral charcoal. Hovering triggers `ImGuiMouseCursor_Hand`; clicking toggles an informative persistent tooltip (e.g. `"C++ format (Syntax highlighted)"`).
-  * **Animated Raw / Preview Toggle:** For `markdown` or `md` containers, renders an animated sliding toggle switch (`Raw [===O] Preview`) with smooth thumb easing, mouse-wheel scrub support, and live re-entrant formatting (including nested child code blocks).
-  * **One-Click Clipboard Copy:** Integrated `[Copy]` button on the far right with a transient 1.5s `Copied!` visual feedback state, `ImGuiMouseCursor_Hand` hover cursor, and optional host `setClipboardTextFn` forwarding. Automatically detects whether OS clipboard integration is active on the current platform, rendering a disabled button with setup guidance if unconfigured.
+  * **Animated Raw / Preview Toggle:** For `markdown` or `md` containers, renders an animated sliding toggle switch (`Raw [===O] Preview`) with smooth thumb easing, mouse-wheel scrub support, and live re-entrant formatting (including nested child code blocks). In scrollable viewports, mouse-wheel auto-defeat prevents accidental toggles while navigating long documents.
+  * **One-Click Vector Clipboard Copy:** Integrated procedural vector copy button on the far right with a transient 1.5s `Copied!` visual feedback state, `ImGuiMouseCursor_Hand` hover cursor, and optional host `setClipboardTextFn` forwarding. Scoped via `ImGuiStorage` to ensure multiple code blocks in the same window maintain their feedback independently without cross-talk.
   * **Tabstop Expansion:** Universal 4-character column-aligned tabstop expansion (`tabSize = 4`).
   * **CommonMark Compliant:** Supports both backticks (`` ``` ``) and tildes (`~~~`) with optional indentation and variable fence lengths.
+
+#### 5. Thematic Breaks / Horizontal Rules (`---`, `***`, `___`)
+Standard CommonMark 4.1 thematic breaks create visual section dividers:
+
+```markdown
+Section 1 text.
+---
+Section 2 text.
+```
+
+* Recognizes `---`, `***`, and `___` with optional spaces between markers or at the end of the line.
+* Renders a clean divider using `ImGui::Separator()`.
+* Automatically balances spacing so dividers preceding or following headings do not create excessive empty vertical voids or stacked separators.
 
 > [!IMPORTANT]
 > **Operating System Clipboard Integration Across Platforms:**  

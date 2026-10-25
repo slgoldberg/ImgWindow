@@ -13,6 +13,13 @@ Here are the major additions to the framework since it was forked:
   - **`ImGui v1.90` Keyboard event processing:**<br>
   This is a completely transparent rewrite under the hood. XPLM Window API's keyboard handling remains identical from your plugin's perspective, but it fully supports ImGui's v1.90 keyboard IO refactor. You still get full "editing shortcuts" (Ctrl+C/V, Shift+arrow selections) working perfectly across Windows, Linux, and macOS.
   
+    * **Hardware Modifier Key Synchronization:**<br>
+      Eliminates the long-standing XPLM "sticky Shift / stuck Ctrl" bug. In every frame, `ImgWindow` queries physical hardware modifier states via `XPLMGetVirtualKeyVKState` and synchronizes Dear ImGui's modifier latches, preventing keys from remaining stuck down if key-up events are consumed by X-Plane or the OS during focus changes.
+    * **Comprehensive Virtual Key Mapping:**<br>
+      Provides complete mapping in `vpXPLMKeyToImGuiKey` for all X-Plane virtual keys (equals, minus, letters A-Z, punctuation, numpad, F1-F12), enabling window-level hotkeys (e.g. `Cmd+=`, `Cmd+-`, `Ctrl+Z`, `Ctrl+F`) to work reliably.
+    * **Window-Level Keyboard Focus Management:**<br>
+      Adds `SetCaptureKeyboardOnMouseFocus()`, `SetExplicitKeyboardFocus()`, and auto-release on Escape. Windows can capture keyboard focus on mouse click for seamless hotkey navigation and automatically release focus back to X-Plane flight controls when blurred.
+  
     * _**Note:**_<br>
 	_The "legacy" keyboard processing logic is **still supported** in `ImgWindow` for ImGui v1.8x! The framework **automatically** detects which version of ImGui you are using (based on `imgui.h` defining it in `IMGUI_VERSION_NUM`). As long as your version of ImGui contains this definition, and sets it correctly, `ImgWindow` will still support it with no changes needed vis-à-vis the original `ImgWindow` repository!_
 
@@ -81,8 +88,10 @@ installed (compatible with Dear ImGui v1.78 WIP through v1.92+, with native supp
   - **VR-Ready**: Automatically initializes VR window geometry and aspect ratio via `XPLMSetWindowGeometryVR`.
 * **`contrib/` UI Suite** - Bundled flight-deck-grade Dear ImGui extensions and immediate-mode widgets (see [`contrib/README.md`](contrib/README.md)):
   - **`TimedTooltip`**: Polite, hover-delayed stationary tooltips that lock in place and auto-dismiss after reading.
-  - **`Markdown` (`ImGui::Markdown` & `ImGui::MD`)**: Rich CommonMark parsing and rendering with dynamic font scaling, token lookahead, hanging bullet indents, and custom styling tags.
-  - **Widgets**: Animated toggle switches (`ToggleButton`), mouse-wheel sliders/combos (`MouseWheelSlider`), 1-click resets with undo history, and clickable web/doc links (`ButtonLink`, `TextLink`).
+  - **`Markdown` (`ImGui::Markdown` & `ImGui::MD`)**: Rich CommonMark parsing and rendering with dynamic font scaling, token lookahead, hanging bullet indents, thematic breaks, responsive fenced code blocks, and custom styling tags.
+  - **`CopyButton` Suite**: Standalone and chaser copy buttons (`CopyButton`, `CopyLastItemButton`, `CopyBufferButton`, `CopyTextFieldButton`) with procedural vector icons, anti-twitch fixed width layouts, and automatic chaser extraction from preceding `InputText` fields.
+  - **Widgets**: Animated toggle switches (`ToggleButton`), mouse-wheel sliders/combos (`MouseWheelSlider`), 1-click resets with undo history, clickable web/doc links (`ButtonLink`, `TextLink`), status badges/pills (`Badge`, `Pill`, `<kbd>`), and activity spinners (`Spinner`, `CountdownTimer`).
+  - **Mouse-Wheel Scroll-Defeat**: Automatic protection on scrollable viewports preventing inadvertent slider, toggle, or combobox adjustment when scrolling through content.
   - **Turnkey Inclusion**: `#include "contrib.h"` activates the entire suite in one line, with 3-tier namespacing (sub-namespaces, root `ImGui::` shorthands, or opt-in global namespaces).
 
 ## No longer supported (see original repository):

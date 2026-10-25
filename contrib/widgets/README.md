@@ -30,6 +30,7 @@ If your project defines a function with the same name, define any of the followi
 #define CONTRIB_DISABLE_CLICKABLE_LINKS       // Disables ButtonLink, TextLink & AttachItemCursor
 #define CONTRIB_DISABLE_BADGES                // Disables Badge, Pill & Kbd widgets
 #define CONTRIB_DISABLE_SPINNERS              // Disables Spinner, RadialTimer & CountdownTimer
+#define CONTRIB_DISABLE_COPY_BUTTON           // Disables CopyButton, CopyLastItemButton & semantic aliases
 
 // Fine-grained opt-outs & style defaults within imgui_mouse_wheel_controls.h:
 #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Disables GetMouseWheel* primitives
@@ -286,6 +287,15 @@ ImGui::Checkbox("Expert Mode", &s_ExpertMode);
 ImGui::ToggleItemOnMouseWheel(&s_ExpertMode, ImGuiMouseCursor_None); // or CycleItemOnMouseWheel(&s_ExpertMode)
 ```
 
+#### H. Mouse-Wheel Auto-Defeat on Scrollable Viewports
+In windows or child panels with active vertical scrolling (`ScrollMax.y > 0.0f`), spinning the mouse wheel to scroll through content could inadvertently adjust sliders, cyclers, or toggle switches if the mouse cursor passes over them.
+
+To protect users against accidental setting changes while navigating long pages:
+* **Automatic Detection:** `AdjustItemOnMouseWheel`, `CycleItemOnMouseWheel`, `MouseWheelSlider`, `PercentSlider`, `MouseWheelCombo`, `MouseWheelCheckbox`, and `ToggleButton` inspect the active Dear ImGui window and parent hierarchy for vertical scrollability via `ImGui::Contrib::IsCurrentWindowScrollableY()`.
+* **Zero Accidental Adjustments:** When vertical scrolling is active, in-widget mouse-wheel adjustments are **defeated automatically**, and wheel events pass directly through to window scrolling.
+* **Smart Cursor Hiding:** Resizing/adjustment hover cursors (`ImGuiMouseCursor_ResizeEW`, `ImGuiMouseCursor_ResizeNS`) are suppressed on scrollable viewports so users are not misled into expecting wheel adjustments.
+* **Per-Widget Override:** If you explicitly want mouse-wheel interaction on a widget within a scrollable panel (e.g. an embedded canvas or dedicated map zoomer), pass `bAllowMouseWheelOnScrollable = true` to the widget overload.
+
 ---
 
 ### 3. Clickable Link & Item Cursor Affordances (`imgui_clickable_links.h`)
@@ -432,6 +442,43 @@ ImGui::CountdownTimer("Alert Timeout", alertTimeLeft, alertMaxTime);
   * **Clockwise/Counter-Clockwise Dials:** `ImGui::RadialTimer` starts cleanly at 12 o'clock (`-90°`) with an ambient background track ring, sweeping smoothly around to indicate elapsed or remaining time.
   * **True Ambient Scaling:** Radius and stroke thickness automatically scale to the ambient font size (`ImGui::GetFontSize()`) when left as `0.0f`, looking sharp on standard and high-DPI displays alike.
   * **Built-in Text Label Affordance:** Labels without leading `##` automatically render beside the spinner or dial with standard item alignment and spacing.
+
+---
+
+### 6. Universal Standalone & Chaser Copy Buttons (`imgui_copy_button.h`)
+
+Tactile, immediate-mode copy buttons featuring procedural vector icons, transient "Copied!" feedback, anti-twitch fixed width layouts, and seamless integration with `TimedTooltip` and `InputText`.
+
+```cpp
+#include "contrib/widgets/imgui_copy_button.h"
+
+// 1. Standalone Proxy Form (CopyButton / CopyBufferButton):
+// Takes an explicit string, buffer, or std::string to copy to the clipboard:
+ImGui::CopyButton("##copy_apikey", myApiKeyString);
+// Or use the explicit semantic alias:
+ImGui::CopyBufferButton("##copy_buf", textBuffer);
+
+// 2. Chaser Form (CopyLastItemButton / CopyTextFieldButton):
+// Placed immediately after an ImGui::InputText / InputTextMultiline:
+static char s_LogBuffer[512] = "N450GA clearance delivered...";
+ImGui::InputText("Flight Plan", s_LogBuffer, sizeof(s_LogBuffer));
+ImGui::SameLine();
+ImGui::CopyLastItemButton("##copy_flightplan"); // Automatically copies s_LogBuffer!
+
+// 3. Querying transient state or custom duration:
+bool is_copied = false;
+if (ImGui::CopyButtonEx("##custom_copy", "Payload", 2.0f /* duration */, ImVec2(0, 0), &is_copied)) {
+    // Button was clicked this frame!
+}
+```
+
+* **Features:**
+  * **Procedural Vector Icons:** Renders a clean two-sheet overlapping clipboard vector icon that transitions smoothly into a green vector checkmark during the transient `Copied!` confirmation state.
+  * **Anti-Twitch Fixed Width Layout:** Automatically calculates the maximum bounding width across `"Copy"` and `"Copied!"` labels (`ImMax(normal_w, copied_w)`) so adjacent buttons and toolbars never twitch or jump when toggling states.
+  * **Independent `ImGuiStorage` Scoping:** Transient copied feedback is keyed to `ImGuiID` in the window's state storage, ensuring multiple copy buttons in the same window maintain their own timers and feedback independently.
+  * **Zero-Redundancy Chaser Mode (`CopyLastItemButton`):** Automatically queries Dear ImGui's internal `LastItemData` and `InputTextState` to retrieve the buffer pointer of the preceding input field with zero redundant buffer duplication.
+  * **Semantic Aliases:** Includes `ImGui::CopyBufferButton` and `ImGui::CopyTextFieldButton` to make developer intent clear at a glance.
+  * **Rich `TimedTooltip` Integration:** Automatically displays `"Copy to Clipboard"` on hover, switching to `"Copied!"` during the feedback duration, with an automatic `ImGuiMouseCursor_Hand` hover cursor.
 
 ---
 
