@@ -1182,7 +1182,12 @@ namespace ImGui
                     is_preview = false;
                     ImGui::GetStateStorage()->SetBool( code_id, false );
                 }
-                if( ImGui::IsItemHovered() ) ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
+                bool raw_hovered = ImGui::IsItemHovered();
+                if( raw_hovered ) ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
+                if( MarkdownDetail::GetCodeBlockTooltipFn() )
+                {
+                    MarkdownDetail::GetCodeBlockTooltipFn()( (int)code_id + 4, raw_hovered, "Switch to raw markdown text format (Unrendered plain text with markdown syntax)." );
+                }
 
                 // Zone 2: Switch track (middle)
                 ImVec2 track_pos( toggle_start.x + raw_sz.x + 2.0f * scale + toggle_gap, control_y + ( control_h - toggle_track_h ) * 0.5f );
@@ -1192,7 +1197,8 @@ namespace ImGui
                     is_preview = !is_preview;
                     ImGui::GetStateStorage()->SetBool( code_id, is_preview );
                 }
-                if( ImGui::IsItemHovered() )
+                bool track_hovered = ImGui::IsItemHovered();
+                if( track_hovered )
                 {
                     ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
                     ImGuiIO& io = ImGui::GetIO();
@@ -1212,6 +1218,10 @@ namespace ImGui
                         io.MouseWheelH = 0.0f;
                     }
                 }
+                if( MarkdownDetail::GetCodeBlockTooltipFn() )
+                {
+                    MarkdownDetail::GetCodeBlockTooltipFn()( (int)code_id + 1, track_hovered, "Toggle between raw source markdown and rendered preview (Click or mouse wheel)." );
+                }
 
                 // Zone 3: Preview text button
                 ImVec2 prev_pos( track_pos.x + toggle_track_w + toggle_gap, control_y );
@@ -1221,7 +1231,12 @@ namespace ImGui
                     is_preview = true;
                     ImGui::GetStateStorage()->SetBool( code_id, true );
                 }
-                if( ImGui::IsItemHovered() ) ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
+                bool prev_hovered = ImGui::IsItemHovered();
+                if( prev_hovered ) ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
+                if( MarkdownDetail::GetCodeBlockTooltipFn() )
+                {
+                    MarkdownDetail::GetCodeBlockTooltipFn()( (int)code_id + 5, prev_hovered, "Switch to live rendered markdown preview (Formatted headings, lists, pills, and styles)." );
+                }
 
                 // Animation smoothing
                 ImGuiStorage* storage = ImGui::GetStateStorage();

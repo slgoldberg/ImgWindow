@@ -1281,7 +1281,7 @@ namespace MarkdownDetail {
     inline void InitializeCodeBlockTooltipBridge() {
         GetCodeBlockTooltipFn() = []( ImGuiID id, bool hovered, const char* text ) {
             ImGui::Detail::RegisterItemTooltipToggle( true );
-            ImGui::TimedTooltip::TextProxy( id, hovered, "%s", text );
+            ImGui::TimedTooltip::TextProxy( id, hovered, true, "%s", text );
         };
         GetDisabledCopyTooltipFn() = []( ImGuiID id, bool hovered ) {
 #if (defined(APL) && APL) || defined(__APPLE__)

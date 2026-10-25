@@ -99,6 +99,7 @@ namespace TimedTooltip {
         int unhover_grace_cycles = 0;
         int display_cycles = 0;
         ImVec2 last_mouse_pos = ImVec2(-1, -1);
+        ImVec2 locked_mouse_pos = ImVec2(-1, -1);
         ImVec2 locked_pos = ImVec2(-1, -1);
         ImVec2 last_size = ImVec2(0, 0);
         ImVec2 perfect_size = ImVec2(0, 0);
@@ -252,6 +253,7 @@ namespace TimedTooltip {
                 state.display_cycles = 0;
             // Lock anchor position (Offset slightly so the cursor doesn't cover the text)
             state.locked_pos = ImVec2(ImGui::GetMousePos().x + 15.0f * scale, ImGui::GetMousePos().y + 15.0f * scale);
+            state.locked_mouse_pos = ImGui::GetMousePos();
             state.last_mouse_pos = ImGui::GetMousePos();
             }
         }
@@ -310,13 +312,13 @@ else // only *add* to max timeout if it's not very short per above:
 
             // Flip UPWARDS above cursor if tooltip would clip off the bottom of the screen!
             if (expected_h > 0.0f && render_pos.y + expected_h + 10.0f > display_size.y) {
-                render_pos.y = state.last_mouse_pos.y - expected_h - 10.0f * scale;
+                render_pos.y = state.locked_mouse_pos.y - expected_h - 10.0f * scale;
                 if (render_pos.y < 10.0f) render_pos.y = 10.0f;
             }
 
             // Shift LEFTWARDS (or flip left of cursor) if tooltip would clip off the right edge of the screen!
             if (expected_w > 0.0f && render_pos.x + expected_w + 10.0f > display_size.x) {
-                float left_pos = state.last_mouse_pos.x - expected_w - 10.0f * scale;
+                float left_pos = state.locked_mouse_pos.x - expected_w - 10.0f * scale;
                 if (left_pos >= 10.0f) {
                     render_pos.x = left_pos;
                 } else {
@@ -575,7 +577,6 @@ namespace TimedTooltip {
             state.hover_cycles = 0;
             state.unhover_grace_cycles = 0;
             state.is_cooldown = false;
-            state.perfect_size = ImVec2(0, 0);
         } else if (toggle_on_click) {
             if (GetActiveTooltipID() != 0 && GetActiveTooltipID() != hash_id) {
                 ClearActiveTooltip();
@@ -587,7 +588,6 @@ namespace TimedTooltip {
             state.hover_cycles = 0;
             state.unhover_grace_cycles = 0;
             state.is_cooldown = false;
-            state.perfect_size = ImVec2(0, 0);
         }
     }
 
@@ -620,7 +620,21 @@ namespace TimedTooltip {
             }
         }
 
+        if (!toggle_on_click) {
+            toggle_on_click = ImGui::Detail::ShouldToggleTooltipOnClick(id, ImGui::IsItemActive());
+        }
+
         HandleTooltipClick(id, is_clicked, toggle_on_click);
+
+        TooltipState& state = GetTooltipStateMap()[id];
+        if (state.perfect_size.x <= 0.0f && state.last_size.x <= 0.0f && fmt) {
+            va_list args_sz;
+            va_copy(args_sz, args);
+            char sz_buf[512];
+            vsnprintf(sz_buf, sizeof(sz_buf), fmt, args_sz);
+            va_end(args_sz);
+            state.perfect_size = ImGui::CalcTextSize(sz_buf);
+        }
 
         bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
@@ -683,7 +697,7 @@ namespace TimedTooltip {
     inline bool TextProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        bool res = TextProxyV(id, is_hovered, config, fmt, args, ImGui::IsItemClicked());
+        bool res = TextProxyV(id, is_hovered, config, fmt, args, ImGui::IsItemClicked(), ImGui::Detail::ShouldToggleTooltipOnClick(id, false));
         va_end(args);
         return res;
     }
@@ -691,7 +705,15 @@ namespace TimedTooltip {
     inline bool TextProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        bool res = TextProxyV(id, is_hovered, nullptr, fmt, args, ImGui::IsItemClicked());
+        bool res = TextProxyV(id, is_hovered, nullptr, fmt, args, ImGui::IsItemClicked(), ImGui::Detail::ShouldToggleTooltipOnClick(id, false));
+        va_end(args);
+        return res;
+    }
+
+    inline bool TextProxy(ImGuiID id, bool is_hovered, bool toggle_on_click, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextProxyV(id, is_hovered, nullptr, fmt, args, ImGui::IsItemClicked(), toggle_on_click);
         va_end(args);
         return res;
     }
