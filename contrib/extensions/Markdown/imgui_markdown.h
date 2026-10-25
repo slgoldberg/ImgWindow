@@ -973,14 +973,22 @@ namespace ImGui
         bool is_custom = ( mdConfig_.codeBlockCallback != nullptr );
         bool is_recognized = is_markdown || is_lua || is_cpp || is_plaintext || is_custom;
 
-        char id_buf[32];
-        snprintf( id_buf, sizeof(id_buf), "##cb_%zu", block_index );
+        // Generate unique, scroll-stable ID combining content hash and block index:
+        ImU32 content_hash = ImHashData( code_, codeLength_ );
+        char id_buf[48];
+        snprintf( id_buf, sizeof(id_buf), "##cb_%08X_%zu", content_hash, block_index );
         ImGuiID code_id = ImGui::GetID( id_buf );
         ImGui::PushID( (int)code_id );
+
+        ImGuiStorage* storage = ImGui::GetStateStorage();
+        char prev_id_buf[32];
+        snprintf( prev_id_buf, sizeof(prev_id_buf), "##cb_prev_%zu", block_index );
+        ImGuiID preview_id = ImGui::GetID( prev_id_buf );
+
         bool is_preview = false;
-        if( is_markdown )
+        if( is_markdown && storage )
         {
-            is_preview = ImGui::GetStateStorage()->GetBool( code_id, false );
+            is_preview = storage->GetBool( code_id, false ) || storage->GetBool( preview_id, false );
         }
 
         float font_sz = ImGui::GetFontSize();
@@ -1076,7 +1084,6 @@ namespace ImGui
         float needed_width = ImMax( min_header_w, content_w );
 
         // Persistent maximum width cache: prevents jarring container shrink when toggling between Raw and Preview!
-        ImGuiStorage* storage = ImGui::GetStateStorage();
         ImGuiID max_width_id = code_id + 0x5744; // 'WD' (width cache)
         float* p_max_w = storage ? storage->GetFloatRef( max_width_id, 0.0f ) : nullptr;
         if( p_max_w )
@@ -1205,9 +1212,9 @@ namespace ImGui
             }
 
             // 2. Copy button on far RIGHT (Actionable push-button with vector icon & tooltip):
-            static ImGuiID s_lastCopiedId = 0;
-            static double  s_lastCopiedTime = 0.0;
-            bool is_recently_copied = ( s_lastCopiedId == code_id && ( ImGui::GetTime() - s_lastCopiedTime ) < 1.5 );
+            float now = (float)ImGui::GetTime();
+            float last_time = storage ? storage->GetFloat( code_id, -1000.0f ) : -1000.0f;
+            bool is_recently_copied = ( now >= last_time ) && ( ( now - last_time ) < 1.5f );
             const char* copy_label = is_recently_copied ? "Copied!" : "Copy";
 
             float cur_copy_x = box_max.x - fixed_copy_w - pad_x;
@@ -1245,8 +1252,10 @@ namespace ImGui
                             mdConfig_.setClipboardTextFn( clip_text.c_str(), mdConfig_.userData );
                         }
                         ImGui::SetClipboardText( clip_text.c_str() );
-                        s_lastCopiedId = code_id;
-                        s_lastCopiedTime = ImGui::GetTime();
+                        if( storage )
+                        {
+                            storage->SetFloat( code_id, now );
+                        }
                         is_recently_copied = true;
                         MarkdownDetail::ClearActiveTooltip();
                     }
@@ -1370,7 +1379,11 @@ namespace ImGui
                 if( ImGui::InvisibleButton( "##raw_zone", ImVec2( raw_sz.x + 2.0f * scale, control_h ) ) )
                 {
                     is_preview = !is_preview;
-                    ImGui::GetStateStorage()->SetBool( code_id, is_preview );
+                    if( storage )
+                    {
+                        storage->SetBool( code_id, is_preview );
+                        storage->SetBool( preview_id, is_preview );
+                    }
                     MarkdownDetail::ClearActiveTooltip();
                 }
                 bool raw_hovered = ImGui::IsItemHovered();
@@ -1383,7 +1396,11 @@ namespace ImGui
                 if( ImGui::InvisibleButton( "##track_zone", ImVec2( toggle_track_w, control_h ) ) )
                 {
                     is_preview = !is_preview;
-                    ImGui::GetStateStorage()->SetBool( code_id, is_preview );
+                    if( storage )
+                    {
+                        storage->SetBool( code_id, is_preview );
+                        storage->SetBool( preview_id, is_preview );
+                    }
                     MarkdownDetail::ClearActiveTooltip();
                 }
                 bool track_hovered = ImGui::IsItemHovered();
@@ -1397,7 +1414,11 @@ namespace ImGui
                         if( wheel > 0.0f && !is_preview )
                         {
                             is_preview = true;
-                            ImGui::GetStateStorage()->SetBool( code_id, true );
+                            if( storage )
+                            {
+                                storage->SetBool( code_id, true );
+                                storage->SetBool( preview_id, true );
+                            }
                             io.MouseWheel = 0.0f;
                             io.MouseWheelH = 0.0f;
                             MarkdownDetail::ClearActiveTooltip();
@@ -1405,7 +1426,11 @@ namespace ImGui
                         else if( wheel < 0.0f && is_preview )
                         {
                             is_preview = false;
-                            ImGui::GetStateStorage()->SetBool( code_id, false );
+                            if( storage )
+                            {
+                                storage->SetBool( code_id, false );
+                                storage->SetBool( preview_id, false );
+                            }
                             io.MouseWheel = 0.0f;
                             io.MouseWheelH = 0.0f;
                             MarkdownDetail::ClearActiveTooltip();
@@ -1420,7 +1445,11 @@ namespace ImGui
                 if( ImGui::InvisibleButton( "##prev_zone", ImVec2( prev_sz.x + 2.0f * scale, control_h ) ) )
                 {
                     is_preview = !is_preview;
-                    ImGui::GetStateStorage()->SetBool( code_id, is_preview );
+                    if( storage )
+                    {
+                        storage->SetBool( code_id, is_preview );
+                        storage->SetBool( preview_id, is_preview );
+                    }
                     MarkdownDetail::ClearActiveTooltip();
                 }
                 bool prev_hovered = ImGui::IsItemHovered();
