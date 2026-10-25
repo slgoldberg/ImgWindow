@@ -168,6 +168,8 @@ namespace ImGui
         bool                    itemHovered = false;                       // Currently only set for links when mouse hovered, only valid when start_ == false
         const MarkdownConfig*   config  = NULL;
         bool                    isStartOfDoc = false;                      // True if this block is at start of markdown document/text (no preceding non-whitespace content)
+        bool                    isPrecededBySeparator = false;             // True if preceded by a heading separator or thematic break
+        bool                    isPrecededByBlankLine = false;             // True if preceded by an empty line
         const char*             blockLang = nullptr;                       // Language identifier for CODE_BLOCK (e.g. "cpp", "lua")
         int32_t                 blockLangLength = 0;
     };
@@ -450,6 +452,11 @@ namespace ImGui
                 ImGui::Indent();
                 ++leadIndents;
             }
+            while( leadIndents > count )
+            {
+                ImGui::Unindent();
+                --leadIndents;
+            }
         }
 
         void ResetIndent()
@@ -488,6 +495,10 @@ namespace ImGui
         int  lineStart = 0;
         int  lineEnd   = 0;
         int  lastRenderPosition = 0;     // lines may get rendered in multiple pieces
+        bool isPrecededBySeparator = false;
+        bool isPrecededByBlankLine = false;
+        bool hadSeparator = false;
+        bool wasBlank = false;
     };
 
     struct TextBlock {                  // subset of line
@@ -557,6 +568,8 @@ namespace ImGui
         // render
         MarkdownFormatInfo formatInfo;
         formatInfo.config = &mdConfig_;
+        formatInfo.isPrecededBySeparator = line_.isPrecededBySeparator;
+        formatInfo.isPrecededByBlankLine = line_.isPrecededByBlankLine;
 
         // Determine if this line/block is at the start of the markdown document (no preceding non-whitespace content)
         bool isAtStart = true;
@@ -602,6 +615,20 @@ namespace ImGui
             mdConfig_.formatCallback( formatInfo, true );
             const char* text = markdown_ + textStart + 1;
             textRegion_.RenderTextWrapped( text, text + textSize - 1 );
+
+            MarkdownHeadingFormat fmt;
+            if( line_.headingCount > MarkdownConfig::NUMHEADINGS )
+            {
+                fmt = mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ];
+            }
+            else
+            {
+                fmt = mdConfig_.headingFormats[ line_.headingCount - 1 ];
+            }
+            if( fmt.separator )
+            {
+                line_.hadSeparator = true;
+            }
         }
 		else if( line_.isEmphasis )         // render emphasis
 		{
@@ -614,6 +641,20 @@ namespace ImGui
 		}
         else                                // render a normal paragraph chunk
         {
+            bool isLineEmpty = true;
+            for( int k = textStart; k < line_.lineEnd; ++k )
+            {
+                if( markdown_[k] != ' ' && markdown_[k] != '\t' && markdown_[k] != '\r' )
+                {
+                    isLineEmpty = false;
+                    break;
+                }
+            }
+            if( isLineEmpty )
+            {
+                line_.wasBlank = true;
+            }
+
             formatInfo.type = MarkdownFormatType::NORMAL_TEXT;
             mdConfig_.formatCallback( formatInfo, true );
             const char* text = markdown_ + textStart;
@@ -1482,6 +1523,8 @@ namespace ImGui
         TextRegion  textRegion;
         textRegion.wrapWidth = mdConfig_.wrapWidth;
         size_t      code_block_idx = 0;
+        bool        lastWasSeparator = false;
+        bool        lastWasBlankLine = false;
 
         char c = 0;
         for( int i=0; i < (int)markdownLength_; ++i )
@@ -1533,6 +1576,8 @@ namespace ImGui
                         {
                             ImGui::Separator();
                             textRegion.ResetIndent();
+                            lastWasSeparator = true;
+                            lastWasBlankLine = false;
 
                             // Advance past newline (\r\n, \r, or \n)
                             if( scan < (int)markdownLength_ && markdown_[scan] == '\r' && scan + 1 < (int)markdownLength_ && markdown_[scan + 1] == '\n' )
@@ -1695,6 +1740,10 @@ namespace ImGui
                         RenderCodeBlock( markdown_ + code_start, (size_t)(code_end - code_start),
                                          markdown_ + info_start, (size_t)(trimmed_info_end - info_start),
                                          mdConfig_, code_block_idx++ );
+
+                        textRegion.ResetIndent();
+                        lastWasSeparator = false;
+                        lastWasBlankLine = false;
 
                         line = Line();
                         line.isLeadingSpace = true;
@@ -2073,7 +2122,12 @@ namespace ImGui
             if( c == '\n' )
             {
                 line.lineEnd = i;
+                line.isPrecededBySeparator = lastWasSeparator;
+                line.isPrecededByBlankLine = lastWasBlankLine;
                 RenderLine( markdown_, line, textRegion, mdConfig_ );
+
+                lastWasSeparator = line.hadSeparator;
+                lastWasBlankLine = line.wasBlank;
 
 				line = Line();
                 em = Emphasis();
@@ -2116,6 +2170,8 @@ namespace ImGui
             {
                 --line.lineEnd;
             }
+            line.isPrecededBySeparator = lastWasSeparator;
+            line.isPrecededByBlankLine = lastWasBlankLine;
             RenderLine( markdown_, line, textRegion, mdConfig_ );
         }
     }
@@ -2354,9 +2410,13 @@ namespace ImGui
                 {
                     ImGui::PushFont( fmt.font );
                 }
-                if( !markdownFormatInfo_.isStartOfDoc )
+                if( !markdownFormatInfo_.isStartOfDoc &&
+                    !markdownFormatInfo_.isPrecededBySeparator &&
+                    !markdownFormatInfo_.isPrecededByBlankLine )
                 {
-                    ImGui::NewLine();
+                    float font_sz = ImGui::GetFontSize();
+                    float top_margin = ( markdownFormatInfo_.level <= 2 ) ? ( font_sz * 0.45f ) : ( font_sz * 0.30f );
+                    ImGui::Dummy( ImVec2( 0.0f, top_margin ) );
                 }
             }
             else
@@ -2364,11 +2424,12 @@ namespace ImGui
                 if( fmt.separator )
                 {
                     ImGui::Separator();
-                    ImGui::NewLine();
                 }
                 else
                 {
-                    ImGui::NewLine();
+                    float font_sz = ImGui::GetFontSize();
+                    float bottom_margin = font_sz * 0.20f;
+                    ImGui::Dummy( ImVec2( 0.0f, bottom_margin ) );
                 }
                 if( fmt.font )
                 {

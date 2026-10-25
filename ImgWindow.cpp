@@ -100,12 +100,43 @@ static ImGuiKey vpXPLMKeyToImGuiKey(int inVirtualKey) {
         case XPLM_VK_NUMPAD7: return ImGuiKey_Keypad7;
         case XPLM_VK_NUMPAD8: return ImGuiKey_Keypad8;
         case XPLM_VK_NUMPAD9: return ImGuiKey_Keypad9;
+        case XPLM_VK_MULTIPLY: return ImGuiKey_KeypadMultiply;
+        case XPLM_VK_ADD: return ImGuiKey_KeypadAdd;
+        case XPLM_VK_SEPARATOR: return ImGuiKey_KeypadDecimal;
+        case XPLM_VK_SUBTRACT: return ImGuiKey_KeypadSubtract;
+        case XPLM_VK_DECIMAL: return ImGuiKey_KeypadDecimal;
+        case XPLM_VK_DIVIDE: return ImGuiKey_KeypadDivide;
+        case XPLM_VK_NUMPAD_ENT: return ImGuiKey_KeypadEnter;
+
+        // Letters A-Z
         case XPLM_VK_A: return ImGuiKey_A;
+        case XPLM_VK_B: return ImGuiKey_B;
         case XPLM_VK_C: return ImGuiKey_C;
+        case XPLM_VK_D: return ImGuiKey_D;
+        case XPLM_VK_E: return ImGuiKey_E;
+        case XPLM_VK_F: return ImGuiKey_F;
+        case XPLM_VK_G: return ImGuiKey_G;
+        case XPLM_VK_H: return ImGuiKey_H;
+        case XPLM_VK_I: return ImGuiKey_I;
+        case XPLM_VK_J: return ImGuiKey_J;
+        case XPLM_VK_K: return ImGuiKey_K;
+        case XPLM_VK_L: return ImGuiKey_L;
+        case XPLM_VK_M: return ImGuiKey_M;
+        case XPLM_VK_N: return ImGuiKey_N;
+        case XPLM_VK_O: return ImGuiKey_O;
+        case XPLM_VK_P: return ImGuiKey_P;
+        case XPLM_VK_Q: return ImGuiKey_Q;
+        case XPLM_VK_R: return ImGuiKey_R;
+        case XPLM_VK_S: return ImGuiKey_S;
+        case XPLM_VK_T: return ImGuiKey_T;
+        case XPLM_VK_U: return ImGuiKey_U;
         case XPLM_VK_V: return ImGuiKey_V;
+        case XPLM_VK_W: return ImGuiKey_W;
         case XPLM_VK_X: return ImGuiKey_X;
         case XPLM_VK_Y: return ImGuiKey_Y;
         case XPLM_VK_Z: return ImGuiKey_Z;
+
+        // Numbers 0-9
         case XPLM_VK_0: return ImGuiKey_0;
         case XPLM_VK_1: return ImGuiKey_1;
         case XPLM_VK_2: return ImGuiKey_2;
@@ -116,6 +147,33 @@ static ImGuiKey vpXPLMKeyToImGuiKey(int inVirtualKey) {
         case XPLM_VK_7: return ImGuiKey_7;
         case XPLM_VK_8: return ImGuiKey_8;
         case XPLM_VK_9: return ImGuiKey_9;
+
+        // Punctuation and Symbols
+        case XPLM_VK_EQUAL: return ImGuiKey_Equal;
+        case XPLM_VK_MINUS: return ImGuiKey_Minus;
+        case XPLM_VK_PERIOD: return ImGuiKey_Period;
+        case XPLM_VK_COMMA: return ImGuiKey_Comma;
+        case XPLM_VK_SLASH: return ImGuiKey_Slash;
+        case XPLM_VK_SEMICOLON: return ImGuiKey_Semicolon;
+        case XPLM_VK_QUOTE: return ImGuiKey_Apostrophe;
+        case XPLM_VK_BACKSLASH: return ImGuiKey_Backslash;
+        case XPLM_VK_LBRACE: return ImGuiKey_LeftBracket;
+        case XPLM_VK_RBRACE: return ImGuiKey_RightBracket;
+        case XPLM_VK_BACKQUOTE: return ImGuiKey_GraveAccent;
+
+        // Function Keys F1-F12
+        case XPLM_VK_F1: return ImGuiKey_F1;
+        case XPLM_VK_F2: return ImGuiKey_F2;
+        case XPLM_VK_F3: return ImGuiKey_F3;
+        case XPLM_VK_F4: return ImGuiKey_F4;
+        case XPLM_VK_F5: return ImGuiKey_F5;
+        case XPLM_VK_F6: return ImGuiKey_F6;
+        case XPLM_VK_F7: return ImGuiKey_F7;
+        case XPLM_VK_F8: return ImGuiKey_F8;
+        case XPLM_VK_F9: return ImGuiKey_F9;
+        case XPLM_VK_F10: return ImGuiKey_F10;
+        case XPLM_VK_F11: return ImGuiKey_F11;
+        case XPLM_VK_F12: return ImGuiKey_F12;
     }
     return ImGuiKey_None;
 }
@@ -1053,6 +1111,13 @@ ImgWindow::updateImgui()
     // tags, etc.) to trigger on the very first click without requiring a double-click.
     ClearActiveInputTextIfClickedOutside();
 
+    // If mouse was clicked outside this window, release active mouse focus
+    if ((io.MouseClicked[0] || io.MouseClicked[1]) && bHasMouseFocus) {
+        if (io.MousePos.x < 0.0f || io.MousePos.x > win_width || io.MousePos.y < 0.0f || io.MousePos.y > win_height) {
+            bHasMouseFocus = false;
+        }
+    }
+
     ImGui::SetNextWindowPos(ImVec2((float) 0.0, (float) 0.0), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(win_width, win_height), ImGuiCond_Always);
 
@@ -1078,10 +1143,11 @@ ImgWindow::updateImgui()
     }
 #endif /* IMGUI_V190_REFACTOR */
 
-    if (io.WantTextInput && !hasKeyboardFocus) {
+    bool wantFocus = io.WantTextInput || bExplicitKeyboardFocus || (bCaptureKeyboardOnMouseFocus && bHasMouseFocus);
+    if (wantFocus && !hasKeyboardFocus) {
         XPLMTakeKeyboardFocus(mWindowID);
     }
-    else if (!io.WantTextInput && hasKeyboardFocus) {
+    else if (!wantFocus && hasKeyboardFocus) {
         XPLMTakeKeyboardFocus(nullptr);
         // reset keysdown otherwise we'll think any keys used to defocus the keyboard are still down!
 #ifndef IMGUI_V190_REFACTOR
@@ -1215,6 +1281,7 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
             break;
 
         case xplm_MouseDown:
+            bHasMouseFocus = true;
 #ifdef IMGUI_V190_REFACTOR
             io.AddMouseButtonEvent(button, true);
 #endif
@@ -1282,6 +1349,8 @@ ImgWindow::HandleKeyFuncCB(
     // Loosing focus? That's not exactly something ImGui allows us to do...
     // we try convincing ImGui to let it go by sending an [Esc] key for the legacy version, or by sending a focus-lost event for the modern version.
     if (blosingFocus) {
+        thisWindow->bHasMouseFocus = false;
+        thisWindow->bExplicitKeyboardFocus = false;
         if (thisWindow->bUseImgCursors) {
             io.MouseDrawCursor = false;
         }
@@ -1298,7 +1367,8 @@ ImgWindow::HandleKeyFuncCB(
         return;  // don't process any further key events if we're losing focus
     }
 
-    if (io.WantCaptureKeyboard) {
+    int hasKeyboardFocus = XPLMHasKeyboardFocus(thisWindow->mWindowID);
+    if (io.WantCaptureKeyboard || hasKeyboardFocus || thisWindow->bExplicitKeyboardFocus || (thisWindow->bCaptureKeyboardOnMouseFocus && thisWindow->bHasMouseFocus)) {
         // Hack for the Backspace key in VR:
         // Apparently, the virtual VR keyboard sends both the Up and the Down
         // event within the same drawing cycle, which would overwrite
@@ -1374,6 +1444,13 @@ ImgWindow::HandleKeyFuncCB(
         }
         else if (key != ImGuiKey_None) {
             io.AddKeyEvent(key, isDown); // send the actual key
+        }
+
+        // Escape outside an active text input releases keyboard focus back to the sim
+        if (inVirtualKey == XPLM_VK_ESCAPE && !io.WantTextInput && isDown) {
+            thisWindow->bHasMouseFocus = false;
+            thisWindow->bExplicitKeyboardFocus = false;
+            XPLMTakeKeyboardFocus(nullptr);
         }
 
         // Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).

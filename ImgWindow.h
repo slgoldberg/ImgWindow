@@ -285,6 +285,12 @@ public:
      *  @return true if ActiveId was cleared, false otherwise. */
     static bool ClearActiveInputTextIfClickedOutside();
 
+    /** Keyboard focus management methods */
+    void SetExplicitKeyboardFocus(bool req) { bExplicitKeyboardFocus = req; }
+    bool GetExplicitKeyboardFocus() const { return bExplicitKeyboardFocus; }
+    void SetCaptureKeyboardOnMouseFocus(bool enable) { bCaptureKeyboardOnMouseFocus = enable; }
+    bool GetCaptureKeyboardOnMouseFocus() const { return bCaptureKeyboardOnMouseFocus; }
+
     // -----------------------------------------------------------------------
     // DEPRECATED ALIASES (Retained for API backwards compatibility for now)
     // -----------------------------------------------------------------------
@@ -559,6 +565,10 @@ private:
 #endif /* IMGUI_V190_REFACTOR */
 
 protected:
+    bool bExplicitKeyboardFocus = false;
+    bool bCaptureKeyboardOnMouseFocus = false;
+    bool bHasMouseFocus = false;
+
     /** What are we dragging right now? */
     struct DragTy {
         bool wnd    : 1;

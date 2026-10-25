@@ -295,6 +295,29 @@ namespace ImGui {
         return CopyLastItemButtonEx(str_id, duration, size, nullptr);
     }
 
+    // Semantic Intent Aliases
+    IMGUI_API inline bool CopyBufferButtonEx(const char* str_id, const char* text_to_copy, float duration = 1.5f, const ImVec2& size = ImVec2(0, 0), bool* p_is_copied = nullptr)
+    {
+        return CopyButtonEx(str_id, text_to_copy, duration, size, p_is_copied);
+    }
+    IMGUI_API inline bool CopyBufferButton(const char* str_id, const char* text_to_copy, float duration = 1.5f, const ImVec2& size = ImVec2(0, 0))
+    {
+        return CopyButtonEx(str_id, text_to_copy, duration, size, nullptr);
+    }
+    IMGUI_API inline bool CopyBufferButton(const char* str_id, const std::string& text_to_copy, float duration = 1.5f, const ImVec2& size = ImVec2(0, 0))
+    {
+        return CopyButtonEx(str_id, text_to_copy.c_str(), duration, size, nullptr);
+    }
+
+    IMGUI_API inline bool CopyTextFieldButtonEx(const char* str_id, float duration = 1.5f, const ImVec2& size = ImVec2(0, 0), bool* p_is_copied = nullptr)
+    {
+        return CopyLastItemButtonEx(str_id, duration, size, p_is_copied);
+    }
+    IMGUI_API inline bool CopyTextFieldButton(const char* str_id, float duration = 1.5f, const ImVec2& size = ImVec2(0, 0))
+    {
+        return CopyLastItemButtonEx(str_id, duration, size, nullptr);
+    }
+
 } // namespace ImGui
 
 #endif // IMGUI_COPY_BUTTON_H
