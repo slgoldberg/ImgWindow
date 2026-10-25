@@ -132,7 +132,6 @@ namespace TimedTooltip {
             state.unhover_grace_cycles = 0;
             state.is_cooldown = false;
             GetActiveTooltipID() = 0;
-            state.perfect_size = ImVec2(0,0);
         }
         for (auto& kv : GetTooltipStateMap()) {
             if (kv.second.is_displayed || kv.second.hover_cycles > 0) {
@@ -140,7 +139,6 @@ namespace TimedTooltip {
                 kv.second.hover_cycles = 0;
                 kv.second.unhover_grace_cycles = 0;
                 kv.second.is_cooldown = false;
-                kv.second.perfect_size = ImVec2(0, 0);
             }
         }
     }
@@ -190,7 +188,6 @@ namespace TimedTooltip {
                 active_state.hover_cycles = 0;
                 active_state.unhover_grace_cycles = 0;
                 active_state.is_cooldown = false;
-                active_state.perfect_size = ImVec2(0, 0);
                 GetActiveTooltipID() = 0;
             }
         }
@@ -212,7 +209,6 @@ namespace TimedTooltip {
                 state.is_displayed = false;
                 if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
                 state.is_cooldown = false;
-                state.perfect_size = ImVec2(0, 0);
             }
         } else if (is_hovered) {
             state.unhover_grace_cycles = 0;
@@ -234,7 +230,6 @@ namespace TimedTooltip {
                     if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
                     state.hover_cycles = 0;
                     state.is_cooldown = false;
-                    state.perfect_size = ImVec2(0,0);
                 }
             } else {
                 state.hover_cycles = 0;
@@ -310,24 +305,29 @@ else // only *add* to max timeout if it's not very short per above:
             if (expected_w > display_size.x - 25.0f) expected_w = display_size.x - 25.0f;
             if (expected_h > display_size.y - 25.0f) expected_h = display_size.y - 25.0f;
 
+            ImVec2 pivot(0.0f, 0.0f);
+
             // Flip UPWARDS above cursor if tooltip would clip off the bottom of the screen!
             if (expected_h > 0.0f && render_pos.y + expected_h + 10.0f > display_size.y) {
-                render_pos.y = state.locked_mouse_pos.y - expected_h - 10.0f * scale;
-                if (render_pos.y < 10.0f) render_pos.y = 10.0f;
+                render_pos.y = state.locked_mouse_pos.y - 6.0f * scale;
+                pivot.y = 1.0f;
+                if (render_pos.y - expected_h < 10.0f) {
+                    render_pos.y = 10.0f;
+                    pivot.y = 0.0f;
+                }
             }
 
             // Shift LEFTWARDS (or flip left of cursor) if tooltip would clip off the right edge of the screen!
             if (expected_w > 0.0f && render_pos.x + expected_w + 10.0f > display_size.x) {
-                float left_pos = state.locked_mouse_pos.x - expected_w - 10.0f * scale;
-                if (left_pos >= 10.0f) {
-                    render_pos.x = left_pos;
-                } else {
-                    render_pos.x = display_size.x - expected_w - 15.0f;
-                    if (render_pos.x < 10.0f) render_pos.x = 10.0f;
+                render_pos.x = state.locked_mouse_pos.x - 6.0f * scale;
+                pivot.x = 1.0f;
+                if (render_pos.x - expected_w < 10.0f) {
+                    render_pos.x = 10.0f;
+                    pivot.x = 0.0f;
                 }
             }
 
-            ImGui::SetNextWindowPos(render_pos);
+            ImGui::SetNextWindowPos(render_pos, ImGuiCond_Always, pivot);
             char window_name[32];
             snprintf(window_name, sizeof(window_name), "##TT_%08X", hash_id);
             ImGui::PushStyleColor(ImGuiCol_WindowBg, config->bg_color);
@@ -374,7 +374,10 @@ else // only *add* to max timeout if it's not very short per above:
         TooltipState& state = GetTooltipStateMap()[hash_id];
         
         // Capture size mathematically so the next frame can calculate the skew ratio!
-        state.last_size = ImGui::GetWindowSize();
+        ImVec2 cur_size = ImGui::GetWindowSize();
+        if (cur_size.x > 0.0f && cur_size.y > 0.0f) {
+            state.last_size = cur_size;
+        }
         if (state.font_pushed) {
             ImGui::PopFont();
             state.font_pushed = false;
@@ -626,43 +629,48 @@ namespace TimedTooltip {
 
         HandleTooltipClick(id, is_clicked, toggle_on_click);
 
+        const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
+        static const TooltipConfig fallback_config;
+        if (!config) config = &fallback_config;
+        
+        float scale = GetActiveFontScale(config);
+        if (scale <= 0.0f) scale = 1.0f;
+
+        float max_screen_w = std::max(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
+        float min_w = config->min_wrap_width * scale;
+        float max_w = config->max_wrap_width * scale;
+        if (min_w < 50.0f * scale) min_w = 50.0f * scale;
+        if (max_w < min_w) max_w = min_w;
+        if (max_w > max_screen_w) max_w = max_screen_w;
+        if (min_w > max_w) min_w = max_w;
+
+        float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
+        float wrap_limit = (target_w < min_w) ? min_w : (target_w > max_w) ? max_w : target_w;
+        if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
+
         TooltipState& state = GetTooltipStateMap()[id];
-        if (state.perfect_size.x <= 0.0f && state.last_size.x <= 0.0f && fmt) {
+        if (state.perfect_size.x <= 0.0f && fmt) {
             va_list args_sz;
             va_copy(args_sz, args);
             char sz_buf[512];
             vsnprintf(sz_buf, sizeof(sz_buf), fmt, args_sz);
             va_end(args_sz);
-            state.perfect_size = ImGui::CalcTextSize(sz_buf);
+            if (config->default_wrap_width < 0.0f) {
+                state.perfect_size = ImGui::CalcTextSize(sz_buf);
+            } else {
+                state.perfect_size = ImGui::CalcTextSize(sz_buf, nullptr, false, wrap_limit);
+            }
         }
 
         bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
             displayed = true;
-            const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
-            static const TooltipConfig fallback_config;
-            if (!config) config = &fallback_config;
-            
-            float scale = GetActiveFontScale(config);
-            if (scale <= 0.0f) scale = 1.0f;
 
             // 1. Audit and sanitize wrap constraints against screen boundaries
             if (config->default_wrap_width < 0.0f) {
                 // Explicit non-wrapping mode (single line per '\n'):
                 ImGui::TextV(fmt, args);
             } else {
-                float max_screen_w = std::max(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
-                float min_w = config->min_wrap_width * scale;
-                float max_w = config->max_wrap_width * scale;
-                if (min_w < 50.0f * scale) min_w = 50.0f * scale;
-                if (max_w < min_w) max_w = min_w;
-                if (max_w > max_screen_w) max_w = max_screen_w;
-                if (min_w > max_w) min_w = max_w;
-
-                float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
-                float wrap_limit = (target_w < min_w) ? min_w : (target_w > max_w) ? max_w : target_w;
-                if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
-
                 ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + wrap_limit);
                 ImGui::TextV(fmt, args);
                 ImGui::PopTextWrapPos();

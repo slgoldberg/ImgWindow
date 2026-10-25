@@ -1339,87 +1339,70 @@ namespace TimedTooltip {
 
         HandleTooltipClick(id, is_clicked, toggle_on_click);
         
+        char buffer[4096];
+        vsnprintf(buffer, sizeof(buffer), fmt, args);
+
+        const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
+        static const TooltipConfig fallback_config;
+        if (!config) config = &fallback_config;
+        
+        TooltipState& state = GetTooltipStateMap()[id];
+        
+        float scale = TimedTooltip::GetActiveFontScale(config);
+        if (scale <= 0.0f) scale = 1.0f;
+        
+        // 1. Audit and sanitize wrap constraints against screen boundaries
+        float max_screen_w = ImMax(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
+        bool no_wrap = (config->default_wrap_width < 0.0f);
+        float wrap_limit = max_screen_w;
+        if (!no_wrap) {
+            float min_w = config->min_wrap_width * scale;
+            float max_w = config->max_wrap_width * scale;
+            if (min_w < 50.0f * scale) min_w = 50.0f * scale;
+            if (max_w < min_w) max_w = min_w;
+            if (max_w > max_screen_w) max_w = max_screen_w;
+            if (min_w > max_w) min_w = max_w;
+
+            float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
+            wrap_limit = ImClamp(target_w, min_w, max_w);
+            if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
+        }
+
+        // Prepare MarkdownConfig with custom bullet_spacing
+        MarkdownConfig local_md;
+        const MarkdownConfig* base_md = GetDefaultMarkdownConfig();
+        if (base_md) local_md = *base_md;
+        if (config->bullet_spacing > 0.0f) local_md.bulletSpacing = config->bullet_spacing * scale;
+        if (no_wrap) local_md.wrapWidth = -1.0f;
+
+        if (state.perfect_size.x == 0.0f) {
+            // 1. Dry-run infinitely wide to see how small the text naturally is
+            ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, scale, &local_md);
+            
+            if (no_wrap) {
+                state.perfect_size.x = raw_size.x + 2.0f * scale;
+                state.perfect_size.y = raw_size.y + 2.0f * scale;
+            } else {
+                // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
+                float final_width = raw_size.x;
+                if (final_width > wrap_limit) {
+                    final_width = wrap_limit;
+                }
+                if (final_width > max_screen_w) final_width = max_screen_w;
+                
+                // ADD EPSILON TO PREVENT MID-WORD BREAKS!
+                final_width += 2.0f * scale;
+                
+                // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
+                state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
+                state.perfect_size.x = final_width; 
+                state.perfect_size.y += 2.0f * scale;  // Symmetric 1px top + 1px bottom headroom for pills/backdrops
+            }
+        }
+
         bool displayed = false;
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
             displayed = true;
-            char buffer[4096];
-            vsnprintf(buffer, sizeof(buffer), fmt, args);
-
-            const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
-            static const TooltipConfig fallback_config;
-            if (!config) config = &fallback_config;
-            
-            TooltipState& state = GetTooltipStateMap()[id];
-            
-            float scale = TimedTooltip::GetActiveFontScale(config);
-            if (scale <= 0.0f) scale = 1.0f;
-            
-            // 1. Audit and sanitize wrap constraints against screen boundaries
-            float max_screen_w = ImMax(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
-            bool no_wrap = (config->default_wrap_width < 0.0f);
-            float wrap_limit = max_screen_w;
-            if (!no_wrap) {
-                float min_w = config->min_wrap_width * scale;
-                float max_w = config->max_wrap_width * scale;
-                if (min_w < 50.0f * scale) min_w = 50.0f * scale;
-                if (max_w < min_w) max_w = min_w;
-                if (max_w > max_screen_w) max_w = max_screen_w;
-                if (min_w > max_w) min_w = max_w;
-
-                float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
-                wrap_limit = ImClamp(target_w, min_w, max_w);
-                if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
-            }
-
-            // Prepare MarkdownConfig with custom bullet_spacing
-            MarkdownConfig local_md;
-            const MarkdownConfig* base_md = GetDefaultMarkdownConfig();
-            if (base_md) local_md = *base_md;
-            if (config->bullet_spacing > 0.0f) local_md.bulletSpacing = config->bullet_spacing * scale;
-            if (no_wrap) local_md.wrapWidth = -1.0f;
-
-            if (state.perfect_size.x == 0.0f) {
-                // 1. Dry-run infinitely wide to see how small the text naturally is
-                ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, scale, &local_md);
-                
-                if (no_wrap) {
-                    state.perfect_size.x = raw_size.x + 2.0f * scale;
-                    state.perfect_size.y = raw_size.y + 2.0f * scale;
-                } else {
-                    // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
-                    float final_width = raw_size.x;
-                    if (final_width > wrap_limit) {
-                        final_width = wrap_limit;
-                    }
-                    if (final_width > max_screen_w) final_width = max_screen_w;
-                    
-                    // ADD EPSILON TO PREVENT MID-WORD BREAKS!
-                    final_width += 2.0f * scale;
-                    
-                    // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
-                    state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
-                    state.perfect_size.x = final_width; 
-                    state.perfect_size.y += 2.0f * scale;  // Symmetric 1px top + 1px bottom headroom for pills/backdrops
-                }
-
-                // Immediate position clamp on Frame 1:
-                ImVec2 display_size = ImGui::GetIO().DisplaySize;
-                ImVec2 render_pos = state.locked_pos;
-                ImVec2 scaled_padding(config->padding.x * scale, config->padding.y * scale);
-                float expected_w = state.perfect_size.x + scaled_padding.x * 2.0f;
-                float expected_h = state.perfect_size.y + scaled_padding.y * 2.0f;
-                if (expected_w > display_size.x - 25.0f) expected_w = display_size.x - 25.0f;
-                if (expected_h > display_size.y - 25.0f) expected_h = display_size.y - 25.0f;
-                if (expected_h > 0.0f && render_pos.y + expected_h + 10.0f > display_size.y) {
-                    render_pos.y = display_size.y - expected_h - 15.0f;
-                    if (render_pos.y < 10.0f) render_pos.y = 10.0f;
-                }
-                if (expected_w > 0.0f && render_pos.x + expected_w + 10.0f > display_size.x) {
-                    render_pos.x = display_size.x - expected_w - 15.0f;
-                    if (render_pos.x < 10.0f) render_pos.x = 10.0f;
-                }
-                ImGui::SetWindowPos(render_pos);
-            }
 
 #if IMGUI_VERSION_NUM >= 18989
             ImGui::BeginChild("##md_delay_tt", state.perfect_size, ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
