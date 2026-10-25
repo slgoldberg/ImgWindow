@@ -343,25 +343,37 @@ namespace ImGui
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
             endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
 
-            // BRAT'S FIX: If the chunk doesn't fit on this line, but it WILL fit completely on the NEXT line,
-            // push it down! This prevents mid-word breaks for emphasized text!
-            if( endLine > text_ && endLine < text_end_ )
+            // If we are continuing on an existing line with prior content (usedOnLine > 0),
+            // and the first word cannot cleanly fit in widthLeft, push the word to the next line.
+            // When wrapping to a new line, strip any leading spaces that served only as inter-item separation on the previous line.
+            if( usedOnLine > 0.0f )
             {
-                // Is the character at the wrap boundary inside a word?
-                char c_ = *endLine;
-                if( IsCharInsideWord( c_ ) )
+                const char* first_non_space = text_;
+                while( first_non_space < text_end_ && *first_non_space == ' ' ) ++first_non_space;
+
+                bool breaks_first_word = false;
+                if( endLine <= first_non_space && first_non_space < text_end_ )
                 {
-                    float widthNextLine = ( wrapWidth > 0.0f ) ? wrapWidth : ( widthLeft + usedOnLine );
-                    const char* endNextLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthNextLine );
-                    if( endNextLine == text_end_ )
+                    breaks_first_word = true;
+                }
+                else if( endLine > first_non_space && endLine < text_end_ )
+                {
+                    const char* word_end = first_non_space;
+                    while( word_end < text_end_ && IsCharInsideWord( *word_end ) ) ++word_end;
+                    if( endLine < word_end )
                     {
-                        // It fits perfectly on the next line! Force a new line!
-                        endLine = text_;
-                        ImGui::NewLine();
-                        widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : ImGui::GetContentRegionAvail().x;
-                        endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
-                        endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
+                        breaks_first_word = true;
                     }
+                }
+
+                if( breaks_first_word )
+                {
+                    // Push to next line and suppress inter-item leading space!
+                    ImGui::NewLine();
+                    text_ = first_non_space;
+                    widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : ImGui::GetContentRegionAvail().x;
+                    endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                    endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                 }
             }
             
@@ -370,10 +382,10 @@ namespace ImGui
             while( endLine < text_end_ )
             {
                 text_ = endLine;
-                if( *text_ == ' ' ) { ++text_; }    // skip a space at start of line
+                while( text_ < text_end_ && *text_ == ' ' ) { ++text_; }    // skip spaces at start of line
                 endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
                 endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
-                if( text_ == endLine ) 
+                if( text_ == endLine && text_ < text_end_ ) 
                 {
                     endLine++;
                 }
@@ -2325,22 +2337,37 @@ namespace ImGui
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
             endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
 
-            // BRAT'S FIX FOR LINKS:
-            if( endLine > text_ && endLine < text_end_ )
+            // If we are continuing on an existing line with prior content (usedOnLine > 0),
+            // and the first word cannot cleanly fit in widthLeft, push the word to the next line.
+            // When wrapping to a new line, strip any leading spaces that served only as inter-item separation on the previous line.
+            if( usedOnLine > 0.0f )
             {
-                char c_ = *endLine;
-                if( IsCharInsideWord( c_ ) )
+                const char* first_non_space = text_;
+                while( first_non_space < text_end_ && *first_non_space == ' ' ) ++first_non_space;
+
+                bool breaks_first_word = false;
+                if( endLine <= first_non_space && first_non_space < text_end_ )
                 {
-                    float widthNextLine = ( wrapWidth > 0.0f ) ? wrapWidth : ( widthLeft + usedOnLine );
-                    const char* endNextLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthNextLine );
-                    if( endNextLine == text_end_ )
+                    breaks_first_word = true;
+                }
+                else if( endLine > first_non_space && endLine < text_end_ )
+                {
+                    const char* word_end = first_non_space;
+                    while( word_end < text_end_ && IsCharInsideWord( *word_end ) ) ++word_end;
+                    if( endLine < word_end )
                     {
-                        endLine = text_;
-                        ImGui::NewLine();
-                        widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : ImGui::GetContentRegionAvail().x;
-                        endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
-                        endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
+                        breaks_first_word = true;
                     }
+                }
+
+                if( breaks_first_word )
+                {
+                    // Push to next line and suppress inter-item leading space!
+                    ImGui::NewLine();
+                    text_ = first_non_space;
+                    widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : ImGui::GetContentRegionAvail().x;
+                    endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                    endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                 }
             }
             
@@ -2358,10 +2385,10 @@ namespace ImGui
             while( endLine < text_end_ )
             {
                 text_ = endLine;
-                if( *text_ == ' ' ) { ++text_; }
+                while( text_ < text_end_ && *text_ == ' ' ) { ++text_; }    // skip spaces at start of line
                 endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
                 endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
-                if( text_ == endLine ) 
+                if( text_ == endLine && text_ < text_end_ ) 
                 {
                     endLine++;
                 }
