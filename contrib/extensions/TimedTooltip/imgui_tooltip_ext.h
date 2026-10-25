@@ -642,9 +642,6 @@ namespace TimedTooltip {
             const TooltipConfig* config = config_override ? config_override : GetDefaultTooltipConfig();
             static const TooltipConfig fallback_config;
             if (!config) config = &fallback_config;
-
-            TooltipState& state = GetTooltipStateMap()[id];
-            (void)state;
             
             float scale = GetActiveFontScale(config);
             if (scale <= 0.0f) scale = 1.0f;

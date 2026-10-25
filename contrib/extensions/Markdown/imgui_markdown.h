@@ -1239,7 +1239,6 @@ namespace ImGui
                 }
 
                 // Animation smoothing
-                ImGuiStorage* storage = ImGui::GetStateStorage();
                 ImGuiID anim_id = ImGui::GetID( "##raw_prev_anim" );
                 float* p_t = storage ? storage->GetFloatRef( anim_id, is_preview ? 1.0f : 0.0f ) : nullptr;
                 float target_t = is_preview ? 1.0f : 0.0f;
