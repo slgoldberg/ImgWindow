@@ -643,7 +643,7 @@ namespace ImGui
         }
     }
 
-    inline void DefaultRenderCodeLine( const std::string& line_str, bool is_lua, bool is_cpp )
+    inline void DefaultRenderCodeLine( const std::string& line_str, bool is_lua, bool is_cpp, float wrap_screen_x = 0.0f, float scale = 1.0f )
     {
         if( line_str.empty() )
         {
@@ -654,33 +654,69 @@ namespace ImGui
         if( !is_lua && !is_cpp )
         {
             ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 220, 225, 235, 255 ) );
-            ImGui::TextUnformatted( line_str.c_str() );
+            if( wrap_screen_x > 0.0f )
+            {
+                ImGuiWindow* win = ImGui::GetCurrentWindow();
+                float wrap_local_x = wrap_screen_x - ( win->Pos.x - win->Scroll.x );
+                ImGui::PushTextWrapPos( wrap_local_x );
+                ImGui::TextUnformatted( line_str.c_str() );
+                ImGui::PopTextWrapPos();
+            }
+            else
+            {
+                ImGui::TextUnformatted( line_str.c_str() );
+            }
             ImGui::PopStyleColor();
             return;
         }
 
-        // Check if line is purely leading whitespace + comment or preprocessor
+        // Check leading whitespace
         size_t first_non_space = line_str.find_first_not_of( " \t" );
+        float line_start_x = ImGui::GetCursorScreenPos().x;
+        float indent_w = 0.0f;
+        if( first_non_space != std::string::npos && first_non_space > 0 )
+        {
+            indent_w = ImGui::CalcTextSize( line_str.c_str(), line_str.c_str() + first_non_space ).x;
+        }
+        float max_continuation = ( wrap_screen_x > line_start_x ) ? ( ( wrap_screen_x - line_start_x ) * 0.5f ) : ( 32.0f * scale );
+        float continuation_indent = ImMin( indent_w + 16.0f * scale, max_continuation );
+
         if( first_non_space != std::string::npos )
         {
-            if( is_lua && first_non_space + 1 < line_str.length() && line_str[first_non_space] == '-' && line_str[first_non_space + 1] == '-' )
+            if( ( is_lua && first_non_space + 1 < line_str.length() && line_str[first_non_space] == '-' && line_str[first_non_space + 1] == '-' ) ||
+                ( is_cpp && first_non_space + 1 < line_str.length() && line_str[first_non_space] == '/' && line_str[first_non_space + 1] == '/' ) )
             {
                 ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 106, 153, 85, 255 ) ); // Comment green
-                ImGui::TextUnformatted( line_str.c_str() );
-                ImGui::PopStyleColor();
-                return;
-            }
-            if( is_cpp && first_non_space + 1 < line_str.length() && line_str[first_non_space] == '/' && line_str[first_non_space + 1] == '/' )
-            {
-                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 106, 153, 85, 255 ) ); // Comment green
-                ImGui::TextUnformatted( line_str.c_str() );
+                if( wrap_screen_x > 0.0f )
+                {
+                    ImGuiWindow* win = ImGui::GetCurrentWindow();
+                    float wrap_local_x = wrap_screen_x - ( win->Pos.x - win->Scroll.x );
+                    ImGui::PushTextWrapPos( wrap_local_x );
+                    ImGui::TextUnformatted( line_str.c_str() );
+                    ImGui::PopTextWrapPos();
+                }
+                else
+                {
+                    ImGui::TextUnformatted( line_str.c_str() );
+                }
                 ImGui::PopStyleColor();
                 return;
             }
             if( is_cpp && line_str[first_non_space] == '#' )
             {
                 ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 198, 120, 221, 255 ) ); // Preprocessor purple
-                ImGui::TextUnformatted( line_str.c_str() );
+                if( wrap_screen_x > 0.0f )
+                {
+                    ImGuiWindow* win = ImGui::GetCurrentWindow();
+                    float wrap_local_x = wrap_screen_x - ( win->Pos.x - win->Scroll.x );
+                    ImGui::PushTextWrapPos( wrap_local_x );
+                    ImGui::TextUnformatted( line_str.c_str() );
+                    ImGui::PopTextWrapPos();
+                }
+                else
+                {
+                    ImGui::TextUnformatted( line_str.c_str() );
+                }
                 ImGui::PopStyleColor();
                 return;
             }
@@ -689,15 +725,47 @@ namespace ImGui
         // Scan tokens across the line
         size_t pos = 0;
         size_t len = line_str.length();
+        float min_x_for_wrap = line_start_x;
+
+        auto renderToken = [&]( const char* text_start, const char* text_end, ImU32 col, bool is_last ) {
+            float tok_w = ImGui::CalcTextSize( text_start, text_end ).x;
+            float cur_x = ImGui::GetCursorScreenPos().x;
+
+            if( wrap_screen_x > 0.0f && ( cur_x + tok_w > wrap_screen_x ) && ( cur_x > min_x_for_wrap + 1.0f ) )
+            {
+                ImGui::NewLine();
+                ImGui::SetCursorScreenPos( ImVec2( line_start_x + continuation_indent, ImGui::GetCursorScreenPos().y ) );
+                min_x_for_wrap = line_start_x + continuation_indent;
+            }
+
+            ImGui::PushStyleColor( ImGuiCol_Text, col );
+            if( wrap_screen_x > 0.0f )
+            {
+                ImGuiWindow* win = ImGui::GetCurrentWindow();
+                float wrap_local_x = wrap_screen_x - ( win->Pos.x - win->Scroll.x );
+                ImGui::PushTextWrapPos( wrap_local_x );
+                ImGui::TextUnformatted( text_start, text_end );
+                ImGui::PopTextWrapPos();
+            }
+            else
+            {
+                ImGui::TextUnformatted( text_start, text_end );
+            }
+            ImGui::PopStyleColor();
+
+            if( !is_last )
+            {
+                ImGui::SameLine( 0.0f, 0.0f );
+            }
+        };
+
         while( pos < len )
         {
             // 1. Comments:
             if( ( is_lua && pos + 1 < len && line_str[pos] == '-' && line_str[pos + 1] == '-' ) ||
                 ( is_cpp && pos + 1 < len && line_str[pos] == '/' && line_str[pos + 1] == '/' ) )
             {
-                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 106, 153, 85, 255 ) );
-                ImGui::TextUnformatted( line_str.c_str() + pos );
-                ImGui::PopStyleColor();
+                renderToken( line_str.c_str() + pos, line_str.c_str() + len, IM_COL32( 106, 153, 85, 255 ), true );
                 break;
             }
 
@@ -712,11 +780,8 @@ namespace ImGui
                     ++q_end;
                 }
                 if( q_end < len ) ++q_end;
-                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 206, 145, 120, 255 ) ); // String warm terracotta/amber (#CE9178)
-                ImGui::TextUnformatted( line_str.c_str() + pos, line_str.c_str() + q_end );
-                ImGui::PopStyleColor();
+                renderToken( line_str.c_str() + pos, line_str.c_str() + q_end, IM_COL32( 206, 145, 120, 255 ), q_end >= len );
                 pos = q_end;
-                if( pos < len ) ImGui::SameLine( 0.0f, 0.0f );
                 continue;
             }
 
@@ -741,20 +806,9 @@ namespace ImGui
                     for( int k = 0; kws[k]; ++k ) { if( word == kws[k] ) { is_kw = true; break; } }
                 }
 
-                if( is_kw )
-                {
-                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 198, 120, 221, 255 ) ); // Keyword purple
-                    ImGui::TextUnformatted( word.c_str() );
-                    ImGui::PopStyleColor();
-                }
-                else
-                {
-                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 220, 225, 235, 255 ) ); // Code text
-                    ImGui::TextUnformatted( word.c_str() );
-                    ImGui::PopStyleColor();
-                }
+                ImU32 col = is_kw ? IM_COL32( 198, 120, 221, 255 ) : IM_COL32( 220, 225, 235, 255 );
+                renderToken( word.c_str(), word.c_str() + word.length(), col, w_end >= len );
                 pos = w_end;
-                if( pos < len ) ImGui::SameLine( 0.0f, 0.0f );
                 continue;
             }
 
@@ -767,11 +821,8 @@ namespace ImGui
             {
                 ++other_end;
             }
-            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 220, 225, 235, 255 ) );
-            ImGui::TextUnformatted( line_str.c_str() + pos, line_str.c_str() + other_end );
-            ImGui::PopStyleColor();
+            renderToken( line_str.c_str() + pos, line_str.c_str() + other_end, IM_COL32( 220, 225, 235, 255 ), other_end >= len );
             pos = other_end;
-            if( pos < len ) ImGui::SameLine( 0.0f, 0.0f );
         }
     }
 
@@ -840,7 +891,7 @@ namespace ImGui
 #endif
     }
 
-    inline void RenderCodeBlock( const char* code_, size_t codeLength_, const char* lang_, size_t langLength_, const MarkdownConfig& mdConfig_ )
+    inline void RenderCodeBlock( const char* code_, size_t codeLength_, const char* lang_, size_t langLength_, const MarkdownConfig& mdConfig_, size_t block_index = 0 )
     {
         if( !code_ ) return;
 
@@ -881,7 +932,10 @@ namespace ImGui
         bool is_custom = ( mdConfig_.codeBlockCallback != nullptr );
         bool is_recognized = is_markdown || is_lua || is_cpp || is_plaintext || is_custom;
 
-        ImGuiID code_id = ImGui::GetID( code_, code_ + codeLength_ );
+        char id_buf[32];
+        snprintf( id_buf, sizeof(id_buf), "##cb_%zu", block_index );
+        ImGuiID code_id = ImGui::GetID( id_buf );
+        ImGui::PushID( (int)code_id );
         bool is_preview = false;
         if( is_markdown )
         {
@@ -902,13 +956,19 @@ namespace ImGui
         splitter.Split( dl, 2 );
         splitter.SetCurrentChannel( dl, 1 ); // Foreground text channel
 
+        ImVec2 content_clip_min = ImVec2( start_pos.x, start_pos.y + header_h );
+        ImVec2 content_clip_max = ImVec2( start_pos.x + avail_width, window->ClipRect.Max.y );
+        dl->PushClipRect( content_clip_min, content_clip_max, true );
+
         ImGui::SetCursorScreenPos( ImVec2( start_pos.x + pad_x, start_pos.y + header_h + pad_y ) );
         ImGui::BeginGroup();
 
         if( is_markdown && is_preview )
         {
             if( mono_font ) ImGui::PopFont();
-            ImGui::Markdown::Render( code_, codeLength_, mdConfig_ );
+            MarkdownConfig preview_config = mdConfig_;
+            preview_config.wrapWidth = avail_width - 2.0f * pad_x;
+            ImGui::Markdown::Render( code_, codeLength_, preview_config );
             if( mono_font ) ImGui::PushFont( mono_font );
         }
         else if( mdConfig_.codeBlockCallback )
@@ -924,6 +984,7 @@ namespace ImGui
         }
         else
         {
+            float wrap_screen_x = start_pos.x + avail_width - pad_x;
             const char* p = code_;
             const char* end = code_ + codeLength_;
             std::string line_buf;
@@ -934,7 +995,7 @@ namespace ImGui
                 const char* line_end = p;
 
                 ExpandTabs( line_start, line_end, line_buf, mdConfig_.tabSize > 0 ? mdConfig_.tabSize : 4 );
-                DefaultRenderCodeLine( line_buf, is_lua, is_cpp );
+                DefaultRenderCodeLine( line_buf, is_lua, is_cpp, wrap_screen_x, scale );
 
                 if( p < end && *p == '\r' ) ++p;
                 if( p < end && *p == '\n' ) ++p;
@@ -944,6 +1005,7 @@ namespace ImGui
         // Add bottom container padding inside the group so CursorMaxPos accounts for it
         ImGui::Dummy( ImVec2( 0.0f, pad_y ) );
         ImGui::EndGroup();
+        dl->PopClipRect();
 
         ImVec2 content_max = ImGui::GetItemRectMax();
         float content_w = ( content_max.x - start_pos.x ) + pad_x;
@@ -978,19 +1040,19 @@ namespace ImGui
         float* p_max_w = storage ? storage->GetFloatRef( max_width_id, 0.0f ) : nullptr;
         if( p_max_w )
         {
-            float max_avail = ImGui::GetContentRegionAvail().x;
-            if( max_avail > 100.0f * scale && *p_max_w > max_avail )
+            if( *p_max_w > avail_width )
             {
-                *p_max_w = max_avail;
+                *p_max_w = avail_width;
             }
             if( needed_width > *p_max_w )
             {
-                *p_max_w = needed_width;
+                *p_max_w = ImMin( needed_width, avail_width );
             }
             needed_width = ImMax( needed_width, *p_max_w );
         }
 
-        float block_width = ImMax( needed_width, 100.0f * scale );
+        float min_block_w = ImMin( 100.0f * scale, avail_width );
+        float block_width = ImClamp( needed_width, min_block_w, avail_width );
         float block_height = content_max.y - start_pos.y;
 
         ImVec2 box_min = start_pos;
@@ -1401,6 +1463,8 @@ namespace ImGui
             ImGui::PopFont();
         }
 
+        ImGui::PopID();
+
         // Align cursor to box bottom and submit spacing item cleanly with block_width
         ImGui::SetCursorScreenPos( ImVec2( start_pos.x, box_max.y ) );
         ImGui::Dummy( ImVec2( block_width, 4.0f * scale ) );
@@ -1417,6 +1481,7 @@ namespace ImGui
         Emphasis    em;
         TextRegion  textRegion;
         textRegion.wrapWidth = mdConfig_.wrapWidth;
+        size_t      code_block_idx = 0;
 
         char c = 0;
         for( int i=0; i < (int)markdownLength_; ++i )
@@ -1629,7 +1694,7 @@ namespace ImGui
 
                         RenderCodeBlock( markdown_ + code_start, (size_t)(code_end - code_start),
                                          markdown_ + info_start, (size_t)(trimmed_info_end - info_start),
-                                         mdConfig_ );
+                                         mdConfig_, code_block_idx++ );
 
                         line = Line();
                         line.isLeadingSpace = true;
