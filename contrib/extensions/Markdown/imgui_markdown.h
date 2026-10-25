@@ -1436,6 +1436,60 @@ namespace ImGui
                 {
                     line.isLeadingSpace = false;
                     line.lastRenderPosition = i - 1;
+
+                    // CommonMark Section 4.1: Thematic breaks
+                    // A line with 0-3 leading spaces, consisting solely of 3 or more matching '-', '*', or '_'
+                    // characters (with optional spaces/tabs between them), followed only by whitespace until '\n' or EOF.
+                    if( line.leadSpaceCount <= 3 && ( c == '-' || c == '*' || c == '_' ) )
+                    {
+                        char tb_char = c;
+                        int tb_count = 0;
+                        bool is_thematic_break = true;
+                        int scan = i;
+                        while( scan < (int)markdownLength_ && markdown_[scan] != '\n' && markdown_[scan] != '\r' )
+                        {
+                            char sc = markdown_[scan];
+                            if( sc == tb_char )
+                            {
+                                ++tb_count;
+                            }
+                            else if( sc == ' ' || sc == '\t' )
+                            {
+                                // spaces and tabs are allowed between and after characters
+                            }
+                            else
+                            {
+                                is_thematic_break = false;
+                                break;
+                            }
+                            ++scan;
+                        }
+                        if( is_thematic_break && tb_count >= 3 )
+                        {
+                            ImGui::Separator();
+                            textRegion.ResetIndent();
+
+                            // Advance past newline (\r\n, \r, or \n)
+                            if( scan < (int)markdownLength_ && markdown_[scan] == '\r' && scan + 1 < (int)markdownLength_ && markdown_[scan + 1] == '\n' )
+                            {
+                                scan += 2;
+                            }
+                            else if( scan < (int)markdownLength_ && ( markdown_[scan] == '\n' || markdown_[scan] == '\r' ) )
+                            {
+                                scan += 1;
+                            }
+
+                            line = Line();
+                            line.isLeadingSpace = true;
+                            line.lineStart = scan;
+                            line.lastRenderPosition = scan - 1;
+                            em = Emphasis();
+                            link = Link();
+                            i = scan - 1;
+                            continue;
+                        }
+                    }
+
                     if(( c == '*' || c == '-' || c == '+' ) && 
                        ( (int)markdownLength_ > i + 1 ) && ( markdown_[ i + 1 ] == ' ' ))
                     {
@@ -1954,15 +2008,7 @@ namespace ImGui
             if( c == '\n' )
             {
                 line.lineEnd = i;
-                if( em.state == Emphasis::MIDDLE && line.emphasisCount >=3 &&
-                    ( line.lineStart + line.emphasisCount ) == i )
-                {
-                    ImGui::Separator();
-                }
-                else
-                {
-                    RenderLine( markdown_, line, textRegion, mdConfig_ );
-                }
+                RenderLine( markdown_, line, textRegion, mdConfig_ );
 
 				line = Line();
                 em = Emphasis();
@@ -1998,21 +2044,14 @@ namespace ImGui
             }
         }
 
-        if( em.state == Emphasis::LEFT && line.emphasisCount >= 3 )
+        if( markdownLength_ && line.lineStart < (int)markdownLength_ && markdown_[ line.lineStart ] != 0 )
         {
-            ImGui::Separator();
-        }
-        else
-        {
-            if( markdownLength_ && line.lineStart < (int)markdownLength_ && markdown_[ line.lineStart ] != 0 )
+            line.lineEnd = (int)markdownLength_;
+            if( 0 == markdown_[ line.lineEnd - 1 ] )
             {
-                line.lineEnd = (int)markdownLength_;
-                if( 0 == markdown_[ line.lineEnd - 1 ] )
-                {
-                    --line.lineEnd;
-                }
-                RenderLine( markdown_, line, textRegion, mdConfig_ );
+                --line.lineEnd;
             }
+            RenderLine( markdown_, line, textRegion, mdConfig_ );
         }
     }
     } // namespace Markdown

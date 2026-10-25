@@ -552,6 +552,7 @@ namespace ImGui {
             s_CustomTags["pill"]  = pillHandler;
             s_CustomTags["kbd"]   = kbdHandler;
             s_CustomTags["key"]   = kbdHandler;
+            s_CustomTags["kdb"]   = kbdHandler; // Common typo alias for <kbd>
 
             // Built-in Tag 4: <btn=...>
             s_CustomTags["btn"] = [](const std::string& inner_text, const std::string& param) {

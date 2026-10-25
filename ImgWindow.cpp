@@ -1045,6 +1045,14 @@ ImgWindow::updateImgui()
 
     ImGui::NewFrame();
 
+    // 1-Click Toolbar Buttons over Active InputText:
+    // If an InputText currently holds g.ActiveId and the user clicked outside its bounding rect,
+    // clear ActiveId early. In Dear ImGui, toolbars rendered before multiline text inputs in the
+    // frame sequence are blocked on the first click because ItemHoverable() rejects clicks while
+    // g.ActiveId belongs to the InputText. Clearing ActiveId early allows toolbar buttons (H1, B,
+    // tags, etc.) to trigger on the very first click without requiring a double-click.
+    ClearActiveInputTextIfClickedOutside();
+
     ImGui::SetNextWindowPos(ImVec2((float) 0.0, (float) 0.0), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(win_width, win_height), ImGuiCond_Always);
 
@@ -1680,6 +1688,59 @@ void ImgWindow::Shutdown() {
         }
     }
     s_TexturesPendingDestruction.clear();
+}
+
+bool
+ImgWindow::ClearActiveInputTextIfClickedOutside()
+{
+    ImGuiContext* ctx = ImGui::GetCurrentContext();
+    if (!ctx)
+        return false;
+    ImGuiContext& g = *ctx;
+    ImGuiIO& io = ImGui::GetIO();
+
+    if (g.ActiveId != 0 && g.InputTextState.ID != 0 && g.ActiveId == g.InputTextState.ID)
+    {
+        if (io.MouseClicked[0] || io.MouseClicked[1])
+        {
+            ImGuiWindow* activeWindow = g.ActiveIdWindow ? g.ActiveIdWindow : g.NavWindow;
+            if (activeWindow != nullptr)
+            {
+                int layer = (g.NavLayer >= 0 && g.NavLayer < ImGuiNavLayer_COUNT) ? g.NavLayer : 0;
+                const ImRect& relRect = activeWindow->NavRectRel[layer];
+                if (!relRect.IsInverted())
+                {
+                    ImRect absRect = ImGui::WindowRectRelToAbs(activeWindow, relRect);
+                    absRect.ClipWith(activeWindow->ClipRect);
+                    if (!absRect.Contains(io.MousePos))
+                    {
+                        ImGui::ClearActiveID();
+#ifdef IMGUI_V190_REFACTOR
+                        ImGui::SetKeyOwner(ImGuiKey_MouseLeft, ImGuiKeyOwner_NoOwner);
+#endif
+                        return true;
+                    }
+                }
+                else
+                {
+                    ImGui::ClearActiveID();
+#ifdef IMGUI_V190_REFACTOR
+                    ImGui::SetKeyOwner(ImGuiKey_MouseLeft, ImGuiKeyOwner_NoOwner);
+#endif
+                    return true;
+                }
+            }
+            else
+            {
+                ImGui::ClearActiveID();
+#ifdef IMGUI_V190_REFACTOR
+                ImGui::SetKeyOwner(ImGuiKey_MouseLeft, ImGuiKeyOwner_NoOwner);
+#endif
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 std::queue<ImgWindow *>  ImgWindow::sPendingDestruction;

@@ -279,6 +279,12 @@ public:
     static ImTextureID CreateTexture(const unsigned char* pixels, int width, int height);
     static void DeleteTexture(ImTextureID textureID);
 
+    /** Clear ActiveID early if an InputText currently holds focus and the user clicked outside its bounding rect.
+     *  Automatically invoked every frame in updateImgui() right after ImGui::NewFrame().
+     *  Can also be called manually by custom event loops or toolbar renderers.
+     *  @return true if ActiveId was cleared, false otherwise. */
+    static bool ClearActiveInputTextIfClickedOutside();
+
     // -----------------------------------------------------------------------
     // DEPRECATED ALIASES (Retained for API backwards compatibility for now)
     // -----------------------------------------------------------------------
