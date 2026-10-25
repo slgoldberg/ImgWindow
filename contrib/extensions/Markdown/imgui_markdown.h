@@ -10,6 +10,74 @@
 #include <cmath>
 #include "imgui_internal.h"
 
+// ============================================================================
+// Automatic Mouse-Wheel Defeat on Vertically Scrollable Viewports
+// ----------------------------------------------------------------------------
+// In windows or child panels with active vertical scrolling (ScrollMax.y > 0),
+// spinning the mouse wheel to scroll through content can inadvertently adjust
+// controls if the cursor passes over a wheel-enabled widget. To prevent this,
+// discrete widgets automatically refuse wheel inputs and suppress custom cursors
+// when the viewport is scrollable, giving Dear ImGui's window scrolling priority.
+// Opt-out compile-time: #define CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT
+// Opt-out runtime:      ImGui::SetMouseWheelAutoDefeat(false);
+// ============================================================================
+#ifndef IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+#define IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+
+#ifndef IMGUI_CONTRIB_INTERNAL_INCLUDED
+  #if defined(__has_include)
+    #if __has_include("imgui_internal.h")
+      #include "imgui_internal.h"
+      #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
+    #endif
+  #endif
+#endif
+#if !defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) && (defined(IMGUI_WINDOW_HARD_MIN_SIZE) || defined(IMGUI_INTERNAL_H))
+  #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
+#endif
+
+namespace ImGui {
+namespace Contrib {
+    inline bool& GetMouseWheelAutoDefeatEnabled() {
+        static bool s_Enabled = true;
+        return s_Enabled;
+    }
+
+    inline bool IsCurrentWindowScrollableY() {
+#if defined(CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT) || \
+    defined(IMGUI_CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT) || \
+    defined(IMGUI_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT)
+        return false;
+#else
+        if (!GetMouseWheelAutoDefeatEnabled()) {
+            return false;
+        }
+#if defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) || defined(IMGUI_INTERNAL_H)
+        ImGuiContext* g = ImGui::GetCurrentContext();
+        if (g && g->CurrentWindow) {
+            for (ImGuiWindow* w = g->CurrentWindow; w != nullptr; w = w->ParentWindow) {
+                if (w->ScrollMax.y > 0.0f && !(w->Flags & ImGuiWindowFlags_NoScrollWithMouse))
+                    return true;
+                if (!(w->Flags & ImGuiWindowFlags_ChildWindow))
+                    break;
+            }
+            return false;
+        }
+#endif
+        return ImGui::GetScrollMaxY() > 0.0f;
+#endif
+    }
+} // namespace Contrib
+
+    inline void SetMouseWheelAutoDefeat(bool enable = true) {
+        Contrib::GetMouseWheelAutoDefeatEnabled() = enable;
+    }
+    inline bool GetMouseWheelAutoDefeat() {
+        return Contrib::GetMouseWheelAutoDefeatEnabled();
+    }
+} // namespace ImGui
+#endif // IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+
 #ifndef ORIGINAL	/* brat's hack */
 namespace ImGui
 {
@@ -1219,23 +1287,26 @@ namespace ImGui
                 if( track_hovered )
                 {
                     ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
-                    ImGuiIO& io = ImGui::GetIO();
-                    float wheel = ( io.MouseWheel != 0.0f ) ? io.MouseWheel : io.MouseWheelH;
-                    if( wheel > 0.0f && !is_preview )
+                    if( !ImGui::Contrib::IsCurrentWindowScrollableY() )
                     {
-                        is_preview = true;
-                        ImGui::GetStateStorage()->SetBool( code_id, true );
-                        io.MouseWheel = 0.0f;
-                        io.MouseWheelH = 0.0f;
-                        MarkdownDetail::ClearActiveTooltip();
-                    }
-                    else if( wheel < 0.0f && is_preview )
-                    {
-                        is_preview = false;
-                        ImGui::GetStateStorage()->SetBool( code_id, false );
-                        io.MouseWheel = 0.0f;
-                        io.MouseWheelH = 0.0f;
-                        MarkdownDetail::ClearActiveTooltip();
+                        ImGuiIO& io = ImGui::GetIO();
+                        float wheel = ( io.MouseWheel != 0.0f ) ? io.MouseWheel : io.MouseWheelH;
+                        if( wheel > 0.0f && !is_preview )
+                        {
+                            is_preview = true;
+                            ImGui::GetStateStorage()->SetBool( code_id, true );
+                            io.MouseWheel = 0.0f;
+                            io.MouseWheelH = 0.0f;
+                            MarkdownDetail::ClearActiveTooltip();
+                        }
+                        else if( wheel < 0.0f && is_preview )
+                        {
+                            is_preview = false;
+                            ImGui::GetStateStorage()->SetBool( code_id, false );
+                            io.MouseWheel = 0.0f;
+                            io.MouseWheelH = 0.0f;
+                            MarkdownDetail::ClearActiveTooltip();
+                        }
                     }
                 }
                 MarkdownDetail::ShowCodeBlockTooltip( (int)code_id + 1, track_hovered, "Toggle between raw source markdown and rendered preview (Click or mouse wheel).", false );
