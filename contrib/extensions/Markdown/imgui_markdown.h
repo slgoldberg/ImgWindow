@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <string>
+#include <cmath>
 #include "imgui_internal.h"
 
 #ifndef ORIGINAL	/* brat's hack */
@@ -254,6 +256,7 @@ namespace ImGui
 
         void RenderTextWrapped( const char* text_, const char* text_end_, bool bIndentToHere_ = false )
         {
+            (void)bIndentToHere_;
             if( wrapWidth < 0.0f )
             {
                 ImGui::TextUnformatted( text_, text_end_ );
@@ -1502,7 +1505,9 @@ namespace ImGui
             }
 
             // Test to see if we have an escaped character via backslash (\* or \# or \<)
-            if( c == '\\' && i + 1 < (int)markdownLength_ && IsMarkdownEscapable( markdown_[ i + 1 ] ) )
+            // CommonMark Section 6.1: Backslash escapes do not apply inside inline code spans, links, or emphasis
+            if( c == '\\' && em.state == Emphasis::NONE && link.state == Link::NO_LINK &&
+                i + 1 < (int)markdownLength_ && IsMarkdownEscapable( markdown_[ i + 1 ] ) )
             {
                 // Render any preceding plain text before the backslash
                 line.lineEnd = i;
