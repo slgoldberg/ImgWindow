@@ -369,7 +369,8 @@ namespace ImGui {
         {
             if (IsCurrentWindowScrollableY()) return 0.0f;
             float v = GetMouseWheel(consume);
-            return (v != 0.0f) ? v : GetMouseWheelH(consume);
+            float h = GetMouseWheelH(consume);
+            return (v != 0.0f) ? v : h;
         }
 
         inline float GetMouseWheelAny(bool consume = false)
@@ -388,7 +389,12 @@ namespace ImGui {
 
             ImGuiIO& io = GetIO();
             ImVec2 item_min = GetItemRectMin();
+            ImVec2 item_max = GetItemRectMax();
+            float item_w = item_max.x - item_min.x;
             float track_w = CalcItemWidth();
+            if (track_w <= 0.0f || track_w > item_w) {
+                track_w = item_w;
+            }
             if (io.MousePos.x < item_min.x || io.MousePos.x > item_min.x + track_w)
                 return false;
 
@@ -403,11 +409,6 @@ namespace ImGui {
 
             bool isHandled = false;
             if (clicks != 0.0f) {
-                if (clicks < 0.0f)
-                    clicks = std::min(-1.0f, clicks - 0.5f);
-                else
-                    clicks = std::max(1.0f, clicks + 0.5f);
-
                 float prev = *valRef;
                 float next = *valRef + scale * clicks;
                 float lower = std::min(minVal, maxVal);
@@ -439,7 +440,12 @@ namespace ImGui {
 
             ImGuiIO& io = GetIO();
             ImVec2 item_min = GetItemRectMin();
+            ImVec2 item_max = GetItemRectMax();
+            float item_w = item_max.x - item_min.x;
             float track_w = CalcItemWidth();
+            if (track_w <= 0.0f || track_w > item_w) {
+                track_w = item_w;
+            }
             if (io.MousePos.x < item_min.x || io.MousePos.x > item_min.x + track_w)
                 return false;
 
@@ -454,11 +460,8 @@ namespace ImGui {
 
             bool isHandled = false;
             if (clicks != 0.0f) {
-                int delta = 0;
-                if (clicks < 0.0f)
-                    delta = std::min(-1, (int)std::floor(scale * clicks - 0.5f));
-                else
-                    delta = std::max(1, (int)std::floor(scale * clicks + 0.5f));
+                int delta = (int)std::round(scale * clicks);
+                if (delta == 0) delta = (clicks < 0.0f) ? -1 : 1;
 
                 int prev = *valRef;
                 int next = *valRef + delta;
