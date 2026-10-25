@@ -715,7 +715,7 @@ namespace TimedTooltip {
         return res;
     }
 
-    inline bool TextProxy(ImGuiID id, bool is_hovered, bool toggle_on_click, const char* fmt, ...) {
+    inline bool TextProxyToggle(ImGuiID id, bool is_hovered, bool toggle_on_click, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
         bool res = TextProxyV(id, is_hovered, nullptr, fmt, args, ImGui::IsItemClicked(), toggle_on_click);

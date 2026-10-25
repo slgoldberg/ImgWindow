@@ -27,6 +27,10 @@
 // 6. ImGui::MouseWheelCombo & ImGui::ComboWithReset (aliased as ResettableCombo):
 //    Dropdown combo boxes that allow hovering and spinning the mouse wheel
 //    to cycle items both when closed AND when open (with Lens UI tooltip latch).
+// 7. Mouse-Wheel Auto-Defeat on Scrollable Viewports:
+//    Automatically suppresses wheel adjustments and custom resize cursors on
+//    scrollable viewports (ScrollMax.y > 0) to give native window scrolling
+//    priority. Supports runtime toggle via ImGui::SetMouseWheelAutoDefeat().
 // ============================================================================
 
 #pragma once
@@ -244,12 +248,78 @@ namespace Detail {
 #endif
 #endif
 
+// ============================================================================
+// Automatic Mouse-Wheel Defeat on Vertically Scrollable Viewports
+// ----------------------------------------------------------------------------
+// In windows or child panels with active vertical scrolling (ScrollMax.y > 0),
+// spinning the mouse wheel to scroll through content can inadvertently adjust
+// controls if the cursor passes over a wheel-enabled widget. To prevent this,
+// discrete widgets automatically refuse wheel inputs and suppress custom cursors
+// when the viewport is scrollable, giving Dear ImGui's window scrolling priority.
+// Opt-out compile-time: #define CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT
+// Opt-out runtime:      ImGui::SetMouseWheelAutoDefeat(false);
+// ============================================================================
+#ifndef IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+#define IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+
+#if defined(__has_include)
+  #if __has_include("imgui_internal.h")
+    #ifndef IMGUI_INTERNAL_H
+      #include "imgui_internal.h"
+    #endif
+  #endif
+#endif
+
+namespace ImGui {
+namespace Contrib {
+    inline bool& GetMouseWheelAutoDefeatEnabled() {
+        static bool s_Enabled = true;
+        return s_Enabled;
+    }
+
+    inline bool IsCurrentWindowScrollableY() {
+#if defined(CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT) || \
+    defined(IMGUI_CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT) || \
+    defined(IMGUI_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT)
+        return false;
+#else
+        if (!GetMouseWheelAutoDefeatEnabled()) {
+            return false;
+        }
+#if defined(IMGUI_INTERNAL_H)
+        ImGuiContext* g = ImGui::GetCurrentContext();
+        if (g && g->CurrentWindow) {
+            for (ImGuiWindow* w = g->CurrentWindow; w != nullptr; w = w->ParentWindow) {
+                if (w->ScrollMax.y > 0.0f && !(w->Flags & ImGuiWindowFlags_NoScrollWithMouse))
+                    return true;
+                if (!(w->Flags & ImGuiWindowFlags_ChildWindow))
+                    break;
+            }
+            return false;
+        }
+#endif
+        return ImGui::GetScrollMaxY() > 0.0f;
+#endif
+    }
+} // namespace Contrib
+
+    inline void SetMouseWheelAutoDefeat(bool enable = true) {
+        Contrib::GetMouseWheelAutoDefeatEnabled() = enable;
+    }
+    inline bool GetMouseWheelAutoDefeat() {
+        return Contrib::GetMouseWheelAutoDefeatEnabled();
+    }
+} // namespace ImGui
+#endif // IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+
 namespace ImGui {
 
     // Internal implementation helpers so composite sliders/drags/combos always
     // compile regardless of which public functions are opted out or where
     // this header is included.
     namespace WheelSliderDetail {
+
+        using Contrib::IsCurrentWindowScrollableY;
 
         template<typename T>
         inline T Clamp(T v, T lo, T hi) {
@@ -267,6 +337,7 @@ namespace ImGui {
 
         inline float GetMouseWheel(bool consume = false)
         {
+            if (IsCurrentWindowScrollableY()) return 0.0f;
             ImGuiIO& io = GetIO();
             float result = io.MouseWheel;
             if (consume && result != 0.0f) {
@@ -292,6 +363,7 @@ namespace ImGui {
 
         inline float GetMouseWheelEither(bool consume = false)
         {
+            if (IsCurrentWindowScrollableY()) return 0.0f;
             float v = GetMouseWheel(consume);
             return (v != 0.0f) ? v : GetMouseWheelH(consume);
         }
@@ -307,7 +379,7 @@ namespace ImGui {
                                 float scale = 0.01f,
                                 bool setCustomCursor = true)
         {
-            if (!valRef || !IsItemHovered())
+            if (!valRef || !IsItemHovered() || IsCurrentWindowScrollableY())
                 return false;
 
             ImGuiIO& io = GetIO();
@@ -351,7 +423,7 @@ namespace ImGui {
                               float scale = 1.0f,
                               bool setCustomCursor = true)
         {
-            if (!valRef || !IsItemHovered())
+            if (!valRef || !IsItemHovered() || IsCurrentWindowScrollableY())
                 return false;
 
             ImGuiIO& io = GetIO();
@@ -702,14 +774,16 @@ namespace ImGui {
                 if (arrow_hovered) {
                     SetMouseCursor(ImGuiMouseCursor_Hand);
                 } else if (preview_hovered) {
-                    if (hover_cursor != ImGuiMouseCursor_None) {
-                        SetMouseCursor(hover_cursor);
-                    }
-                    float clicks = GetMouseWheelEither(true);
-                    if (clicks != 0.0f) {
-                        if (out_is_scrolling) *out_is_scrolling = true;
-                        if (CycleIndex(current_item, 0, items_count - 1, clicks, wrap, natural_list_order)) {
-                            changed = true;
+                    if (!IsCurrentWindowScrollableY()) {
+                        if (hover_cursor != ImGuiMouseCursor_None) {
+                            SetMouseCursor(hover_cursor);
+                        }
+                        float clicks = GetMouseWheelEither(true);
+                        if (clicks != 0.0f) {
+                            if (out_is_scrolling) *out_is_scrolling = true;
+                            if (CycleIndex(current_item, 0, items_count - 1, clicks, wrap, natural_list_order)) {
+                                changed = true;
+                            }
                         }
                     }
                 }
@@ -841,6 +915,8 @@ namespace ImGui {
     {
         if (!current_idx || max_idx <= min_idx || !IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup))
             return false;
+        if (WheelSliderDetail::IsCurrentWindowScrollableY())
+            return false;
 
         if (hover_cursor != ImGuiMouseCursor_None) {
             // When attached to a container group (GetItemID() == 0, e.g. after EndGroup() inside BeginPopup),
@@ -891,6 +967,8 @@ namespace ImGui {
                                                 ImGuiMouseCursor hover_cursor = IMGUI_EXTRA_WHEEL_CYCLE_DEFAULT_CURSOR)
     {
         if (!v || !IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup))
+            return false;
+        if (WheelSliderDetail::IsCurrentWindowScrollableY())
             return false;
 
         if (only_over_box) {
@@ -1479,7 +1557,7 @@ namespace ImGui {
 
         ImGuiIO& io = GetIO();
         float wheel_clicks = (io.MouseWheel != 0.0f) ? io.MouseWheel : io.MouseWheelH;
-        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered());
+        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered() && !WheelSliderDetail::IsCurrentWindowScrollableY());
 
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, wheel_step))
             changed = true;
@@ -1592,7 +1670,7 @@ namespace ImGui {
 
         ImGuiIO& io = GetIO();
         float wheel_clicks = (io.MouseWheel != 0.0f) ? io.MouseWheel : io.MouseWheelH;
-        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered());
+        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered() && !WheelSliderDetail::IsCurrentWindowScrollableY());
 
         if (WheelSliderDetail::AdjustInt(v, v_min, v_max, wheel_step))
             changed = true;
@@ -1706,7 +1784,7 @@ namespace ImGui {
 
         ImGuiIO& io = GetIO();
         float wheel_clicks = (io.MouseWheel != 0.0f) ? io.MouseWheel : io.MouseWheelH;
-        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered());
+        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered() && !WheelSliderDetail::IsCurrentWindowScrollableY());
 
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, wheel_step))
             changed = true;
@@ -1821,7 +1899,7 @@ namespace ImGui {
 
         ImGuiIO& io = GetIO();
         float wheel_clicks = (io.MouseWheel != 0.0f) ? io.MouseWheel : io.MouseWheelH;
-        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered());
+        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered() && !WheelSliderDetail::IsCurrentWindowScrollableY());
 
         float step = (wheel_step > 0.0f) ? wheel_step : ((v_speed > 0.0f) ? v_speed : 1.0f);
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, step))
@@ -1936,7 +2014,7 @@ namespace ImGui {
 
         ImGuiIO& io = GetIO();
         float wheel_clicks = (io.MouseWheel != 0.0f) ? io.MouseWheel : io.MouseWheelH;
-        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered());
+        bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered() && !WheelSliderDetail::IsCurrentWindowScrollableY());
 
         float step = (wheel_step > 0.0f) ? wheel_step : std::max(1.0f, v_speed);
         if (WheelSliderDetail::AdjustInt(v, v_min, v_max, step))

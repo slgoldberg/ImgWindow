@@ -71,6 +71,7 @@ namespace ImGui {
         const ImRect bb(pos, ImVec2(pos.x + total_width, pos.y + total_height));
         ItemSize(bb, style.FramePadding.y);
         if (!ItemAdd(bb, id)) return false;
+        ButtonBehavior(bb, id, nullptr, nullptr);
 
         // Animate arc using sinusoidal expansion and contraction
         float t = (float)GetTime() * speed;
@@ -145,6 +146,7 @@ namespace ImGui {
         const ImRect bb(pos, ImVec2(pos.x + total_width, pos.y + total_height));
         ItemSize(bb, style.FramePadding.y);
         if (!ItemAdd(bb, id)) return false;
+        ButtonBehavior(bb, id, nullptr, nullptr);
 
         ImVec2 center(pos.x + radius, pos.y + total_height * 0.5f);
         float track_radius = radius - thickness * 0.5f;

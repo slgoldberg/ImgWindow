@@ -40,9 +40,75 @@
 #define IMGUI_EXTRA_TOGGLE_DEFAULT_SCALE 0.78f
 #endif
 
+// ============================================================================
+// Automatic Mouse-Wheel Defeat on Vertically Scrollable Viewports
+// ----------------------------------------------------------------------------
+// In windows or child panels with active vertical scrolling (ScrollMax.y > 0),
+// spinning the mouse wheel to scroll through content can inadvertently adjust
+// controls if the cursor passes over a wheel-enabled widget. To prevent this,
+// discrete widgets automatically refuse wheel inputs and suppress custom cursors
+// when the viewport is scrollable, giving Dear ImGui's window scrolling priority.
+// Opt-out compile-time: #define CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT
+// Opt-out runtime:      ImGui::SetMouseWheelAutoDefeat(false);
+// ============================================================================
+#ifndef IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+#define IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+
+#if defined(__has_include)
+  #if __has_include("imgui_internal.h")
+    #ifndef IMGUI_INTERNAL_H
+      #include "imgui_internal.h"
+    #endif
+  #endif
+#endif
+
+namespace ImGui {
+namespace Contrib {
+    inline bool& GetMouseWheelAutoDefeatEnabled() {
+        static bool s_Enabled = true;
+        return s_Enabled;
+    }
+
+    inline bool IsCurrentWindowScrollableY() {
+#if defined(CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT) || \
+    defined(IMGUI_CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT) || \
+    defined(IMGUI_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT)
+        return false;
+#else
+        if (!GetMouseWheelAutoDefeatEnabled()) {
+            return false;
+        }
+#if defined(IMGUI_INTERNAL_H)
+        ImGuiContext* g = ImGui::GetCurrentContext();
+        if (g && g->CurrentWindow) {
+            for (ImGuiWindow* w = g->CurrentWindow; w != nullptr; w = w->ParentWindow) {
+                if (w->ScrollMax.y > 0.0f && !(w->Flags & ImGuiWindowFlags_NoScrollWithMouse))
+                    return true;
+                if (!(w->Flags & ImGuiWindowFlags_ChildWindow))
+                    break;
+            }
+            return false;
+        }
+#endif
+        return ImGui::GetScrollMaxY() > 0.0f;
+#endif
+    }
+} // namespace Contrib
+
+    inline void SetMouseWheelAutoDefeat(bool enable = true) {
+        Contrib::GetMouseWheelAutoDefeatEnabled() = enable;
+    }
+    inline bool GetMouseWheelAutoDefeat() {
+        return Contrib::GetMouseWheelAutoDefeatEnabled();
+    }
+} // namespace ImGui
+#endif // IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+
 namespace ImGui {
 
     namespace ToggleButtonDetail {
+        using Contrib::IsCurrentWindowScrollableY;
+
         struct ToggleConfig {
             float scale = IMGUI_EXTRA_TOGGLE_DEFAULT_SCALE;
             ImU32 col_on = 0;
@@ -64,6 +130,7 @@ namespace ImGui {
     defined(IMGUI_DISABLE_EXTRA_TOGGLE_MOUSE_WHEEL)
             return 0.0f;
 #else
+            if (IsCurrentWindowScrollableY()) return 0.0f;
             ImGuiIO& io = GetIO();
             float w = (io.MouseWheel != 0.0f) ? io.MouseWheel : io.MouseWheelH;
             if (w != 0.0f) {

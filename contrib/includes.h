@@ -58,6 +58,7 @@
 // #define CONTRIB_DISABLE_PERCENT_SLIDER         // Exclude PercentSlider() & SliderPercent()
 // #define CONTRIB_DISABLE_SLIDER_PERCENT         // Exclude only the SliderPercent() alias
 // #define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO      // Exclude MouseWheelCombo & ComboWithReset
+// #define CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT // Disable automatic mouse-wheel defeat on scrollable viewports
 // #define IMGUI_CONTRIB_DISABLE_RESET_UNDO       // Disable 1-click Reset-with-Undo (restore previous value)
 // #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL      ICON_FA_UNDO  // Custom reset button icon (default: vector ↺)
 // #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT  ICON_FA_REDO  // Custom restore/redo icon (default: vector ↻)

@@ -1283,18 +1283,18 @@ namespace MarkdownDetail {
             if (toggle_on_click) {
                 ImGui::Detail::RegisterItemTooltipToggle( true );
             }
-            ImGui::TimedTooltip::TextProxy( id, hovered, toggle_on_click, "%s", text );
+            ImGui::TimedTooltip::TextProxyToggle( id, hovered, toggle_on_click, "%s", text );
         };
         GetClearTooltipFn() = []() {
             ImGui::TimedTooltip::ClearActiveTooltip();
         };
         GetDisabledCopyTooltipFn() = []( ImGuiID id, bool hovered ) {
 #if (defined(APL) && APL) || defined(__APPLE__)
-            ImGui::TimedTooltip::TextProxy( id, hovered, false, "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
+            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
 #elif (defined(LIN) && LIN) || defined(__linux__)
-            ImGui::TimedTooltip::TextProxy( id, hovered, false, "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
+            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
 #else
-            ImGui::TimedTooltip::TextProxy( id, hovered, false, "System clipboard integration is not enabled on this platform build." );
+            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "System clipboard integration is not enabled on this platform build." );
 #endif
         };
     }
