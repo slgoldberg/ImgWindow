@@ -262,12 +262,16 @@ namespace Detail {
 #ifndef IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
 #define IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
 
-#if defined(__has_include)
-  #if __has_include("imgui_internal.h")
-    #ifndef IMGUI_INTERNAL_H
+#ifndef IMGUI_CONTRIB_INTERNAL_INCLUDED
+  #if defined(__has_include)
+    #if __has_include("imgui_internal.h")
       #include "imgui_internal.h"
+      #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
     #endif
   #endif
+#endif
+#if !defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) && (defined(IMGUI_WINDOW_HARD_MIN_SIZE) || defined(IMGUI_INTERNAL_H))
+  #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
 #endif
 
 namespace ImGui {
@@ -286,7 +290,7 @@ namespace Contrib {
         if (!GetMouseWheelAutoDefeatEnabled()) {
             return false;
         }
-#if defined(IMGUI_INTERNAL_H)
+#if defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) || defined(IMGUI_INTERNAL_H)
         ImGuiContext* g = ImGui::GetCurrentContext();
         if (g && g->CurrentWindow) {
             for (ImGuiWindow* w = g->CurrentWindow; w != nullptr; w = w->ParentWindow) {
@@ -379,7 +383,7 @@ namespace ImGui {
                                 float scale = 0.01f,
                                 bool setCustomCursor = true)
         {
-            if (!valRef || !IsItemHovered() || IsCurrentWindowScrollableY())
+            if (!valRef || !IsItemHovered())
                 return false;
 
             ImGuiIO& io = GetIO();
@@ -387,6 +391,13 @@ namespace ImGui {
             float track_w = CalcItemWidth();
             if (io.MousePos.x < item_min.x || io.MousePos.x > item_min.x + track_w)
                 return false;
+
+            if (IsCurrentWindowScrollableY()) {
+                if (setCustomCursor) {
+                    SetMouseCursor(ImGuiMouseCursor_Hand);
+                }
+                return false;
+            }
 
             float clicks = GetMouseWheelEither(true);
 
@@ -423,7 +434,7 @@ namespace ImGui {
                               float scale = 1.0f,
                               bool setCustomCursor = true)
         {
-            if (!valRef || !IsItemHovered() || IsCurrentWindowScrollableY())
+            if (!valRef || !IsItemHovered())
                 return false;
 
             ImGuiIO& io = GetIO();
@@ -431,6 +442,13 @@ namespace ImGui {
             float track_w = CalcItemWidth();
             if (io.MousePos.x < item_min.x || io.MousePos.x > item_min.x + track_w)
                 return false;
+
+            if (IsCurrentWindowScrollableY()) {
+                if (setCustomCursor) {
+                    SetMouseCursor(ImGuiMouseCursor_Hand);
+                }
+                return false;
+            }
 
             float clicks = GetMouseWheelEither(true);
 

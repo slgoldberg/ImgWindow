@@ -54,12 +54,16 @@
 #ifndef IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
 #define IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
 
-#if defined(__has_include)
-  #if __has_include("imgui_internal.h")
-    #ifndef IMGUI_INTERNAL_H
+#ifndef IMGUI_CONTRIB_INTERNAL_INCLUDED
+  #if defined(__has_include)
+    #if __has_include("imgui_internal.h")
       #include "imgui_internal.h"
+      #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
     #endif
   #endif
+#endif
+#if !defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) && (defined(IMGUI_WINDOW_HARD_MIN_SIZE) || defined(IMGUI_INTERNAL_H))
+  #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
 #endif
 
 namespace ImGui {
@@ -78,7 +82,7 @@ namespace Contrib {
         if (!GetMouseWheelAutoDefeatEnabled()) {
             return false;
         }
-#if defined(IMGUI_INTERNAL_H)
+#if defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) || defined(IMGUI_INTERNAL_H)
         ImGuiContext* g = ImGui::GetCurrentContext();
         if (g && g->CurrentWindow) {
             for (ImGuiWindow* w = g->CurrentWindow; w != nullptr; w = w->ParentWindow) {
@@ -233,11 +237,13 @@ namespace ImGui {
             *v = !(*v);
         }
 
+        const bool scroll_defeated = ToggleButtonDetail::IsCurrentWindowScrollableY();
+
         if (switch_hovered) {
-            if (hover_cursor != ImGuiMouseCursor_None) {
+            if (!scroll_defeated && hover_cursor != ImGuiMouseCursor_None) {
                 SetMouseCursor(hover_cursor);
             }
-            if (allow_mouse_wheel) {
+            if (allow_mouse_wheel && !scroll_defeated) {
                 float wheel = ToggleButtonDetail::ConsumeMouseWheel();
                 if (wheel > 0.0f && !(*v)) {
                     *v = true;
@@ -345,7 +351,9 @@ namespace ImGui {
             }
             label_hovered = IsItemHovered();
             if (label_hovered) {
-                SetMouseCursor(ImGuiMouseCursor_Hand);
+                if (!scroll_defeated) {
+                    SetMouseCursor(ImGuiMouseCursor_Hand);
+                }
                 if (IsItemClicked()) {
                     *v = !(*v);
                     changed = true;
@@ -579,6 +587,7 @@ namespace ImGui {
         PopStyleVar();
 
         // Optional Right-Side Clickable Label (Matches ImGui::Checkbox & ToggleButton)
+        const bool scroll_defeated = ToggleButtonDetail::IsCurrentWindowScrollableY();
         bool label_hovered = false;
         const char* id_pos = std::strstr(label, "##");
         bool has_visible_text = (id_pos != label) && (label[0] != '\0');
@@ -591,7 +600,9 @@ namespace ImGui {
             }
             label_hovered = IsItemHovered();
             if (label_hovered) {
-                SetMouseCursor(ImGuiMouseCursor_Hand);
+                if (!scroll_defeated) {
+                    SetMouseCursor(ImGuiMouseCursor_Hand);
+                }
                 if (IsItemClicked()) {
                     s_WheelLatchToggleID = 0;
                     *v = is_on ? 0 : 1;
@@ -602,10 +613,10 @@ namespace ImGui {
         }
 
         if (off_hovered || on_hovered) {
-            if (hover_cursor != ImGuiMouseCursor_None) {
+            if (!scroll_defeated && hover_cursor != ImGuiMouseCursor_None) {
                 SetMouseCursor(hover_cursor);
             }
-            if (allow_mouse_wheel) {
+            if (allow_mouse_wheel && !scroll_defeated) {
                 float wheel = ToggleButtonDetail::ConsumeMouseWheel();
                 if (wheel != 0.0f) {
                     s_WheelLatchToggleID = toggle_id;
