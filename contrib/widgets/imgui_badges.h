@@ -186,6 +186,19 @@ namespace ImGui {
         PopStyleVar();
     }
 
+    // Friendly C++ aliases matching Markdown tags (<tag>, <key>, <keycap>):
+    inline IMGUI_API void Tag(const char* text, ImGuiBadgeVariant variant = ImGuiBadgeVariant_Default, float custom_rounding = -1.0f) {
+        Badge(text, variant, custom_rounding);
+    }
+    inline IMGUI_API void Tag(const char* text, const ImVec4& bg_col, const ImVec4* fg_col = nullptr, float custom_rounding = -1.0f) {
+        Badge(text, bg_col, fg_col, custom_rounding);
+    }
+    inline IMGUI_API void Tag(const char* text, ImU32 bg_col, ImU32 fg_col = 0, float custom_rounding = -1.0f) {
+        Badge(text, bg_col, fg_col, custom_rounding);
+    }
+    inline IMGUI_API void Key(const char* key_label) { Kbd(key_label); }
+    inline IMGUI_API void KeyCap(const char* key_label) { Kbd(key_label); }
+
 } // namespace ImGui
 
 #endif // IMGUI_BADGES_H

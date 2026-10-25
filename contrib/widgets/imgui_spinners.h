@@ -198,6 +198,30 @@ namespace ImGui {
         return RadialTimer(label, frac, radius, thickness, color, bg_color, clockwise);
     }
 
+    // Friendly C++ aliases:
+    inline IMGUI_API bool ActivitySpinner(const char* label, float radius = 0.0f, float thickness = -1.0f, ImU32 color = 0, float speed = 1.0f) {
+        return Spinner(label, radius, thickness, color, speed);
+    }
+    inline IMGUI_API bool ActivitySpinner(const char* label, float radius, float thickness, const ImVec4& color, float speed = 1.0f) {
+        return Spinner(label, radius, thickness, color, speed);
+    }
+    inline IMGUI_API bool ProgressDial(const char* label, float fraction_remaining, float radius = 0.0f, float thickness = -1.0f,
+                                      ImU32 color = 0, ImU32 bg_color = 0, bool clockwise = true) {
+        return RadialTimer(label, fraction_remaining, radius, thickness, color, bg_color, clockwise);
+    }
+    inline IMGUI_API bool ProgressDial(const char* label, float fraction_remaining, float radius, float thickness,
+                                      const ImVec4& color, const ImVec4* bg_color = nullptr, bool clockwise = true) {
+        return RadialTimer(label, fraction_remaining, radius, thickness, color, bg_color, clockwise);
+    }
+    inline IMGUI_API bool CountdownDial(const char* label, float current_sec, float max_sec, float radius = 0.0f, float thickness = -1.0f,
+                                        ImU32 color = 0, ImU32 bg_color = 0, bool clockwise = true) {
+        return CountdownTimer(label, current_sec, max_sec, radius, thickness, color, bg_color, clockwise);
+    }
+    inline IMGUI_API bool CountdownDial(const char* label, float current_sec, float max_sec, float radius, float thickness,
+                                        const ImVec4& color, const ImVec4* bg_color = nullptr, bool clockwise = true) {
+        return CountdownTimer(label, current_sec, max_sec, radius, thickness, color, bg_color, clockwise);
+    }
+
 } // namespace ImGui
 
 #endif // IMGUI_SPINNERS_H
