@@ -1724,11 +1724,9 @@ namespace ImGui
                         while( scan < (int)markdownLength_ )
                         {
                             int line_start = scan;
-                            int spaces = 0;
-                            while( line_start < (int)markdownLength_ && markdown_[ line_start ] == ' ' && spaces < 4 )
+                            while( line_start < (int)markdownLength_ && ( markdown_[ line_start ] == ' ' || markdown_[ line_start ] == '\t' ) )
                             {
                                 ++line_start;
-                                ++spaces;
                             }
                             if( line_start + fence_len <= (int)markdownLength_ )
                             {
