@@ -932,7 +932,7 @@ namespace ImGui
 #endif
     }
 
-    inline void RenderCodeBlock( const char* code_, size_t codeLength_, const char* lang_, size_t langLength_, const MarkdownConfig& mdConfig_, size_t block_index = 0 )
+    inline void RenderCodeBlock( const char* code_, size_t codeLength_, const char* lang_, size_t langLength_, const MarkdownConfig& mdConfig_, size_t block_index = 0, int fence_indent = 0 )
     {
         if( !code_ ) return;
 
@@ -1017,7 +1017,32 @@ namespace ImGui
             if( mono_font ) ImGui::PopFont();
             MarkdownConfig preview_config = mdConfig_;
             preview_config.wrapWidth = avail_width - 2.0f * pad_x;
-            ImGui::Markdown::Render( code_, codeLength_, preview_config );
+            if( fence_indent > 0 )
+            {
+                std::string stripped_preview;
+                const char* cp = code_;
+                const char* cend = code_ + codeLength_;
+                while( cp < cend )
+                {
+                    const char* ls = cp;
+                    while( cp < cend && *cp != '\n' && *cp != '\r' ) ++cp;
+                    const char* le = cp;
+                    int stripped = 0;
+                    while( ls < le && stripped < fence_indent && ( *ls == ' ' || *ls == '\t' ) )
+                    {
+                        stripped += ( *ls == '\t' ) ? 4 : 1;
+                        ++ls;
+                    }
+                    stripped_preview.append( ls, le - ls );
+                    if( cp < cend && *cp == '\r' ) { stripped_preview.push_back( *cp ); ++cp; }
+                    if( cp < cend && *cp == '\n' ) { stripped_preview.push_back( *cp ); ++cp; }
+                }
+                ImGui::Markdown::Render( stripped_preview.c_str(), stripped_preview.length(), preview_config );
+            }
+            else
+            {
+                ImGui::Markdown::Render( code_, codeLength_, preview_config );
+            }
             if( mono_font ) ImGui::PushFont( mono_font );
         }
         else if( mdConfig_.codeBlockCallback )
@@ -1042,6 +1067,14 @@ namespace ImGui
                 const char* line_start = p;
                 while( p < end && *p != '\n' && *p != '\r' ) ++p;
                 const char* line_end = p;
+
+                // CommonMark Sec 4.5: strip up to fence_indent leading spaces/tabs
+                int stripped = 0;
+                while( line_start < line_end && stripped < fence_indent && ( *line_start == ' ' || *line_start == '\t' ) )
+                {
+                    stripped += ( *line_start == '\t' ) ? 4 : 1;
+                    ++line_start;
+                }
 
                 ExpandTabs( line_start, line_end, line_buf, mdConfig_.tabSize > 0 ? mdConfig_.tabSize : 4 );
                 DefaultRenderCodeLine( line_buf, is_lua, is_cpp, wrap_screen_x, scale );
@@ -1246,7 +1279,32 @@ namespace ImGui
 
                     if( btn_clicked )
                     {
-                        std::string clip_text( code_, codeLength_ );
+                        std::string clip_text;
+                        if( fence_indent > 0 )
+                        {
+                            const char* cp = code_;
+                            const char* cend = code_ + codeLength_;
+                            while( cp < cend )
+                            {
+                                const char* ls = cp;
+                                while( cp < cend && *cp != '\n' && *cp != '\r' ) ++cp;
+                                const char* le = cp;
+                                int stripped = 0;
+                                while( ls < le && stripped < fence_indent && ( *ls == ' ' || *ls == '\t' ) )
+                                {
+                                    stripped += ( *ls == '\t' ) ? 4 : 1;
+                                    ++ls;
+                                }
+                                clip_text.append( ls, le - ls );
+                                if( cp < cend && *cp == '\r' ) { clip_text.push_back( *cp ); ++cp; }
+                                if( cp < cend && *cp == '\n' ) { clip_text.push_back( *cp ); ++cp; }
+                            }
+                        }
+                        else
+                        {
+                            clip_text.assign( code_, codeLength_ );
+                        }
+
                         if( mdConfig_.setClipboardTextFn )
                         {
                             mdConfig_.setClipboardTextFn( clip_text.c_str(), mdConfig_.userData );
@@ -1569,6 +1627,11 @@ namespace ImGui
                     ++line.leadSpaceCount;
                     continue;
                 }
+                else if( c == '\t' )
+                {
+                    line.leadSpaceCount += ( mdConfig_.tabSize > 0 ? mdConfig_.tabSize : 4 );
+                    continue;
+                }
                 else
                 {
                     line.isLeadingSpace = false;
@@ -1766,7 +1829,7 @@ namespace ImGui
 
                         RenderCodeBlock( markdown_ + code_start, (size_t)(code_end - code_start),
                                          markdown_ + info_start, (size_t)(trimmed_info_end - info_start),
-                                         mdConfig_, code_block_idx++ );
+                                         mdConfig_, code_block_idx++, line.leadSpaceCount );
 
                         textRegion.ResetIndent();
                         lastWasSeparator = false;
