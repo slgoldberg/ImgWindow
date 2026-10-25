@@ -43,6 +43,15 @@
 
 #include "imgui_internal.h"
 
+#if defined(__APPLE__) || defined(__MACH__)
+#include <ApplicationServices/ApplicationServices.h>
+#elif defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
 /* ImGui version checks and refactor macros.
  * IMGUI_V190_REFACTOR defined for ImGui v1.90.0 and above (keyboard API refactor).
  * IMGUI_V192_REFACTOR defined for ImGui v1.92.0 and above (font atlas refactor).
@@ -966,6 +975,43 @@ ImgWindow::updateImgui()
         }
     }
 
+    // Sync modifier key state with physical hardware state every frame.
+    // In X-Plane SDK, handleKeyFunc is only called when a virtual key is pressed or released,
+    // NEVER when a modifier key (Shift, Ctrl, Alt, Command) is pressed or released alone.
+    // Syncing with OS hardware state prevents "sticky Shift" / "sticky Ctrl" from corrupting
+    // mouse clicks into text edit fields (e.g. accidental range selection via Shift+Click).
+#if defined(__APPLE__) || defined(__MACH__)
+    CGEventFlags modFlags = CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState);
+    bool realShift = (modFlags & kCGEventFlagMaskShift) != 0;
+    bool realAlt   = (modFlags & kCGEventFlagMaskAlternate) != 0;
+    bool realCtrl  = (modFlags & kCGEventFlagMaskControl) != 0;
+    bool realSuper = (modFlags & kCGEventFlagMaskCommand) != 0;
+
+#ifdef IMGUI_V190_REFACTOR
+    io.AddKeyEvent(ImGuiMod_Shift, realShift);
+    io.AddKeyEvent(ImGuiMod_Alt,   realAlt);
+    io.AddKeyEvent(ImGuiMod_Super, realSuper || realCtrl);
+    io.AddKeyEvent(ImGuiMod_Ctrl,  false);
+#endif
+    io.KeyShift = realShift;
+    io.KeyAlt   = realAlt;
+    io.KeySuper = realSuper || realCtrl;
+    io.KeyCtrl  = false;
+#elif defined(_WIN32)
+    bool realShift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+    bool realCtrl  = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    bool realAlt   = (GetKeyState(VK_MENU) & 0x8000) != 0;
+
+#ifdef IMGUI_V190_REFACTOR
+    io.AddKeyEvent(ImGuiMod_Shift, realShift);
+    io.AddKeyEvent(ImGuiMod_Ctrl,  realCtrl);
+    io.AddKeyEvent(ImGuiMod_Alt,   realAlt);
+#endif
+    io.KeyShift = realShift;
+    io.KeyCtrl  = realCtrl;
+    io.KeyAlt   = realAlt;
+#endif
+
 #ifdef IMGUI_V192_REFACTOR
     // Just-in-time rebuild:
     // If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
@@ -1161,6 +1207,9 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
             break;
 
         case xplm_MouseDown:
+#ifdef IMGUI_V190_REFACTOR
+            io.AddMouseButtonEvent(button, true);
+#endif
             io.MouseDown[button] = true;
 
             // Which part of the window would we drag, if any?
@@ -1193,6 +1242,9 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
             break;
 
         case xplm_MouseUp:
+#ifdef IMGUI_V190_REFACTOR
+            io.AddMouseButtonEvent(button, false);
+#endif
             io.MouseDown[button] = false;
             lastMouseDragX = lastMouseDragY = -1;
             dragWhat.clear();
