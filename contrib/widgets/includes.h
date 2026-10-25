@@ -18,6 +18,7 @@
 //   #define CONTRIB_DISABLE_CLICKABLE_LINKS       // Exclude ButtonLink, TextLink & AttachItemCursor
 //   #define CONTRIB_DISABLE_BADGES                // Exclude Badge, Pill & Kbd widgets
 //   #define CONTRIB_DISABLE_SPINNERS              // Exclude Spinner, RadialTimer & CountdownTimer
+//   #define CONTRIB_DISABLE_COPY_BUTTON           // Exclude CopyButton & CopyLastItemButton
 //
 // Fine-grained opt-outs within imgui_mouse_wheel_controls.h:
 //   #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Exclude GetMouseWheel* primitives
@@ -53,6 +54,7 @@
 #include "imgui_clickable_links.h"
 #include "imgui_badges.h"
 #include "imgui_spinners.h"
+#include "imgui_copy_button.h"
 
 #endif // !CONTRIB_DISABLE_WIDGETS
 
