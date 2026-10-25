@@ -1279,17 +1279,22 @@ namespace ImGui {
 namespace ImGui {
 namespace MarkdownDetail {
     inline void InitializeCodeBlockTooltipBridge() {
-        GetCodeBlockTooltipFn() = []( ImGuiID id, bool hovered, const char* text ) {
-            ImGui::Detail::RegisterItemTooltipToggle( true );
-            ImGui::TimedTooltip::TextProxy( id, hovered, true, "%s", text );
+        GetCodeBlockTooltipFn() = []( ImGuiID id, bool hovered, const char* text, bool toggle_on_click ) {
+            if (toggle_on_click) {
+                ImGui::Detail::RegisterItemTooltipToggle( true );
+            }
+            ImGui::TimedTooltip::TextProxy( id, hovered, toggle_on_click, "%s", text );
+        };
+        GetClearTooltipFn() = []() {
+            ImGui::TimedTooltip::ClearActiveTooltip();
         };
         GetDisabledCopyTooltipFn() = []( ImGuiID id, bool hovered ) {
 #if (defined(APL) && APL) || defined(__APPLE__)
-            ImGui::TimedTooltip::TextProxy( id, hovered, "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
+            ImGui::TimedTooltip::TextProxy( id, hovered, false, "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
 #elif (defined(LIN) && LIN) || defined(__linux__)
-            ImGui::TimedTooltip::TextProxy( id, hovered, "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
+            ImGui::TimedTooltip::TextProxy( id, hovered, false, "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
 #else
-            ImGui::TimedTooltip::TextProxy( id, hovered, "System clipboard integration is not enabled on this platform build." );
+            ImGui::TimedTooltip::TextProxy( id, hovered, false, "System clipboard integration is not enabled on this platform build." );
 #endif
         };
     }
