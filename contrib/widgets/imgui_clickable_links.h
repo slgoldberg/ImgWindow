@@ -331,8 +331,10 @@ namespace ImGui {
         return TextLinkContrib(label, col_override);
     }
 
+#if !defined(CONTRIB_DISABLE_LINK_MACROS) && !defined(CONTRIB_NO_LINK_MACROS) && !defined(IMGUI_DISABLE_LINK_MACROS)
 #ifndef TextLink
 #define TextLink TextLinkContrib
+#endif
 #endif
 
     // -------------------------------------------------------------------------
@@ -442,8 +444,10 @@ namespace ImGui {
         return LinkClickResult(result);
     }
 
+#if !defined(CONTRIB_DISABLE_LINK_MACROS) && !defined(CONTRIB_NO_LINK_MACROS) && !defined(IMGUI_DISABLE_LINK_MACROS)
 #ifndef MenuItem
 #define MenuItem MenuItemContrib
+#endif
 #endif
 
 } // namespace ImGui
