@@ -1102,9 +1102,11 @@ namespace ImGui {
             Text(markdown_text, config_override);
         }
 
+#if !defined(CONTRIB_DISABLE_TEXT_WRAPPED_MD) && !defined(IMGUI_DISABLE_TEXT_WRAPPED_MD) && !defined(CONTRIB_DISABLE_TEXTWRAPPEDMD)
         inline void TextWrappedMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
             TextWrapped(markdown_text, config_override);
         }
+#endif
 
         inline bool ButtonMD(const std::string& label, const std::string& tooltip_markdown = "", float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true) {
             bool clicked = ImGui::Button(label.c_str());
@@ -1232,6 +1234,7 @@ namespace ImGui {
         Markdown::TextUnformatted(markdown_text, nullptr, config_override);
     }
 
+#if !defined(CONTRIB_DISABLE_TEXT_WRAPPED_MD) && !defined(IMGUI_DISABLE_TEXT_WRAPPED_MD) && !defined(CONTRIB_DISABLE_TEXTWRAPPEDMD)
     inline void TextWrappedMD(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
         Markdown::TextWrapped(markdown_text, config_override);
     }
@@ -1239,6 +1242,7 @@ namespace ImGui {
     inline void TextWrappedMD(const char* markdown_text, const MarkdownConfig* config_override = nullptr) {
         Markdown::TextWrapped(std::string(markdown_text ? markdown_text : ""), config_override);
     }
+#endif
 
     // Top-level convenience alias for clickable Markdown text links:
     inline LinkClickResult TextMDLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {

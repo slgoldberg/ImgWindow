@@ -113,7 +113,8 @@ Everything in `contrib/` is **active and ready by default**. If your project hap
 | **`CONTRIB_DISABLE_WIDGETS`** | **Opt-Out** | *Off* | Excludes all contributed widgets (`contrib/widgets/`). |
 | **`CONTRIB_DISABLE_TIMED_TOOLTIP`** | **Opt-Out** | *Off* | Excludes the `TimedTooltip` extension. |
 | **`CONTRIB_DISABLE_MARKDOWN`** | **Opt-Out** | *Off* | Excludes the `Markdown` extension. |
-| **`CONTRIB_DISABLE_TEXT_MD`** | **Opt-Out** | *Off* | Excludes root `ImGui::TextMD` / `TextWrappedMD` aliases. |
+| **`CONTRIB_DISABLE_TEXT_MD`** | **Opt-Out** | *Off* | Excludes all root `ImGui::TextMD` / `TextWrappedMD` aliases. |
+| **`CONTRIB_DISABLE_TEXT_WRAPPED_MD`** | **Opt-Out** | *Off* | Excludes ONLY root `ImGui::TextWrappedMD` (retains `TextMD`). |
 | **`CONTRIB_DISABLE_TOGGLE_BUTTONS`** | **Opt-Out** | *Off* | Excludes `ToggleButton` and `ToggleButtons`. |
 | **`CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL`**| **Opt-Out** | *Off* | Excludes mouse-wheel toggling on `ToggleButton`. |
 | **`CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS`**| **Opt-Out** | *Off* | Excludes mouse-wheel sliders, drags, cyclers, and combos. |

@@ -40,7 +40,8 @@
 // --- Individual Extensions (contrib/extensions/) ---
 // #define CONTRIB_DISABLE_TIMED_TOOLTIP          // Exclude TimedTooltip extension
 // #define CONTRIB_DISABLE_MARKDOWN               // Exclude Markdown extension
-// #define CONTRIB_DISABLE_TEXT_MD                // Exclude root ImGui::TextMD / TextWrappedMD aliases
+// #define CONTRIB_DISABLE_TEXT_MD                // Exclude all root ImGui::TextMD / TextWrappedMD aliases
+// #define CONTRIB_DISABLE_TEXT_WRAPPED_MD        // Exclude ONLY root ImGui::TextWrappedMD (retains TextMD)
 // #define CONTRIB_ENABLE_GLOBAL_NAMESPACES       // Publish TimedTooltip:: and Markdown:: to global scope
 
 // --- Widget Collections (contrib/widgets/) ---
