@@ -37,8 +37,8 @@
 
 // Version format: MmmPP (Major, 2-digit Minor, 2-digit Patch)
 // e.g., v2.0.0 becomes 20000. v1.12.3 becomes 11203.
-#define IMGWINDOW_VERSION       "2.2.2"
-#define IMGWINDOW_VERSION_NUM   20202
+#define IMGWINDOW_VERSION       "2.3.0"
+#define IMGWINDOW_VERSION_NUM   20300
 
 #include "SystemGL.h"
 
