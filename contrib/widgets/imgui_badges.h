@@ -25,6 +25,13 @@
 #define IMGUI_EXTRA_BADGES_H
 
 #include "imgui.h"
+#if defined(__has_include)
+    #if __has_include("imgui_internal.h")
+        #include "imgui_internal.h"
+    #endif
+#else
+    #include "imgui_internal.h"
+#endif
 #include <string>
 #include <algorithm>
 #include <cmath>
@@ -76,6 +83,9 @@ namespace ImGui {
     inline IMGUI_API void Badge(const char* text, const ImVec4& bg_col, const ImVec4* fg_col = nullptr, float custom_rounding = -1.0f) {
         if (!text || !*text) return;
 
+        ImGuiWindow* window = GetCurrentWindow();
+        if (window->SkipItems) return;
+
         ImVec4 text_col;
         if (fg_col) {
             text_col = *fg_col;
@@ -85,33 +95,33 @@ namespace ImGui {
             text_col = (lum > 0.65f) ? ImVec4(0.0f, 0.0f, 0.0f, 1.0f) : ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
         }
 
-        ImVec2 text_size = CalcTextSize(text);
-        float btn_width = text_size.x + GetStyle().FramePadding.x * 2.0f;
+        const float font_size = GetFontSize();
+        const float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+        const char* text_end = FindRenderedTextEnd(text);
+        const ImVec2 text_size = CalcTextSize(text, text_end, true);
 
-        float scale = (GetFontSize() > 0.0f) ? (GetFontSize() / 14.0f) : 1.0f;
-        ImVec2 pos = GetCursorScreenPos();
-#if defined(IMGUI_VERSION_NUM)
-        ImGuiWindow* window = GetCurrentWindow();
-        if (window && window->DC.CurrLineTextBaseOffset > 0.0f) {
+        // Intrinsic padding: isolated from outer FramePadding
+        const bool is_pill = (custom_rounding > 4.0f * scale);
+        const float pad_x = is_pill ? ImMax(7.5f * scale, 7.0f) : ImMax(6.0f * scale, 5.0f);
+        const float pad_y = ImMax(2.0f * scale, 2.0f);
+
+        const float total_w = text_size.x + pad_x * 2.0f;
+
+        ImVec2 pos = window->DC.CursorPos;
+        if (window->DC.CurrLineTextBaseOffset > 0.0f) {
             pos.y += window->DC.CurrLineTextBaseOffset;
         }
-#endif
-        float rounding = (custom_rounding >= 0.0f) ? custom_rounding : ImMax(3.0f * scale, GetStyle().FrameRounding);
 
-        GetWindowDrawList()->AddRectFilled(
-            ImVec2(pos.x, pos.y + 0.5f * scale),
-            ImVec2(pos.x + btn_width, pos.y + text_size.y + 1.0f * scale),
-            GetColorU32(bg_col), rounding
-        );
+        const ImRect bb(ImVec2(pos.x, pos.y - pad_y), ImVec2(pos.x + total_w, pos.y + text_size.y + pad_y));
+        ItemSize(ImVec2(total_w, text_size.y));
+        const ImGuiID id = window->GetID(text);
+        if (!ItemAdd(bb, id)) return;
 
-        PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-        PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-        PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-        PushStyleColor(ImGuiCol_Text, text_col);
-        SmallButton(text);
-        PopStyleColor(4);
-        PopStyleVar();
+        const float rounding = (custom_rounding >= 0.0f) ? custom_rounding : ImMax(3.0f * scale, GetStyle().FrameRounding);
+
+        // Render background and centered text
+        GetWindowDrawList()->AddRectFilled(bb.Min, bb.Max, GetColorU32(bg_col), rounding);
+        GetWindowDrawList()->AddText(ImVec2(pos.x + pad_x, pos.y), GetColorU32(text_col), text, text_end);
     }
 
     inline IMGUI_API void Badge(const char* text, ImU32 bg_col, ImU32 fg_col = 0, float custom_rounding = -1.0f) {
@@ -149,41 +159,46 @@ namespace ImGui {
     // Keyboard Key Cap widget: <kbd> or Kbd("Ctrl+C")
     inline IMGUI_API void Kbd(const char* key_label) {
         if (!key_label || !*key_label) return;
-        ImVec2 text_size = CalcTextSize(key_label);
-        float scale = (GetFontSize() > 0.0f) ? (GetFontSize() / 14.0f) : 1.0f;
-        float btn_width = text_size.x + GetStyle().FramePadding.x * 2.0f;
 
-        ImVec2 pos = GetCursorScreenPos();
-#if defined(IMGUI_VERSION_NUM)
         ImGuiWindow* window = GetCurrentWindow();
-        if (window && window->DC.CurrLineTextBaseOffset > 0.0f) {
+        if (window->SkipItems) return;
+
+        const float font_size = GetFontSize();
+        const float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+        const char* text_end = FindRenderedTextEnd(key_label);
+        const ImVec2 text_size = CalcTextSize(key_label, text_end, true);
+
+        // Intrinsic keycap padding
+        const float pad_x = ImMax(6.0f * scale, 5.0f);
+        const float pad_y = ImMax(2.0f * scale, 2.0f);
+
+        const float total_w = text_size.x + pad_x * 2.0f;
+
+        ImVec2 pos = window->DC.CursorPos;
+        if (window->DC.CurrLineTextBaseOffset > 0.0f) {
             pos.y += window->DC.CurrLineTextBaseOffset;
         }
-#endif
+
+        const float top_y = pos.y - pad_y;
+        const float bottom_y = pos.y + text_size.y + pad_y;
+        const ImRect bb(ImVec2(pos.x, top_y), ImVec2(pos.x + total_w, bottom_y + 1.5f * scale));
+        ItemSize(ImVec2(total_w, text_size.y));
+        const ImGuiID id = window->GetID(key_label);
+        if (!ItemAdd(bb, id)) return;
 
         ImU32 bg_col = GetColorU32(ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
         ImU32 border_col = GetColorU32(ImVec4(0.40f, 0.40f, 0.45f, 0.8f));
         ImU32 bottom_shadow = GetColorU32(ImVec4(0.10f, 0.10f, 0.12f, 1.0f));
 
-        float rounding = 3.5f * scale;
+        const float rounding = 3.5f * scale;
         ImDrawList* dl = GetWindowDrawList();
 
-        float top_y = pos.y - 1.5f * scale;
-        float bottom_y = pos.y + text_size.y + 1.5f * scale;
-
         // 3D bottom bevel / shadow for keycap effect
-        dl->AddRectFilled(ImVec2(pos.x, top_y + 1.0f * scale), ImVec2(pos.x + btn_width, bottom_y + 1.5f * scale), bottom_shadow, rounding);
-        dl->AddRectFilled(ImVec2(pos.x, top_y), ImVec2(pos.x + btn_width, bottom_y), bg_col, rounding);
-        dl->AddRect(ImVec2(pos.x, top_y), ImVec2(pos.x + btn_width, bottom_y), border_col, rounding, 0, 1.0f * scale);
+        dl->AddRectFilled(ImVec2(pos.x, top_y + 1.0f * scale), ImVec2(pos.x + total_w, bottom_y + 1.5f * scale), bottom_shadow, rounding);
+        dl->AddRectFilled(ImVec2(pos.x, top_y), ImVec2(pos.x + total_w, bottom_y), bg_col, rounding);
+        dl->AddRect(ImVec2(pos.x, top_y), ImVec2(pos.x + total_w, bottom_y), border_col, rounding, 0, 1.0f * scale);
 
-        PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-        PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-        PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-        PushStyleColor(ImGuiCol_Text, GetStyle().Colors[ImGuiCol_Text]);
-        SmallButton(key_label);
-        PopStyleColor(4);
-        PopStyleVar();
+        dl->AddText(ImVec2(pos.x + pad_x, pos.y), GetColorU32(GetStyle().Colors[ImGuiCol_Text]), key_label, text_end);
     }
 
     // Friendly C++ aliases matching Markdown tags (<tag>, <key>, <keycap>):

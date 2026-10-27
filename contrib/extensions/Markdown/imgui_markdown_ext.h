@@ -482,8 +482,10 @@ namespace ImGui {
                 }
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float btn_width = text_size.x + ImGui::GetStyle().FramePadding.x * 2.0f;
-                EnsureTagFitsOnLine(btn_width);
+                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float pad_x = ImMax(6.0f * scale, 5.0f);
+                float required_w = text_size.x + pad_x * 2.0f;
+                EnsureTagFitsOnLine(required_w);
 
                 ImGui::Badge(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr);
 
@@ -523,8 +525,10 @@ namespace ImGui {
                 }
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float btn_width = text_size.x + ImGui::GetStyle().FramePadding.x * 2.0f;
-                EnsureTagFitsOnLine(btn_width);
+                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float pad_x = ImMax(7.5f * scale, 7.0f);
+                float required_w = text_size.x + pad_x * 2.0f;
+                EnsureTagFitsOnLine(required_w);
 
                 ImGui::Pill(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr);
 
@@ -539,8 +543,10 @@ namespace ImGui {
                 PushMarkdownTagFont(config, style);
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float pad_x = ImGui::GetStyle().FramePadding.x * 1.2f;
-                EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
+                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float pad_x = ImMax(6.0f * scale, 5.0f);
+                float required_w = text_size.x + pad_x * 2.0f;
+                EnsureTagFitsOnLine(required_w);
 
                 ImGui::Kbd(style.clean_text.c_str());
 
@@ -560,9 +566,13 @@ namespace ImGui {
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float btn_width = text_size.x + ImGui::GetStyle().FramePadding.x * 2.0f;
-                EnsureTagFitsOnLine(btn_width);
+                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float pad_x = ImMax(ImGui::GetStyle().FramePadding.x, 8.0f * scale);
+                float pad_y = ImMax(ImGui::GetStyle().FramePadding.y, 2.0f * scale);
+                EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(pad_x, pad_y));
                 ImGui::SmallButton(style.clean_text.c_str());
+                ImGui::PopStyleVar();
                 PopMarkdownTagFont(config, style);
             };
 

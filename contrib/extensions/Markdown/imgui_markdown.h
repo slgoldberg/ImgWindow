@@ -2122,6 +2122,9 @@ namespace ImGui
                     int prev = i - 1;
 					// Check if the character is in the user's registered emphasisChars string
 					if( mdConfig_.emphasisChars && strchr(mdConfig_.emphasisChars, c) != NULL
+                        // For markers that strictly require at least 2 characters (CriticMarkup '++' underline,
+                        // GFM '~~' strikethrough, and ABC legacy '$$' strikethrough), do not trigger on single chars:
+                        && ( ( c != '+' && c != '~' && c != '$' ) || ( (int)markdownLength_ > next && markdown_[ next ] == c ) )
                         && ( i == line.lineStart
                             || isspace((unsigned char)markdown_[ prev ])
                             || ( ispunct((unsigned char)markdown_[ prev ]) && markdown_[ prev ] != c ) )
@@ -2428,7 +2431,7 @@ namespace ImGui
                 break;
             }
 
-            if( markdownFormatInfo_.emphasisChar == '~' || markdownFormatInfo_.emphasisChar == '$' )
+            if( ( markdownFormatInfo_.emphasisChar == '~' || markdownFormatInfo_.emphasisChar == '$' ) && markdownFormatInfo_.level >= 2 )
             {
                 // GFM Strikethrough (~~text~~) or ABC legacy strikethrough ($$text$$):
                 if( !start_ )
