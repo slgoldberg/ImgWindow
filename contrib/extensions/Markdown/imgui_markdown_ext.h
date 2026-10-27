@@ -20,6 +20,13 @@
 #define IMGUI_MARKDOWN_EXT_H
 
 #include "imgui.h"
+#if defined(__has_include)
+    #if __has_include("imgui_internal.h")
+        #include "imgui_internal.h"
+    #endif
+#else
+    #include "imgui_internal.h"
+#endif
 #include <string>
 #include <functional>
 #include <unordered_map>
@@ -1207,6 +1214,9 @@ namespace ImGui {
 #else
         ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
 #endif
+        if (font_scale > 0.0f) {
+            ImGui::SetWindowFontScale(font_scale);
+        }
         
         ImGui::BeginGroup();
         MarkdownExt(markdown_text, md_config);
@@ -1395,13 +1405,19 @@ namespace TimedTooltip {
         if (config->bullet_spacing > 0.0f) local_md.bulletSpacing = config->bullet_spacing * scale;
         if (no_wrap) local_md.wrapWidth = -1.0f;
 
+        if (std::abs(scale - state.last_scale) > 0.001f) {
+            state.perfect_size = ImVec2(0.0f, 0.0f);
+            state.last_size = ImVec2(0.0f, 0.0f);
+            state.last_scale = scale;
+        }
+
         if (state.perfect_size.x == 0.0f) {
             // 1. Dry-run infinitely wide to see how small the text naturally is
             ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, scale, &local_md);
             
             if (no_wrap) {
                 state.perfect_size.x = raw_size.x + 2.0f * scale;
-                state.perfect_size.y = raw_size.y + 2.0f * scale;
+                state.perfect_size.y = raw_size.y + 6.0f * scale;
             } else {
                 // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
                 float final_width = raw_size.x;
@@ -1416,7 +1432,7 @@ namespace TimedTooltip {
                 // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
                 state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
                 state.perfect_size.x = final_width; 
-                state.perfect_size.y += 2.0f * scale;  // Symmetric 1px top + 1px bottom headroom for pills/backdrops
+                state.perfect_size.y += 6.0f * scale;  // Generous headroom for pills, backdrops, and descenders
             }
         }
 
@@ -1424,11 +1440,18 @@ namespace TimedTooltip {
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
             displayed = true;
 
+            char child_name[64];
+            snprintf(child_name, sizeof(child_name), "##TT_%08X/##md_delay_tt", id);
+            if (ImGuiWindow* cached_child = ImGui::FindWindowByName(child_name)) {
+                cached_child->FontWindowScale = scale;
+            }
+
 #if IMGUI_VERSION_NUM >= 18989
             ImGui::BeginChild("##md_delay_tt", state.perfect_size, ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
 #else
             ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
 #endif
+            ImGui::SetWindowFontScale(scale);
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 1.0f * scale);
             if (no_wrap) {
                 MD::Text(std::string(buffer), &local_md);

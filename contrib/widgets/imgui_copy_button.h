@@ -132,15 +132,15 @@ namespace ImGui {
 
         if (clicked)
         {
-            if (text_to_copy)
+            if (text_to_copy && text_to_copy[0] != '\0')
             {
                 SetClipboardText(text_to_copy);
+                if (storage)
+                {
+                    storage->SetFloat(id, now);
+                }
+                is_recently_copied = true;
             }
-            if (storage)
-            {
-                storage->SetFloat(id, now);
-            }
-            is_recently_copied = true;
 #if defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::ClearActiveTooltip();
 #endif
@@ -172,24 +172,24 @@ namespace ImGui {
         }
         else if (held)
         {
-            btn_bg = IM_COL32(65, 70, 84, 255);
-            btn_border = IM_COL32(95, 105, 125, 255);
-            btn_text_col = IM_COL32(240, 243, 250, 255);
-            icon_col = IM_COL32(220, 230, 245, 255);
+            btn_bg = GetColorU32(ImGuiCol_ButtonActive);
+            btn_border = GetColorU32(ImGuiCol_Border);
+            btn_text_col = GetColorU32(ImGuiCol_Text);
+            icon_col = btn_text_col;
         }
         else if (hovered)
         {
-            btn_bg = IM_COL32(52, 56, 68, 240);
-            btn_border = IM_COL32(85, 95, 115, 240);
-            btn_text_col = IM_COL32(235, 240, 248, 255);
-            icon_col = IM_COL32(210, 220, 235, 240);
+            btn_bg = GetColorU32(ImGuiCol_ButtonHovered);
+            btn_border = GetColorU32(ImGuiCol_Border);
+            btn_text_col = GetColorU32(ImGuiCol_Text);
+            icon_col = btn_text_col;
         }
         else
         {
-            btn_bg = IM_COL32(40, 42, 50, 210);
-            btn_border = IM_COL32(65, 70, 82, 180);
-            btn_text_col = IM_COL32(195, 202, 215, 230);
-            icon_col = IM_COL32(165, 175, 192, 210);
+            btn_bg = GetColorU32(ImGuiCol_Button);
+            btn_border = GetColorU32(ImGuiCol_Border);
+            btn_text_col = GetColorU32(ImGuiCol_Text);
+            icon_col = (GetColorU32(ImGuiCol_Text) & 0x00FFFFFF) | 0xD0000000;
         }
 
         float btn_rounding = (style.FrameRounding > 0.0f) ? style.FrameRounding : (3.5f * scale);
@@ -256,6 +256,11 @@ namespace ImGui {
         return CopyButtonEx(str_id, text_to_copy.c_str(), duration, size, nullptr);
     }
 
+    // Chaser Form: Automatically inspects the preceding InputText widget's internal state.
+    // NOTE: Dear ImGui's internal InputTextState buffer is populated while the text field
+    // has active focus or was deactivated on the immediate preceding frame. For 100% unconditional
+    // clipboard copies regardless of focus, pass your buffer explicitly via CopyButton(id, buffer)
+    // or CopyBufferButton(id, buffer).
     IMGUI_API inline bool CopyLastItemButtonEx(const char* str_id, 
                                                float duration = 1.5f, 
                                                const ImVec2& size = ImVec2(0, 0), 

@@ -20,6 +20,13 @@
 #define IMGUI_TOOLTIP_EXT_H
 
 #include "imgui.h"
+#if defined(__has_include)
+    #if __has_include("imgui_internal.h")
+        #include "imgui_internal.h"
+    #endif
+#else
+    #include "imgui_internal.h"
+#endif
 #include <unordered_map>
 #include <string>
 #include <cmath>
@@ -87,6 +94,9 @@ namespace TimedTooltip {
         if (config && config->font_scale > 0.0f) {
             return config->font_scale;
         }
+        if (GImGui && GImGui->CurrentWindow) {
+            return GImGui->CurrentWindow->FontWindowScale;
+        }
         float font_size = ImGui::GetFontSize();
         if (font_size > 0.0f) {
             return font_size / 14.0f;
@@ -103,6 +113,7 @@ namespace TimedTooltip {
         ImVec2 locked_pos = ImVec2(-1, -1);
         ImVec2 last_size = ImVec2(0, 0);
         ImVec2 perfect_size = ImVec2(0, 0);
+        float last_scale = 1.0f;
         bool is_displayed = false;
         bool is_cooldown = false; // Prevents reappearing if they remain perfectly still after auto-hide
         bool font_pushed = false;
@@ -240,6 +251,13 @@ namespace TimedTooltip {
         float scale = GetActiveFontScale(config);
         if (scale <= 0.0f) scale = 1.0f;
 
+        // Invalidate cached dimensions if ambient font scale changed across hovers:
+        if (std::abs(scale - state.last_scale) > 0.001f) {
+            state.perfect_size = ImVec2(0.0f, 0.0f);
+            state.last_size = ImVec2(0.0f, 0.0f);
+            state.last_scale = scale;
+        }
+
         // Trigger Display (With Global Mutex)
         if (!state.is_displayed && state.hover_cycles >= config->hover_delay_cycles) {
             if (GetActiveTooltipID() == 0 || GetActiveTooltipID() == hash_id) {
@@ -330,6 +348,12 @@ else // only *add* to max timeout if it's not very short per above:
             ImGui::SetNextWindowPos(render_pos, ImGuiCond_Always, pivot);
             char window_name[32];
             snprintf(window_name, sizeof(window_name), "##TT_%08X", hash_id);
+            if (ImGuiWindow* cached_win = ImGui::FindWindowByName(window_name)) {
+                cached_win->FontWindowScale = scale;
+            }
+            if (expected_w > 0.0f && expected_h > 0.0f) {
+                ImGui::SetNextWindowSize(ImVec2(expected_w, expected_h), ImGuiCond_Always);
+            }
             ImGui::PushStyleColor(ImGuiCol_WindowBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_PopupBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_Border, config->border_color);
@@ -339,9 +363,7 @@ else // only *add* to max timeout if it's not very short per above:
             ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, config->indent_spacing * scale);
             bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
             (void)open;
-            if (scale != 1.0f) {
-                ImGui::SetWindowFontScale(scale);
-            }
+            ImGui::SetWindowFontScale(scale);
             ImGui::PushStyleColor(ImGuiCol_Text, config->text_color); // Pushed AFTER Begin to affect window contents!
             ImGui::PushStyleColor(ImGuiCol_Separator, config->text_color); // Ensures markdown horizontal lines match the text color!
             if (config->font) {
@@ -636,6 +658,13 @@ namespace TimedTooltip {
         float scale = GetActiveFontScale(config);
         if (scale <= 0.0f) scale = 1.0f;
 
+        TooltipState& state = GetTooltipStateMap()[id];
+        if (std::abs(scale - state.last_scale) > 0.001f) {
+            state.perfect_size = ImVec2(0.0f, 0.0f);
+            state.last_size = ImVec2(0.0f, 0.0f);
+            state.last_scale = scale;
+        }
+
         float max_screen_w = std::max(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
         float min_w = config->min_wrap_width * scale;
         float max_w = config->max_wrap_width * scale;
@@ -647,8 +676,6 @@ namespace TimedTooltip {
         float target_w = (config->default_wrap_width > 0.0f) ? (config->default_wrap_width * scale) : (360.0f * scale);
         float wrap_limit = (target_w < min_w) ? min_w : (target_w > max_w) ? max_w : target_w;
         if (wrap_limit > max_screen_w) wrap_limit = max_screen_w;
-
-        TooltipState& state = GetTooltipStateMap()[id];
         if (state.perfect_size.x <= 0.0f && fmt) {
             va_list args_sz;
             va_copy(args_sz, args);

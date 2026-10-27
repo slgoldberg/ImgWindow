@@ -482,6 +482,43 @@ if (ImGui::CopyButtonEx("##custom_copy", "Payload", 2.0f /* duration */, ImVec2(
 
 ---
 
+### 7. Avionics Rotary Knobs & Dimmer Dials (`imgui_knobs.h`)
+
+Turnkey immediate-mode cockpit potentiometers, rotary dials, and lighting dimmer controls featuring an unmistakable $270^\circ$ "Omega" arc, tactile two-step `OFF` detente switches, perimeter graduation ticks, and full mouse-wheel integration.
+
+```cpp
+#include "contrib/widgets/imgui_knobs.h"
+
+// 1. Avionics Potentiometer Dimmer with 2-Step OFF Detente:
+// Turning CCW dims smoothly from 100% down to 5% (minimum active floor).
+// An intentional extra downward notch while resting at 5% snaps across into "OFF"!
+// Turning CW from OFF snaps immediately back into active range (5%).
+static float s_FloodDimmer = 0.85f;
+ImGui::DimmerKnob("Floodlight Dimmer", &s_FloodDimmer, 0.05f /* v_min_active */, 1.0f /* v_max */, 1.0f /* default */, "%.0f%%");
+
+// 2. Standard 270° Rotary Knob with 1-Click Vector Reset (↺):
+static float s_RadioVol = 0.70f;
+ImGui::KnobWithReset("Radio Volume", &s_RadioVol, 0.70f /* default */, 0.0f, 1.0f, "%.0f%%", 0.0f, 0.02f, "Reset volume to 70%");
+
+// 3. Compact / Percentage Dial:
+static float s_HeadingBug = 180.0f;
+ImGui::Knob("Heading Bug", &s_HeadingBug, 0.0f, 360.0f, "%.0f°", 14.0f /* radius */);
+
+// 4. Vertical Stacked Avionics Gauge Unit:
+static float s_TransponderGain = 0.50f;
+ImGui::Knob("XPNDR", &s_TransponderGain, 0.0f, 1.0f, "%.2f", 20.0f, 0.01f, ImGuiKnobFlags_ValueBelow | ImGuiKnobFlags_ShowTicks);
+```
+
+* **Features:**
+  * **Unmistakable Omega Potentiometer Geometry:** Features an authentic $270^\circ$ arc with a $90^\circ$ open deadband at 6 o'clock and a raised 3D knurled knob hub with a high-contrast rotating index needle/pip. Instantly disambiguated from $360^\circ$ read-only timers or progress circles.
+  * **Tactile Two-Step Detente Switch:** Counter-clockwise rotation stops cleanly at the minimum active floor (e.g. 5%), preventing accidental power cutoffs in flight. A deliberate extra scroll step past the stop snaps across the detente gap directly into the powered-down `OFF` detente. Clockwise rotation from `OFF` snaps immediately back to minimum power.
+  * **State-Aware Text Readout:** Automatically displays `"OFF"` in warning amber when disarmed in detente, or the formatted percentage/value when active.
+  * **Dual-Mode Input Ergonomics:** Primary mouse-wheel rotation with automatic scroll-defeat prevents scrolling the parent window. Secondary vertical/horizontal click-dragging supports VR/touchscreen use, with `Shift` (fine $0.1\times$) and `Ctrl` (coarse $2.0\times$) speed modifiers.
+  * **Default `ResizeEW` (<-->) Cursor:** Shows horizontal range selection cursor by default on hover, confirming interactive status at a glance.
+  * **Double-Click Reset / Detente Toggle:** Double-clicking the knob restores calibrated baseline default (or toggles between `OFF` and default).
+
+---
+
 ## Credits & Upstream Lineage
 
 * **Author & Architect**: Steven L. Goldberg ([@slgoldberg](https://github.com/slgoldberg))
