@@ -470,10 +470,7 @@ namespace Detail {
 #if defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::ClearActiveTooltip();
 #endif
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         return value_changed;
@@ -637,10 +634,7 @@ namespace Detail {
         }
 
         if (reset_hovered || knob_active || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
         return changed;
     }

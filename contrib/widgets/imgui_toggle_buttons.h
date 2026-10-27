@@ -377,10 +377,7 @@ namespace ImGui {
 #endif
 
         if (changed || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         if (item_tooltips) {
@@ -688,10 +685,7 @@ namespace ImGui {
 #endif
 
         if (changed || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         return changed;

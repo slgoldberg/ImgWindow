@@ -425,10 +425,7 @@ namespace ImGui {
                 }
 
                 // Active wheel scrolling isolates hover from downstream chasers (e.g. TimedTooltip)
-                ImVec2 save_cur = GetCursorPos();
-                SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-                Dummy(ImVec2(0.0f, 0.0f));
-                SetCursorPos(save_cur);
+                GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
             }
 
             if (setCustomCursor) {
@@ -485,10 +482,7 @@ namespace ImGui {
                 }
 
                 // Active wheel scrolling isolates hover from downstream chasers (e.g. TimedTooltip)
-                ImVec2 save_cur = GetCursorPos();
-                SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-                Dummy(ImVec2(0.0f, 0.0f));
-                SetCursorPos(save_cur);
+                GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
             }
 
             if (setCustomCursor) {
@@ -975,10 +969,7 @@ namespace ImGui {
             TimedTooltip::ClearActiveTooltip();
 #endif
             if (clicks != 0.0f) {
-                ImVec2 save_cur = GetCursorPos();
-                SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-                Dummy(ImVec2(0.0f, 0.0f));
-                SetCursorPos(save_cur);
+                GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
             }
         }
         return cycled;
@@ -1059,10 +1050,7 @@ namespace ImGui {
             TimedTooltip::ClearActiveTooltip();
 #endif
             if (clicks != 0.0f) {
-                ImVec2 save_cur = GetCursorPos();
-                SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-                Dummy(ImVec2(0.0f, 0.0f));
-                SetCursorPos(save_cur);
+                GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
             }
         }
         return changed;
@@ -1676,10 +1664,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || slider_active || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         return changed;
@@ -1788,10 +1773,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || slider_active || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         return changed;
@@ -1903,10 +1885,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || slider_active || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         return changed;
@@ -2019,10 +1998,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || drag_active || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         return changed;
@@ -2133,10 +2109,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || drag_active || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         return changed;
@@ -2258,10 +2231,7 @@ namespace ImGui {
 #endif
         }
         if (popup_open || combo_header_active || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
         return changed;
     }
@@ -2395,10 +2365,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || popup_open || combo_header_active || is_scrolling) {
-            ImVec2 save_cur = GetCursorPos();
-            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
-            Dummy(ImVec2(0.0f, 0.0f));
-            SetCursorPos(save_cur);
+            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
         }
 
         return changed;
