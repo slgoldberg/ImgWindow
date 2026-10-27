@@ -46,6 +46,9 @@
     #if __has_include("imgui_internal.h")
         #include "imgui_internal.h"
     #endif
+    #if __has_include("../extensions/TimedTooltip/imgui_tooltip_ext.h")
+        #include "../extensions/TimedTooltip/imgui_tooltip_ext.h"
+    #endif
 #else
     #include "imgui_internal.h"
 #endif
@@ -105,7 +108,10 @@ namespace Detail {
                                  float wheel_step = 0.0f,
                                  bool has_off_detente = false,
                                  float v_off = 0.0f,
-                                 ImGuiKnobFlags flags = ImGuiKnobFlags_None)
+                                 ImGuiKnobFlags flags = ImGuiKnobFlags_None,
+                                 bool* out_is_active = nullptr,
+                                 bool* out_is_hovered = nullptr,
+                                 bool* out_is_scrolling = nullptr)
     {
         ImGuiWindow* window = GetCurrentWindow();
         if (window->SkipItems || !p_value) return false;
@@ -209,6 +215,8 @@ namespace Detail {
         }
 
         bool value_changed = false;
+        bool input_interacted = false;
+        bool wheel_interacted = false;
         ImGuiStorage* storage = window->DC.StateStorage;
         const ImGuiID storage_key_was_min = id + 0x1000;
 
@@ -222,6 +230,8 @@ namespace Detail {
             if (hovered) {
                 float wheel = Detail::GetKnobMouseWheel(true);
                 if (wheel != 0.0f) {
+                    input_interacted = true;
+                    wheel_interacted = true;
                     float speed_mult = 1.0f;
                     if (g.IO.KeyShift) speed_mult = 0.25f; // Fine adjustment
                     if (g.IO.KeyCtrl)  speed_mult = 4.0f;  // Coarse adjustment
@@ -236,6 +246,7 @@ namespace Detail {
                     drag_dy = g.IO.MouseDelta.x;   // Right = increase
                 }
                 if (drag_dy != 0.0f) {
+                    input_interacted = true;
                     float speed_mult = 1.0f;
                     if (g.IO.KeyShift) speed_mult = 0.1f; // Shift = fine precision
                     if (g.IO.KeyCtrl)  speed_mult = 2.0f; // Ctrl  = coarse scrub
@@ -246,6 +257,7 @@ namespace Detail {
 
             // 3. Double-Click to Reset / Toggle Detente
             if (hovered && IsMouseDoubleClicked(0)) {
+                input_interacted = true;
                 if (has_off_detente) {
                     if (*p_value <= v_off) {
                         *p_value = v_default; // Snap to calibrated default from OFF
@@ -449,6 +461,21 @@ namespace Detail {
             }
         }
 
+        if (out_is_active)    *out_is_active = held;
+        if (out_is_hovered)   *out_is_hovered = hovered;
+        if (out_is_scrolling) *out_is_scrolling = wheel_interacted;
+
+        // Active interaction suppresses tooltips and isolates hover
+        if (input_interacted || held) {
+#if defined(IMGUI_TOOLTIP_EXT_H)
+            TimedTooltip::ClearActiveTooltip();
+#endif
+            ImVec2 save_cur = GetCursorPos();
+            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
+            Dummy(ImVec2(0.0f, 0.0f));
+            SetCursorPos(save_cur);
+        }
+
         return value_changed;
     }
 
@@ -531,11 +558,26 @@ namespace Detail {
         const char* id_pos = std::strstr(label, "##");
         bool has_label = (id_pos != label) && (label[0] != '\0');
 
+        // Capture pre-interaction wheel clicks before KnobEx consumes them:
+        ImGuiIO& io = GetIO();
+        float pre_wheel = (io.MouseWheel != 0.0f) ? io.MouseWheel : io.MouseWheelH;
+
+        bool knob_active = false;
+        bool knob_hovered = false;
+        bool is_scrolling = false;
+
         // Draw knob + formatted value readout, suppressing label inside KnobEx
         // so the reset button [↺] sits immediately between value and label text:
-        bool changed = KnobEx("##knob", p_value, v_min, v_max, v_default, format, radius, wheel_step, false, 0.0f, flags);
-        bool knob_active = IsItemActive();
+        bool changed = KnobEx("##knob", p_value, v_min, v_max, v_default, format, radius, wheel_step, false, 0.0f, flags,
+                              &knob_active, &knob_hovered, &is_scrolling);
+        if (!knob_active && (g.ActiveId != 0 && g.ActiveId == window->GetID("##knob"))) {
+            knob_active = true;
+        }
+        if (!is_scrolling && pre_wheel != 0.0f && knob_hovered) {
+            is_scrolling = true;
+        }
 
+        bool reset_hovered = false;
 #if defined(IMGUI_MOUSE_WHEEL_CONTROLS_H) && !defined(CONTRIB_DISABLE_RESET_BUTTON)
         SameLine(0.0f, GetStyle().ItemInnerSpacing.x);
         bool is_modified = std::abs(*p_value - v_default) > 0.0001f;
@@ -545,7 +587,7 @@ namespace Detail {
             *p_value = v_default;
             changed = true;
         }
-        bool reset_hovered = IsItemHovered();
+        reset_hovered = IsItemHovered();
 
         char default_buf[160];
         if (reset_tooltip && reset_tooltip[0] != '\0') {
@@ -588,16 +630,18 @@ namespace Detail {
         EndGroup();
         g.LastItemData.ID = group_id;
 
-#if defined(IMGUI_MOUSE_WHEEL_CONTROLS_H) && !defined(CONTRIB_DISABLE_RESET_BUTTON)
-        // If the reset button was hovered or knob is actively being turned, isolate hover so
-        // an outer tooltip attached to KnobWithReset does not fire over the reset button or during drag:
-        if (reset_hovered || knob_active) {
+        if (knob_active || is_scrolling || changed) {
+#if defined(IMGUI_TOOLTIP_EXT_H)
+            TimedTooltip::ClearActiveTooltip();
+#endif
+        }
+
+        if (reset_hovered || knob_active || is_scrolling) {
             ImVec2 save_cur = GetCursorPos();
             SetCursorPos(ImVec2(-10000.0f, -10000.0f));
             Dummy(ImVec2(0.0f, 0.0f));
             SetCursorPos(save_cur);
         }
-#endif
         return changed;
     }
 

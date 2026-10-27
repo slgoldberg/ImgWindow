@@ -268,6 +268,9 @@ namespace Detail {
       #include "imgui_internal.h"
       #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
     #endif
+    #if __has_include("../extensions/TimedTooltip/imgui_tooltip_ext.h")
+      #include "../extensions/TimedTooltip/imgui_tooltip_ext.h"
+    #endif
   #endif
 #endif
 #if !defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) && (defined(IMGUI_WINDOW_HARD_MIN_SIZE) || defined(IMGUI_INTERNAL_H))
@@ -409,6 +412,9 @@ namespace ImGui {
 
             bool isHandled = false;
             if (clicks != 0.0f) {
+#if defined(IMGUI_TOOLTIP_EXT_H)
+                TimedTooltip::ClearActiveTooltip();
+#endif
                 float prev = *valRef;
                 float next = *valRef + scale * clicks;
                 float lower = std::min(minVal, maxVal);
@@ -416,10 +422,13 @@ namespace ImGui {
                 *valRef = (lower < upper) ? Clamp(next, lower, upper) : lower;
                 if (*valRef != prev) {
                     isHandled = true;
-#if defined(IMGUI_TOOLTIP_EXT_H)
-                    TimedTooltip::ClearActiveTooltip();
-#endif
                 }
+
+                // Active wheel scrolling isolates hover from downstream chasers (e.g. TimedTooltip)
+                ImVec2 save_cur = GetCursorPos();
+                SetCursorPos(ImVec2(-10000.0f, -10000.0f));
+                Dummy(ImVec2(0.0f, 0.0f));
+                SetCursorPos(save_cur);
             }
 
             if (setCustomCursor) {
@@ -460,6 +469,9 @@ namespace ImGui {
 
             bool isHandled = false;
             if (clicks != 0.0f) {
+#if defined(IMGUI_TOOLTIP_EXT_H)
+                TimedTooltip::ClearActiveTooltip();
+#endif
                 int delta = (int)std::round(scale * clicks);
                 if (delta == 0) delta = (clicks < 0.0f) ? -1 : 1;
 
@@ -470,10 +482,13 @@ namespace ImGui {
                 *valRef = (lower < upper) ? Clamp(next, lower, upper) : lower;
                 if (*valRef != prev) {
                     isHandled = true;
-#if defined(IMGUI_TOOLTIP_EXT_H)
-                    TimedTooltip::ClearActiveTooltip();
-#endif
                 }
+
+                // Active wheel scrolling isolates hover from downstream chasers (e.g. TimedTooltip)
+                ImVec2 save_cur = GetCursorPos();
+                SetCursorPos(ImVec2(-10000.0f, -10000.0f));
+                Dummy(ImVec2(0.0f, 0.0f));
+                SetCursorPos(save_cur);
             }
 
             if (setCustomCursor) {
@@ -959,6 +974,12 @@ namespace ImGui {
 #if defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::ClearActiveTooltip();
 #endif
+            if (clicks != 0.0f) {
+                ImVec2 save_cur = GetCursorPos();
+                SetCursorPos(ImVec2(-10000.0f, -10000.0f));
+                Dummy(ImVec2(0.0f, 0.0f));
+                SetCursorPos(save_cur);
+            }
         }
         return cycled;
     }
@@ -1037,6 +1058,12 @@ namespace ImGui {
 #if defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::ClearActiveTooltip();
 #endif
+            if (clicks != 0.0f) {
+                ImVec2 save_cur = GetCursorPos();
+                SetCursorPos(ImVec2(-10000.0f, -10000.0f));
+                Dummy(ImVec2(0.0f, 0.0f));
+                SetCursorPos(save_cur);
+            }
         }
         return changed;
     }

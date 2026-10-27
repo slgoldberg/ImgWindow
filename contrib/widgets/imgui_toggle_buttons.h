@@ -60,6 +60,9 @@
       #include "imgui_internal.h"
       #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
     #endif
+    #if __has_include("../extensions/TimedTooltip/imgui_tooltip_ext.h")
+      #include "../extensions/TimedTooltip/imgui_tooltip_ext.h"
+    #endif
   #endif
 #endif
 #if !defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) && (defined(IMGUI_WINDOW_HARD_MIN_SIZE) || defined(IMGUI_INTERNAL_H))
@@ -239,18 +242,22 @@ namespace ImGui {
 
         const bool scroll_defeated = ToggleButtonDetail::IsCurrentWindowScrollableY();
 
+        bool is_scrolling = false;
         if (switch_hovered) {
             if (!scroll_defeated && hover_cursor != ImGuiMouseCursor_None) {
                 SetMouseCursor(hover_cursor);
             }
             if (allow_mouse_wheel && !scroll_defeated) {
                 float wheel = ToggleButtonDetail::ConsumeMouseWheel();
-                if (wheel > 0.0f && !(*v)) {
-                    *v = true;
-                    changed = true;
-                } else if (wheel < 0.0f && *v) {
-                    *v = false;
-                    changed = true;
+                if (wheel != 0.0f) {
+                    is_scrolling = true;
+                    if (wheel > 0.0f && !(*v)) {
+                        *v = true;
+                        changed = true;
+                    } else if (wheel < 0.0f && *v) {
+                        *v = false;
+                        changed = true;
+                    }
                 }
             }
         }
@@ -364,13 +371,20 @@ namespace ImGui {
         EndGroup();
 
 #if defined(IMGUI_TOOLTIP_EXT_H)
-        if (changed) {
+        if (changed || is_scrolling) {
             TimedTooltip::ClearActiveTooltip();
         }
 #endif
 
+        if (changed || is_scrolling) {
+            ImVec2 save_cur = GetCursorPos();
+            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
+            Dummy(ImVec2(0.0f, 0.0f));
+            SetCursorPos(save_cur);
+        }
+
         if (item_tooltips) {
-            bool any_hovered = (switch_hovered || label_hovered) && !changed;
+            bool any_hovered = (switch_hovered || label_hovered) && !changed && !is_scrolling;
             if (item_tooltips[0] && item_tooltips[0][0] != '\0') {
                 ToggleButtonDetail::AttachTooltipProxy(off_tt_id, item_tooltips[0], any_hovered && !(*v));
             }
@@ -612,6 +626,7 @@ namespace ImGui {
             }
         }
 
+        bool is_scrolling = false;
         if (off_hovered || on_hovered) {
             if (!scroll_defeated && hover_cursor != ImGuiMouseCursor_None) {
                 SetMouseCursor(hover_cursor);
@@ -619,6 +634,7 @@ namespace ImGui {
             if (allow_mouse_wheel && !scroll_defeated) {
                 float wheel = ToggleButtonDetail::ConsumeMouseWheel();
                 if (wheel != 0.0f) {
+                    is_scrolling = true;
                     s_WheelLatchToggleID = toggle_id;
                     s_WheelLatchMousePos = io.MousePos;
 #if defined(IMGUI_TOOLTIP_EXT_H)
@@ -655,10 +671,10 @@ namespace ImGui {
 
         if (item_tooltips) {
             if (item_tooltips[0] && item_tooltips[0][0] != '\0') {
-                ToggleButtonDetail::AttachTooltipProxy(off_id, item_tooltips[0], (effective_hovered == 0) && !changed);
+                ToggleButtonDetail::AttachTooltipProxy(off_id, item_tooltips[0], (effective_hovered == 0) && !changed && !is_scrolling);
             }
             if (item_tooltips[1] && item_tooltips[1][0] != '\0') {
-                ToggleButtonDetail::AttachTooltipProxy(on_id, item_tooltips[1], (effective_hovered == 1) && !changed);
+                ToggleButtonDetail::AttachTooltipProxy(on_id, item_tooltips[1], (effective_hovered == 1) && !changed && !is_scrolling);
             }
         }
 
@@ -666,10 +682,17 @@ namespace ImGui {
         EndGroup();
 
 #if defined(IMGUI_TOOLTIP_EXT_H)
-        if (changed) {
+        if (changed || is_scrolling) {
             TimedTooltip::ClearActiveTooltip();
         }
 #endif
+
+        if (changed || is_scrolling) {
+            ImVec2 save_cur = GetCursorPos();
+            SetCursorPos(ImVec2(-10000.0f, -10000.0f));
+            Dummy(ImVec2(0.0f, 0.0f));
+            SetCursorPos(save_cur);
+        }
 
         return changed;
     }
