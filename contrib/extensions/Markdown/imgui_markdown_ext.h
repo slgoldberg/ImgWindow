@@ -483,7 +483,7 @@ namespace ImGui {
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
                 float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
-                float pad_x = ImMax(6.0f * scale, 5.0f);
+                float pad_x = ImMax(5.0f * scale, 4.0f);
                 float required_w = text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
@@ -526,7 +526,7 @@ namespace ImGui {
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
                 float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
-                float pad_x = ImMax(7.5f * scale, 7.0f);
+                float pad_x = ImMax(7.0f * scale, 6.0f);
                 float required_w = text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
@@ -544,7 +544,7 @@ namespace ImGui {
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
                 float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
-                float pad_x = ImMax(6.0f * scale, 5.0f);
+                float pad_x = ImMax(5.5f * scale, 5.0f);
                 float required_w = text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 

@@ -100,10 +100,11 @@ namespace ImGui {
         const char* text_end = FindRenderedTextEnd(text);
         const ImVec2 text_size = CalcTextSize(text, text_end, true);
 
-        // Intrinsic padding: isolated from outer FramePadding
-        const bool is_pill = (custom_rounding > 4.0f * scale);
-        const float pad_x = is_pill ? ImMax(7.5f * scale, 7.0f) : ImMax(6.0f * scale, 5.0f);
-        const float pad_y = ImMax(2.0f * scale, 2.0f);
+        // Intrinsic padding: compact inline optical bounds that never punch through line spacing
+        const bool is_pill = (custom_rounding > 4.0f * scale || custom_rounding >= 900.0f);
+        const float pad_x = is_pill ? ImMax(7.0f * scale, 6.0f) : ImMax(5.0f * scale, 4.0f);
+        const float pad_y_top = 0.5f * scale;
+        const float pad_y_bottom = 0.5f * scale;
 
         const float total_w = text_size.x + pad_x * 2.0f;
 
@@ -112,16 +113,16 @@ namespace ImGui {
             pos.y += window->DC.CurrLineTextBaseOffset;
         }
 
-        // Optical cap-height centering: TrueType fonts reserve ~25% of line height for bottom
-        // descenders ('p', 'g', 'y'). Shifting the bounding box upward by ~1.25f * scale centers
-        // uppercase labels (e.g. ONLINE, WARNING, ENGAGED) symmetrically between top and bottom borders.
-        const float descender_offset = 1.25f * scale;
-        const ImRect bb(ImVec2(pos.x, pos.y - pad_y - descender_offset), ImVec2(pos.x + total_w, pos.y + text_size.y + pad_y - descender_offset));
+        const float box_top = pos.y - pad_y_top;
+        const float box_bottom = pos.y + text_size.y + pad_y_bottom;
+
+        const ImRect bb(ImVec2(pos.x, box_top), ImVec2(pos.x + total_w, box_bottom));
         ItemSize(ImVec2(total_w, text_size.y));
         const ImGuiID id = window->GetID(text);
         if (!ItemAdd(bb, id)) return;
 
-        const float rounding = (custom_rounding >= 0.0f) ? custom_rounding : ImMax(3.0f * scale, GetStyle().FrameRounding);
+        const float default_rounding = is_pill ? ((box_bottom - box_top) * 0.5f) : ImMax(3.0f * scale, GetStyle().FrameRounding);
+        const float rounding = (custom_rounding >= 900.0f) ? ((box_bottom - box_top) * 0.5f) : ((custom_rounding >= 0.0f) ? custom_rounding : default_rounding);
 
         // Render background and centered text
         GetWindowDrawList()->AddRectFilled(bb.Min, bb.Max, GetColorU32(bg_col), rounding);
@@ -172,9 +173,10 @@ namespace ImGui {
         const char* text_end = FindRenderedTextEnd(key_label);
         const ImVec2 text_size = CalcTextSize(key_label, text_end, true);
 
-        // Intrinsic keycap padding
-        const float pad_x = ImMax(6.0f * scale, 5.0f);
-        const float pad_y = ImMax(2.0f * scale, 2.0f);
+        // Intrinsic keycap padding: matching Badge/Pill inline optical bounds
+        const float pad_x = ImMax(5.5f * scale, 5.0f);
+        const float pad_y_top = 0.5f * scale;
+        const float pad_y_bottom = 0.5f * scale;
 
         const float total_w = text_size.x + pad_x * 2.0f;
 
@@ -183,11 +185,9 @@ namespace ImGui {
             pos.y += window->DC.CurrLineTextBaseOffset;
         }
 
-        // Optical cap-height centering: balance uppercase keycaps against font descender space
-        const float descender_offset = 1.25f * scale;
-        const float top_y = pos.y - pad_y - descender_offset;
-        const float bottom_y = pos.y + text_size.y + pad_y - descender_offset;
-        const ImRect bb(ImVec2(pos.x, top_y), ImVec2(pos.x + total_w, bottom_y + 1.5f * scale));
+        const float top_y = pos.y - pad_y_top;
+        const float bottom_y = pos.y + text_size.y + pad_y_bottom;
+        const ImRect bb(ImVec2(pos.x, top_y), ImVec2(pos.x + total_w, bottom_y + 1.0f * scale));
         ItemSize(ImVec2(total_w, text_size.y));
         const ImGuiID id = window->GetID(key_label);
         if (!ItemAdd(bb, id)) return;
@@ -200,7 +200,7 @@ namespace ImGui {
         ImDrawList* dl = GetWindowDrawList();
 
         // 3D bottom bevel / shadow for keycap effect
-        dl->AddRectFilled(ImVec2(pos.x, top_y + 1.0f * scale), ImVec2(pos.x + total_w, bottom_y + 1.5f * scale), bottom_shadow, rounding);
+        dl->AddRectFilled(ImVec2(pos.x, top_y + 1.0f * scale), ImVec2(pos.x + total_w, bottom_y + 1.0f * scale), bottom_shadow, rounding);
         dl->AddRectFilled(ImVec2(pos.x, top_y), ImVec2(pos.x + total_w, bottom_y), bg_col, rounding);
         dl->AddRect(ImVec2(pos.x, top_y), ImVec2(pos.x + total_w, bottom_y), border_col, rounding, 0, 1.0f * scale);
 
