@@ -112,7 +112,11 @@ namespace ImGui {
             pos.y += window->DC.CurrLineTextBaseOffset;
         }
 
-        const ImRect bb(ImVec2(pos.x, pos.y - pad_y), ImVec2(pos.x + total_w, pos.y + text_size.y + pad_y));
+        // Optical cap-height centering: TrueType fonts reserve ~25% of line height for bottom
+        // descenders ('p', 'g', 'y'). Shifting the bounding box upward by ~1.25f * scale centers
+        // uppercase labels (e.g. ONLINE, WARNING, ENGAGED) symmetrically between top and bottom borders.
+        const float descender_offset = 1.25f * scale;
+        const ImRect bb(ImVec2(pos.x, pos.y - pad_y - descender_offset), ImVec2(pos.x + total_w, pos.y + text_size.y + pad_y - descender_offset));
         ItemSize(ImVec2(total_w, text_size.y));
         const ImGuiID id = window->GetID(text);
         if (!ItemAdd(bb, id)) return;
@@ -179,8 +183,10 @@ namespace ImGui {
             pos.y += window->DC.CurrLineTextBaseOffset;
         }
 
-        const float top_y = pos.y - pad_y;
-        const float bottom_y = pos.y + text_size.y + pad_y;
+        // Optical cap-height centering: balance uppercase keycaps against font descender space
+        const float descender_offset = 1.25f * scale;
+        const float top_y = pos.y - pad_y - descender_offset;
+        const float bottom_y = pos.y + text_size.y + pad_y - descender_offset;
         const ImRect bb(ImVec2(pos.x, top_y), ImVec2(pos.x + total_w, bottom_y + 1.5f * scale));
         ItemSize(ImVec2(total_w, text_size.y));
         const ImGuiID id = window->GetID(key_label);
