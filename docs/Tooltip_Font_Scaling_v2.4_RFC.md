@@ -22,24 +22,25 @@ However, **font scale coupling physics** remains an open architectural issue whe
 
 ---
 
-## 2. Mathematical Model: The "Open Sky" Damped Curve
+## 2. Mathematical Model: The Bilateral Damped Curve
 
 Let $S_{\text{win}}$ be the calling window's `FontWindowScale`:
 
 $$\text{BaseDampedScale}(S_{\text{win}}) = \begin{cases}
-1.0\text{f} & \text{if } S_{\text{win}} \le 1.0\text{f} \quad \text{\bf (Roger's Open-Sky Legibility Floor)} \\
-1.0\text{f} + 0.28\text{f} \times (S_{\text{win}} - 1.0\text{f}) & \text{if } S_{\text{win}} > 1.0\text{f} \quad \text{\bf (Upper Damped Growth)}
+1.0\text{f} + 0.30\text{f} \times (S_{\text{win}} - 1.0\text{f}) & \text{if } S_{\text{win}} \le 1.0\text{f} \quad \text{\bf (Lower Damped Ease down to } 0.85\times\text{\bf )} \\
+1.0\text{f} + 0.28\text{f} \times (S_{\text{win}} - 1.0\text{f}) & \text{if } S_{\text{win}} > 1.0\text{f} \quad \text{\bf (Upper Damped Growth up to } 1.30\times\text{\bf )}
 \end{cases}$$
 
-$$\text{DampedScale}(S_{\text{win}}) = \text{ImClamp}(\text{BaseDampedScale}(S_{\text{win}}),\, 1.0\text{f},\, 1.30\text{f})$$
+$$\text{DampedScale}(S_{\text{win}}) = \text{ImClamp}(\text{BaseDampedScale}(S_{\text{win}}),\, 0.85\text{f},\, 1.30\text{f})$$
 
 ### Behavior Across Practical Simulator Zoom Levels:
 
-| Window Zoom ($S_{\text{win}}$) | Linear $1:1$ (Current) | Damped Model (v2.4) | Visual Experience |
+| Window Zoom ($S_{\text{win}}$) | Linear $1:1$ (Old) | Damped Model (v2.4) | Visual Experience |
 | :---: | :---: | :---: | :--- |
-| **$0.70\times$** (Cramped Sub-Panel) | $0.70\times$ ($9.8\text{px}$) | **$\mathbf{1.00\times}$** ($14\text{px}$) | **Protected:** Floating tooltip remains 100% legible in free space. |
-| **$0.85\times$** (Compact Stack) | $0.85\times$ ($11.9\text{px}$) | **$\mathbf{1.00\times}$** ($14\text{px}$) | **Protected:** Never drops below baseline font size. |
-| **$1.00\times$** (Default UI) | $1.00\times$ ($14.0\text{px}$) | **$\mathbf{1.00\times}$** ($14\text{px}$) | Identical baseline. |
+| **$0.50\times$** (Extreme Sub-Panel) | $0.50\times$ ($7.0\text{px}$) | **$\mathbf{0.85\times}$** ($11.9\text{px}$) | **Protected & Compact:** Cushioned at $0.85\times$ floor; respects tiny window space without microprint. |
+| **$0.70\times$** (Cramped Sub-Panel) | $0.70\times$ ($9.8\text{px}$) | **$\mathbf{0.91\times}$** ($12.7\text{px}$) | **Ergonomic:** Proportional, highly readable, minimizes cockpit occlusion. |
+| **$0.85\times$** (Compact Stack) | $0.85\times$ ($11.9\text{px}$) | **$\mathbf{0.955\times}$** ($13.4\text{px}$) | **Snug:** Perfectly matches downscaled avionics intent. |
+| **$1.00\times$** (Default UI) | $1.00\times$ ($14.0\text{px}$) | **$\mathbf{1.00\times}$** ($14.0\text{px}$) | Identical baseline. |
 | **$1.50\times$** (Moderate Zoom) | $1.50\times$ ($21.0\text{px}$) | **$\mathbf{1.14\times}$** ($16.0\text{px}$) | Gentle, comfortable bump for readability without bloat. |
 | **$2.00\times$** (4K / Distance Zoom) | $2.00\times$ ($28.0\text{px}$) | **$\mathbf{1.28\times}$** ($17.9\text{px}$) | Readable from distance without swallowing the cockpit. |
 
@@ -131,19 +132,18 @@ float CalculateEffectiveTooltipFontScale(float window_scale, const TooltipFontSc
         default:
             if (window_scale <= 1.0f)
             {
-                base_scale = 1.0f; // Roger's Open-Sky Legibility Floor
+                base_scale = ImClamp(1.0f + 0.30f * (window_scale - 1.0f), 0.85f, 1.0f);
             }
             else
             {
-                base_scale = 1.0f + 0.28f * (window_scale - 1.0f);
-                base_scale = ImClamp(base_scale, 1.0f, 1.30f);
+                base_scale = ImClamp(1.0f + 0.28f * (window_scale - 1.0f), 1.0f, 1.30f);
             }
             break;
     }
 
     // Apply Relative Multiplier with legibility protection
     float final_scale = base_scale * cfg.RelativeMultiplier;
-    return ImMax(final_scale, 0.90f); // Guard against accidental microprint
+    return ImMax(final_scale, 0.75f); // Guard against accidental microprint
 }
 ```
 

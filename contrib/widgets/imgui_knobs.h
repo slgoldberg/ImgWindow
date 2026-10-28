@@ -552,6 +552,11 @@ namespace Detail {
         BeginGroup();
         PushID(label);
 
+        const float start_local_y = GetCursorPosY();
+        float knob_radius = (radius <= 0.0f) ? (GetFrameHeight() * 0.75f) : radius;
+        knob_radius = ImMax(8.0f, knob_radius);
+        const float knob_diameter = knob_radius * 2.0f;
+
         const char* id_pos = std::strstr(label, "##");
         bool has_label = (id_pos != label) && (label[0] != '\0');
 
@@ -577,6 +582,10 @@ namespace Detail {
         bool reset_hovered = false;
 #if defined(IMGUI_MOUSE_WHEEL_CONTROLS_H) && !defined(CONTRIB_DISABLE_RESET_BUTTON)
         SameLine(0.0f, GetStyle().ItemInnerSpacing.x);
+        float btn_size = GetFrameHeight();
+        if (knob_diameter > btn_size) {
+            SetCursorPosY(start_local_y + (knob_diameter - btn_size) * 0.5f);
+        }
         bool is_modified = std::abs(*p_value - v_default) > 0.0001f;
         char reset_id[64];
         ImFormatString(reset_id, sizeof(reset_id), "##reset_%s", label);
@@ -616,6 +625,13 @@ namespace Detail {
 
         if (has_label) {
             SameLine(0.0f, GetStyle().ItemInnerSpacing.x);
+            float font_size = GetFontSize();
+            float target_y = (knob_diameter > font_size)
+                ? (start_local_y + (knob_diameter - font_size) * 0.5f)
+                : start_local_y;
+            // TextEx internally adds window->DC.CurrLineTextBaseOffset (set by ResetButton frame padding);
+            // subtract it so the label aligns with the exact pixel equator of the knob value readout:
+            SetCursorPosY(target_y - window->DC.CurrLineTextBaseOffset);
             if (id_pos) {
                 TextUnformatted(label, id_pos);
             } else {

@@ -56,7 +56,7 @@ namespace TimedTooltip {
 
     struct TooltipFontScaleConfig {
         TooltipFontScalePolicy Policy = TooltipFontScale_Damped;
-        float RelativeMultiplier = 1.0f; // Multiplies policy scale; floored at 0.90x
+        float RelativeMultiplier = 1.0f; // Multiplies policy scale; floored at 0.75x
         float AbsoluteOverride = 0.0f;   // 0.0f = auto; >0.0f = bypasses curve, clamped to [0.75f, 2.25f]
     };
 
@@ -78,8 +78,10 @@ namespace TimedTooltip {
             case TooltipFontScale_Damped:
             default:
                 if (window_scale <= 1.0f) {
-                    base_scale = 1.0f; // Roger's Open-Sky Legibility Floor
+                    // Gentle downscale ease (slope 0.30) down to a humane 0.85x floor:
+                    base_scale = ImClamp(1.0f + 0.30f * (window_scale - 1.0f), 0.85f, 1.0f);
                 } else {
+                    // Upper dampening curve (slope 0.28) up to 1.30x ceiling:
                     base_scale = ImClamp(1.0f + 0.28f * (window_scale - 1.0f), 1.0f, 1.30f);
                 }
                 break;
@@ -87,7 +89,7 @@ namespace TimedTooltip {
 
         // Apply Relative Multiplier with legibility protection
         float final_scale = base_scale * cfg.RelativeMultiplier;
-        return ImMax(final_scale, 0.90f); // Guard against accidental microprint
+        return ImMax(final_scale, 0.75f); // Guard against accidental microprint
     }
 
     struct TooltipConfig {
