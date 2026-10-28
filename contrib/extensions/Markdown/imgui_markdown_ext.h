@@ -421,10 +421,9 @@ namespace ImGui {
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
                 ImU32 col_u32 = ImGui::GetColorU32(bg_col);
-                // TrueType fonts include ~1px of diacritic headroom at pos.y while descenders ('p', 'g', 'y')
-                // reach pos.y + text_size.y; starting at pos.y and extending +pad_y below centers the box optically:
+                // Optically balanced rounded rectangle framing the text:
                 draw_list->AddRectFilled(
-                    ImVec2(pos.x - pad_x, pos.y),
+                    ImVec2(pos.x - pad_x, pos.y - pad_y),
                     ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
                     col_u32, rounding
                 );
@@ -615,7 +614,7 @@ namespace ImGui {
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
                 ImU32 col_u32 = ImGui::GetColorU32(bg_col);
                 draw_list->AddRectFilled(
-                    ImVec2(pos.x - pad_x, pos.y),
+                    ImVec2(pos.x - pad_x, pos.y - pad_y),
                     ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
                     col_u32, rounding
                 );
@@ -1417,7 +1416,7 @@ namespace TimedTooltip {
             
             if (no_wrap) {
                 state.perfect_size.x = raw_size.x + 2.0f * scale;
-                state.perfect_size.y = raw_size.y + 6.0f * scale;
+                state.perfect_size.y = raw_size.y + 2.0f * scale;
             } else {
                 // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
                 float final_width = raw_size.x;
@@ -1432,7 +1431,7 @@ namespace TimedTooltip {
                 // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
                 state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
                 state.perfect_size.x = final_width; 
-                state.perfect_size.y += 6.0f * scale;  // Generous headroom for pills, backdrops, and descenders
+                state.perfect_size.y += 2.0f * scale;  // Symmetric 1px top + 1px bottom headroom
             }
         }
 
