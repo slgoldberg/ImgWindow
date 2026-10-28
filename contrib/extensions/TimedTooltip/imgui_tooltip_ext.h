@@ -756,14 +756,33 @@ namespace TimedTooltip {
         if (state.perfect_size.x <= 0.0f && fmt) {
             va_list args_sz;
             va_copy(args_sz, args);
-            char sz_buf[512];
+            char sz_buf[4096];
             vsnprintf(sz_buf, sizeof(sz_buf), fmt, args_sz);
             va_end(args_sz);
-            if (config->default_wrap_width < 0.0f) {
-                state.perfect_size = ImGui::CalcTextSize(sz_buf);
+
+            ImFont* font = config->font ? config->font : ImGui::GetFont();
+            float base_font_size = 14.0f;
+            if (config->font) {
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM >= 19190
+                base_font_size = config->font->LegacySize;
+#else
+                base_font_size = config->font->FontSize;
+#endif
             } else {
-                state.perfect_size = ImGui::CalcTextSize(sz_buf, nullptr, false, wrap_limit);
+                float parent_scale = (GImGui && GImGui->CurrentWindow && GImGui->CurrentWindow->FontWindowScale > 0.0f) 
+                    ? GImGui->CurrentWindow->FontWindowScale : 1.0f;
+                base_font_size = ImGui::GetFontSize() / parent_scale;
             }
+            if (base_font_size <= 0.0f) base_font_size = 14.0f;
+            float effective_font_size = base_font_size * scale;
+
+            if (config->default_wrap_width < 0.0f) {
+                state.perfect_size = font->CalcTextSizeA(effective_font_size, FLT_MAX, -1.0f, sz_buf);
+            } else {
+                state.perfect_size = font->CalcTextSizeA(effective_font_size, FLT_MAX, wrap_limit, sz_buf);
+            }
+            state.perfect_size.x = ceilf(state.perfect_size.x);
+            state.perfect_size.y = ceilf(state.perfect_size.y);
         }
 
         bool displayed = false;
