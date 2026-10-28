@@ -1204,22 +1204,27 @@ namespace ImGui {
                 ImGui::SetWindowFontScale(font_scale);
             }
         
-        // Feed it a massive constraint if 0.0f so it doesn't word-wrap infinitely to 1 char
-        float child_width = (wrap_width > 0.0f) ? wrap_width : 99999.0f;
-        // Pass 10000.0f Y to ensure we never clip vertically during the dry run.
-        // We MUST NOT pass AlwaysAutoResize, or it will infinitely expand X and never word-wrap!
+            MarkdownConfig measure_cfg;
+            if (md_config) measure_cfg = *md_config;
+            if (wrap_width > 0.0f) measure_cfg.wrapWidth = wrap_width;
+
+            // Feed it a massive constraint if 0.0f so it doesn't word-wrap infinitely to 1 char.
+            // For wrap_width > 0, make child_width generous so the measurement harness never clips text!
+            float child_width = (wrap_width > 0.0f) ? (wrap_width + 100.0f * s) : 99999.0f;
+            // Pass 10000.0f Y to ensure we never clip vertically during the dry run.
+            // We MUST NOT pass AlwaysAutoResize, or it will infinitely expand X and never word-wrap!
 #if IMGUI_VERSION_NUM >= 18989
-        ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
+            ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
 #else
-        ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
+            ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
 #endif
-        if (font_scale > 0.0f) {
-            ImGui::SetWindowFontScale(font_scale);
-        }
-        
-        ImGui::BeginGroup();
-        MarkdownExt(markdown_text, md_config);
-        ImGui::EndGroup();
+            if (font_scale > 0.0f) {
+                ImGui::SetWindowFontScale(font_scale);
+            }
+            
+            ImGui::BeginGroup();
+            MarkdownExt(markdown_text, &measure_cfg);
+            ImGui::EndGroup();
         
         calculated_size = ImGui::GetItemRectSize();
         
@@ -1411,28 +1416,32 @@ namespace TimedTooltip {
         }
 
         if (state.perfect_size.x == 0.0f) {
-            // 1. Dry-run infinitely wide to see how small the text naturally is
-            ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, scale, &local_md);
+            // Pass 1: Dry-run unwrapped to measure the natural single-line width
+            MarkdownConfig measure_md = local_md;
+            measure_md.wrapWidth = -1.0f; // Force unconstrained single-line layout
+            ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, scale, &measure_md);
             
-            if (no_wrap) {
-                state.perfect_size.x = raw_size.x + 2.0f * scale;
-                state.perfect_size.y = raw_size.y + 2.0f * scale;
+            if (no_wrap || raw_size.x <= wrap_limit) {
+                // Short or non-wrapping content: Shrink-wrap perfectly with extra clearance so rightmost glyphs never clip!
+                state.perfect_size.x = ceilf(raw_size.x) + 4.0f * scale;
+                if (state.perfect_size.x > max_screen_w) state.perfect_size.x = max_screen_w;
+                state.perfect_size.y = raw_size.y + 2.0f * scale; // Symmetric 1px top + 1px bottom headroom
+                local_md.wrapWidth = no_wrap ? -1.0f : wrap_limit;
             } else {
-                // 2. Shrink-wrap tightly around small text, or wrap if it exceeds our wrap limit!
-                float final_width = raw_size.x;
-                if (final_width > wrap_limit) {
-                    final_width = wrap_limit;
+                // Content exceeds wrap_limit: Do Pass 2 wrapped at the STRICT wrap_limit!
+                local_md.wrapWidth = wrap_limit;
+                ImVec2 wrapped_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), wrap_limit, scale, &local_md);
+                // Give child window extra clearance beyond wrap_limit so rightmost glyphs are never clipped:
+                float content_w = ceilf(wrapped_size.x) + 4.0f * scale;
+                if (content_w < wrap_limit + 4.0f * scale) {
+                    content_w = wrap_limit + 4.0f * scale;
                 }
-                if (final_width > max_screen_w) final_width = max_screen_w;
-                
-                // ADD EPSILON TO PREVENT MID-WORD BREAKS!
-                final_width += 2.0f * scale;
-                
-                // 3. Do one final dry run with the perfect width to calculate the wrapped vertical height!
-                state.perfect_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), final_width, scale, &local_md);
-                state.perfect_size.x = final_width; 
-                state.perfect_size.y += 2.0f * scale;  // Symmetric 1px top + 1px bottom headroom
+                if (content_w > max_screen_w) content_w = max_screen_w;
+                state.perfect_size.x = content_w;
+                state.perfect_size.y = wrapped_size.y + 2.0f * scale; // Symmetric 1px top + 1px bottom headroom
             }
+        } else {
+            local_md.wrapWidth = no_wrap ? -1.0f : wrap_limit;
         }
 
         bool displayed = false;
