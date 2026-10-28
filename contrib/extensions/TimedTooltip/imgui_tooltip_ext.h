@@ -37,6 +37,59 @@ namespace TimedTooltip {
     using std::min;
     using std::max;
 
+    enum TooltipFontScalePolicy {
+        TooltipFontScale_Damped = 0,    // Default: Open-sky 1.0x floor + upper dampening curve
+        TooltipFontScale_FixedChrome,   // Strategy A: Strictly 1.0x baseline (monitor DPI only)
+        TooltipFontScale_LinearInherit  // Legacy 1:1 coupling (SetWindowFontScale(S_win))
+    };
+
+    inline TooltipFontScalePolicy& GetDefaultFontScalePolicy() {
+        static TooltipFontScalePolicy s_DefaultPolicy = TooltipFontScale_Damped;
+        return s_DefaultPolicy;
+    }
+    inline void SetDefaultFontScalePolicy(TooltipFontScalePolicy policy) {
+        GetDefaultFontScalePolicy() = policy;
+    }
+    inline void SetFontScalePolicy(TooltipFontScalePolicy policy) {
+        SetDefaultFontScalePolicy(policy);
+    }
+
+    struct TooltipFontScaleConfig {
+        TooltipFontScalePolicy Policy = TooltipFontScale_Damped;
+        float RelativeMultiplier = 1.0f; // Multiplies policy scale; floored at 0.90x
+        float AbsoluteOverride = 0.0f;   // 0.0f = auto; >0.0f = bypasses curve, clamped to [0.75f, 2.25f]
+    };
+
+    inline float CalculateEffectiveTooltipFontScale(float window_scale, const TooltipFontScaleConfig& cfg) {
+        // Channel 2: Emphatic Absolute Override (CSS !important)
+        if (cfg.AbsoluteOverride > 0.0f) {
+            return ImClamp(cfg.AbsoluteOverride, 0.75f, 2.25f);
+        }
+
+        // Channel 1: Policy Resolution
+        float base_scale = 1.0f;
+        switch (cfg.Policy) {
+            case TooltipFontScale_FixedChrome:
+                base_scale = 1.0f;
+                break;
+            case TooltipFontScale_LinearInherit:
+                base_scale = window_scale;
+                break;
+            case TooltipFontScale_Damped:
+            default:
+                if (window_scale <= 1.0f) {
+                    base_scale = 1.0f; // Roger's Open-Sky Legibility Floor
+                } else {
+                    base_scale = ImClamp(1.0f + 0.28f * (window_scale - 1.0f), 1.0f, 1.30f);
+                }
+                break;
+        }
+
+        // Apply Relative Multiplier with legibility protection
+        float final_scale = base_scale * cfg.RelativeMultiplier;
+        return ImMax(final_scale, 0.90f); // Guard against accidental microprint
+    }
+
     struct TooltipConfig {
         int hover_delay_cycles = 25;      // Low Watermark: Cycles before appearing (~0.4s at 60fps)
         int max_display_cycles = 504;     // High Watermark: Cycles before auto-hiding
@@ -52,8 +105,12 @@ namespace TimedTooltip {
         ImVec2 frame_padding = ImVec2(2.0f, 1.0f);               // Compact frame padding
         float indent_spacing = 20.0f;                            // Isolated standard indent spacing
         float bullet_spacing = 4.0f;                             // Gap between bullet glyph and text (default 4.0f)
-        float font_scale = 0.0f;                                 // 0.0f = inherit ambient font scale; >0.0f = custom window font scale
-        ImFont* font = nullptr;                                  // Custom font for tooltip overlay window (if nullptr, uses ambient)
+        
+        // Font scaling channels (v2.4 RFC):
+        TooltipFontScalePolicy font_scale_policy = TooltipFontScale_Damped; // Policy: Damped (default), FixedChrome, or LinearInherit
+        float font_scale_multiplier = 1.0f;                                // Channel 1: Relative multiplier (floored at 0.90x safety floor)
+        float font_scale = 0.0f;                                           // Channel 2: 0.0f = auto / damped; >0.0f = AbsoluteOverride [0.75f, 2.25f]
+        ImFont* font = nullptr;                                            // Custom font for tooltip overlay window (if nullptr, uses ambient)
         
         ImVec4 bg_color = ImVec4(1.0f, 0.95f, 0.6f, 1.0f);      // Yellow Sticky Note (100% opaque)
         ImVec4 border_color = ImVec4(0.8f, 0.75f, 0.4f, 1.0f);   // Slightly darker border
@@ -62,6 +119,19 @@ namespace TimedTooltip {
         void SetBgColor(ImU32 col) { bg_color = ColorConvertU32ToFloat4(col); }
         void SetBorderColor(ImU32 col) { border_color = ColorConvertU32ToFloat4(col); }
         void SetTextColor(ImU32 col) { text_color = ColorConvertU32ToFloat4(col); }
+
+        TooltipFontScaleConfig GetFontScaleConfig() const {
+            TooltipFontScaleConfig cfg;
+            cfg.Policy = font_scale_policy;
+            cfg.RelativeMultiplier = font_scale_multiplier;
+            cfg.AbsoluteOverride = font_scale;
+            return cfg;
+        }
+        void SetFontScaleConfig(const TooltipFontScaleConfig& cfg) {
+            font_scale_policy = cfg.Policy;
+            font_scale_multiplier = cfg.RelativeMultiplier;
+            font_scale = cfg.AbsoluteOverride;
+        }
     };
 
     inline const TooltipConfig*& GetDefaultTooltipConfig() {
@@ -88,20 +158,27 @@ namespace TimedTooltip {
         return GetCurrentTooltipConfig();
     }
 
-    // Resolves the active font scale: explicit config->font_scale override if set,
-    // otherwise the ambient font scale from the calling parent window:
+    // Resolves the active font scale using the v2.4 Open-Sky Damped Curve & Two-Channel Override system:
     inline float GetActiveFontScale(const TooltipConfig* config = nullptr) {
-        if (config && config->font_scale > 0.0f) {
-            return config->font_scale;
-        }
+        float window_scale = 1.0f;
         if (GImGui && GImGui->CurrentWindow) {
-            return GImGui->CurrentWindow->FontWindowScale;
+            window_scale = GImGui->CurrentWindow->FontWindowScale;
+        } else {
+            float font_size = ImGui::GetFontSize();
+            if (font_size > 0.0f) {
+                window_scale = font_size / 14.0f;
+            }
         }
-        float font_size = ImGui::GetFontSize();
-        if (font_size > 0.0f) {
-            return font_size / 14.0f;
+        if (window_scale <= 0.0f) window_scale = 1.0f;
+
+        TooltipFontScaleConfig cfg;
+        cfg.Policy = GetDefaultFontScalePolicy();
+        if (config) {
+            cfg.Policy = config->font_scale_policy;
+            cfg.RelativeMultiplier = config->font_scale_multiplier;
+            cfg.AbsoluteOverride = config->font_scale;
         }
-        return ImGui::GetIO().FontGlobalScale;
+        return CalculateEffectiveTooltipFontScale(window_scale, cfg);
     }
 
     struct TooltipState {
