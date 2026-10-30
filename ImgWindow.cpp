@@ -1012,8 +1012,9 @@ ImgWindow::updateImgui()
         XPLMGetMouseLocation(&mouseX, &mouseY);
 #endif
 
-        const bool isMouseInside = (mouseX >= mLeft && mouseX <= mRight &&
-                                    mouseY >= mBottom && mouseY <= mTop);
+        const bool isWindowInFront = IsWindowInFront();
+        const bool isMouseInside = isWindowInFront && (mouseX >= mLeft && mouseX <= mRight &&
+                                                       mouseY >= mBottom && mouseY <= mTop);
 
         const bool isInsideContent = isMouseInside &&
             !(IsInsideSim() && bHandleWndResize &&

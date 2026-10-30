@@ -198,6 +198,23 @@ namespace ImGui {
             return std::string(buf);
         }
 
+        inline bool FileExists(const std::string& path) {
+#if defined(_WIN32)
+            int wlen = MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, NULL, 0);
+            if (wlen <= 0) return false;
+            std::vector<wchar_t> wpath(wlen);
+            MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, wpath.data(), wlen);
+            DWORD dwAttrib = GetFileAttributesW(wpath.data());
+            return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+#else
+            struct stat st;
+            if (stat(path.c_str(), &st) == 0) {
+                return !S_ISDIR(st.st_mode);
+            }
+            return false;
+#endif
+        }
+
     } // namespace Detail
 
     // ========================================================================
@@ -266,6 +283,9 @@ namespace ImGui {
             char        filename_input[256] = {0};
             bool        needs_scan = true;
             std::vector<FileDialogItem> cached_items;
+            bool        was_open = false;
+            std::string pending_target;
+            std::string pending_full_path;
         };
 
         inline FileDialogState& GetDialogState(const char* title) {
@@ -276,14 +296,22 @@ namespace ImGui {
     }
 
     inline bool OpenFileDialog(const char* title, bool* is_open, std::string* out_filepath, const char* starting_dir = ".", const char* extensions = nullptr) {
-        if (!is_open || !*is_open) return false;
+        if (!is_open || !*is_open) {
+            Detail::FileDialogState& state = Detail::GetDialogState(title);
+            state.was_open = false;
+            return false;
+        }
 
         bool confirmed = false;
         Detail::FileDialogState& state = Detail::GetDialogState(title);
 
-        if (state.current_dir.empty()) {
-            state.current_dir = Detail::NormalizePath(starting_dir ? starting_dir : ".");
+        if (!state.was_open) {
+            state.current_dir = Detail::NormalizePath((starting_dir && starting_dir[0] != '\0') ? starting_dir : ".");
             state.needs_scan = true;
+            state.selected_file.clear();
+            state.filter_buf[0] = '\0';
+            state.filename_input[0] = '\0';
+            state.was_open = true;
         }
 
         ImGui::SetNextWindowSize(ImVec2(560.0f, 380.0f), ImGuiCond_FirstUseEver);
@@ -291,114 +319,149 @@ namespace ImGui {
             ImGui::OpenPopup(title);
         }
 
-        if (ImGui::BeginPopupModal(title, is_open, ImGuiWindowFlags_NoScrollbar)) {
-            // --- 1. Navigation & Path Bar ---
-            if (ImGui::Button("< Back") || ImGui::Button("Up")) {
-                state.current_dir = Detail::GetParentDirectory(state.current_dir);
-                state.needs_scan = true;
-            }
-            ImGui::SameLine();
-            ImGui::TextDisabled("Path:");
-            ImGui::SameLine();
-            ImGui::TextUnformatted(state.current_dir.c_str());
+        if (!ImGui::BeginPopupModal(title, is_open, ImGuiWindowFlags_NoScrollbar)) {
+            state.was_open = false;
+            return false;
+        }
 
-            // --- 2. Live Search Filter ---
-            ImGui::SameLine(ImGui::GetWindowWidth() - 200.0f);
-            ImGui::SetNextItemWidth(180.0f);
-            if (ImGui::InputTextWithHint("##search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
-                // Filter string updated
-            }
+        // Close on Escape
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            *is_open = false;
+            state.was_open = false;
+            ImGui::CloseCurrentPopup();
+        }
 
-            ImGui::Separator();
+        // --- 1. Navigation & Path Bar ---
+        if (ImGui::Button("< Back") || ImGui::Button("Up")) {
+            state.current_dir = Detail::GetParentDirectory(state.current_dir);
+            state.needs_scan = true;
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("Path:");
+        ImGui::SameLine();
+        ImGui::TextUnformatted(state.current_dir.c_str());
 
-            // Refresh directory cache if needed
-            if (state.needs_scan) {
-                state.cached_items = Detail::ScanDirectory(state.current_dir, extensions ? extensions : "");
-                state.needs_scan = false;
-            }
+        // --- 2. Live Search Filter ---
+        ImGui::SameLine(ImGui::GetWindowWidth() - 200.0f);
+        ImGui::SetNextItemWidth(180.0f);
+        if (ImGui::InputTextWithHint("##search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
+            // Filter string updated
+        }
 
-            // --- 3. Directory & File List Table ---
-            float table_height = ImGui::GetContentRegionAvail().y - 42.0f;
-            if (ImGui::BeginChild("##file_list", ImVec2(0.0f, table_height), true, ImGuiWindowFlags_HorizontalScrollbar)) {
-                for (const auto& item : state.cached_items) {
-                    // Filter match
-                    if (state.filter_buf[0] != '\0') {
-                        std::string lower_name = item.name;
-                        for (char& c : lower_name) c = (char)tolower((unsigned char)c);
-                        std::string lower_filter = state.filter_buf;
-                        for (char& c : lower_filter) c = (char)tolower((unsigned char)c);
-                        if (lower_name.find(lower_filter) == std::string::npos) continue;
+        ImGui::Separator();
+
+        // Refresh directory cache if needed
+        if (state.needs_scan) {
+            state.cached_items = Detail::ScanDirectory(state.current_dir, extensions ? extensions : "");
+            state.needs_scan = false;
+        }
+
+        // --- 3. Directory & File List Table ---
+        float table_height = ImGui::GetContentRegionAvail().y - 42.0f;
+        if (ImGui::BeginChild("##file_list", ImVec2(0.0f, table_height), true, ImGuiWindowFlags_HorizontalScrollbar)) {
+            for (const auto& item : state.cached_items) {
+                // Filter match
+                if (state.filter_buf[0] != '\0') {
+                    std::string lower_name = item.name;
+                    for (char& c : lower_name) c = (char)tolower((unsigned char)c);
+                    std::string lower_filter = state.filter_buf;
+                    for (char& c : lower_filter) c = (char)tolower((unsigned char)c);
+                    if (lower_name.find(lower_filter) == std::string::npos) continue;
+                }
+
+                if (item.is_directory) {
+                    // Directory entry
+                    std::string dir_label = "[DIR]  " + item.name;
+                    if (ImGui::Selectable(dir_label.c_str(), false)) {
+                        state.current_dir = item.full_path;
+                        state.needs_scan = true;
                     }
-
-                    if (item.is_directory) {
-                        // Directory entry
-                        std::string dir_label = "[DIR]  " + item.name;
-                        if (ImGui::Selectable(dir_label.c_str(), false)) {
-                            state.current_dir = item.full_path;
-                            state.needs_scan = true;
-                        }
-                    } else {
-                        // File entry
-                        bool is_sel = (state.selected_file == item.name);
-                        std::string file_label = "       " + item.name;
-                        if (ImGui::Selectable(file_label.c_str(), is_sel)) {
-                            state.selected_file = item.name;
-                            snprintf(state.filename_input, sizeof(state.filename_input), "%s", item.name.c_str());
-                        }
-                        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
-                            state.selected_file = item.name;
-                            if (out_filepath) *out_filepath = item.full_path;
-                            confirmed = true;
-                            *is_open = false;
-                            ImGui::CloseCurrentPopup();
-                        }
-                        ImGui::SameLine(ImGui::GetWindowWidth() - 90.0f);
-                        ImGui::TextDisabled("%s", Detail::FormatFileSize(item.size_bytes).c_str());
+                } else {
+                    // File entry
+                    bool is_sel = (state.selected_file == item.name);
+                    std::string file_label = "       " + item.name;
+                    if (ImGui::Selectable(file_label.c_str(), is_sel)) {
+                        state.selected_file = item.name;
+                        snprintf(state.filename_input, sizeof(state.filename_input), "%s", item.name.c_str());
                     }
+                    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
+                        state.selected_file = item.name;
+                        if (out_filepath) *out_filepath = item.full_path;
+                        confirmed = true;
+                        *is_open = false;
+                        state.was_open = false;
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::SameLine(ImGui::GetWindowWidth() - 90.0f);
+                    ImGui::TextDisabled("%s", Detail::FormatFileSize(item.size_bytes).c_str());
                 }
             }
-            ImGui::EndChild();
+        }
+        ImGui::EndChild();
 
-            ImGui::Separator();
+        ImGui::Separator();
 
-            // --- 4. Bottom Action Bar ---
-            ImGui::TextUnformatted("File:");
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 170.0f);
-            ImGui::InputText("##sel_file", state.filename_input, sizeof(state.filename_input));
-
-            ImGui::SameLine();
-            if (ImGui::Button("Open", ImVec2(75.0f, 0.0f))) {
-                if (state.filename_input[0] != '\0') {
-                    if (out_filepath) *out_filepath = state.current_dir + "/" + state.filename_input;
-                    confirmed = true;
-                    *is_open = false;
-                    ImGui::CloseCurrentPopup();
-                }
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel", ImVec2(75.0f, 0.0f))) {
+        // --- 4. Bottom Action Bar ---
+        ImGui::TextUnformatted("File:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 170.0f);
+        if (ImGui::InputText("##sel_file", state.filename_input, sizeof(state.filename_input), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (state.filename_input[0] != '\0') {
+                std::string chosen = (state.current_dir == "/") ? ("/" + std::string(state.filename_input)) : (state.current_dir + "/" + state.filename_input);
+                if (out_filepath) *out_filepath = chosen;
+                confirmed = true;
                 *is_open = false;
+                state.was_open = false;
                 ImGui::CloseCurrentPopup();
             }
-
-            ImGui::EndPopup();
         }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Open", ImVec2(75.0f, 0.0f))) {
+            if (state.filename_input[0] != '\0') {
+                std::string chosen = (state.current_dir == "/") ? ("/" + std::string(state.filename_input)) : (state.current_dir + "/" + state.filename_input);
+                if (out_filepath) *out_filepath = chosen;
+                confirmed = true;
+                *is_open = false;
+                state.was_open = false;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(75.0f, 0.0f))) {
+            *is_open = false;
+            state.was_open = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
         return confirmed;
     }
 
     inline bool SaveFileDialog(const char* title, bool* is_open, std::string* out_filepath, const char* starting_dir = ".", const char* default_filename = "", const char* extensions = nullptr) {
-        if (!is_open || !*is_open) return false;
+        if (!is_open || !*is_open) {
+            Detail::FileDialogState& state = Detail::GetDialogState(title);
+            state.was_open = false;
+            return false;
+        }
 
         bool confirmed = false;
         Detail::FileDialogState& state = Detail::GetDialogState(title);
 
-        if (state.current_dir.empty()) {
-            state.current_dir = Detail::NormalizePath(starting_dir ? starting_dir : ".");
+        if (!state.was_open) {
+            state.current_dir = Detail::NormalizePath((starting_dir && starting_dir[0] != '\0') ? starting_dir : ".");
             if (default_filename && default_filename[0] != '\0') {
                 snprintf(state.filename_input, sizeof(state.filename_input), "%s", default_filename);
+                state.selected_file = default_filename;
+            } else {
+                state.filename_input[0] = '\0';
+                state.selected_file.clear();
             }
+            state.filter_buf[0] = '\0';
+            state.pending_target.clear();
+            state.pending_full_path.clear();
             state.needs_scan = true;
+            state.was_open = true;
         }
 
         ImGui::SetNextWindowSize(ImVec2(560.0f, 380.0f), ImGuiCond_FirstUseEver);
@@ -406,78 +469,167 @@ namespace ImGui {
             ImGui::OpenPopup(title);
         }
 
-        if (ImGui::BeginPopupModal(title, is_open, ImGuiWindowFlags_NoScrollbar)) {
-            // Navigation
-            if (ImGui::Button("< Back") || ImGui::Button("Up")) {
-                state.current_dir = Detail::GetParentDirectory(state.current_dir);
-                state.needs_scan = true;
-            }
-            ImGui::SameLine();
-            ImGui::TextDisabled("Path:");
-            ImGui::SameLine();
-            ImGui::TextUnformatted(state.current_dir.c_str());
+        if (!ImGui::BeginPopupModal(title, is_open, ImGuiWindowFlags_NoScrollbar)) {
+            state.was_open = false;
+            return false;
+        }
 
-            ImGui::Separator();
+        std::string overwrite_popup_title = std::string("Confirm Overwrite##") + (title ? title : "SaveAs");
 
-            if (state.needs_scan) {
-                state.cached_items = Detail::ScanDirectory(state.current_dir, extensions ? extensions : "");
-                state.needs_scan = false;
-            }
+        // Close on Escape if overwrite modal is not open
+        if (!ImGui::IsPopupOpen(overwrite_popup_title.c_str()) && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            *is_open = false;
+            state.was_open = false;
+            ImGui::CloseCurrentPopup();
+        }
 
-            float table_height = ImGui::GetContentRegionAvail().y - 42.0f;
-            if (ImGui::BeginChild("##save_file_list", ImVec2(0.0f, table_height), true)) {
-                for (const auto& item : state.cached_items) {
-                    if (item.is_directory) {
-                        std::string dir_label = "[DIR]  " + item.name;
-                        if (ImGui::Selectable(dir_label.c_str(), false)) {
-                            state.current_dir = item.full_path;
-                            state.needs_scan = true;
-                        }
-                    } else {
-                        bool is_sel = (state.selected_file == item.name);
-                        std::string file_label = "       " + item.name;
-                        if (ImGui::Selectable(file_label.c_str(), is_sel)) {
-                            state.selected_file = item.name;
-                            snprintf(state.filename_input, sizeof(state.filename_input), "%s", item.name.c_str());
-                        }
+        // Helper to attempt save (with overwrite check)
+        auto try_save = [&]() {
+            if (state.filename_input[0] != '\0') {
+                std::string target = state.filename_input;
+                // Auto-append primary extension if missing and an extension filter is provided
+                if (extensions && extensions[0] != '\0' && target.find('.') == std::string::npos) {
+                    std::string first_ext = extensions;
+                    size_t sep = first_ext.find_first_of(";, ");
+                    if (sep != std::string::npos) first_ext = first_ext.substr(0, sep);
+                    while (!first_ext.empty() && first_ext.front() == '*') first_ext.erase(0, 1);
+                    if (!first_ext.empty() && first_ext != "." && first_ext != ".*") {
+                        if (first_ext.front() != '.') first_ext = "." + first_ext;
+                        target += first_ext;
                     }
                 }
-            }
-            ImGui::EndChild();
-
-            ImGui::Separator();
-
-            ImGui::TextUnformatted("Save As:");
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 170.0f);
-            ImGui::InputText("##save_filename", state.filename_input, sizeof(state.filename_input));
-
-            ImGui::SameLine();
-            if (ImGui::Button("Save", ImVec2(75.0f, 0.0f))) {
-                if (state.filename_input[0] != '\0') {
-                    std::string target = state.filename_input;
-                    // Auto-append primary extension if missing and an extension filter is provided
-                    if (extensions && extensions[0] != '\0' && target.find('.') == std::string::npos) {
-                        std::string first_ext = extensions;
-                        size_t sep = first_ext.find_first_of(";, ");
-                        if (sep != std::string::npos) first_ext = first_ext.substr(0, sep);
-                        if (!first_ext.empty() && first_ext.front() != '.') first_ext = "." + first_ext;
-                        if (first_ext != ".*") target += first_ext;
-                    }
-                    if (out_filepath) *out_filepath = state.current_dir + "/" + target;
+                std::string full_path = (state.current_dir == "/") ? ("/" + target) : (state.current_dir + "/" + target);
+                if (Detail::FileExists(full_path)) {
+                    state.pending_target = target;
+                    state.pending_full_path = full_path;
+                    ImGui::OpenPopup(overwrite_popup_title.c_str());
+                } else {
+                    if (out_filepath) *out_filepath = full_path;
                     confirmed = true;
                     *is_open = false;
+                    state.was_open = false;
                     ImGui::CloseCurrentPopup();
                 }
             }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel", ImVec2(75.0f, 0.0f))) {
-                *is_open = false;
-                ImGui::CloseCurrentPopup();
-            }
+        };
 
+        // --- 1. Navigation & Path Bar ---
+        if (ImGui::Button("< Back") || ImGui::Button("Up")) {
+            state.current_dir = Detail::GetParentDirectory(state.current_dir);
+            state.needs_scan = true;
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("Path:");
+        ImGui::SameLine();
+        ImGui::TextUnformatted(state.current_dir.c_str());
+
+        // --- 2. Live Search Filter ---
+        ImGui::SameLine(ImGui::GetWindowWidth() - 200.0f);
+        ImGui::SetNextItemWidth(180.0f);
+        if (ImGui::InputTextWithHint("##save_search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
+            // Filter updated
+        }
+
+        ImGui::Separator();
+
+        if (state.needs_scan) {
+            state.cached_items = Detail::ScanDirectory(state.current_dir, extensions ? extensions : "");
+            state.needs_scan = false;
+        }
+
+        // --- 3. Directory & File List Table ---
+        float table_height = ImGui::GetContentRegionAvail().y - 42.0f;
+        if (ImGui::BeginChild("##save_file_list", ImVec2(0.0f, table_height), true, ImGuiWindowFlags_HorizontalScrollbar)) {
+            for (const auto& item : state.cached_items) {
+                // Filter match
+                if (state.filter_buf[0] != '\0') {
+                    std::string lower_name = item.name;
+                    for (char& c : lower_name) c = (char)tolower((unsigned char)c);
+                    std::string lower_filter = state.filter_buf;
+                    for (char& c : lower_filter) c = (char)tolower((unsigned char)c);
+                    if (lower_name.find(lower_filter) == std::string::npos) continue;
+                }
+
+                if (item.is_directory) {
+                    std::string dir_label = "[DIR]  " + item.name;
+                    if (ImGui::Selectable(dir_label.c_str(), false)) {
+                        state.current_dir = item.full_path;
+                        state.needs_scan = true;
+                    }
+                } else {
+                    bool is_sel = (state.selected_file == item.name);
+                    std::string file_label = "       " + item.name;
+                    if (ImGui::Selectable(file_label.c_str(), is_sel)) {
+                        state.selected_file = item.name;
+                        snprintf(state.filename_input, sizeof(state.filename_input), "%s", item.name.c_str());
+                    }
+                    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
+                        state.selected_file = item.name;
+                        snprintf(state.filename_input, sizeof(state.filename_input), "%s", item.name.c_str());
+                        try_save();
+                    }
+                    ImGui::SameLine(ImGui::GetWindowWidth() - 90.0f);
+                    ImGui::TextDisabled("%s", Detail::FormatFileSize(item.size_bytes).c_str());
+                }
+            }
+        }
+        ImGui::EndChild();
+
+        ImGui::Separator();
+
+        // --- 4. Bottom Action Bar ---
+        ImGui::TextUnformatted("Save As:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 170.0f);
+        if (ImGui::InputText("##save_filename", state.filename_input, sizeof(state.filename_input), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            try_save();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Save", ImVec2(75.0f, 0.0f))) {
+            try_save();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(75.0f, 0.0f))) {
+            *is_open = false;
+            state.was_open = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        // --- 5. Overwrite Confirmation Modal ---
+        bool close_parent = false;
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        if (ImGui::BeginPopupModal(overwrite_popup_title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Spacing();
+            ImGui::Text("A file named \"%s\" already exists.", state.pending_target.c_str());
+            ImGui::TextUnformatted("Do you want to replace it?");
+            ImGui::Spacing();
+            ImGui::TextDisabled("Replacing it will overwrite its current contents.");
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            if (ImGui::Button("Overwrite", ImVec2(90.0f, 0.0f))) {
+                if (out_filepath) *out_filepath = state.pending_full_path;
+                confirmed = true;
+                *is_open = false;
+                state.was_open = false;
+                ImGui::CloseCurrentPopup(); // Closes Confirm Overwrite modal
+                close_parent = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(90.0f, 0.0f)) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                ImGui::CloseCurrentPopup(); // Closes Confirm Overwrite modal only
+            }
+            ImGui::SetItemDefaultFocus();
             ImGui::EndPopup();
         }
+
+        if (close_parent) {
+            ImGui::CloseCurrentPopup(); // Closes SaveFileDialog modal
+        }
+
+        ImGui::EndPopup();
         return confirmed;
     }
 

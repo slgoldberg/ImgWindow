@@ -208,22 +208,23 @@ namespace TimedTooltip {
     }
 
     inline std::unordered_map<ImGuiID, TooltipState>& GetTooltipStateMap() {
-        static std::unordered_map<ImGuiID, TooltipState> s_TooltipStates;
-        return s_TooltipStates;
+        static std::unordered_map<ImGuiContext*, std::unordered_map<ImGuiID, TooltipState>> s_PerContextTooltipStates;
+        return s_PerContextTooltipStates[ImGui::GetCurrentContext()];
     }
 
     // Forcefully dismisses the currently active tooltip (useful for UI state changes/loading screens)
     inline void ClearActiveTooltip() {
         ImGuiID active_id = GetActiveTooltipID();
+        auto& state_map = GetTooltipStateMap();
         if (active_id != 0) {
-            TooltipState& state = GetTooltipStateMap()[active_id];
+            TooltipState& state = state_map[active_id];
             state.is_displayed = false;
             state.hover_cycles = 0;
             state.unhover_grace_cycles = 0;
             state.is_cooldown = false;
             GetActiveTooltipID() = 0;
         }
-        for (auto& kv : GetTooltipStateMap()) {
+        for (auto& kv : state_map) {
             if (kv.second.is_displayed || kv.second.hover_cycles > 0) {
                 kv.second.is_displayed = false;
                 kv.second.hover_cycles = 0;
@@ -315,7 +316,7 @@ namespace TimedTooltip {
         } else {
             if (state.is_displayed) {
                 state.unhover_grace_cycles++;
-                if (preempted_by_other_widget || state.unhover_grace_cycles > config->grace_period_cycles) {
+                if (preempted_by_other_widget || state.unhover_grace_cycles > config->grace_period_cycles || io.MousePos.x <= -FLT_MAX * 0.5f) {
                     state.is_displayed = false;
                     if (GetActiveTooltipID() == hash_id) GetActiveTooltipID() = 0;
                     state.hover_cycles = 0;
