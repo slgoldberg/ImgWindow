@@ -102,15 +102,12 @@ inline IMGUI_API float GetFontScale (bool useParent = false)
 }
 #endif
 
-// Configure whether or not to use "[]" for links, or the alternative "{}":
-#define USE_CURLY_BRACKETS	 /* comment out to use standard [] for links */
-#ifdef USE_CURLY_BRACKETS
-#define MD_SQUARE_BRACKET_OPEN '{'
-#define MD_SQUARE_BRACKET_CLOSE '}'
-#else /* USE SQUARE BRACKETS: */
+// Supported link delimiters:
+// ImGee natively supports BOTH standard CommonMark [...] and legacy/alternative {...} brackets simultaneously.
 #define MD_SQUARE_BRACKET_OPEN '['
 #define MD_SQUARE_BRACKET_CLOSE ']'
-#endif
+#define MD_CURLY_BRACKET_OPEN '{'
+#define MD_CURLY_BRACKET_CLOSE '}'
 
 namespace ImGui
 {
@@ -534,6 +531,7 @@ namespace ImGui
         TextBlock url;
         bool isImage = false;
         int num_brackets_open = 0;
+        char openBracketChar = 0;
     };
 
 	struct Emphasis {
@@ -2011,9 +2009,10 @@ namespace ImGui
             switch( link.state )
             {
             case Link::NO_LINK:
-                if( c == MD_SQUARE_BRACKET_OPEN && !line.isHeading )
+                if( ( c == '[' || c == '{' ) && !line.isHeading )
                 {
                     link.state = Link::HAS_SQUARE_BRACKET_OPEN;
+                    link.openBracketChar = c;
                     link.text.start = i + 1;
                     if( i > 0 && markdown_[i - 1] == '!' )
                     {
@@ -2022,10 +2021,13 @@ namespace ImGui
                 }
                 break;
             case Link::HAS_SQUARE_BRACKET_OPEN:
-                if( c == MD_SQUARE_BRACKET_CLOSE )
                 {
-                    link.state = Link::HAS_SQUARE_BRACKETS;
-                    link.text.stop = i;
+                    char expectedClose = ( link.openBracketChar == '{' ) ? '}' : ']';
+                    if( c == expectedClose )
+                    {
+                        link.state = Link::HAS_SQUARE_BRACKETS;
+                        link.text.stop = i;
+                    }
                 }
                 break;
             case Link::HAS_SQUARE_BRACKETS:
@@ -2034,6 +2036,21 @@ namespace ImGui
                     link.state = Link::HAS_SQUARE_BRACKETS_ROUND_BRACKET_OPEN;
                     link.url.start = i + 1;
                     link.num_brackets_open = 1;
+                }
+                else
+                {
+                    // If not immediately followed by '(', reset link state:
+                    link = Link();
+                    if( ( c == '[' || c == '{' ) && !line.isHeading )
+                    {
+                        link.state = Link::HAS_SQUARE_BRACKET_OPEN;
+                        link.openBracketChar = c;
+                        link.text.start = i + 1;
+                        if( i > 0 && markdown_[i - 1] == '!' )
+                        {
+                            link.isImage = true;
+                        }
+                    }
                 }
                 break;
             case Link::HAS_SQUARE_BRACKETS_ROUND_BRACKET_OPEN:
