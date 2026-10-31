@@ -2152,12 +2152,29 @@ namespace ImGui
         {
             float avail = ImGui::GetContentRegionAvail().x;
             float text_w = TableDetail::CalcCellVisualWidth( cell, is_header, mdConfig_ );
-            if( text_w < avail )
+            float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+            float pad_right = ImMax( 6.0f * scale, ImGui::GetStyle().CellPadding.x + 2.0f * scale );
+
+            if( align == TableColumnAlign::RIGHT )
             {
-                float offset = ( align == TableColumnAlign::RIGHT ) ? ( avail - text_w ) : ( ( avail - text_w ) * 0.5f );
-                if( offset > 0.0f )
+                if( text_w + pad_right < avail )
                 {
-                    ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
+                    float offset = avail - text_w - pad_right;
+                    if( offset > 0.0f )
+                    {
+                        ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
+                    }
+                }
+            }
+            else // CENTER
+            {
+                if( text_w < avail )
+                {
+                    float offset = ( avail - text_w ) * 0.5f;
+                    if( offset > 0.0f )
+                    {
+                        ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
+                    }
                 }
             }
         }
@@ -2212,14 +2229,40 @@ namespace ImGui
         }
 
         float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+
+        // 1. Measure natural content width for each column to prevent 100% window width blowout
+        float total_content_w = 0.0f;
+        std::vector<float> col_widths( num_cols, 0.0f );
+        for( size_t col = 0; col < num_cols; ++col )
+        {
+            TableCell h_cell = ( col < headers.size() ) ? headers[col] : TableCell();
+            float max_w = TableDetail::CalcCellVisualWidth( h_cell, true, mdConfig_ );
+            for( size_t r = 0; r < rows.size(); ++r )
+            {
+                if( col < rows[r].size() )
+                {
+                    float cw = TableDetail::CalcCellVisualWidth( rows[r][col], false, mdConfig_ );
+                    if( cw > max_w ) max_w = cw;
+                }
+            }
+            // Add padding: left + right cell padding + extra breathing room
+            max_w += ImGui::GetStyle().CellPadding.x * 2.0f + 16.0f * scale;
+            if( max_w < 30.0f * scale ) max_w = 30.0f * scale;
+            col_widths[col] = max_w;
+            total_content_w += max_w;
+        }
+
+        float avail_w = ( mdConfig_.wrapWidth > 0.0f ) ? mdConfig_.wrapWidth : ImGui::GetContentRegionAvail().x;
+        float table_w = ( avail_w > 0.0f ) ? ImMin( total_content_w, avail_w ) : total_content_w;
+
         ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
 
-        if( ImGui::BeginTable( table_id, (int)num_cols, flags ) )
+        if( ImGui::BeginTable( table_id, (int)num_cols, flags, ImVec2( table_w, 0.0f ) ) )
         {
-            // 1. Setup column headers
+            // 1. Setup column headers with proportional stretch weights based on content
             for( size_t col = 0; col < num_cols; ++col )
             {
-                ImGui::TableSetupColumn( "##col", ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( "##col", ImGuiTableColumnFlags_WidthStretch, col_widths[col] );
             }
 
             // 2. Submit Header Row
