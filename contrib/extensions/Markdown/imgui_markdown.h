@@ -7,6 +7,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <string>
+#include <vector>
 #include <cmath>
 #include "imgui_internal.h"
 
@@ -104,6 +105,8 @@ inline IMGUI_API float GetFontScale (bool useParent = false)
 
 // Supported link delimiters:
 // ImGee natively supports BOTH standard CommonMark [...] and legacy/alternative {...} brackets simultaneously.
+// Define IMGUI_MARKDOWN_DELIMITER_CURLY_ONLY (or CONTRIB_MARKDOWN_CURLY_ONLY) to strictly require {...} brackets,
+// preserving unescaped square brackets [...] as literal text without needing backslash escapes.
 #define MD_SQUARE_BRACKET_OPEN '['
 #define MD_SQUARE_BRACKET_CLOSE ']'
 #define MD_CURLY_BRACKET_OPEN '{'
@@ -187,6 +190,15 @@ namespace ImGui
     }
 
     typedef MarkdownImageData   MarkdownImageCallback( MarkdownLinkCallbackData data );
+
+    inline MarkdownImageCallback*& GetDefaultMarkdownImageCallback() {
+        static MarkdownImageCallback* s_DefaultImageCallback = nullptr;
+        return s_DefaultImageCallback;
+    }
+
+    inline void SetDefaultMarkdownImageCallback(MarkdownImageCallback* callback) {
+        GetDefaultMarkdownImageCallback() = callback;
+    }
     typedef void                MarkdownFormalCallback( const MarkdownFormatInfo& markdownFormatInfo_, bool start_ );
 
     inline void defaultMarkdownFormatCallback( const MarkdownFormatInfo& markdownFormatInfo_, bool start_ );
@@ -242,6 +254,7 @@ namespace ImGui
         MarkdownFormalCallback* formatCallback = defaultMarkdownFormatCallback;
         float                   bulletSpacing = 0.0f;               // 0.0f = default (4.0f); > 0.0f = custom gap between bullet and text
         float                   wrapWidth = 0.0f;                   // 0.0f = wrap at GetContentRegionAvail().x; > 0.0f = explicit wrap width; < 0.0f = no word-wrap (single line per \n)
+        ImGuiTableFlags         tableFlags = 0;                     // Optional table flags override (0 = default GFM styling: Borders | RowBg | SizingStretchProp | NoSavedSettings)
 
         // Semantic font aliases (if set, takes priority over headingFormats):
         ImFont*                 h1Font = nullptr;                   // If nullptr, falls back to headingFormats[0].font
@@ -1607,6 +1620,436 @@ namespace ImGui
         ImGui::SetCursorScreenPos( ImVec2( start_pos.x, box_max.y ) );
         ImGui::Dummy( ImVec2( block_width, 4.0f * scale ) );
     }
+
+    //-----------------------------------------------------------------------------
+    // GitHub Flavored Markdown (GFM) Tables
+    //-----------------------------------------------------------------------------
+
+    enum class TableColumnAlign
+    {
+        LEFT,
+        CENTER,
+        RIGHT
+    };
+
+    struct TableCell
+    {
+        const char* start = nullptr;
+        const char* end = nullptr;
+
+        size_t size() const { return ( end >= start ) ? (size_t)( end - start ) : 0; }
+        bool empty() const { return size() == 0; }
+    };
+
+    namespace TableDetail
+    {
+        inline bool SplitRow( const char* line_start, const char* line_end, std::vector<TableCell>& out_cells )
+        {
+            out_cells.clear();
+            if( !line_start || line_start >= line_end ) return false;
+
+            // 1. Trim leading spaces/tabs
+            while( line_start < line_end && ( *line_start == ' ' || *line_start == '\t' ) ) ++line_start;
+            // 2. Trim trailing spaces/tabs/newlines
+            while( line_end > line_start && ( line_end[-1] == ' ' || line_end[-1] == '\t' || line_end[-1] == '\r' || line_end[-1] == '\n' ) ) --line_end;
+
+            if( line_start >= line_end ) return false;
+
+            // 3. Skip optional leading '|'
+            if( *line_start == '|' )
+            {
+                ++line_start;
+            }
+
+            // 4. Strip optional trailing '|' (must not be escaped with '\')
+            if( line_end > line_start && line_end[-1] == '|' )
+            {
+                bool is_escaped = false;
+                const char* check = line_end - 2;
+                while( check >= line_start && *check == '\\' )
+                {
+                    is_escaped = !is_escaped;
+                    --check;
+                }
+                if( !is_escaped )
+                {
+                    --line_end;
+                }
+            }
+
+            // 5. Scan cells split by unescaped '|' (respecting backticks)
+            const char* cell_start = line_start;
+            bool in_code = false;
+            bool is_escaped = false;
+
+            for( const char* p = line_start; p < line_end; ++p )
+            {
+                char c = *p;
+                if( is_escaped )
+                {
+                    is_escaped = false;
+                    continue;
+                }
+                if( c == '\\' )
+                {
+                    is_escaped = true;
+                    continue;
+                }
+                if( c == '`' )
+                {
+                    in_code = !in_code;
+                    continue;
+                }
+                if( c == '|' && !in_code )
+                {
+                    const char* cs = cell_start;
+                    const char* ce = p;
+                    while( cs < ce && ( *cs == ' ' || *cs == '\t' ) ) ++cs;
+                    while( ce > cs && ( ce[-1] == ' ' || ce[-1] == '\t' ) ) --ce;
+                    TableCell cell;
+                    cell.start = cs;
+                    cell.end = ce;
+                    out_cells.push_back( cell );
+                    cell_start = p + 1;
+                }
+            }
+
+            // Final cell
+            const char* cs = cell_start;
+            const char* ce = line_end;
+            while( cs < ce && ( *cs == ' ' || *cs == '\t' ) ) ++cs;
+            while( ce > cs && ( ce[-1] == ' ' || ce[-1] == '\t' ) ) --ce;
+            TableCell last_cell;
+            last_cell.start = cs;
+            last_cell.end = ce;
+            out_cells.push_back( last_cell );
+
+            return !out_cells.empty();
+        }
+
+        inline bool ParseDelimiterCell( const TableCell& cell, TableColumnAlign& out_align )
+        {
+            if( cell.empty() ) return false;
+            const char* start = cell.start;
+            const char* end = cell.end;
+
+            while( start < end && ( *start == ' ' || *start == '\t' ) ) ++start;
+            while( end > start && ( end[-1] == ' ' || end[-1] == '\t' ) ) --end;
+            if( start >= end ) return false;
+
+            bool left_colon = ( *start == ':' );
+            if( left_colon ) ++start;
+
+            bool right_colon = ( end > start && end[-1] == ':' );
+            if( right_colon ) --end;
+
+            if( start >= end ) return false; // Must have at least one hyphen
+
+            for( const char* k = start; k < end; ++k )
+            {
+                if( *k != '-' ) return false;
+            }
+
+            if( left_colon && right_colon )
+            {
+                out_align = TableColumnAlign::CENTER;
+            }
+            else if( right_colon )
+            {
+                out_align = TableColumnAlign::RIGHT;
+            }
+            else
+            {
+                out_align = TableColumnAlign::LEFT;
+            }
+            return true;
+        }
+
+        inline bool ParseDelimiterRow( const char* line_start, const char* line_end, std::vector<TableColumnAlign>& out_alignments )
+        {
+            out_alignments.clear();
+            std::vector<TableCell> cells;
+            if( !SplitRow( line_start, line_end, cells ) || cells.empty() ) return false;
+
+            for( size_t i = 0; i < cells.size(); ++i )
+            {
+                TableColumnAlign align;
+                if( !ParseDelimiterCell( cells[i], align ) )
+                {
+                    out_alignments.clear();
+                    return false;
+                }
+                out_alignments.push_back( align );
+            }
+            return true;
+        }
+
+        inline bool CheckLineHasPipe( const char* line_start, const char* line_end )
+        {
+            bool in_code = false;
+            bool is_escaped = false;
+            for( const char* p = line_start; p < line_end; ++p )
+            {
+                char c = *p;
+                if( is_escaped ) { is_escaped = false; continue; }
+                if( c == '\\' ) { is_escaped = true; continue; }
+                if( c == '`' ) { in_code = !in_code; continue; }
+                if( c == '|' && !in_code ) return true;
+            }
+            return false;
+        }
+
+        inline int FindLineEnd( const char* md, int start, int len )
+        {
+            int pos = start;
+            while( pos < len && md[pos] != '\r' && md[pos] != '\n' )
+            {
+                ++pos;
+            }
+            return pos;
+        }
+
+        inline int SkipNewline( const char* md, int line_end, int len )
+        {
+            int pos = line_end;
+            if( pos < len && md[pos] == '\r' && pos + 1 < len && md[pos + 1] == '\n' )
+            {
+                return pos + 2;
+            }
+            else if( pos < len && ( md[pos] == '\r' || md[pos] == '\n' ) )
+            {
+                return pos + 1;
+            }
+            return pos;
+        }
+
+        // Checks if current line is the start of a GFM Markdown Table.
+        // Returns the end byte offset of the table if valid, or -1 if not a table.
+        inline int TryParseTable(
+            const char* md, int md_len, int line_start,
+            std::vector<TableCell>& out_headers,
+            std::vector<TableColumnAlign>& out_alignments,
+            std::vector<std::vector<TableCell>>& out_rows )
+        {
+            out_headers.clear();
+            out_alignments.clear();
+            out_rows.clear();
+
+            // 1. Current line (Header row candidate)
+            int line1_end = FindLineEnd( md, line_start, md_len );
+            if( !CheckLineHasPipe( md + line_start, md + line1_end ) )
+            {
+                return -1;
+            }
+
+            // 2. Next line (Delimiter row candidate)
+            int line2_start = SkipNewline( md, line1_end, md_len );
+            if( line2_start >= md_len ) return -1;
+
+            int line2_lead_spaces = 0;
+            while( line2_start + line2_lead_spaces < md_len && 
+                   ( md[line2_start + line2_lead_spaces] == ' ' || md[line2_start + line2_lead_spaces] == '\t' ) )
+            {
+                line2_lead_spaces += ( md[line2_start + line2_lead_spaces] == '\t' ) ? 4 : 1;
+            }
+            if( line2_lead_spaces > 3 ) return -1;
+
+            int line2_end = FindLineEnd( md, line2_start, md_len );
+            if( !ParseDelimiterRow( md + line2_start, md + line2_end, out_alignments ) || out_alignments.empty() )
+            {
+                return -1;
+            }
+
+            if( !SplitRow( md + line_start, md + line1_end, out_headers ) || out_headers.empty() )
+            {
+                return -1;
+            }
+
+            size_t num_cols = out_alignments.size();
+            while( out_headers.size() < num_cols )
+            {
+                TableCell empty_cell;
+                empty_cell.start = md + line1_end;
+                empty_cell.end = md + line1_end;
+                out_headers.push_back( empty_cell );
+            }
+            if( out_headers.size() > num_cols )
+            {
+                out_headers.resize( num_cols );
+            }
+
+            // 3. Subsequent Data Rows
+            int cur_line_start = SkipNewline( md, line2_end, md_len );
+            int table_end = line2_end;
+
+            while( cur_line_start < md_len )
+            {
+                int cur_line_end = FindLineEnd( md, cur_line_start, md_len );
+
+                bool is_blank = true;
+                for( int k = cur_line_start; k < cur_line_end; ++k )
+                {
+                    if( md[k] != ' ' && md[k] != '\t' && md[k] != '\r' )
+                    {
+                        is_blank = false;
+                        break;
+                    }
+                }
+                if( is_blank )
+                {
+                    break;
+                }
+
+                int lead_sp = 0;
+                while( cur_line_start + lead_sp < cur_line_end && ( md[cur_line_start + lead_sp] == ' ' || md[cur_line_start + lead_sp] == '\t' ) )
+                {
+                    ++lead_sp;
+                }
+                char first_c = ( cur_line_start + lead_sp < cur_line_end ) ? md[cur_line_start + lead_sp] : '\0';
+
+                // Heading or code fence interrupts table
+                if( first_c == '#' || first_c == '`' || first_c == '~' )
+                {
+                    break;
+                }
+
+                if( !CheckLineHasPipe( md + cur_line_start, md + cur_line_end ) )
+                {
+                    break;
+                }
+
+                std::vector<TableCell> row_cells;
+                if( SplitRow( md + cur_line_start, md + cur_line_end, row_cells ) )
+                {
+                    while( row_cells.size() < num_cols )
+                    {
+                        TableCell empty_cell;
+                        empty_cell.start = md + cur_line_end;
+                        empty_cell.end = md + cur_line_end;
+                        row_cells.push_back( empty_cell );
+                    }
+                    if( row_cells.size() > num_cols )
+                    {
+                        row_cells.resize( num_cols );
+                    }
+                    out_rows.push_back( row_cells );
+                }
+
+                table_end = cur_line_end;
+                cur_line_start = SkipNewline( md, cur_line_end, md_len );
+            }
+
+            return table_end;
+        }
+    } // namespace TableDetail
+
+    inline void RenderTableCell( const TableCell& cell, TableColumnAlign align, bool is_header, const MarkdownConfig& mdConfig_ )
+    {
+        if( cell.empty() )
+        {
+            return;
+        }
+
+        // Apply alignment offset if CENTER or RIGHT
+        if( align == TableColumnAlign::CENTER || align == TableColumnAlign::RIGHT )
+        {
+            float avail = ImGui::GetContentRegionAvail().x;
+            float text_w = ImGui::CalcTextSize( cell.start, cell.end ).x;
+            if( text_w < avail )
+            {
+                float offset = ( align == TableColumnAlign::RIGHT ) ? ( avail - text_w ) : ( ( avail - text_w ) * 0.5f );
+                if( offset > 0.0f )
+                {
+                    ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
+                }
+            }
+        }
+
+        bool pushed_font = false;
+        if( is_header )
+        {
+            if( mdConfig_.boldFont )
+            {
+                ImGui::PushFont( mdConfig_.boldFont );
+                pushed_font = true;
+            }
+            else if( mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font )
+            {
+                ImGui::PushFont( mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font );
+                pushed_font = true;
+            }
+        }
+
+        MarkdownConfig cell_config = mdConfig_;
+        cell_config.wrapWidth = 0.0f; // Wrap within the column bounds
+        Markdown::Render( cell.start, cell.size(), cell_config );
+
+        if( pushed_font )
+        {
+            ImGui::PopFont();
+        }
+    }
+
+    inline void RenderTableBlock(
+        const std::vector<TableCell>& headers,
+        const std::vector<TableColumnAlign>& alignments,
+        const std::vector<std::vector<TableCell>>& rows,
+        const MarkdownConfig& mdConfig_,
+        size_t table_idx )
+    {
+        size_t num_cols = alignments.size();
+        if( num_cols == 0 ) return;
+
+        char table_id[32];
+        snprintf( table_id, sizeof(table_id), "##md_table_%d", (int)table_idx );
+
+        ImGuiTableFlags flags = mdConfig_.tableFlags;
+        if( flags == 0 )
+        {
+            flags = ImGuiTableFlags_Borders | 
+                    ImGuiTableFlags_RowBg | 
+                    ImGuiTableFlags_SizingStretchProp | 
+                    ImGuiTableFlags_NoSavedSettings;
+        }
+
+        float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+        ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
+
+        if( ImGui::BeginTable( table_id, (int)num_cols, flags ) )
+        {
+            // 1. Setup column headers
+            for( size_t col = 0; col < num_cols; ++col )
+            {
+                ImGui::TableSetupColumn( "##col", ImGuiTableColumnFlags_WidthStretch );
+            }
+
+            // 2. Submit Header Row
+            ImGui::TableNextRow( ImGuiTableRowFlags_Headers );
+            for( size_t col = 0; col < num_cols; ++col )
+            {
+                if( !ImGui::TableSetColumnIndex( (int)col ) ) continue;
+                TableCell h_cell = ( col < headers.size() ) ? headers[col] : TableCell();
+                RenderTableCell( h_cell, alignments[col], true, mdConfig_ );
+            }
+
+            // 3. Submit Data Rows
+            for( size_t r = 0; r < rows.size(); ++r )
+            {
+                ImGui::TableNextRow();
+                const std::vector<TableCell>& row = rows[r];
+                for( size_t col = 0; col < num_cols; ++col )
+                {
+                    if( !ImGui::TableSetColumnIndex( (int)col ) ) continue;
+                    TableCell c_cell = ( col < row.size() ) ? row[col] : TableCell();
+                    RenderTableCell( c_cell, alignments[col], false, mdConfig_ );
+                }
+            }
+
+            ImGui::EndTable();
+        }
+
+        ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
+    }
     
     // render markdown (low-level rendering pipeline)
     namespace Markdown
@@ -1620,6 +2063,7 @@ namespace ImGui
         TextRegion  textRegion;
         textRegion.wrapWidth = mdConfig_.wrapWidth;
         size_t      code_block_idx = 0;
+        size_t      table_idx = 0;
         bool        lastWasSeparator = false;
         bool        lastWasBlankLine = false;
 
@@ -1646,6 +2090,36 @@ namespace ImGui
                 {
                     line.isLeadingSpace = false;
                     line.lastRenderPosition = i - 1;
+
+                    // GitHub Flavored Markdown (GFM) Section 4.10: Tables
+                    if( line.leadSpaceCount <= 3 )
+                    {
+                        std::vector<TableCell> headers;
+                        std::vector<TableColumnAlign> alignments;
+                        std::vector<std::vector<TableCell>> rows;
+                        int table_end = TableDetail::TryParseTable(
+                            markdown_, (int)markdownLength_, i,
+                            headers, alignments, rows );
+                        if( table_end > i )
+                        {
+                            RenderTableBlock( headers, alignments, rows, mdConfig_, table_idx++ );
+
+                            textRegion.ResetIndent();
+                            lastWasSeparator = false;
+                            lastWasBlankLine = false;
+
+                            int next_pos = TableDetail::SkipNewline( markdown_, table_end, (int)markdownLength_ );
+
+                            line = Line();
+                            line.isLeadingSpace = true;
+                            line.lineStart = next_pos;
+                            line.lastRenderPosition = next_pos - 1;
+                            em = Emphasis();
+                            link = Link();
+                            i = next_pos - 1;
+                            continue;
+                        }
+                    }
 
                     // CommonMark Section 4.1: Thematic breaks
                     // A line with 0-3 leading spaces, consisting solely of 3 or more matching '-', '*', or '_'
@@ -2009,7 +2483,11 @@ namespace ImGui
             switch( link.state )
             {
             case Link::NO_LINK:
+#if defined(IMGUI_MARKDOWN_DELIMITER_CURLY_ONLY) || defined(CONTRIB_MARKDOWN_CURLY_ONLY)
+                if( c == '{' && !line.isHeading )
+#else
                 if( ( c == '[' || c == '{' ) && !line.isHeading )
+#endif
                 {
                     link.state = Link::HAS_SQUARE_BRACKET_OPEN;
                     link.openBracketChar = c;
@@ -2041,7 +2519,11 @@ namespace ImGui
                 {
                     // If not immediately followed by '(', reset link state:
                     link = Link();
+#if defined(IMGUI_MARKDOWN_DELIMITER_CURLY_ONLY) || defined(CONTRIB_MARKDOWN_CURLY_ONLY)
+                    if( c == '{' && !line.isHeading )
+#else
                     if( ( c == '[' || c == '{' ) && !line.isHeading )
+#endif
                     {
                         link.state = Link::HAS_SQUARE_BRACKET_OPEN;
                         link.openBracketChar = c;
@@ -2092,9 +2574,10 @@ namespace ImGui
                     {
                         bool drawnImage = false;
                         bool useLinkCallback = false;
-                        if( mdConfig_.imageCallback )
+                        MarkdownImageCallback* imageCb = mdConfig_.imageCallback ? mdConfig_.imageCallback : GetDefaultMarkdownImageCallback();
+                        if( imageCb )
                         {
-                            MarkdownImageData imageData = mdConfig_.imageCallback( { markdown_ + link.text.start, link.text.size(), markdown_ + link.url.start, link.url.size(), mdConfig_.userData, true } );
+                            MarkdownImageData imageData = imageCb( { markdown_ + link.text.start, link.text.size(), markdown_ + link.url.start, link.url.size(), mdConfig_.userData, true } );
                             useLinkCallback = imageData.useLinkCallback;
                             if( imageData.isValid )
                             {

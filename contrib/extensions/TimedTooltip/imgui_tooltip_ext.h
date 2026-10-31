@@ -163,13 +163,16 @@ namespace TimedTooltip {
     // Resolves the active font scale using the v2.4 Open-Sky Damped Curve & Two-Channel Override system:
     inline float GetActiveFontScale(const TooltipConfig* config = nullptr) {
         float window_scale = 1.0f;
+        float base_font_size = ImGui::GetFontSize();
+        float font_scale = (base_font_size > 0.0f) ? (base_font_size / 14.0f) : 1.0f;
+
         if (GImGui && GImGui->CurrentWindow) {
-            window_scale = GImGui->CurrentWindow->FontWindowScale;
+            float zoom = GImGui->CurrentWindow->FontWindowScale;
+            if (zoom <= 0.0f) zoom = 1.0f;
+            // Both channels active: font size ratio * window font zoom!
+            window_scale = font_scale * zoom;
         } else {
-            float font_size = ImGui::GetFontSize();
-            if (font_size > 0.0f) {
-                window_scale = font_size / 14.0f;
-            }
+            window_scale = font_scale;
         }
         if (window_scale <= 0.0f) window_scale = 1.0f;
 

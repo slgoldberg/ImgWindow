@@ -152,8 +152,15 @@ public:
      * should override this to return their combined text zoom multiplier 
      * (e.g., _fontAdjust * gSeniorCitizenRatio) so extensions can scale 
      * geometry proportionally to match the text.
+     * Defaults to (ImGui::GetFontSize() / 14.0f) if not explicitly set,
+     * dynamically tracking the ambient font size and Senior Citizen mode.
      */
-    virtual float GetExtensionScaleFactor() const { return 1.0f; }
+    virtual float GetExtensionScaleFactor() const {
+        if (mCustomExtensionScale > 0.0f) return mCustomExtensionScale;
+        float fontSize = ImGui::GetCurrentContext() ? ImGui::GetFontSize() : 14.0f;
+        return (fontSize > 0.0f) ? (fontSize / 14.0f) : 1.0f;
+    }
+    void SetExtensionScaleFactor(float factor) { mCustomExtensionScale = factor; }
 
     /** sBlankoutUntilCycle is a global XPLM cycle number until which all
      * windows will skip rendering.  This is useful for plugins that want to
@@ -568,6 +575,7 @@ protected:
     bool bExplicitKeyboardFocus = false;
     bool bCaptureKeyboardOnMouseFocus = false;
     bool bHasMouseFocus = false;
+    float mCustomExtensionScale = 0.0f;
 
     /** What are we dragging right now? */
     struct DragTy {
