@@ -2138,6 +2138,111 @@ namespace ImGui
 
             return sz.x;
         }
+
+        inline std::string GetCellPlainText( const TableCell& cell )
+        {
+            if( cell.empty() ) return "";
+            const char* p = cell.start;
+            const char* end = cell.end;
+            while( p < end && ( *p == ' ' || *p == '\t' ) ) ++p;
+            while( end > p && ( end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n' ) ) --end;
+
+            std::string out;
+            out.reserve( (size_t)( end - p ) );
+            while( p < end )
+            {
+                if( *p == '<' )
+                {
+                    const char* close = (const char*)memchr( p, '>', end - p );
+                    if( close && close < end )
+                    {
+                        p = close + 1;
+                        continue;
+                    }
+                }
+                if( *p != '*' && *p != '_' && *p != '`' && *p != '~' )
+                {
+                    out.push_back( *p );
+                }
+                ++p;
+            }
+            size_t s = 0;
+            while( s < out.size() && ( out[s] == ' ' || out[s] == '\t' ) ) ++s;
+            size_t e = out.size();
+            while( e > s && ( out[e - 1] == ' ' || out[e - 1] == '\t' ) ) --e;
+            return out.substr( s, e - s );
+        }
+
+        inline int NaturalCompare( const std::string& a, const std::string& b )
+        {
+            size_t i = 0, j = 0;
+            while( i < a.size() && j < b.size() )
+            {
+                // Skip thousand-separator commas in numbers (e.g. 5,500 vs 12,000)
+                if( a[i] == ',' && i + 1 < a.size() && isdigit((unsigned char)a[i+1]) && i > 0 && isdigit((unsigned char)a[i-1]) )
+                {
+                    i++;
+                    continue;
+                }
+                if( b[j] == ',' && j + 1 < b.size() && isdigit((unsigned char)b[j+1]) && j > 0 && isdigit((unsigned char)b[j-1]) )
+                {
+                    j++;
+                    continue;
+                }
+
+                bool a_is_num = isdigit( (unsigned char)a[i] ) || ( ( a[i] == '+' || a[i] == '-' ) && i + 1 < a.size() && isdigit( (unsigned char)a[i+1] ) );
+                bool b_is_num = isdigit( (unsigned char)b[j] ) || ( ( b[j] == '+' || b[j] == '-' ) && j + 1 < b.size() && isdigit( (unsigned char)b[j+1] ) );
+
+                if( a_is_num && b_is_num )
+                {
+                    std::string subA, subB;
+                    size_t k = i;
+                    while( k < a.size() && ( isdigit((unsigned char)a[k]) || a[k] == '.' || a[k] == '+' || a[k] == '-' || a[k] == ',' ) )
+                    {
+                        if( a[k] != ',' ) subA.push_back( a[k] );
+                        k++;
+                    }
+                    size_t advA = k - i;
+                    k = j;
+                    while( k < b.size() && ( isdigit((unsigned char)b[k]) || b[k] == '.' || b[k] == '+' || b[k] == '-' || b[k] == ',' ) )
+                    {
+                        if( b[k] != ',' ) subB.push_back( b[k] );
+                        k++;
+                    }
+                    size_t advB = k - j;
+                    char* endA = nullptr;
+                    char* endB = nullptr;
+                    double vA = strtod( subA.c_str(), &endA );
+                    double vB = strtod( subB.c_str(), &endB );
+                    if( vA < vB ) return -1;
+                    if( vA > vB ) return 1;
+                    i += advA;
+                    j += advB;
+                    continue;
+                }
+
+                char ca = (char)tolower( (unsigned char)a[i] );
+                char cb = (char)tolower( (unsigned char)b[j] );
+                if( ca < cb ) return -1;
+                if( ca > cb ) return 1;
+                i++;
+                j++;
+            }
+            if( i < a.size() ) return 1;
+            if( j < b.size() ) return -1;
+            return 0;
+        }
+
+        inline int CompareCells( const TableCell& a, const TableCell& b )
+        {
+            if( a.empty() && b.empty() ) return 0;
+            if( a.empty() ) return 1;
+            if( b.empty() ) return -1;
+
+            std::string strA = GetCellPlainText( a );
+            std::string strB = GetCellPlainText( b );
+            return NaturalCompare( strA, strB );
+        }
     } // namespace TableDetail
 
     inline void RenderTableCell( const TableCell& cell, TableColumnAlign align, bool is_header, const MarkdownConfig& mdConfig_ )
@@ -2154,6 +2259,10 @@ namespace ImGui
             float text_w = TableDetail::CalcCellVisualWidth( cell, is_header, mdConfig_ );
             float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
             float pad_right = ImMax( 6.0f * scale, ImGui::GetStyle().CellPadding.x + 2.0f * scale );
+            if( is_header )
+            {
+                pad_right += 14.0f * scale; // Reserve margin for sort indicator arrow
+            }
 
             if( align == TableColumnAlign::RIGHT )
             {
@@ -2214,9 +2323,17 @@ namespace ImGui
         size_t num_cols = alignments.size();
         if( num_cols == 0 ) return;
 
+        // 1. Stable table ID: hash header text + index so ID is 100% deterministic across frames
+        ImGuiID header_hash = 0;
+        for( size_t c = 0; c < headers.size(); ++c )
+        {
+            if( headers[c].start && headers[c].end > headers[c].start )
+            {
+                header_hash = ImHashData( headers[c].start, (size_t)( headers[c].end - headers[c].start ), header_hash );
+            }
+        }
         char table_id[64];
-        const void* ptr_id = headers.empty() ? nullptr : (const void*)headers[0].start;
-        snprintf( table_id, sizeof(table_id), "##md_table_%p_%d", ptr_id, (int)table_idx );
+        snprintf( table_id, sizeof(table_id), "##md_table_%08x_%d", (unsigned int)header_hash, (int)table_idx );
 
         ImGuiTableFlags flags = mdConfig_.tableFlags;
         if( flags == 0 )
@@ -2225,18 +2342,23 @@ namespace ImGui
                     ImGuiTableFlags_RowBg | 
                     ImGuiTableFlags_SizingStretchProp | 
                     ImGuiTableFlags_Resizable |
+                    ImGuiTableFlags_Sortable |
                     ImGuiTableFlags_NoSavedSettings;
         }
 
         float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
 
-        // 1. Measure natural content width for each column to prevent 100% window width blowout
+        // 2. Measure natural content width for each column to prevent 100% window width blowout
         float total_content_w = 0.0f;
         std::vector<float> col_widths( num_cols, 0.0f );
         for( size_t col = 0; col < num_cols; ++col )
         {
             TableCell h_cell = ( col < headers.size() ) ? headers[col] : TableCell();
             float max_w = TableDetail::CalcCellVisualWidth( h_cell, true, mdConfig_ );
+            if( flags & ImGuiTableFlags_Sortable )
+            {
+                max_w += 14.0f * scale; // Extra margin for header sort indicator arrow
+            }
             for( size_t r = 0; r < rows.size(); ++r )
             {
                 if( col < rows[r].size() )
@@ -2262,23 +2384,95 @@ namespace ImGui
             // 1. Setup column headers with proportional stretch weights based on content
             for( size_t col = 0; col < num_cols; ++col )
             {
-                ImGui::TableSetupColumn( "##col", ImGuiTableColumnFlags_WidthStretch, col_widths[col] );
+                TableCell h_cell = ( col < headers.size() ) ? headers[col] : TableCell();
+                std::string col_name = TableDetail::GetCellPlainText( h_cell );
+                if( col_name.empty() ) col_name = "##col";
+                ImGui::TableSetupColumn( col_name.c_str(), ImGuiTableColumnFlags_WidthStretch, col_widths[col] );
             }
 
-            // 2. Submit Header Row
+            // 2. Submit Header Row (with interactive sort click and visual sort indicators)
             ImGui::TableNextRow( ImGuiTableRowFlags_Headers );
+            ImGuiTable* table = ImGui::GetCurrentTable();
+
             for( size_t col = 0; col < num_cols; ++col )
             {
                 if( !ImGui::TableSetColumnIndex( (int)col ) ) continue;
+
+                ImGuiTableColumn* column = ( table && (int)col < table->ColumnsCount ) ? &table->Columns[col] : nullptr;
+                bool is_sortable = ( ( flags & ImGuiTableFlags_Sortable ) && column && !( column->Flags & ImGuiTableColumnFlags_NoSort ) );
+
+                if( is_sortable && table )
+                {
+                    ImRect cell_r = ImGui::TableGetCellBgRect( table, (int)col );
+                    ImGuiID header_id = ImGui::GetID( (int)col );
+                    bool hovered = false, held = false;
+                    bool pressed = ImGui::ButtonBehavior( cell_r, header_id, &hovered, &held, ImGuiButtonFlags_AllowOverlap );
+                    if( pressed && table->ReorderColumn != (int)col )
+                    {
+                        ImGuiSortDirection next_dir = ImGui::TableGetColumnNextSortDirection( column );
+                        ImGui::TableSetColumnSortDirection( (int)col, next_dir, ImGui::GetIO().KeyShift );
+                    }
+                    if( held || hovered )
+                    {
+                        ImU32 col_bg = ImGui::GetColorU32( held ? ImGuiCol_HeaderActive : ImGuiCol_HeaderHovered );
+                        ImGui::TableSetBgColor( ImGuiTableBgTarget_CellBg, col_bg, (int)col );
+                    }
+                }
+
                 TableCell h_cell = ( col < headers.size() ) ? headers[col] : TableCell();
                 RenderTableCell( h_cell, alignments[col], true, mdConfig_ );
+
+                if( is_sortable && column && column->SortOrder != -1 )
+                {
+                    ImRect cell_r = ImGui::TableGetCellBgRect( table, (int)col );
+                    float arrow_scale = 0.65f;
+                    float w_arrow = ImTrunc( ImGui::GetFontSize() * arrow_scale + ImGui::GetStyle().FramePadding.x );
+                    float x = ImMax( cell_r.Min.x, cell_r.Max.x - w_arrow );
+                    float y = cell_r.Min.y + ImMax( 0.0f, ( ( cell_r.Max.y - cell_r.Min.y ) - ImGui::GetFontSize() ) * 0.5f );
+                    ImGui::RenderArrow( ImGui::GetWindowDrawList(), ImVec2( x, y ), ImGui::GetColorU32( ImGuiCol_Text ),
+                                        column->SortDirection == ImGuiSortDirection_Ascending ? ImGuiDir_Up : ImGuiDir_Down,
+                                        arrow_scale );
+                }
             }
 
-            // 3. Submit Data Rows
-            for( size_t r = 0; r < rows.size(); ++r )
+            // 3. Prepare Row Indices & Handle Sorting
+            std::vector<size_t> row_indices( rows.size() );
+            for( size_t i = 0; i < rows.size(); ++i ) row_indices[i] = i;
+
+            if( ( flags & ImGuiTableFlags_Sortable ) && !rows.empty() )
+            {
+                ImGuiTableSortSpecs* sorts_specs = ImGui::TableGetSortSpecs();
+                if( sorts_specs && sorts_specs->SpecsCount > 0 )
+                {
+                    const ImGuiTableColumnSortSpecs* spec = &sorts_specs->Specs[0];
+                    int sort_col = spec->ColumnIndex;
+                    ImGuiSortDirection sort_dir = spec->SortDirection;
+
+                    if( sort_col >= 0 && (size_t)sort_col < num_cols && sort_dir != ImGuiSortDirection_None )
+                    {
+                        std::stable_sort( row_indices.begin(), row_indices.end(),
+                            [&]( size_t a_idx, size_t b_idx ) -> bool {
+                                const std::vector<TableCell>& rA = rows[a_idx];
+                                const std::vector<TableCell>& rB = rows[b_idx];
+                                TableCell cA = ( (size_t)sort_col < rA.size() ) ? rA[sort_col] : TableCell();
+                                TableCell cB = ( (size_t)sort_col < rB.size() ) ? rB[sort_col] : TableCell();
+
+                                int cmp = TableDetail::CompareCells( cA, cB );
+                                if( sort_dir == ImGuiSortDirection_Descending )
+                                    return cmp > 0;
+                                else
+                                    return cmp < 0;
+                            } );
+                    }
+                    sorts_specs->SpecsDirty = false;
+                }
+            }
+
+            // 4. Submit Data Rows in sorted order
+            for( size_t r = 0; r < row_indices.size(); ++r )
             {
                 ImGui::TableNextRow();
-                const std::vector<TableCell>& row = rows[r];
+                const std::vector<TableCell>& row = rows[row_indices[r]];
                 for( size_t col = 0; col < num_cols; ++col )
                 {
                     if( !ImGui::TableSetColumnIndex( (int)col ) ) continue;
