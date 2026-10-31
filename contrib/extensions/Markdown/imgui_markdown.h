@@ -347,7 +347,7 @@ namespace ImGui
 #else /* brat's version: */
 			float		scale = ImGui::GetFontScale(false);// use parent's scale
 #endif
-            float       lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
+            float       lineStartX = ImGui::GetCurrentWindow()->WorkRect.Min.x;
             float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
             float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
@@ -1941,6 +1941,203 @@ namespace ImGui
 
             return table_end;
         }
+
+        inline bool StrCaseEqualN( const char* a, const char* b, size_t n )
+        {
+            for( size_t i = 0; i < n; ++i )
+            {
+                if( tolower( (unsigned char)a[i] ) != tolower( (unsigned char)b[i] ) )
+                    return false;
+            }
+            return true;
+        }
+
+        inline float CalcCellVisualWidth( const TableCell& cell, bool is_header, const MarkdownConfig& mdConfig_ )
+        {
+            if( cell.empty() ) return 0.0f;
+
+            const char* p = cell.start;
+            const char* end = cell.end;
+            while( p < end && ( *p == ' ' || *p == '\t' ) ) ++p;
+            while( end > p && ( end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n' ) ) --end;
+            if( p >= end ) return 0.0f;
+
+            float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+
+            // If cell begins with an HTML-style tag: <tag_name ...>inner_text</tag_name>
+            if( *p == '<' )
+            {
+                const char* tag_close = (const char*)memchr( p, '>', end - p );
+                if( tag_close && tag_close < end )
+                {
+                    // Find tag name
+                    const char* tn_start = p + 1;
+                    while( tn_start < tag_close && ( *tn_start == ' ' || *tn_start == '\t' ) ) ++tn_start;
+                    const char* tn_end = tn_start;
+                    while( tn_end < tag_close && *tn_end != ' ' && *tn_end != '=' && *tn_end != '\t' ) ++tn_end;
+
+                    size_t tn_len = (size_t)( tn_end - tn_start );
+                    std::string tag_name( tn_start, tn_len );
+                    for( size_t k = 0; k < tag_name.size(); ++k )
+                        tag_name[k] = (char)tolower( (unsigned char)tag_name[k] );
+
+                    // Look for closing tag </tag_name>
+                    std::string close_tag = "</" + tag_name + ">";
+                    const char* content_start = tag_close + 1;
+                    const char* content_end = nullptr;
+                    const char* found_close = nullptr;
+
+                    for( const char* s = content_start; s + close_tag.length() <= end; ++s )
+                    {
+                        if( StrCaseEqualN( s, close_tag.c_str(), close_tag.length() ) )
+                        {
+                            content_end = s;
+                            found_close = s;
+                            break;
+                        }
+                    }
+
+                    if( found_close )
+                    {
+                        // Check font for inner text
+                        ImFont* chosen_font = nullptr;
+                        if( is_header )
+                        {
+                            if( mdConfig_.boldFont ) chosen_font = mdConfig_.boldFont;
+                            else if( mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font )
+                                chosen_font = mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font;
+                        }
+                        else if( ( tag_name == "mono" || tag_name == "code" ) && mdConfig_.monoFont )
+                        {
+                            chosen_font = mdConfig_.monoFont;
+                        }
+                        else if( mdConfig_.regularFont )
+                        {
+                            chosen_font = mdConfig_.regularFont;
+                        }
+
+                        ImVec2 inner_sz;
+                        if( chosen_font )
+                        {
+                            ImGui::PushFont( chosen_font );
+                            inner_sz = ImGui::CalcTextSize( content_start, content_end );
+                            ImGui::PopFont();
+                        }
+                        else
+                        {
+                            inner_sz = ImGui::CalcTextSize( content_start, content_end );
+                        }
+
+                        float visual_w = inner_sz.x;
+                        if( tag_name == "pill" )
+                        {
+                            float pad_x = ImMax( 7.0f * scale, 6.0f );
+                            visual_w += pad_x * 2.0f;
+                        }
+                        else if( tag_name == "badge" || tag_name == "tag" )
+                        {
+                            float pad_x = ImMax( 5.0f * scale, 4.0f );
+                            visual_w += pad_x * 2.0f;
+                        }
+                        else if( tag_name == "kbd" || tag_name == "key" || tag_name == "kdb" )
+                        {
+                            float pad_x = ImMax( 5.5f * scale, 5.0f );
+                            visual_w += pad_x * 2.0f;
+                        }
+                        else if( tag_name == "btn" )
+                        {
+                            visual_w += ImGui::GetStyle().FramePadding.x * 2.0f;
+                        }
+                        else if( tag_name == "mono" || tag_name == "code" || tag_name == "backdrop" || tag_name == "bg" || tag_name == "highlight" )
+                        {
+                            float pad_x = 3.0f * scale;
+                            visual_w += pad_x * 2.0f;
+                        }
+
+                        // Any trailing content after closing tag? (e.g. "<pill>OK</pill> extra")
+                        const char* after = found_close + close_tag.length();
+                        while( after < end && ( *after == ' ' || *after == '\t' ) ) ++after;
+                        if( after < end )
+                        {
+                            visual_w += ImGui::GetStyle().ItemSpacing.x + ImGui::CalcTextSize( after, end ).x;
+                        }
+
+                        return visual_w;
+                    }
+                }
+            }
+
+            // Check if markdown link [text](url) or {text}(url)
+            if( ( *p == '[' || *p == '{' ) )
+            {
+                char close_b = ( *p == '[' ) ? ']' : '}';
+                const char* b_close = (const char*)memchr( p, close_b, end - p );
+                if( b_close && b_close + 1 < end && *(b_close + 1) == '(' )
+                {
+                    const char* link_text_start = p + 1;
+                    const char* link_text_end = b_close;
+                    if( is_header && mdConfig_.boldFont )
+                    {
+                        ImGui::PushFont( mdConfig_.boldFont );
+                        ImVec2 sz = ImGui::CalcTextSize( link_text_start, link_text_end );
+                        ImGui::PopFont();
+                        return sz.x;
+                    }
+                    return ImGui::CalcTextSize( link_text_start, link_text_end ).x;
+                }
+            }
+
+            // Markdown formatting symbols: strip leading/trailing **, *, __, _, ~~, ++
+            const char* s = p;
+            const char* e = end;
+            bool is_bold = ( ( e - s >= 4 && s[0] == '*' && s[1] == '*' && e[-1] == '*' && e[-2] == '*' ) ||
+                             ( e - s >= 4 && s[0] == '_' && s[1] == '_' && e[-1] == '_' && e[-2] == '_' ) );
+            bool is_mono = ( e - s >= 2 && s[0] == '`' && e[-1] == '`' );
+
+            while( e > s && ( e[-1] == '*' || e[-1] == '_' || e[-1] == '~' || e[-1] == '+' || e[-1] == '`' ) ) --e;
+            while( s < e && ( *s == '*' || *s == '_' || *s == '~' || *s == '+' || *s == '`' ) ) ++s;
+            while( s < e && ( *s == ' ' || *s == '\t' ) ) ++s;
+            while( e > s && ( e[-1] == ' ' || e[-1] == '\t' ) ) --e;
+
+            ImFont* chosen_font = nullptr;
+            if( is_header )
+            {
+                if( mdConfig_.boldFont ) chosen_font = mdConfig_.boldFont;
+                else if( mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font )
+                    chosen_font = mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font;
+            }
+            else if( is_bold && mdConfig_.boldFont )
+            {
+                chosen_font = mdConfig_.boldFont;
+            }
+            else if( is_mono && mdConfig_.monoFont )
+            {
+                chosen_font = mdConfig_.monoFont;
+            }
+            else if( mdConfig_.regularFont )
+            {
+                chosen_font = mdConfig_.regularFont;
+            }
+
+            ImVec2 sz;
+            if( chosen_font )
+            {
+                ImGui::PushFont( chosen_font );
+                sz = ImGui::CalcTextSize( s, e );
+                ImGui::PopFont();
+            }
+            else
+            {
+                sz = ImGui::CalcTextSize( s, e );
+            }
+
+            if( is_mono )
+            {
+                sz.x += 6.0f * scale; // monospace code padding
+            }
+
+            return sz.x;
+        }
     } // namespace TableDetail
 
     inline void RenderTableCell( const TableCell& cell, TableColumnAlign align, bool is_header, const MarkdownConfig& mdConfig_ )
@@ -1954,7 +2151,7 @@ namespace ImGui
         if( align == TableColumnAlign::CENTER || align == TableColumnAlign::RIGHT )
         {
             float avail = ImGui::GetContentRegionAvail().x;
-            float text_w = ImGui::CalcTextSize( cell.start, cell.end ).x;
+            float text_w = TableDetail::CalcCellVisualWidth( cell, is_header, mdConfig_ );
             if( text_w < avail )
             {
                 float offset = ( align == TableColumnAlign::RIGHT ) ? ( avail - text_w ) : ( ( avail - text_w ) * 0.5f );
@@ -1981,7 +2178,7 @@ namespace ImGui
         }
 
         MarkdownConfig cell_config = mdConfig_;
-        cell_config.wrapWidth = 0.0f; // Wrap within the column bounds
+        cell_config.wrapWidth = -1.0f; // Single line per cell item; prevent erroneous word-wrapping/single-char collapse in table cells
         Markdown::Render( cell.start, cell.size(), cell_config );
 
         if( pushed_font )
@@ -2000,8 +2197,9 @@ namespace ImGui
         size_t num_cols = alignments.size();
         if( num_cols == 0 ) return;
 
-        char table_id[32];
-        snprintf( table_id, sizeof(table_id), "##md_table_%d", (int)table_idx );
+        char table_id[64];
+        const void* ptr_id = headers.empty() ? nullptr : (const void*)headers[0].start;
+        snprintf( table_id, sizeof(table_id), "##md_table_%p_%d", ptr_id, (int)table_idx );
 
         ImGuiTableFlags flags = mdConfig_.tableFlags;
         if( flags == 0 )
@@ -2009,6 +2207,7 @@ namespace ImGui
             flags = ImGuiTableFlags_Borders | 
                     ImGuiTableFlags_RowBg | 
                     ImGuiTableFlags_SizingStretchProp | 
+                    ImGuiTableFlags_Resizable |
                     ImGuiTableFlags_NoSavedSettings;
         }
 
@@ -2834,7 +3033,7 @@ namespace ImGui
 #else /* brat's version: */
 		float		scale = ImGui::GetFontScale(false);	  // use parent's scale
 #endif
-            float       lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
+            float       lineStartX = ImGui::GetCurrentWindow()->WorkRect.Min.x;
             float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
             float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );

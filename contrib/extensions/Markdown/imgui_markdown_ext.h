@@ -344,7 +344,7 @@ namespace ImGui {
     inline void EnsureTagFitsOnLine(float required_width) {
         const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
         if (config && config->wrapWidth < 0.0f) return;
-        float lineStartX = ImGui::GetCurrentWindow()->Pos.x + ImGui::GetCurrentWindow()->DC.Indent.x;
+        float lineStartX = ImGui::GetCurrentWindow()->WorkRect.Min.x;
         float cursorX = ImGui::GetCursorScreenPos().x;
         float avail = (config && config->wrapWidth > 0.0f) ? (config->wrapWidth - (cursorX - lineStartX)) : ImGui::GetContentRegionAvail().x;
         float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
