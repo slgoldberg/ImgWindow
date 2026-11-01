@@ -42,6 +42,14 @@
 #include <XPLMPlugin.h>
 
 #include "imgui_internal.h"
+#include <sys/stat.h>
+#include <map>
+
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
+#include "contrib/stb_image.h"
+#endif
 
 #if defined(__APPLE__) || defined(__MACH__)
 #include <ApplicationServices/ApplicationServices.h>
@@ -567,6 +575,10 @@ ImgWindow::ImgWindow(
     if (mWindowID && winW > 0 && winH > 0) {
         XPLMSetWindowGeometryVR(mWindowID, winW, winH);
     }
+#endif
+
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+    EnableDefaultMarkdownImageService(true);
 #endif
 }
 
@@ -1754,6 +1766,9 @@ void ImgWindow::DeleteTexture(ImTextureID textureID) {
 }
 
 void ImgWindow::Shutdown() {
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+    ClearMarkdownTextureCache();
+#endif
     for (const auto& item : s_TexturesPendingDestruction) {
 #ifdef IMGWINDOW_USE_PANEL_GRAPHICS
         if (ImgPanelGraphics::IsAvailable()) {
@@ -1767,6 +1782,192 @@ void ImgWindow::Shutdown() {
     }
     s_TexturesPendingDestruction.clear();
 }
+
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+static std::map<std::string, ImGui::MarkdownImageData> s_MarkdownNamedTextures;
+
+struct MarkdownDiskTextureEntry {
+    ImTextureID textureID = (ImTextureID)0;
+    ImVec2 size = ImVec2(0.0f, 0.0f);
+    bool failed = false;
+};
+static std::map<std::string, MarkdownDiskTextureEntry> s_MarkdownDiskTextureCache;
+
+void ImgWindow::RegisterMarkdownNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size, ImVec2 uv0, ImVec2 uv1, ImVec4 tint_col, ImVec4 border_col)
+{
+    if (name.empty() || !textureID) return;
+    ImGui::MarkdownImageData data;
+    data.isValid = true;
+    data.useLinkCallback = false;
+    data.user_texture_id = textureID;
+    data.size = size;
+    data.uv0 = uv0;
+    data.uv1 = uv1;
+    data.tint_col = tint_col;
+    data.border_col = border_col;
+
+    s_MarkdownNamedTextures[name] = data;
+    if (name.rfind("texture://", 0) != 0) {
+        s_MarkdownNamedTextures["texture://" + name] = data;
+    }
+}
+
+void ImgWindow::UnregisterMarkdownNamedTexture(const std::string& name)
+{
+    s_MarkdownNamedTextures.erase(name);
+    if (name.rfind("texture://", 0) != 0) {
+        s_MarkdownNamedTextures.erase("texture://" + name);
+    }
+}
+
+bool ImgWindow::GetMarkdownNamedTexture(const std::string& name, ImGui::MarkdownImageData& outData)
+{
+    auto it = s_MarkdownNamedTextures.find(name);
+    if (it != s_MarkdownNamedTextures.end()) {
+        outData = it->second;
+        return true;
+    }
+    return false;
+}
+
+void ImgWindow::ClearMarkdownTextureCache()
+{
+    for (auto& pair : s_MarkdownDiskTextureCache) {
+        if (pair.second.textureID) {
+            ImgWindow::DeleteTexture(pair.second.textureID);
+        }
+    }
+    s_MarkdownDiskTextureCache.clear();
+}
+
+void ImgWindow::EnableDefaultMarkdownImageService(bool enable)
+{
+    if (enable) {
+        ImGui::SetDefaultMarkdownImageCallback(&ImgWindow::DefaultMarkdownImageCallback);
+    } else {
+        if (ImGui::GetDefaultMarkdownImageCallback() == &ImgWindow::DefaultMarkdownImageCallback) {
+            ImGui::SetDefaultMarkdownImageCallback(nullptr);
+        }
+    }
+}
+
+ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::MarkdownLinkCallbackData data)
+{
+    if (!data.link || data.linkLength <= 0) {
+        ImGui::MarkdownImageData invalid;
+        invalid.isValid = false;
+        return invalid;
+    }
+
+    std::string url(data.link, (size_t)data.linkLength);
+
+    // 1. Tier 1: Check In-Memory Named Texture Registry
+    ImGui::MarkdownImageData namedData;
+    if (GetMarkdownNamedTexture(url, namedData)) {
+        float avail_w = ImGui::GetContentRegionAvail().x;
+        if (avail_w > 10.0f && namedData.size.x > avail_w && namedData.size.x > 0.0f) {
+            float aspect = namedData.size.y / namedData.size.x;
+            namedData.size.x = avail_w;
+            namedData.size.y = avail_w * aspect;
+        }
+        return namedData;
+    }
+
+    // 2. Tier 2: Check Disk Texture Cache
+    auto it = s_MarkdownDiskTextureCache.find(url);
+    if (it != s_MarkdownDiskTextureCache.end()) {
+        if (it->second.failed || !it->second.textureID) {
+            ImGui::MarkdownImageData invalid;
+            invalid.isValid = false;
+            return invalid;
+        }
+        ImGui::MarkdownImageData img;
+        img.isValid = true;
+        img.user_texture_id = it->second.textureID;
+        img.size = it->second.size;
+        float avail_w = ImGui::GetContentRegionAvail().x;
+        if (avail_w > 10.0f && img.size.x > avail_w && img.size.x > 0.0f) {
+            float aspect = img.size.y / img.size.x;
+            img.size.x = avail_w;
+            img.size.y = avail_w * aspect;
+        }
+        return img;
+    }
+
+    // 3. Resolve File Path on Disk
+    std::string resolvedPath = url;
+    bool fileFound = false;
+
+    struct stat st;
+    if (stat(resolvedPath.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+        fileFound = true;
+    } else {
+        // Try relative to X-Plane system path
+        char sysPath[512] = {0};
+        XPLMGetSystemPath(sysPath);
+        std::string candidate = std::string(sysPath) + url;
+        if (stat(candidate.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+            resolvedPath = candidate;
+            fileFound = true;
+        }
+    }
+
+    if (!fileFound) {
+        MarkdownDiskTextureEntry failEntry;
+        failEntry.failed = true;
+        s_MarkdownDiskTextureCache[url] = failEntry;
+        ImGui::MarkdownImageData invalid;
+        invalid.isValid = false;
+        return invalid;
+    }
+
+    // 4. Load via stb_image (forcing 4-channel RGBA8 for Metal/Vulkan hardware safety)
+    int width = 0, height = 0, channels = 0;
+    stbi_uc* pixels = stbi_load(resolvedPath.c_str(), &width, &height, &channels, 4);
+    if (!pixels || width <= 0 || height <= 0) {
+        MarkdownDiskTextureEntry failEntry;
+        failEntry.failed = true;
+        s_MarkdownDiskTextureCache[url] = failEntry;
+        if (pixels) stbi_image_free(pixels);
+        ImGui::MarkdownImageData invalid;
+        invalid.isValid = false;
+        return invalid;
+    }
+
+    // 5. Upload to GPU via unified ImgWindow::CreateTexture()
+    ImTextureID texID = ImgWindow::CreateTexture(pixels, width, height);
+    stbi_image_free(pixels);
+
+    if (!texID) {
+        MarkdownDiskTextureEntry failEntry;
+        failEntry.failed = true;
+        s_MarkdownDiskTextureCache[url] = failEntry;
+        ImGui::MarkdownImageData invalid;
+        invalid.isValid = false;
+        return invalid;
+    }
+
+    // 6. Record in cache & return
+    MarkdownDiskTextureEntry successEntry;
+    successEntry.textureID = texID;
+    successEntry.size = ImVec2((float)width, (float)height);
+    successEntry.failed = false;
+    s_MarkdownDiskTextureCache[url] = successEntry;
+
+    ImGui::MarkdownImageData img;
+    img.isValid = true;
+    img.user_texture_id = texID;
+    img.size = successEntry.size;
+
+    float avail_w = ImGui::GetContentRegionAvail().x;
+    if (avail_w > 10.0f && img.size.x > avail_w && img.size.x > 0.0f) {
+        float aspect = img.size.y / img.size.x;
+        img.size.x = avail_w;
+        img.size.y = avail_w * aspect;
+    }
+    return img;
+}
+#endif
 
 bool
 ImgWindow::ClearActiveInputTextIfClickedOutside()

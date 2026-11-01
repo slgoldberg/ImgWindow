@@ -56,6 +56,10 @@
 
 #include "ImgFontAtlas.h"
 
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#include "contrib/extensions/Markdown/imgui_markdown.h"
+#endif
+
 // Enforce constraint that IMGWINDOW_USE_PANEL_GRAPHICS requires IMGUI_V192_REFACTOR (modern dynamic font atlas support).
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS) && !defined(IMGUI_V192_REFACTOR)
     #error "IMGWINDOW_USE_PANEL_GRAPHICS requires IMGUI_V192_REFACTOR (modern dynamic font atlas support)."
@@ -313,6 +317,31 @@ public:
     /** Flushes all pending texture destructions immediately. 
      *  Must be called during XPluginStop/XPluginDisable to prevent VRAM leaks. */
     static void Shutdown();
+
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+    // ------------------------------------------------------------------------
+    // Markdown Image Services & Texture Registry (Tiers 1 & 2)
+    // ------------------------------------------------------------------------
+    /** Tier 1: In-Memory Named Texture Registry
+     *  Allows plugins to register pre-loaded textures by name or URI (e.g. "my_logo" or "texture://my_logo")
+     *  so Markdown references like ![Logo](texture://my_logo) or ![Logo](my_logo) resolve instantly. */
+    static void RegisterMarkdownNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size = ImVec2(0.0f, 0.0f), ImVec2 uv0 = ImVec2(0.0f, 0.0f), ImVec2 uv1 = ImVec2(1.0f, 1.0f), ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4 border_col = ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    static void UnregisterMarkdownNamedTexture(const std::string& name);
+    static bool GetMarkdownNamedTexture(const std::string& name, ImGui::MarkdownImageData& outData);
+
+    /** Tier 2: Built-in Default Markdown Image Callback
+     *  Automatically resolves named textures, loads local disk image files via stb_image,
+     *  uploads 4-channel RGBA textures via ImgWindow::CreateTexture(), and caches them in VRAM.
+     *  Includes negative caching for missing files and automatic cleanup on Shutdown(). */
+    static ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLinkCallbackData data);
+
+    /** Enable or disable the built-in default image callback for all Markdown renderers.
+     *  Automatically enabled when an ImgWindow is instantiated. */
+    static void EnableDefaultMarkdownImageService(bool enable = true);
+
+    /** Destroys all GPU textures loaded by the markdown image cache. */
+    static void ClearMarkdownTextureCache();
+#endif
 
     [[deprecated("Texture bake delays are no longer required. X-Plane 12.4.4b3+ synchronously builds textures instantly. This method is a no-op and can be safely removed.")]]
     void SetTextureBakeDelay(bool enableDelay, int frameCount = 2) {
