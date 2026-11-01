@@ -341,6 +341,27 @@ mdConfig.tableStateCallback = [](const ImGui::MarkdownTableState& state, void* u
 mdConfig.userData = &myMarkdownString;
 ```
 
+#### 7. Built-in Image Services (Tiers 1, 2 & 3)
+Images in Markdown (`![alt text](url)`) are resolved automatically via `ImgWindow`'s built-in 3-tier image service, requiring zero boilerplate callbacks:
+
+1. **Tier 1: In-Memory Named Textures (`texture://name` or `name`):**
+   * Pre-register memory textures (cockpit gauges, avionics icons, branding):
+     ```cpp
+     ImgWindow::RegisterMarkdownNamedTexture("acme_logo", myTexId, ImVec2(64, 64));
+     ```
+   * Markdown references like `![Logo](texture://acme_logo)` or `![Logo](acme_logo)` resolve instantly with zero disk I/O.
+2. **Tier 2: Local Disk Images:**
+   * Referenced via relative or absolute paths: `![Airplane](imgui_demo.jpg)` or `![Diagram](./Resources/diagram.png)`.
+   * Automatically searched relative to the active document directory, the calling plugin's directory, and the X-Plane system root.
+   * Decoded safely via embedded `stb_image` (forcing 4-channel RGBA8 for Metal/Vulkan hardware safety), uploaded via `ImgWindow::CreateTexture()`, and cached in VRAM with negative caching to prevent disk thrashing.
+3. **Tier 3: Asynchronous Remote Web Images (`http://`, `https://`):**
+   * Referenced directly via web URLs: `![Badge](https://img.shields.io/badge/X--Plane-12.00+-blue.png)`.
+   * **Zero-Stall Sim Loop:** Network downloads and CPU image decompression run completely off-thread in the background, keeping the simulation loop running smoothly at 60+ FPS.
+   * **Main-Thread GPU Upload:** Decoded pixel buffers are handed off to the main render thread and uploaded via `ImgWindow::CreateTexture()` without blocking frame rendering.
+   * **Transient Loading State:** While in flight, the renderer displays a subtle disabled indicator (`( Loading https://... )`) which seamlessly converts to the rendered image once ready.
+   * **Zero External Dependencies:** Dynamically resolves system `libcurl` on macOS/Linux and native `WinINet` on Windows without requiring any downstream plugins to modify their linker flags or `CMakeLists.txt`.
+   * **Custom Fetch Overrides:** Host plugins with dedicated HTTP managers can register a custom downloader via `ImgWindow::SetMarkdownRemoteFetchCallback(...)`.
+
 > [!IMPORTANT]
 > **Operating System Clipboard Integration Across Platforms:**  
 > * **macOS (`APL=1` / `__APPLE__`):** Upstream Dear ImGui compiles with OS clipboard support disabled unless `#define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS` is defined in your `imconfig.h` (and `-framework ApplicationServices` linked). If unconfigured, the `[Copy]` button automatically renders as a disabled button with an on-hover guidance tooltip.

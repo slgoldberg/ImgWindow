@@ -44,6 +44,12 @@
 #include "imgui_internal.h"
 #include <sys/stat.h>
 #include <map>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#if !defined(_WIN32)
+#include <dlfcn.h>
+#endif
 
 #if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
 #define STB_IMAGE_STATIC
@@ -1384,6 +1390,10 @@ ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
         return;
     }
 
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+    ProcessPendingMarkdownTextures();
+#endif
+
     thisWindow->updateImgui();
 
     ImGui::SetCurrentContext(thisWindow->mImGuiContext);
@@ -1984,8 +1994,13 @@ void ImgWindow::DeleteTexture(ImTextureID textureID) {
     s_TexturesPendingDestruction.push_back({textureID, XPLMGetCycleNumber()});
 }
 
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+static std::atomic<bool> s_MarkdownShutdownRequested{false};
+#endif
+
 void ImgWindow::Shutdown() {
 #if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+    s_MarkdownShutdownRequested = true;
     ClearMarkdownTextureCache();
 #endif
     for (const auto& item : s_TexturesPendingDestruction) {
@@ -2008,10 +2023,33 @@ static std::map<std::string, ImGui::MarkdownImageData> s_MarkdownNamedTextures;
 struct MarkdownDiskTextureEntry {
     ImTextureID textureID = (ImTextureID)0;
     ImVec2 size = ImVec2(0.0f, 0.0f);
+    bool inFlight = false;
     bool failed = false;
     double lastAttemptTime = 0.0;
 };
 static std::map<std::string, MarkdownDiskTextureEntry> s_MarkdownDiskTextureCache;
+
+struct MarkdownRemoteDecodedPayload {
+    std::string url;
+    uint8_t* pixels = nullptr;
+    int width = 0;
+    int height = 0;
+    bool success = false;
+};
+
+static std::mutex s_MarkdownCompletedMutex;
+static std::vector<MarkdownRemoteDecodedPayload> s_MarkdownCompletedQueue;
+static ImgWindow::MarkdownRemoteFetchCallback s_MarkdownRemoteFetchCallback = nullptr;
+
+void ImgWindow::SetMarkdownRemoteFetchCallback(MarkdownRemoteFetchCallback callback)
+{
+    s_MarkdownRemoteFetchCallback = callback;
+}
+
+ImgWindow::MarkdownRemoteFetchCallback ImgWindow::GetMarkdownRemoteFetchCallback()
+{
+    return s_MarkdownRemoteFetchCallback;
+}
 
 void ImgWindow::RegisterMarkdownNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size, ImVec2 uv0, ImVec2 uv1, ImVec4 tint_col, ImVec4 border_col)
 {
@@ -2052,6 +2090,17 @@ bool ImgWindow::GetMarkdownNamedTexture(const std::string& name, ImGui::Markdown
 
 void ImgWindow::ClearMarkdownTextureCache()
 {
+    {
+        std::lock_guard<std::mutex> lock(s_MarkdownCompletedMutex);
+        for (auto& item : s_MarkdownCompletedQueue) {
+            if (item.pixels) {
+                stbi_image_free(item.pixels);
+                item.pixels = nullptr;
+            }
+        }
+        s_MarkdownCompletedQueue.clear();
+    }
+
     for (auto& pair : s_MarkdownDiskTextureCache) {
         if (pair.second.textureID) {
             ImgWindow::DeleteTexture(pair.second.textureID);
@@ -2071,6 +2120,247 @@ void ImgWindow::EnableDefaultMarkdownImageService(bool enable)
     }
 }
 
+void ImgWindow::ProcessPendingMarkdownTextures()
+{
+    std::vector<MarkdownRemoteDecodedPayload> completed;
+    {
+        std::lock_guard<std::mutex> lock(s_MarkdownCompletedMutex);
+        if (!s_MarkdownCompletedQueue.empty()) {
+            completed.swap(s_MarkdownCompletedQueue);
+        }
+    }
+
+    if (completed.empty()) {
+        return;
+    }
+
+    for (auto& item : completed) {
+        auto& entry = s_MarkdownDiskTextureCache[item.url];
+        entry.inFlight = false;
+
+        if (item.success && item.pixels && item.width > 0 && item.height > 0) {
+            ImTextureID texID = ImgWindow::CreateTexture(item.pixels, item.width, item.height);
+            stbi_image_free(item.pixels);
+            item.pixels = nullptr;
+
+            if (texID) {
+                entry.textureID = texID;
+                entry.size = ImVec2(static_cast<float>(item.width), static_cast<float>(item.height));
+                entry.failed = false;
+            } else {
+                entry.failed = true;
+                entry.lastAttemptTime = ImGui::GetTime();
+            }
+        } else {
+            if (item.pixels) {
+                stbi_image_free(item.pixels);
+                item.pixels = nullptr;
+            }
+            entry.failed = true;
+            entry.lastAttemptTime = ImGui::GetTime();
+        }
+    }
+}
+
+#if !defined(_WIN32)
+typedef void CURL;
+typedef int CURLcode;
+typedef int CURLoption;
+typedef int CURLINFO;
+
+#define IMGWINDOW_CURLE_OK 0
+#define IMGWINDOW_CURLOPT_URL 10002
+#define IMGWINDOW_CURLOPT_FOLLOWLOCATION 52
+#define IMGWINDOW_CURLOPT_USERAGENT 10018
+#define IMGWINDOW_CURLOPT_TIMEOUT 13
+#define IMGWINDOW_CURLOPT_WRITEFUNCTION 20011
+#define IMGWINDOW_CURLOPT_WRITEDATA 10001
+#define IMGWINDOW_CURLINFO_RESPONSE_CODE 0x200002
+
+typedef CURL* (*curl_easy_init_t)();
+typedef CURLcode (*curl_easy_setopt_t)(CURL*, CURLoption, ...);
+typedef CURLcode (*curl_easy_perform_t)(CURL*);
+typedef void (*curl_easy_cleanup_t)(CURL*);
+typedef CURLcode (*curl_easy_getinfo_t)(CURL*, CURLINFO, ...);
+
+static size_t CurlWriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t total = size * nmemb;
+    auto* mem = reinterpret_cast<std::vector<uint8_t>*>(userp);
+    auto* bytes = reinterpret_cast<uint8_t*>(contents);
+    mem->insert(mem->end(), bytes, bytes + total);
+    return total;
+}
+
+static bool FetchRemoteBytesCurl(const std::string& url, std::vector<uint8_t>& outBuffer) {
+#if defined(__APPLE__) || defined(__MACH__)
+    const char* dylibNames[] = { "libcurl.4.dylib", "libcurl.dylib", "/usr/lib/libcurl.4.dylib", nullptr };
+#else
+    const char* dylibNames[] = { "libcurl.so.4", "libcurl.so", nullptr };
+#endif
+
+    void* handle = nullptr;
+    for (int i = 0; dylibNames[i] != nullptr; ++i) {
+        handle = dlopen(dylibNames[i], RTLD_LAZY);
+        if (handle) break;
+    }
+    if (!handle) return false;
+
+    auto p_init = (curl_easy_init_t)dlsym(handle, "curl_easy_init");
+    auto p_setopt = (curl_easy_setopt_t)dlsym(handle, "curl_easy_setopt");
+    auto p_perform = (curl_easy_perform_t)dlsym(handle, "curl_easy_perform");
+    auto p_cleanup = (curl_easy_cleanup_t)dlsym(handle, "curl_easy_cleanup");
+    auto p_getinfo = (curl_easy_getinfo_t)dlsym(handle, "curl_easy_getinfo");
+
+    if (!p_init || !p_setopt || !p_perform || !p_cleanup) {
+        dlclose(handle);
+        return false;
+    }
+
+    CURL* curl = p_init();
+    if (!curl) {
+        dlclose(handle);
+        return false;
+    }
+
+    outBuffer.clear();
+    p_setopt(curl, IMGWINDOW_CURLOPT_URL, url.c_str());
+    p_setopt(curl, IMGWINDOW_CURLOPT_FOLLOWLOCATION, 1L);
+    p_setopt(curl, IMGWINDOW_CURLOPT_USERAGENT, "ImgWindow/2.3.0");
+    p_setopt(curl, IMGWINDOW_CURLOPT_TIMEOUT, 10L);
+    p_setopt(curl, IMGWINDOW_CURLOPT_WRITEFUNCTION, CurlWriteCallback);
+    p_setopt(curl, IMGWINDOW_CURLOPT_WRITEDATA, &outBuffer);
+
+    CURLcode res = p_perform(curl);
+    long http_code = 0;
+    if (res == IMGWINDOW_CURLE_OK && p_getinfo) {
+        p_getinfo(curl, IMGWINDOW_CURLINFO_RESPONSE_CODE, &http_code);
+    }
+
+    p_cleanup(curl);
+    dlclose(handle);
+
+    return (res == IMGWINDOW_CURLE_OK && http_code >= 200 && http_code < 300 && !outBuffer.empty());
+}
+
+static bool FetchRemoteBytesCLI(const std::string& url, std::vector<uint8_t>& outBuffer) {
+    if (url.find('\'') != std::string::npos || url.find('\"') != std::string::npos || 
+        url.find('`') != std::string::npos || url.find(';') != std::string::npos) {
+        return false;
+    }
+    std::string cmd = "curl -s -L --max-time 10 \"" + url + "\"";
+    FILE* fp = popen(cmd.c_str(), "r");
+    if (!fp) return false;
+
+    uint8_t chunk[4096];
+    size_t n = 0;
+    outBuffer.clear();
+    while ((n = fread(chunk, 1, sizeof(chunk), fp)) > 0) {
+        outBuffer.insert(outBuffer.end(), chunk, chunk + n);
+    }
+    int status = pclose(fp);
+    return (status == 0 && !outBuffer.empty());
+}
+#endif
+
+#if defined(_WIN32)
+static bool FetchRemoteBytesWin(const std::string& url, std::vector<uint8_t>& outBuffer) {
+    HMODULE hWinINet = LoadLibraryA("wininet.dll");
+    if (!hWinINet) return false;
+
+    typedef void* (*InternetOpenA_t)(const char*, unsigned long, const char*, const char*, unsigned long);
+    typedef void* (*InternetOpenUrlA_t)(void*, const char*, const char*, unsigned long, unsigned long, size_t);
+    typedef int   (*InternetReadFile_t)(void*, void*, unsigned long, unsigned long*);
+    typedef int   (*InternetCloseHandle_t)(void*);
+
+    auto p_Open = (InternetOpenA_t)GetProcAddress(hWinINet, "InternetOpenA");
+    auto p_OpenUrl = (InternetOpenUrlA_t)GetProcAddress(hWinINet, "InternetOpenUrlA");
+    auto p_Read = (InternetReadFile_t)GetProcAddress(hWinINet, "InternetReadFile");
+    auto p_Close = (InternetCloseHandle_t)GetProcAddress(hWinINet, "InternetCloseHandle");
+
+    if (!p_Open || !p_OpenUrl || !p_Read || !p_Close) {
+        FreeLibrary(hWinINet);
+        return false;
+    }
+
+    void* hInternet = p_Open("ImgWindow/2.3.0", 0, NULL, NULL, 0);
+    if (!hInternet) {
+        FreeLibrary(hWinINet);
+        return false;
+    }
+
+    void* hUrl = p_OpenUrl(hInternet, url.c_str(), NULL, 0, 0x80000000 | 0x00800000 | 0x04000000, 0);
+    if (!hUrl) {
+        p_Close(hInternet);
+        FreeLibrary(hWinINet);
+        return false;
+    }
+
+    outBuffer.clear();
+    char chunk[4096];
+    unsigned long bytesRead = 0;
+    while (p_Read(hUrl, chunk, sizeof(chunk), &bytesRead) && bytesRead > 0) {
+        outBuffer.insert(outBuffer.end(), chunk, chunk + bytesRead);
+    }
+
+    p_Close(hUrl);
+    p_Close(hInternet);
+    FreeLibrary(hWinINet);
+    return !outBuffer.empty();
+}
+#endif
+
+static bool FetchRemoteBytesDefault(const std::string& url, std::vector<uint8_t>& outBuffer) {
+#if defined(_WIN32)
+    if (FetchRemoteBytesWin(url, outBuffer)) return true;
+#else
+    if (FetchRemoteBytesCurl(url, outBuffer)) return true;
+    if (FetchRemoteBytesCLI(url, outBuffer)) return true;
+#endif
+    return false;
+}
+
+static void FetchRemoteImageWorker(std::string url) {
+    if (s_MarkdownShutdownRequested) return;
+
+    std::vector<uint8_t> buffer;
+    bool fetched = false;
+
+    if (s_MarkdownRemoteFetchCallback) {
+        fetched = s_MarkdownRemoteFetchCallback(url, buffer);
+    }
+    if (!fetched) {
+        fetched = FetchRemoteBytesDefault(url, buffer);
+    }
+
+    if (s_MarkdownShutdownRequested) return;
+
+    MarkdownRemoteDecodedPayload payload;
+    payload.url = url;
+    payload.pixels = nullptr;
+    payload.width = 0;
+    payload.height = 0;
+    payload.success = false;
+
+    if (fetched && !buffer.empty()) {
+        int w = 0, h = 0, channels = 0;
+        stbi_uc* pixels = stbi_load_from_memory(buffer.data(), (int)buffer.size(), &w, &h, &channels, 4);
+        if (pixels && w > 0 && h > 0) {
+            payload.pixels = pixels;
+            payload.width = w;
+            payload.height = h;
+            payload.success = true;
+        }
+    }
+
+    if (s_MarkdownShutdownRequested) {
+        if (payload.pixels) stbi_image_free(payload.pixels);
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(s_MarkdownCompletedMutex);
+    s_MarkdownCompletedQueue.push_back(payload);
+}
+
 ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::MarkdownLinkCallbackData data)
 {
     if (!data.link || data.linkLength <= 0) {
@@ -2080,6 +2370,9 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
     }
 
     std::string url(data.link, (size_t)data.linkLength);
+
+    // 0. Process any newly completed background texture downloads on the main thread:
+    ProcessPendingMarkdownTextures();
 
     // 1. Tier 1: Check In-Memory Named Texture Registry
     ImGui::MarkdownImageData namedData;
@@ -2093,20 +2386,28 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
         return namedData;
     }
 
-    // 2. Tier 2: Check Disk Texture Cache
+    // 2. Check Disk & Remote Texture Cache
     auto it = s_MarkdownDiskTextureCache.find(url);
     if (it != s_MarkdownDiskTextureCache.end()) {
+        if (it->second.inFlight) {
+            ImGui::MarkdownImageData loadingData;
+            loadingData.isValid = false;
+            loadingData.isLoading = true;
+            return loadingData;
+        }
         if (it->second.failed) {
             double now = ImGui::GetTime();
-            if (now - it->second.lastAttemptTime < 2.0) {
+            if (now - it->second.lastAttemptTime < 5.0) {
                 ImGui::MarkdownImageData invalid;
                 invalid.isValid = false;
+                invalid.isLoading = false;
                 return invalid;
             }
-            // 2-second cooldown elapsed: allow retry
+            // 5-second cooldown elapsed: allow retry
         } else if (it->second.textureID) {
             ImGui::MarkdownImageData img;
             img.isValid = true;
+            img.isLoading = false;
             img.user_texture_id = it->second.textureID;
             img.size = it->second.size;
             float avail_w = ImGui::GetContentRegionAvail().x;
@@ -2119,7 +2420,25 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
         }
     }
 
-    // 3. Resolve File Path on Disk
+    // 3. Tier 3: Remote Web URLs (http:// or https://)
+    bool isRemoteUrl = (url.rfind("http://", 0) == 0 || url.rfind("https://", 0) == 0);
+    if (isRemoteUrl) {
+        auto& entry = s_MarkdownDiskTextureCache[url];
+        entry.inFlight = true;
+        entry.failed = false;
+        entry.lastAttemptTime = ImGui::GetTime();
+
+        std::thread([url]() {
+            FetchRemoteImageWorker(url);
+        }).detach();
+
+        ImGui::MarkdownImageData loadingData;
+        loadingData.isValid = false;
+        loadingData.isLoading = true;
+        return loadingData;
+    }
+
+    // 4. Tier 2: Resolve File Path on Disk
     std::string resolvedPath = url;
     bool fileFound = false;
 

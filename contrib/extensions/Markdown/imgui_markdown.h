@@ -158,6 +158,7 @@ namespace ImGui
     {
         bool                    isValid = false;                    // if true, will draw the image
         bool                    useLinkCallback = false;            // if true, linkCallback will be called when image is clicked
+        bool                    isLoading = false;                  // if true, image is downloading in background
         ImTextureID             user_texture_id = 0;                // see ImGui::Image
         ImVec2                  size = ImVec2( 100.0f, 100.0f );    // see ImGui::Image
         ImVec2                  uv0 = ImVec2( 0, 0 );               // see ImGui::Image
@@ -3762,10 +3763,11 @@ namespace ImGui
                     {
                         bool drawnImage = false;
                         bool useLinkCallback = false;
+                        MarkdownImageData imageData;
                         MarkdownImageCallback* imageCb = mdConfig_.imageCallback ? mdConfig_.imageCallback : GetDefaultMarkdownImageCallback();
                         if( imageCb )
                         {
-                            MarkdownImageData imageData = imageCb( { markdown_ + link.text.start, link.text.size(), markdown_ + link.url.start, link.url.size(), mdConfig_.userData, true } );
+                            imageData = imageCb( { markdown_ + link.text.start, link.text.size(), markdown_ + link.url.start, link.url.size(), mdConfig_.userData, true } );
                             useLinkCallback = imageData.useLinkCallback;
                             if( imageData.isValid )
                             {
@@ -3775,7 +3777,14 @@ namespace ImGui
                         }
                         if( !drawnImage )
                         {
-                            ImGui::Text( "( Image %.*s not loaded )", link.url.size(), markdown_ + link.url.start );
+                            if( imageData.isLoading )
+                            {
+                                ImGui::TextDisabled( "( Loading %.*s... )", link.url.size(), markdown_ + link.url.start );
+                            }
+                            else
+                            {
+                                ImGui::Text( "( Image %.*s not loaded )", link.url.size(), markdown_ + link.url.start );
+                            }
                         }
                         if( ImGui::IsItemHovered() )
                         {

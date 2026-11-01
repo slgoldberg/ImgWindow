@@ -397,7 +397,7 @@ public:
 
 #if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     // ------------------------------------------------------------------------
-    // Markdown Image Services & Texture Registry (Tiers 1 & 2)
+    // Markdown Image Services & Texture Registry (Tiers 1, 2 & 3)
     // ------------------------------------------------------------------------
     /** Tier 1: In-Memory Named Texture Registry
      *  Allows plugins to register pre-loaded textures by name or URI (e.g. "my_logo" or "texture://my_logo")
@@ -415,6 +415,21 @@ public:
     /** Enable or disable the built-in default image callback for all Markdown renderers.
      *  Automatically enabled when an ImgWindow is instantiated. */
     static void EnableDefaultMarkdownImageService(bool enable = true);
+
+    /** Tier 3: Asynchronous Remote Web Image Fetching (HTTP / HTTPS)
+     *  Downloads remote images on a background worker thread, decodes off-thread via stb_image,
+     *  and safely transfers the decoded pixel buffer to the main simulator thread for GPU upload. */
+    typedef bool (*MarkdownRemoteFetchCallback)(const std::string& url, std::vector<uint8_t>& outData);
+
+    /** Sets an optional custom remote image fetch callback (e.g. for plugins with their own HTTP managers) */
+    static void SetMarkdownRemoteFetchCallback(MarkdownRemoteFetchCallback callback);
+
+    /** Gets the active custom remote image fetch callback, if any */
+    static MarkdownRemoteFetchCallback GetMarkdownRemoteFetchCallback();
+
+    /** Processes any downloaded remote markdown textures waiting to be uploaded to the GPU.
+     *  Called automatically every frame during markdown rendering and DrawWindowCB. */
+    static void ProcessPendingMarkdownTextures();
 
     /** Destroys all GPU textures loaded by the markdown image cache. */
     static void ClearMarkdownTextureCache();
