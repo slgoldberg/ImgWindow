@@ -250,6 +250,26 @@ namespace ImGui
     };
     typedef void                MarkdownCodeBlockCallback( const MarkdownCodeBlockData& data );
 
+    struct MarkdownTableState
+    {
+        size_t                  tableIndex = 0;                 // 0-based index of table in the markdown document
+        int                     textStart = 0;                  // Start byte offset of table in markdown text
+        int                     textEnd = 0;                    // End byte offset of table (including trailing comments)
+        int                     rowsEnd = 0;                    // End byte offset of last data row
+        float                   totalWidth = 0.0f;              // Total table width (normalized to 1.0x scale; 0.0f = auto content width)
+        float                   presetWidth = 0.0f;             // Author preset width (0.0f = auto content width)
+        int                     sortColumn = -1;                // Sorted column index (-1 = none)
+        int                     sortDirection = 0;              // 0 = None, 1 = Ascending, 2 = Descending
+        std::string             sortColumnName;                 // Plaintext header of the sorted column
+        std::vector<float>      columnWidths;                   // Per-column widths (normalized)
+        bool                    hasPreset = false;              // True if <!-- table-preset: ... --> exists
+        bool                    hasState = false;               // True if <!-- table-state: ... --> exists
+        bool                    isCommitted = true;             // True if change was committed (clicked sort, double-click toggled, drag released)
+        const MarkdownConfig*   config = nullptr;
+        void*                   userData = nullptr;
+    };
+    typedef void                MarkdownTableStateCallback( const MarkdownTableState& state, void* userData );
+
     struct MarkdownConfig
     {
         static const int        NUMHEADINGS = 4;
@@ -259,6 +279,7 @@ namespace ImGui
         MarkdownImageCallback*  imageCallback = NULL;
         MarkdownTagCallback*    tagCallback = NULL;
         MarkdownCodeBlockCallback* codeBlockCallback = NULL;        // Optional host custom syntax/layout handler
+        MarkdownTableStateCallback* tableStateCallback = NULL;      // Optional notification callback when table sort or size changes
         const char*             (*codeBlockDescriptionCallback)( const char* lang, size_t langLength, void* userData ) = NULL; // Optional host language tooltip description callback
         void                    (*setClipboardTextFn)( const char* text, void* userData ) = NULL; // Optional host OS clipboard provider override
         bool                    showCodeCopyButton = true;          // If true, shows one-click [Copy] button in code header
@@ -1847,125 +1868,6 @@ namespace ImGui
             return pos;
         }
 
-        // Checks if current line is the start of a GFM Markdown Table.
-        // Returns the end byte offset of the table if valid, or -1 if not a table.
-        inline int TryParseTable(
-            const char* md, int md_len, int line_start,
-            std::vector<TableCell>& out_headers,
-            std::vector<TableColumnAlign>& out_alignments,
-            std::vector<std::vector<TableCell>>& out_rows )
-        {
-            out_headers.clear();
-            out_alignments.clear();
-            out_rows.clear();
-
-            // 1. Current line (Header row candidate)
-            int line1_end = FindLineEnd( md, line_start, md_len );
-            if( !CheckLineHasPipe( md + line_start, md + line1_end ) )
-            {
-                return -1;
-            }
-
-            // 2. Next line (Delimiter row candidate)
-            int line2_start = SkipNewline( md, line1_end, md_len );
-            if( line2_start >= md_len ) return -1;
-
-            int line2_lead_spaces = 0;
-            while( line2_start + line2_lead_spaces < md_len && 
-                   ( md[line2_start + line2_lead_spaces] == ' ' || md[line2_start + line2_lead_spaces] == '\t' ) )
-            {
-                line2_lead_spaces += ( md[line2_start + line2_lead_spaces] == '\t' ) ? 4 : 1;
-            }
-            if( line2_lead_spaces > 3 ) return -1;
-
-            int line2_end = FindLineEnd( md, line2_start, md_len );
-            if( !ParseDelimiterRow( md + line2_start, md + line2_end, out_alignments ) || out_alignments.empty() )
-            {
-                return -1;
-            }
-
-            if( !SplitRow( md + line_start, md + line1_end, out_headers ) || out_headers.empty() )
-            {
-                return -1;
-            }
-
-            size_t num_cols = out_alignments.size();
-            while( out_headers.size() < num_cols )
-            {
-                TableCell empty_cell;
-                empty_cell.start = md + line1_end;
-                empty_cell.end = md + line1_end;
-                out_headers.push_back( empty_cell );
-            }
-            if( out_headers.size() > num_cols )
-            {
-                out_headers.resize( num_cols );
-            }
-
-            // 3. Subsequent Data Rows
-            int cur_line_start = SkipNewline( md, line2_end, md_len );
-            int table_end = line2_end;
-
-            while( cur_line_start < md_len )
-            {
-                int cur_line_end = FindLineEnd( md, cur_line_start, md_len );
-
-                bool is_blank = true;
-                for( int k = cur_line_start; k < cur_line_end; ++k )
-                {
-                    if( md[k] != ' ' && md[k] != '\t' && md[k] != '\r' )
-                    {
-                        is_blank = false;
-                        break;
-                    }
-                }
-                if( is_blank )
-                {
-                    break;
-                }
-
-                int lead_sp = 0;
-                while( cur_line_start + lead_sp < cur_line_end && ( md[cur_line_start + lead_sp] == ' ' || md[cur_line_start + lead_sp] == '\t' ) )
-                {
-                    ++lead_sp;
-                }
-                char first_c = ( cur_line_start + lead_sp < cur_line_end ) ? md[cur_line_start + lead_sp] : '\0';
-
-                // Heading or code fence interrupts table
-                if( first_c == '#' || first_c == '`' || first_c == '~' )
-                {
-                    break;
-                }
-
-                if( !CheckLineHasPipe( md + cur_line_start, md + cur_line_end ) )
-                {
-                    break;
-                }
-
-                std::vector<TableCell> row_cells;
-                if( SplitRow( md + cur_line_start, md + cur_line_end, row_cells ) )
-                {
-                    while( row_cells.size() < num_cols )
-                    {
-                        TableCell empty_cell;
-                        empty_cell.start = md + cur_line_end;
-                        empty_cell.end = md + cur_line_end;
-                        row_cells.push_back( empty_cell );
-                    }
-                    if( row_cells.size() > num_cols )
-                    {
-                        row_cells.resize( num_cols );
-                    }
-                    out_rows.push_back( row_cells );
-                }
-
-                table_end = cur_line_end;
-                cur_line_start = SkipNewline( md, cur_line_end, md_len );
-            }
-
-            return table_end;
-        }
-
         inline bool StrCaseEqualN( const char* a, const char* b, size_t n )
         {
             for( size_t i = 0; i < n; ++i )
@@ -2270,6 +2172,405 @@ namespace ImGui
             std::string strB = GetCellPlainText( b );
             return NaturalCompare( strA, strB );
         }
+
+        inline bool StrCaseEqual( const std::string& a, const std::string& b )
+        {
+            if( a.size() != b.size() ) return false;
+            for( size_t i = 0; i < a.size(); ++i )
+            {
+                if( tolower( (unsigned char)a[i] ) != tolower( (unsigned char)b[i] ) )
+                    return false;
+            }
+            return true;
+        }
+
+        struct MarkdownTableMetadata
+        {
+            // Author baseline preset (<!-- table-preset: ... -->)
+            bool                hasPreset = false;
+            float               presetWidth = 0.0f;
+            int                 presetSortCol = -1;
+            int                 presetSortDir = 0;
+            std::string         presetSortColName;
+            std::vector<float>  presetColWidths;
+
+            // User active / saved state (<!-- table-state: ... --> or <!-- table: ... -->)
+            bool                hasState = false;
+            float               stateWidth = 0.0f;
+            int                 stateSortCol = -1;
+            int                 stateSortDir = 0;
+            std::string         stateSortColName;
+            std::vector<float>  stateColWidths;
+
+            // Byte offsets within markdown_
+            int                 tableStart = 0;
+            int                 rowsEnd = 0;
+            int                 presetCommentStart = -1;
+            int                 presetCommentEnd = -1;
+            int                 stateCommentStart = -1;
+            int                 stateCommentEnd = -1;
+            int                 fullTableEnd = 0;
+        };
+
+        inline void ParseTableDirective(
+            const char* p_start, size_t len,
+            bool is_preset,
+            MarkdownTableMetadata& meta,
+            const std::vector<TableCell>& headers )
+        {
+            const char* p = p_start;
+            const char* end = p_start + len;
+
+            float& target_w = is_preset ? meta.presetWidth : meta.stateWidth;
+            int& target_sort_col = is_preset ? meta.presetSortCol : meta.stateSortCol;
+            int& target_sort_dir = is_preset ? meta.presetSortDir : meta.stateSortDir;
+            std::string& target_col_name = is_preset ? meta.presetSortColName : meta.stateSortColName;
+            std::vector<float>& target_cols = is_preset ? meta.presetColWidths : meta.stateColWidths;
+
+            if( is_preset ) meta.hasPreset = true;
+            else meta.hasState = true;
+
+            while( p < end )
+            {
+                while( p < end && ( *p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' || *p == ',' || *p == ';' ) ) ++p;
+                if( p >= end ) break;
+
+                const char* tok_start = p;
+                while( p < end && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n' && *p != '=' && *p != ',' && *p != ';' ) ++p;
+                std::string key( tok_start, (size_t)( p - tok_start ) );
+                for( char& c : key ) c = (char)tolower( (unsigned char)c );
+
+                std::string val;
+                if( p < end && *p == '=' )
+                {
+                    ++p; // Skip '='
+                    while( p < end && ( *p == ' ' || *p == '\t' ) ) ++p;
+                    if( p < end && ( *p == '"' || *p == '\'' ) )
+                    {
+                        char q = *p++;
+                        const char* v_start = p;
+                        while( p < end && *p != q ) ++p;
+                        val.assign( v_start, (size_t)( p - v_start ) );
+                        if( p < end && *p == q ) ++p;
+                    }
+                    else
+                    {
+                        const char* v_start = p;
+                        while( p < end && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n' && *p != ',' && *p != ';' ) ++p;
+                        val.assign( v_start, (size_t)( p - v_start ) );
+                    }
+                }
+
+                if( key == "width" || key == "w" )
+                {
+                    if( !val.empty() )
+                    {
+                        if( val == "auto" || val == "default" )
+                        {
+                            target_w = 0.0f;
+                        }
+                        else
+                        {
+                            target_w = (float)atof( val.c_str() );
+                        }
+                    }
+                }
+                else if( key == "cols" || key == "columns" )
+                {
+                    target_cols.clear();
+                    const char* cp = val.c_str();
+                    while( *cp )
+                    {
+                        while( *cp == ' ' || *cp == ',' || *cp == ';' ) ++cp;
+                        if( !*cp ) break;
+                        float cw = (float)atof( cp );
+                        target_cols.push_back( cw );
+                        while( *cp && *cp != ',' && *cp != ';' && *cp != ' ' ) ++cp;
+                    }
+                }
+                else if( key == "sort" )
+                {
+                    if( !val.empty() )
+                    {
+                        if( val == "none" || val == "default" || val == "-1" )
+                        {
+                            target_sort_col = -1;
+                            target_sort_dir = 0;
+                            target_col_name.clear();
+                        }
+                        else
+                        {
+                            bool is_num = true;
+                            for( size_t k = 0; k < val.size(); ++k )
+                            {
+                                if( k == 0 && ( val[k] == '-' || val[k] == '+' ) ) continue;
+                                if( !isdigit( (unsigned char)val[k] ) ) { is_num = false; break; }
+                            }
+
+                            if( is_num )
+                            {
+                                int idx = atoi( val.c_str() );
+                                target_sort_col = idx;
+                                if( idx >= 0 && (size_t)idx < headers.size() )
+                                {
+                                    target_col_name = GetCellPlainText( headers[idx] );
+                                }
+                            }
+                            else
+                            {
+                                target_col_name = val;
+                                target_sort_col = -1;
+                                for( size_t c = 0; c < headers.size(); ++c )
+                                {
+                                    std::string h_name = GetCellPlainText( headers[c] );
+                                    if( StrCaseEqual( h_name, val ) )
+                                    {
+                                        target_sort_col = (int)c;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if( target_sort_dir == 0 )
+                            {
+                                target_sort_dir = 1;
+                            }
+                        }
+                    }
+                }
+                else if( key == "dir" || key == "direction" )
+                {
+                    std::string d = val;
+                    for( char& c : d ) c = (char)tolower( (unsigned char)c );
+                    if( d == "asc" || d == "ascending" || d == "up" )
+                        target_sort_dir = 1;
+                    else if( d == "desc" || d == "descending" || d == "down" )
+                        target_sort_dir = 2;
+                    else if( d == "none" || d == "default" )
+                        target_sort_dir = 0;
+                }
+                else if( key == "asc" || key == "ascending" )
+                {
+                    target_sort_dir = 1;
+                }
+                else if( key == "desc" || key == "descending" )
+                {
+                    target_sort_dir = 2;
+                }
+                else if( key == "none" )
+                {
+                    target_sort_dir = 0;
+                }
+            }
+        }
+
+        // Checks if current line is the start of a GFM Markdown Table.
+        // Returns the end byte offset of the table (including attached metadata directives) if valid, or -1 if not a table.
+        inline int TryParseTable(
+            const char* md, int md_len, int line_start,
+            std::vector<TableCell>& out_headers,
+            std::vector<TableColumnAlign>& out_alignments,
+            std::vector<std::vector<TableCell>>& out_rows,
+            MarkdownTableMetadata& out_meta )
+        {
+            out_headers.clear();
+            out_alignments.clear();
+            out_rows.clear();
+            out_meta = MarkdownTableMetadata();
+            out_meta.tableStart = line_start;
+
+            // 1. Current line (Header row candidate)
+            int line1_end = FindLineEnd( md, line_start, md_len );
+            if( !CheckLineHasPipe( md + line_start, md + line1_end ) )
+            {
+                return -1;
+            }
+
+            // 2. Next line (Delimiter row candidate)
+            int line2_start = SkipNewline( md, line1_end, md_len );
+            if( line2_start >= md_len ) return -1;
+
+            int line2_lead_spaces = 0;
+            while( line2_start + line2_lead_spaces < md_len && 
+                   ( md[line2_start + line2_lead_spaces] == ' ' || md[line2_start + line2_lead_spaces] == '\t' ) )
+            {
+                line2_lead_spaces += ( md[line2_start + line2_lead_spaces] == '\t' ) ? 4 : 1;
+            }
+            if( line2_lead_spaces > 3 ) return -1;
+
+            int line2_end = FindLineEnd( md, line2_start, md_len );
+            if( !ParseDelimiterRow( md + line2_start, md + line2_end, out_alignments ) || out_alignments.empty() )
+            {
+                return -1;
+            }
+
+            if( !SplitRow( md + line_start, md + line1_end, out_headers ) || out_headers.empty() )
+            {
+                return -1;
+            }
+
+            size_t num_cols = out_alignments.size();
+            while( out_headers.size() < num_cols )
+            {
+                TableCell empty_cell;
+                empty_cell.start = md + line1_end;
+                empty_cell.end = md + line1_end;
+                out_headers.push_back( empty_cell );
+            }
+            if( out_headers.size() > num_cols )
+            {
+                out_headers.resize( num_cols );
+            }
+
+            // 3. Subsequent Data Rows
+            int cur_line_start = SkipNewline( md, line2_end, md_len );
+            int table_end = line2_end;
+
+            while( cur_line_start < md_len )
+            {
+                int cur_line_end = FindLineEnd( md, cur_line_start, md_len );
+
+                bool is_blank = true;
+                for( int k = cur_line_start; k < cur_line_end; ++k )
+                {
+                    if( md[k] != ' ' && md[k] != '\t' && md[k] != '\r' )
+                    {
+                        is_blank = false;
+                        break;
+                    }
+                }
+                if( is_blank )
+                {
+                    break;
+                }
+
+                int lead_sp = 0;
+                while( cur_line_start + lead_sp < cur_line_end && ( md[cur_line_start + lead_sp] == ' ' || md[cur_line_start + lead_sp] == '\t' ) )
+                {
+                    ++lead_sp;
+                }
+                char first_c = ( cur_line_start + lead_sp < cur_line_end ) ? md[cur_line_start + lead_sp] : '\0';
+
+                // Heading or code fence interrupts table
+                if( first_c == '#' || first_c == '`' || first_c == '~' )
+                {
+                    break;
+                }
+
+                if( !CheckLineHasPipe( md + cur_line_start, md + cur_line_end ) )
+                {
+                    break;
+                }
+
+                std::vector<TableCell> row_cells;
+                if( SplitRow( md + cur_line_start, md + cur_line_end, row_cells ) )
+                {
+                    while( row_cells.size() < num_cols )
+                    {
+                        TableCell empty_cell;
+                        empty_cell.start = md + cur_line_end;
+                        empty_cell.end = md + cur_line_end;
+                        row_cells.push_back( empty_cell );
+                    }
+                    if( row_cells.size() > num_cols )
+                    {
+                        row_cells.resize( num_cols );
+                    }
+                    out_rows.push_back( row_cells );
+                }
+
+                table_end = cur_line_end;
+                cur_line_start = SkipNewline( md, cur_line_end, md_len );
+            }
+
+            out_meta.rowsEnd = table_end;
+            out_meta.fullTableEnd = table_end;
+
+            // 4. Scan for attached table metadata comment directives (<!-- table-preset: ... --> and/or <!-- table-state: ... -->)
+            while( cur_line_start < md_len )
+            {
+                int check_line_end = FindLineEnd( md, cur_line_start, md_len );
+                int p = cur_line_start;
+                while( p < check_line_end && ( md[p] == ' ' || md[p] == '\t' ) ) ++p;
+
+                if( p + 4 <= check_line_end && strncmp( md + p, "<!--", 4 ) == 0 )
+                {
+                    int content_p = p + 4;
+                    while( content_p < check_line_end && ( md[content_p] == ' ' || md[content_p] == '\t' ) ) ++content_p;
+
+                    bool is_table_directive = false;
+                    bool is_preset = false;
+
+                    if( StrCaseEqualN( md + content_p, "table-preset:", 13 ) )
+                    {
+                        is_table_directive = true;
+                        is_preset = true;
+                        content_p += 13;
+                    }
+                    else if( StrCaseEqualN( md + content_p, "table-state:", 12 ) )
+                    {
+                        is_table_directive = true;
+                        is_preset = false;
+                        content_p += 12;
+                    }
+                    else if( StrCaseEqualN( md + content_p, "table:", 6 ) )
+                    {
+                        is_table_directive = true;
+                        is_preset = false;
+                        content_p += 6;
+                    }
+
+                    if( is_table_directive )
+                    {
+                        int close_pos = -1;
+                        for( int k = content_p; k + 3 <= md_len; ++k )
+                        {
+                            if( md[k] == '-' && md[k+1] == '-' && md[k+2] == '>' )
+                            {
+                                close_pos = k;
+                                break;
+                            }
+                        }
+                        if( close_pos != -1 )
+                        {
+                            int comment_end = close_pos + 3;
+                            int comment_line_end = FindLineEnd( md, comment_end, md_len );
+
+                            ParseTableDirective( md + content_p, (size_t)( close_pos - content_p ), is_preset, out_meta, out_headers );
+
+                            if( is_preset )
+                            {
+                                out_meta.presetCommentStart = cur_line_start;
+                                out_meta.presetCommentEnd = comment_line_end;
+                            }
+                            else
+                            {
+                                out_meta.stateCommentStart = cur_line_start;
+                                out_meta.stateCommentEnd = comment_line_end;
+                            }
+
+                            table_end = comment_line_end;
+                            out_meta.fullTableEnd = comment_line_end;
+                            cur_line_start = SkipNewline( md, comment_line_end, md_len );
+                            continue;
+                        }
+                    }
+                }
+                break;
+            }
+
+            return table_end;
+        }
+
+        inline int TryParseTable(
+            const char* md, int md_len, int line_start,
+            std::vector<TableCell>& out_headers,
+            std::vector<TableColumnAlign>& out_alignments,
+            std::vector<std::vector<TableCell>>& out_rows )
+        {
+            MarkdownTableMetadata dummy_meta;
+            return TryParseTable( md, md_len, line_start, out_headers, out_alignments, out_rows, dummy_meta );
+        }
     } // namespace TableDetail
 
     inline void RenderTableCell( const TableCell& cell, TableColumnAlign align, bool is_header, const MarkdownConfig& mdConfig_ )
@@ -2350,6 +2651,7 @@ namespace ImGui
         const std::vector<TableCell>& headers,
         const std::vector<TableColumnAlign>& alignments,
         const std::vector<std::vector<TableCell>>& rows,
+        const TableDetail::MarkdownTableMetadata& metadata,
         const MarkdownConfig& mdConfig_,
         size_t table_idx )
     {
@@ -2365,17 +2667,73 @@ namespace ImGui
                 header_hash = ImHashData( headers[c].start, (size_t)( headers[c].end - headers[c].start ), header_hash );
             }
         }
+        header_hash = ImHashData( &table_idx, sizeof(table_idx), header_hash );
+
         char table_id[64];
         snprintf( table_id, sizeof(table_id), "##md_table_%08x_%d", (unsigned int)header_hash, (int)table_idx );
 
         // Persistent sort & width state stored in ImGuiStorage for this deterministic table hash
-        ImGuiID sort_col_key = header_hash;
-        ImGuiID sort_dir_key = header_hash + 1;
-        ImGuiID width_key    = header_hash + 2;
+        ImGuiID sort_col_key   = header_hash;
+        ImGuiID sort_dir_key   = header_hash + 1;
+        ImGuiID width_key      = header_hash + 2;
+        ImGuiID reset_key      = header_hash + 3;
+        ImGuiID last_width_key = header_hash + 4;
+        ImGuiID init_key       = header_hash + 5;
+        ImGuiID preset_w_key   = header_hash + 6;
+        ImGuiID meta_hash_key  = header_hash + 7;
+        ImGuiID dragging_key   = header_hash + 8;
+
+        // Detect if metadata was loaded or edited in raw markdown
+        ImGuiID current_meta_hash = 1;
+        if( metadata.hasPreset )
+        {
+            current_meta_hash = ImHashData( &metadata.presetWidth, sizeof(float), current_meta_hash );
+            current_meta_hash = ImHashData( &metadata.presetSortCol, sizeof(int), current_meta_hash );
+            current_meta_hash = ImHashData( &metadata.presetSortDir, sizeof(int), current_meta_hash );
+        }
+        if( metadata.hasState )
+        {
+            current_meta_hash = ImHashData( &metadata.stateWidth, sizeof(float), current_meta_hash );
+            current_meta_hash = ImHashData( &metadata.stateSortCol, sizeof(int), current_meta_hash );
+            current_meta_hash = ImHashData( &metadata.stateSortDir, sizeof(int), current_meta_hash );
+        }
+
+        bool need_init = !ImGui::GetStateStorage()->GetBool( init_key, false ) ||
+                         ( ImGui::GetStateStorage()->GetInt( meta_hash_key, 0 ) != (int)current_meta_hash );
+
+        if( need_init )
+        {
+            int initial_sort_col = -1;
+            int initial_sort_dir = (int)ImGuiSortDirection_None;
+            float initial_norm_w = 0.0f;
+            float preset_norm_w  = 0.0f;
+
+            if( metadata.hasPreset )
+            {
+                preset_norm_w    = metadata.presetWidth;
+                initial_norm_w   = preset_norm_w;
+                initial_sort_col = metadata.presetSortCol;
+                initial_sort_dir = metadata.presetSortDir;
+            }
+            if( metadata.hasState )
+            {
+                initial_norm_w = metadata.stateWidth;
+                if( metadata.stateSortCol >= -1 ) initial_sort_col = metadata.stateSortCol;
+                if( metadata.stateSortDir >= 0 )  initial_sort_dir = metadata.stateSortDir;
+            }
+
+            ImGui::GetStateStorage()->SetInt( sort_col_key, initial_sort_col );
+            ImGui::GetStateStorage()->SetInt( sort_dir_key, initial_sort_dir );
+            ImGui::GetStateStorage()->SetFloat( width_key, initial_norm_w );
+            ImGui::GetStateStorage()->SetFloat( preset_w_key, preset_norm_w );
+            ImGui::GetStateStorage()->SetInt( meta_hash_key, (int)current_meta_hash );
+            ImGui::GetStateStorage()->SetBool( init_key, true );
+        }
 
         int active_sort_col = ImGui::GetStateStorage()->GetInt( sort_col_key, -1 );
         int active_sort_dir = ImGui::GetStateStorage()->GetInt( sort_dir_key, (int)ImGuiSortDirection_None );
         float user_norm_w   = ImGui::GetStateStorage()->GetFloat( width_key, 0.0f );
+        float preset_norm_w = ImGui::GetStateStorage()->GetFloat( preset_w_key, 0.0f );
 
         ImGuiTableFlags flags = mdConfig_.tableFlags;
         if( flags == 0 )
@@ -2441,6 +2799,46 @@ namespace ImGui
 
         ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
 
+        ImGuiTable* table = nullptr;
+        bool sort_changed = false;
+
+        auto fire_state_callback = [&]( bool is_committed )
+        {
+            if( !mdConfig_.tableStateCallback ) return;
+            MarkdownTableState st;
+            st.tableIndex = table_idx;
+            st.textStart = metadata.tableStart;
+            st.textEnd = metadata.fullTableEnd;
+            st.rowsEnd = metadata.rowsEnd;
+            st.totalWidth = ImGui::GetStateStorage()->GetFloat( width_key, 0.0f );
+            st.presetWidth = preset_norm_w;
+            st.sortColumn = active_sort_col;
+            st.sortDirection = active_sort_dir;
+            if( active_sort_col >= 0 && (size_t)active_sort_col < headers.size() )
+            {
+                st.sortColumnName = TableDetail::GetCellPlainText( headers[active_sort_col] );
+            }
+            st.hasPreset = metadata.hasPreset;
+            st.hasState = ( metadata.hasState || st.totalWidth > 0.0f || st.sortColumn >= 0 );
+            st.isCommitted = is_committed;
+            st.config = &mdConfig_;
+            st.userData = mdConfig_.userData;
+
+            if( table )
+            {
+                st.columnWidths.resize( num_cols );
+                for( size_t c = 0; c < num_cols; ++c )
+                {
+                    if( c < (size_t)table->ColumnsCount )
+                    {
+                        float cw = table->Columns[c].WidthGiven;
+                        st.columnWidths[c] = ( scale > 0.0f ) ? ( cw / scale ) : cw;
+                    }
+                }
+            }
+            mdConfig_.tableStateCallback( st, mdConfig_.userData );
+        };
+
         if( ImGui::BeginTable( table_id, (int)num_cols, flags, ImVec2( table_w, 0.0f ) ) )
         {
             // 1. Setup column headers with proportional stretch weights based on content
@@ -2455,7 +2853,7 @@ namespace ImGui
             // 2. Submit Header Row (with interactive sort click, hand cursor, and visual sort indicators)
             float header_h = ImMax( ImGui::GetFrameHeight(), ImGui::GetFontSize() + ImGui::GetStyle().CellPadding.y * 2.0f );
             ImGui::TableNextRow( ImGuiTableRowFlags_Headers, header_h );
-            ImGuiTable* table = ImGui::GetCurrentTable();
+            table = ImGui::GetCurrentTable();
 
             for( size_t col = 0; col < num_cols; ++col )
             {
@@ -2508,6 +2906,7 @@ namespace ImGui
                         }
                         ImGui::GetStateStorage()->SetInt( sort_col_key, active_sort_col );
                         ImGui::GetStateStorage()->SetInt( sort_dir_key, active_sort_dir );
+                        sort_changed = true;
                     }
 
                     if( held || hovered )
@@ -2538,6 +2937,11 @@ namespace ImGui
                                         ( active_sort_dir == (int)ImGuiSortDirection_Ascending ) ? ImGuiDir_Up : ImGuiDir_Down,
                                         arrow_scale );
                 }
+            }
+
+            if( sort_changed )
+            {
+                fire_state_callback( true );
             }
 
             // 3. Prepare Row Indices & Handle Sorting
@@ -2592,8 +2996,6 @@ namespace ImGui
                 bool grip_pressed = ImGui::ButtonBehavior( grip_r, grip_id, &grip_hovered, &grip_held,
                     ImGuiButtonFlags_FlattenChildren | ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_PressedOnDoubleClick );
 
-                ImGuiID reset_key = header_hash + 3;
-                ImGuiID last_width_key = header_hash + 4;
                 bool is_resetting = ImGui::GetStateStorage()->GetBool( reset_key, false );
                 if( !ImGui::IsMouseDown( 0 ) )
                 {
@@ -2605,24 +3007,25 @@ namespace ImGui
 
                 if( ( grip_pressed || grip_hovered ) && ImGui::IsMouseDoubleClicked( 0 ) )
                 {
-                    // Double click: A/B toggle between natural auto content width (0.0f) and last manual width!
-                    float cur_w = ImGui::GetStateStorage()->GetFloat( width_key, 0.0f );
+                    // Double click: A/B toggle between baseline (preset_norm_w or 0.0f auto) and last manual width!
+                    float cur_w = ImGui::GetStateStorage()->GetFloat( width_key, preset_norm_w );
                     float last_w = ImGui::GetStateStorage()->GetFloat( last_width_key, 0.0f );
 
-                    if( cur_w > 0.0f )
+                    if( std::fabs( cur_w - preset_norm_w ) > 0.1f )
                     {
-                        // Currently custom width: remember it and reset to auto content width
+                        // Currently custom width: remember it and reset to baseline
                         ImGui::GetStateStorage()->SetFloat( last_width_key, cur_w );
-                        ImGui::GetStateStorage()->SetFloat( width_key, 0.0f );
+                        ImGui::GetStateStorage()->SetFloat( width_key, preset_norm_w );
                     }
-                    else if( last_w > 0.0f )
+                    else if( last_w > 0.0f && std::fabs( last_w - preset_norm_w ) > 0.1f )
                     {
-                        // Currently auto content width: restore prior custom width!
+                        // Currently baseline: restore prior custom width!
                         ImGui::GetStateStorage()->SetFloat( width_key, last_w );
                     }
 
                     ImGui::GetStateStorage()->SetBool( reset_key, true );
                     ImGui::ClearActiveID();
+                    fire_state_callback( true );
                 }
                 else if( grip_held && !is_resetting && ImGui::IsMouseDragging( 0, 1.0f ) )
                 {
@@ -2631,6 +3034,14 @@ namespace ImGui
                     float clamped_w = ImClamp( new_w, min_table_w, max_grip_w );
                     float norm_w = ( scale > 0.0f ) ? ( clamped_w / scale ) : clamped_w;
                     ImGui::GetStateStorage()->SetFloat( width_key, norm_w );
+                    ImGui::GetStateStorage()->SetBool( dragging_key, true );
+                }
+
+                // Check if drag resize just completed on mouse release
+                if( ImGui::GetStateStorage()->GetBool( dragging_key, false ) && !ImGui::IsMouseDown( 0 ) )
+                {
+                    ImGui::GetStateStorage()->SetBool( dragging_key, false );
+                    fire_state_callback( true );
                 }
 
                 if( grip_hovered || ( grip_held && !is_resetting ) )
@@ -2643,6 +3054,17 @@ namespace ImGui
         }
 
         ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
+    }
+
+    inline void RenderTableBlock(
+        const std::vector<TableCell>& headers,
+        const std::vector<TableColumnAlign>& alignments,
+        const std::vector<std::vector<TableCell>>& rows,
+        const MarkdownConfig& mdConfig_,
+        size_t table_idx )
+    {
+        TableDetail::MarkdownTableMetadata dummy_meta;
+        RenderTableBlock( headers, alignments, rows, dummy_meta, mdConfig_, table_idx );
     }
     
     // render markdown (low-level rendering pipeline)
@@ -2691,12 +3113,13 @@ namespace ImGui
                         std::vector<TableCell> headers;
                         std::vector<TableColumnAlign> alignments;
                         std::vector<std::vector<TableCell>> rows;
+                        TableDetail::MarkdownTableMetadata metadata;
                         int table_end = TableDetail::TryParseTable(
                             markdown_, (int)markdownLength_, i,
-                            headers, alignments, rows );
+                            headers, alignments, rows, metadata );
                         if( table_end > i )
                         {
-                            RenderTableBlock( headers, alignments, rows, mdConfig_, table_idx++ );
+                            RenderTableBlock( headers, alignments, rows, metadata, mdConfig_, table_idx++ );
 
                             textRegion.ResetIndent();
                             lastWasSeparator = false;
@@ -3681,6 +4104,129 @@ namespace ImGui
         case MarkdownFormatType::CODE_BLOCK:
             break;
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Markdown Table Layout & Sort State Helper
+    // -------------------------------------------------------------------------
+    // Updates or inserts an HTML comment directive (<!-- table-state: ... -->)
+    // immediately following the table rows in the provided markdown text.
+    // If the table is reset to its baseline/default state, any existing
+    // <!-- table-state: ... --> comment is cleanly removed.
+    // Author baseline presets (<!-- table-preset: ... -->) are always preserved intact.
+    inline std::string ApplyTableStateToMarkdown( const std::string& markdownText, const MarkdownTableState& state )
+    {
+        // 1. Determine target directive contents
+        bool is_default_width = ( state.totalWidth <= 0.0f ) ||
+                                ( state.hasPreset && std::fabs( state.totalWidth - state.presetWidth ) < 0.5f );
+        bool is_default_sort  = ( state.sortColumn < 0 ) || ( state.sortDirection == 0 );
+
+        std::string new_directive;
+        if( !is_default_width || !is_default_sort )
+        {
+            new_directive = "<!-- table-state:";
+            if( !is_default_width )
+            {
+                char buf[32];
+                if( std::fabs( state.totalWidth - std::round( state.totalWidth ) ) < 0.05f )
+                    snprintf( buf, sizeof(buf), " width=%.0f", state.totalWidth );
+                else
+                    snprintf( buf, sizeof(buf), " width=%.1f", state.totalWidth );
+                new_directive += buf;
+            }
+            if( !is_default_sort )
+            {
+                new_directive += " sort=";
+                if( !state.sortColumnName.empty() )
+                {
+                    new_directive += "\"";
+                    new_directive += state.sortColumnName;
+                    new_directive += "\"";
+                }
+                else
+                {
+                    new_directive += std::to_string( state.sortColumn );
+                }
+                new_directive += ( state.sortDirection == 2 ) ? " desc" : " asc";
+            }
+            new_directive += " -->";
+        }
+
+        int text_len = (int)markdownText.size();
+        int t_start = state.textStart;
+        int t_end = state.textEnd;
+        int r_end = state.rowsEnd;
+
+        // Locate existing table-state directive attached to this table
+        int search_start = ( r_end > 0 && r_end <= text_len ) ? r_end : t_start;
+        int search_end = ImMin( t_end + 128, text_len );
+
+        int existing_comment_start = -1;
+        int existing_comment_end = -1;
+
+        if( search_end > search_start )
+        {
+            std::string search_slice = markdownText.substr( search_start, search_end - search_start );
+            size_t found_pos = search_slice.find( "<!-- table-state:" );
+            if( found_pos == std::string::npos )
+            {
+                found_pos = search_slice.find( "<!-- table:" );
+            }
+
+            if( found_pos != std::string::npos )
+            {
+                size_t close_pos = search_slice.find( "-->", found_pos );
+                if( close_pos != std::string::npos )
+                {
+                    existing_comment_start = (int)( search_start + found_pos );
+                    existing_comment_end = (int)( search_start + close_pos + 3 );
+
+                    // Include surrounding line delimiters
+                    int line_start = existing_comment_start;
+                    while( line_start > 0 && markdownText[line_start - 1] != '\n' && markdownText[line_start - 1] != '\r' )
+                    {
+                        if( markdownText[line_start - 1] == ' ' || markdownText[line_start - 1] == '\t' )
+                            --line_start;
+                        else
+                            break;
+                    }
+                    int line_end = existing_comment_end;
+                    if( line_end < text_len && markdownText[line_end] == '\r' ) ++line_end;
+                    if( line_end < text_len && markdownText[line_end] == '\n' ) ++line_end;
+
+                    existing_comment_start = line_start;
+                    existing_comment_end = line_end;
+                }
+            }
+        }
+
+        std::string result = markdownText;
+
+        if( existing_comment_start >= 0 )
+        {
+            if( new_directive.empty() )
+            {
+                result.erase( existing_comment_start, existing_comment_end - existing_comment_start );
+            }
+            else
+            {
+                std::string rep = new_directive + "\n";
+                result.replace( existing_comment_start, existing_comment_end - existing_comment_start, rep );
+            }
+        }
+        else if( !new_directive.empty() )
+        {
+            int ins_pos = ( t_end > 0 && t_end <= text_len ) ? t_end : r_end;
+            while( ins_pos < text_len && markdownText[ins_pos] != '\n' && markdownText[ins_pos] != '\r' )
+                ++ins_pos;
+            if( ins_pos < text_len && markdownText[ins_pos] == '\r' ) ++ins_pos;
+            if( ins_pos < text_len && markdownText[ins_pos] == '\n' ) ++ins_pos;
+
+            std::string ins = new_directive + "\n";
+            result.insert( ins_pos, ins );
+        }
+
+        return result;
     }
 
 }
