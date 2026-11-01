@@ -2361,6 +2361,14 @@ namespace ImGui
                 {
                     target_sort_dir = 0;
                 }
+                else if( key == "default" || key == "preset" )
+                {
+                    meta.hasPreset = true;
+                }
+                else if( key == "user" || key == "state" )
+                {
+                    meta.hasState = true;
+                }
             }
         }
 
@@ -2516,8 +2524,32 @@ namespace ImGui
                     else if( StrCaseEqualN( md + content_p, "table:", 6 ) )
                     {
                         is_table_directive = true;
-                        is_preset = false;
                         content_p += 6;
+                        while( content_p < check_line_end && ( md[content_p] == ' ' || md[content_p] == '\t' ) ) ++content_p;
+                        if( StrCaseEqualN( md + content_p, "default", 7 ) )
+                        {
+                            is_preset = true;
+                            content_p += 7;
+                        }
+                        else if( StrCaseEqualN( md + content_p, "preset", 6 ) )
+                        {
+                            is_preset = true;
+                            content_p += 6;
+                        }
+                        else if( StrCaseEqualN( md + content_p, "user", 4 ) )
+                        {
+                            is_preset = false;
+                            content_p += 4;
+                        }
+                        else if( StrCaseEqualN( md + content_p, "state", 5 ) )
+                        {
+                            is_preset = false;
+                            content_p += 5;
+                        }
+                        else
+                        {
+                            is_preset = false;
+                        }
                     }
 
                     if( is_table_directive )
@@ -4170,7 +4202,23 @@ namespace ImGui
             size_t found_pos = search_slice.find( "<!-- table-state:" );
             if( found_pos == std::string::npos )
             {
-                found_pos = search_slice.find( "<!-- table:" );
+                found_pos = search_slice.find( "<!-- table: user" );
+            }
+            if( found_pos == std::string::npos )
+            {
+                found_pos = search_slice.find( "<!-- table: state" );
+            }
+            if( found_pos == std::string::npos )
+            {
+                size_t p = search_slice.find( "<!-- table:" );
+                if( p != std::string::npos )
+                {
+                    std::string sub = search_slice.substr( p );
+                    if( sub.find( "default" ) == std::string::npos && sub.find( "preset" ) == std::string::npos )
+                    {
+                        found_pos = p;
+                    }
+                }
             }
 
             if( found_pos != std::string::npos )
