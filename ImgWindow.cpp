@@ -1898,17 +1898,67 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
     std::string resolvedPath = url;
     bool fileFound = false;
 
+    auto checkCandidate = [](const std::string& candidate, struct stat& st_out) -> bool {
+        return (stat(candidate.c_str(), &st_out) == 0 && S_ISREG(st_out.st_mode));
+    };
+
     struct stat st;
-    if (stat(resolvedPath.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+    if (checkCandidate(resolvedPath, st)) {
         fileFound = true;
-    } else {
-        // Try relative to X-Plane system path
+    }
+
+    std::string cleanUrl = url;
+    if (cleanUrl.rfind("./", 0) == 0) {
+        cleanUrl = cleanUrl.substr(2);
+    } else if (cleanUrl.rfind("/", 0) == 0 || cleanUrl.rfind("\\", 0) == 0) {
+        cleanUrl = cleanUrl.substr(1);
+    }
+
+    // Try relative to X-Plane system path
+    if (!fileFound) {
         char sysPath[512] = {0};
         XPLMGetSystemPath(sysPath);
-        std::string candidate = std::string(sysPath) + url;
-        if (stat(candidate.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+        std::string sPath(sysPath);
+        if (!sPath.empty() && sPath.back() != '/' && sPath.back() != '\\') {
+            sPath += '/';
+        }
+        std::string candidate = sPath + cleanUrl;
+        if (checkCandidate(candidate, st)) {
             resolvedPath = candidate;
             fileFound = true;
+        }
+    }
+
+    // Try relative to calling plugin directory (e.g. Resources/plugins/<Plugin>/)
+    if (!fileFound) {
+        XPLMPluginID myId = XPLMGetMyID();
+        if (myId != XPLM_NO_PLUGIN_ID) {
+            char pluginFilePath[512] = {0};
+            XPLMGetPluginInfo(myId, nullptr, pluginFilePath, nullptr, nullptr);
+            std::string pPath(pluginFilePath);
+            size_t slash = pPath.find_last_of("/\\");
+            if (slash != std::string::npos) {
+                std::string pluginDir = pPath.substr(0, slash);
+                size_t prevSlash = pluginDir.find_last_of("/\\");
+                std::string parentDir = (prevSlash != std::string::npos) ? pluginDir.substr(0, prevSlash) : pluginDir;
+
+                std::vector<std::string> searchDirs = {
+                    pluginDir,
+                    parentDir,
+                    parentDir + "/Resources",
+                    parentDir + "/images",
+                    parentDir + "/notes"
+                };
+
+                for (const auto& d : searchDirs) {
+                    std::string candidate = d + "/" + cleanUrl;
+                    if (checkCandidate(candidate, st)) {
+                        resolvedPath = candidate;
+                        fileFound = true;
+                        break;
+                    }
+                }
+            }
         }
     }
 
