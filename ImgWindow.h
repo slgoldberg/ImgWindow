@@ -152,6 +152,16 @@ public:
     static ImgWindow* s_CurrentBuildingWindow;
     static ImgWindow* GetCurrentBuildingWindow() { return s_CurrentBuildingWindow; }
 
+    /** Default safety inset in boxels from the top of the X-Plane main screen to keep
+     *  the window's title bar and drag region clear of the X-Plane system menu bar. */
+    static constexpr int kDefaultTopMenuBarMargin = 20;
+
+    /** Gets the active top menu bar margin in boxels (default: 20) */
+    static int GetTopMenuBarMargin() { return sTopMenuBarMargin; }
+
+    /** Sets the top menu bar margin in boxels */
+    static void SetTopMenuBarMargin(int margin) { sTopMenuBarMargin = margin; }
+
     /** Returns the custom layout scale factor for this window. Subclasses
      * should override this to return their combined text zoom multiplier 
      * (e.g., _fontAdjust * gSeniorCitizenRatio) so extensions can scale 
@@ -224,6 +234,11 @@ public:
     /** Resizes window proportionally to target_scale based on 1.0x baseline reference dimensions.
      *  If baseline_scale != 1.0f, scales relative to baseline_scale instead. */
     bool ResizeToScale (float target_scale, float baseline_scale = 1.0f);
+
+    /** Clamps window geometry (l, t, r, b) to stay completely within legal screen boundaries,
+     *  honoring top menu bar safety margins and min/max limits without mutating aspect ratio. */
+    static void ClampGeometryToScreen(int& in_out_l, int& in_out_t, int& in_out_r, int& in_out_b,
+                                      int min_w = 0, int min_h = 0, int max_w = 0, int max_h = 0);
 
     /** SetVisible() makes the window visible after making the onShow() call.
      * It is also at this time that the window will be relocated onto the VR
@@ -607,6 +622,9 @@ private:
     /** 1.0x baseline reference dimensions for ResizeToScale() */
     int mBaselineWidth  = 0;
     int mBaselineHeight = 0;
+
+    /** Active top menu bar margin in boxels */
+    static int sTopMenuBarMargin;
 
     /** Window drag area in ImGui coordinates (0,0 is top/left corner) */
     int dragLeft    = -1;

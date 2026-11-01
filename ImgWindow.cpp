@@ -205,6 +205,7 @@ static XPLMDataRef gFrameRatePeriodRef  = nullptr;
 std::shared_ptr<ImgFontAtlas> ImgWindow::sFontAtlas;
 ImgWindow* ImgWindow::s_CurrentBuildingWindow = nullptr;
 int ImgWindow::sBlankoutUntilCycle = 0;
+int ImgWindow::sTopMenuBarMargin = ImgWindow::kDefaultTopMenuBarMargin;
 
 // Tracks textures pending destruction and the cycle they were queued
 static std::vector<std::pair<ImTextureID, int>> s_TexturesPendingDestruction;
@@ -624,7 +625,8 @@ WindowGeometry::Centered(int width, int height)
     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
     XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
     int sWidth  = sRight - sLeft;
-    int sHeight = sTop - sBottom;
+    int effective_sTop = sTop - ImgWindow::GetTopMenuBarMargin();
+    int sHeight = effective_sTop - sBottom;
 
     int l = sLeft + (sWidth - width) / 2;
     int b = sBottom + (sHeight - height) / 2;
@@ -659,11 +661,12 @@ WindowGeometry::Sanitize(
 
     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
     XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+    const int effective_sTop = sTop - ImgWindow::GetTopMenuBarMargin();
 
     int interLeft   = (std::max)(l, sLeft);
     int interRight  = (std::min)(r, sRight);
     int interBottom = (std::max)(b, sBottom);
-    int interTop    = (std::min)(t, sTop);
+    int interTop    = (std::min)(t, effective_sTop);
 
     int interW = interRight - interLeft;
     int interH = interTop - interBottom;
@@ -679,7 +682,7 @@ WindowGeometry::Sanitize(
         return WindowGeometry(l, t, r, b);
     }
 
-    if (interW >= minVisibleMargin && interH >= minVisibleMargin && t <= sTop) {
+    if (interW >= minVisibleMargin && interH >= minVisibleMargin && t <= effective_sTop) {
         return WindowGeometry(l, t, r, b);
     }
 
@@ -696,12 +699,12 @@ WindowGeometry::Sanitize(
         newB = sBottom + minVisibleMargin - h;
         newT = sBottom + minVisibleMargin;
     }
-    if (newB > sTop - minVisibleMargin) {
-        newB = sTop - minVisibleMargin;
+    if (newB > effective_sTop - minVisibleMargin) {
+        newB = effective_sTop - minVisibleMargin;
         newT = newB + h;
     }
-    if (newT > sTop) {
-        newT = sTop;
+    if (newT > effective_sTop) {
+        newT = effective_sTop;
         newB = newT - h;
     }
 
@@ -742,6 +745,74 @@ ImgWindow::ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to
     float ratio = to_scale / from_scale;
     out_w = (int)std::round((float)cur_w * ratio);
     out_h = (int)std::round((float)cur_h * ratio);
+}
+
+void
+ImgWindow::ClampGeometryToScreen(
+    int& in_out_l, int& in_out_t, int& in_out_r, int& in_out_b,
+    int min_w, int min_h, int max_w, int max_h)
+{
+    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+
+    const int topMargin = sTopMenuBarMargin;
+    const int effective_sTop = sTop - topMargin;
+
+    int req_w = std::abs(in_out_r - in_out_l);
+    int req_h = std::abs(in_out_t - in_out_b);
+
+    int avail_w = sRight - sLeft;
+    int avail_h = effective_sTop - sBottom;
+
+    if (avail_w > 0 && req_w > avail_w) req_w = avail_w;
+    if (avail_h > 0 && req_h > avail_h) req_h = avail_h;
+
+    if (min_w > 0 && req_w < min_w) req_w = (std::min)(min_w, avail_w);
+    if (max_w > 0 && req_w > max_w) req_w = max_w;
+    if (min_h > 0 && req_h < min_h) req_h = (std::min)(min_h, avail_h);
+    if (max_h > 0 && req_h > max_h) req_h = max_h;
+
+    int new_l = in_out_l;
+    int new_t = in_out_t;
+
+    // 1. Clamp top bound below system menu bar
+    if (new_t > effective_sTop) {
+        new_t = effective_sTop;
+    }
+    int new_b = new_t - req_h;
+
+    // 2. If bottom overflows below screen, push window up
+    if (new_b < sBottom) {
+        int overflow = sBottom - new_b;
+        new_t = (std::min)(new_t + overflow, effective_sTop);
+        new_b = new_t - req_h;
+        if (new_b < sBottom) {
+            new_b = sBottom;
+            req_h = new_t - new_b;
+        }
+    }
+
+    // 3. Clamp left bound
+    if (new_l < sLeft) {
+        new_l = sLeft;
+    }
+    int new_r = new_l + req_w;
+
+    // 4. If right overflows past screen right, push window left
+    if (new_r > sRight) {
+        int overflow = new_r - sRight;
+        new_l = (std::max)(new_l - overflow, sLeft);
+        new_r = new_l + req_w;
+        if (new_r > sRight) {
+            new_r = sRight;
+            req_w = new_r - new_l;
+        }
+    }
+
+    in_out_l = new_l;
+    in_out_t = new_t;
+    in_out_r = new_r;
+    in_out_b = new_b;
 }
 
 bool
@@ -799,39 +870,12 @@ ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale)
     int new_w = (int)std::round((float)cur_w * ratio);
     int new_h = (int)std::round((float)cur_h * ratio);
 
-    new_w = ImClamp(new_w, minWidth, maxWidth);
-    new_h = ImClamp(new_h, minHeight, maxHeight);
-
-    // Anchor top-left (l, t):
     int new_l = l;
     int new_t = t;
     int new_r = new_l + new_w;
     int new_b = new_t - new_h;
 
-    // Safety checks against global screen bounds:
-    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
-    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
-
-    if (new_b < sBottom) {
-        int overflow = sBottom - new_b;
-        if (new_t + overflow <= sTop) {
-            new_t += overflow;
-            new_b += overflow;
-        } else {
-            new_t = sTop;
-            new_b = sBottom;
-        }
-    }
-    if (new_r > sRight) {
-        int overflow = new_r - sRight;
-        if (new_l - overflow >= sLeft) {
-            new_l -= overflow;
-            new_r -= overflow;
-        } else {
-            new_l = sLeft;
-            new_r = sRight;
-        }
-    }
+    ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight);
 
     SetWindowGeometry(new_l, new_t, new_r, new_b);
     return true;
@@ -848,15 +892,16 @@ ImgWindow::ResizeToScale (float target_scale, float baseline_scale)
         int target_w = (int)std::round((float)mBaselineWidth * effective_scale);
         int target_h = (int)std::round((float)mBaselineHeight * effective_scale);
 
-        target_w = ImClamp(target_w, minWidth, maxWidth);
-        target_h = ImClamp(target_h, minHeight, maxHeight);
-
         if (IsInVR()) {
+            target_w = ImClamp(target_w, minWidth, maxWidth);
+            target_h = ImClamp(target_h, minHeight, maxHeight);
             SetWindowGeometryVR(target_w, target_h);
             return true;
         }
 
         if (IsPoppedOut()) {
+            target_w = ImClamp(target_w, minWidth, maxWidth);
+            target_h = ImClamp(target_h, minHeight, maxHeight);
             int l = 0, t = 0, r = 0, b = 0;
             GetWindowGeometryOS(l, t, r, b);
             int new_r = (r >= l) ? (l + target_w) : (l - target_w);
@@ -872,29 +917,7 @@ ImgWindow::ResizeToScale (float target_scale, float baseline_scale)
         int new_r = new_l + target_w;
         int new_b = new_t - target_h;
 
-        int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
-        XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
-
-        if (new_b < sBottom) {
-            int overflow = sBottom - new_b;
-            if (new_t + overflow <= sTop) {
-                new_t += overflow;
-                new_b += overflow;
-            } else {
-                new_t = sTop;
-                new_b = sBottom;
-            }
-        }
-        if (new_r > sRight) {
-            int overflow = new_r - sRight;
-            if (new_l - overflow >= sLeft) {
-                new_l -= overflow;
-                new_r -= overflow;
-            } else {
-                new_l = sLeft;
-                new_r = sRight;
-            }
-        }
+        ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight);
 
         SetWindowGeometry(new_l, new_t, new_r, new_b);
         return true;
@@ -1426,6 +1449,16 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                     mRight  += dx;
                     mTop    += dy;
                     mBottom += dy;
+
+                    // Guard: keep top edge below X-Plane menu bar so title bar drag is never trapped!
+                    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+                    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+                    const int effective_sTop = sTop - sTopMenuBarMargin;
+                    if (mTop > effective_sTop) {
+                        int diff = mTop - effective_sTop;
+                        mTop -= diff;
+                        mBottom -= diff;
+                    }
                 } else {
                     // do we need to handle window resize?
                     if (dragWhat.left)   mLeft   += dx;
@@ -1451,6 +1484,13 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                     if (mTop-mBottom > maxHeight) {
                         if (dragWhat.top) mTop = mBottom + maxHeight;
                         else mBottom = mTop - maxHeight;
+                    }
+                    // Prevent top edge from being resized into the menu bar:
+                    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+                    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+                    const int effective_sTop = sTop - sTopMenuBarMargin;
+                    if (mTop > effective_sTop) {
+                        mTop = effective_sTop;
                     }
                     // FIXME: If we had to apply resizing restricitons, then mouse and window frame will now be out of synch
                 }
