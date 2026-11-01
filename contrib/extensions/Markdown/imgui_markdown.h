@@ -2335,6 +2335,15 @@ namespace ImGui
         char table_id[64];
         snprintf( table_id, sizeof(table_id), "##md_table_%08x_%d", (unsigned int)header_hash, (int)table_idx );
 
+        // Persistent sort & width state stored in ImGuiStorage for this deterministic table hash
+        ImGuiID sort_col_key = header_hash;
+        ImGuiID sort_dir_key = header_hash + 1;
+        ImGuiID width_key    = header_hash + 2;
+
+        int active_sort_col = ImGui::GetStateStorage()->GetInt( sort_col_key, -1 );
+        int active_sort_dir = ImGui::GetStateStorage()->GetInt( sort_dir_key, (int)ImGuiSortDirection_None );
+        float user_table_w  = ImGui::GetStateStorage()->GetFloat( width_key, 0.0f );
+
         ImGuiTableFlags flags = mdConfig_.tableFlags;
         if( flags == 0 )
         {
@@ -2343,7 +2352,12 @@ namespace ImGui
                     ImGuiTableFlags_SizingStretchProp | 
                     ImGuiTableFlags_Resizable |
                     ImGuiTableFlags_Sortable |
+                    ImGuiTableFlags_SortTristate |
                     ImGuiTableFlags_NoSavedSettings;
+        }
+        else if( flags & ImGuiTableFlags_Sortable )
+        {
+            flags |= ImGuiTableFlags_SortTristate;
         }
 
         float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
@@ -2375,7 +2389,15 @@ namespace ImGui
         }
 
         float avail_w = ( mdConfig_.wrapWidth > 0.0f ) ? mdConfig_.wrapWidth : ImGui::GetContentRegionAvail().x;
-        float table_w = ( avail_w > 0.0f ) ? ImMin( total_content_w, avail_w ) : total_content_w;
+        float table_w = total_content_w;
+        if( avail_w > 0.0f )
+        {
+            table_w = ImMin( total_content_w, avail_w );
+            if( user_table_w > 0.0f )
+            {
+                table_w = ImClamp( user_table_w, ImMin( 50.0f * scale, avail_w ), avail_w );
+            }
+        }
 
         ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
 
@@ -2390,8 +2412,9 @@ namespace ImGui
                 ImGui::TableSetupColumn( col_name.c_str(), ImGuiTableColumnFlags_WidthStretch, col_widths[col] );
             }
 
-            // 2. Submit Header Row (with interactive sort click and visual sort indicators)
-            ImGui::TableNextRow( ImGuiTableRowFlags_Headers );
+            // 2. Submit Header Row (with interactive sort click, hand cursor, and visual sort indicators)
+            float header_h = ImMax( ImGui::GetFrameHeight(), ImGui::GetFontSize() + ImGui::GetStyle().CellPadding.y * 2.0f );
+            ImGui::TableNextRow( ImGuiTableRowFlags_Headers, header_h );
             ImGuiTable* table = ImGui::GetCurrentTable();
 
             for( size_t col = 0; col < num_cols; ++col )
@@ -2404,33 +2427,75 @@ namespace ImGui
                 if( is_sortable && table )
                 {
                     ImRect cell_r = ImGui::TableGetCellBgRect( table, (int)col );
+                    if( cell_r.Max.y <= cell_r.Min.y )
+                    {
+                        cell_r.Max.y = cell_r.Min.y + header_h;
+                    }
+
                     ImGuiID header_id = ImGui::GetID( (int)col );
+                    ImGui::ItemAdd( cell_r, header_id, NULL, ImGuiItemFlags_NoNav );
                     bool hovered = false, held = false;
                     bool pressed = ImGui::ButtonBehavior( cell_r, header_id, &hovered, &held, ImGuiButtonFlags_AllowOverlap );
+
+                    if( hovered )
+                    {
+                        ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
+                    }
+
                     if( pressed && table->ReorderColumn != (int)col )
                     {
-                        ImGuiSortDirection next_dir = ImGui::TableGetColumnNextSortDirection( column );
-                        ImGui::TableSetColumnSortDirection( (int)col, next_dir, ImGui::GetIO().KeyShift );
+                        if( active_sort_col != (int)col )
+                        {
+                            active_sort_col = (int)col;
+                            active_sort_dir = (int)ImGuiSortDirection_Ascending;
+                        }
+                        else
+                        {
+                            // Cycle: Ascending -> Descending -> None (Tristate)
+                            if( active_sort_dir == (int)ImGuiSortDirection_Ascending )
+                            {
+                                active_sort_dir = (int)ImGuiSortDirection_Descending;
+                            }
+                            else if( active_sort_dir == (int)ImGuiSortDirection_Descending )
+                            {
+                                active_sort_col = -1;
+                                active_sort_dir = (int)ImGuiSortDirection_None;
+                            }
+                            else
+                            {
+                                active_sort_dir = (int)ImGuiSortDirection_Ascending;
+                            }
+                        }
+                        ImGui::GetStateStorage()->SetInt( sort_col_key, active_sort_col );
+                        ImGui::GetStateStorage()->SetInt( sort_dir_key, active_sort_dir );
                     }
+
                     if( held || hovered )
                     {
                         ImU32 col_bg = ImGui::GetColorU32( held ? ImGuiCol_HeaderActive : ImGuiCol_HeaderHovered );
                         ImGui::TableSetBgColor( ImGuiTableBgTarget_CellBg, col_bg, (int)col );
                     }
+
+                    // Sync internal ImGui column sort state
+                    column->SortOrder = ( (int)col == active_sort_col ) ? 0 : -1;
+                    column->SortDirection = ( (int)col == active_sort_col ) ? (ImU8)active_sort_dir : (ImU8)ImGuiSortDirection_None;
                 }
 
                 TableCell h_cell = ( col < headers.size() ) ? headers[col] : TableCell();
                 RenderTableCell( h_cell, alignments[col], true, mdConfig_ );
 
-                if( is_sortable && column && column->SortOrder != -1 )
+                // Draw sort indicator arrow if this column is sorted
+                if( is_sortable && active_sort_col == (int)col && active_sort_dir != (int)ImGuiSortDirection_None )
                 {
                     ImRect cell_r = ImGui::TableGetCellBgRect( table, (int)col );
+                    if( cell_r.Max.y <= cell_r.Min.y ) cell_r.Max.y = cell_r.Min.y + header_h;
+
                     float arrow_scale = 0.65f;
                     float w_arrow = ImTrunc( ImGui::GetFontSize() * arrow_scale + ImGui::GetStyle().FramePadding.x );
                     float x = ImMax( cell_r.Min.x, cell_r.Max.x - w_arrow );
                     float y = cell_r.Min.y + ImMax( 0.0f, ( ( cell_r.Max.y - cell_r.Min.y ) - ImGui::GetFontSize() ) * 0.5f );
                     ImGui::RenderArrow( ImGui::GetWindowDrawList(), ImVec2( x, y ), ImGui::GetColorU32( ImGuiCol_Text ),
-                                        column->SortDirection == ImGuiSortDirection_Ascending ? ImGuiDir_Up : ImGuiDir_Down,
+                                        ( active_sort_dir == (int)ImGuiSortDirection_Ascending ) ? ImGuiDir_Up : ImGuiDir_Down,
                                         arrow_scale );
                 }
             }
@@ -2439,33 +2504,21 @@ namespace ImGui
             std::vector<size_t> row_indices( rows.size() );
             for( size_t i = 0; i < rows.size(); ++i ) row_indices[i] = i;
 
-            if( ( flags & ImGuiTableFlags_Sortable ) && !rows.empty() )
+            if( ( flags & ImGuiTableFlags_Sortable ) && !rows.empty() && active_sort_col >= 0 && (size_t)active_sort_col < num_cols && active_sort_dir != (int)ImGuiSortDirection_None )
             {
-                ImGuiTableSortSpecs* sorts_specs = ImGui::TableGetSortSpecs();
-                if( sorts_specs && sorts_specs->SpecsCount > 0 )
-                {
-                    const ImGuiTableColumnSortSpecs* spec = &sorts_specs->Specs[0];
-                    int sort_col = spec->ColumnIndex;
-                    ImGuiSortDirection sort_dir = spec->SortDirection;
+                std::stable_sort( row_indices.begin(), row_indices.end(),
+                    [&]( size_t a_idx, size_t b_idx ) -> bool {
+                        const std::vector<TableCell>& rA = rows[a_idx];
+                        const std::vector<TableCell>& rB = rows[b_idx];
+                        TableCell cA = ( (size_t)active_sort_col < rA.size() ) ? rA[active_sort_col] : TableCell();
+                        TableCell cB = ( (size_t)active_sort_col < rB.size() ) ? rB[active_sort_col] : TableCell();
 
-                    if( sort_col >= 0 && (size_t)sort_col < num_cols && sort_dir != ImGuiSortDirection_None )
-                    {
-                        std::stable_sort( row_indices.begin(), row_indices.end(),
-                            [&]( size_t a_idx, size_t b_idx ) -> bool {
-                                const std::vector<TableCell>& rA = rows[a_idx];
-                                const std::vector<TableCell>& rB = rows[b_idx];
-                                TableCell cA = ( (size_t)sort_col < rA.size() ) ? rA[sort_col] : TableCell();
-                                TableCell cB = ( (size_t)sort_col < rB.size() ) ? rB[sort_col] : TableCell();
-
-                                int cmp = TableDetail::CompareCells( cA, cB );
-                                if( sort_dir == ImGuiSortDirection_Descending )
-                                    return cmp > 0;
-                                else
-                                    return cmp < 0;
-                            } );
-                    }
-                    sorts_specs->SpecsDirty = false;
-                }
+                        int cmp = TableDetail::CompareCells( cA, cB );
+                        if( active_sort_dir == (int)ImGuiSortDirection_Descending )
+                            return cmp > 0;
+                        else
+                            return cmp < 0;
+                    } );
             }
 
             // 4. Submit Data Rows in sorted order
@@ -2482,6 +2535,44 @@ namespace ImGui
             }
 
             ImGui::EndTable();
+
+            // 5. Rightmost Border Resize Grip: allows expanding/contracting total table width
+            if( table && ( flags & ImGuiTableFlags_Resizable ) && avail_w > 0.0f && table->OuterRect.Max.x > table->OuterRect.Min.x )
+            {
+                float right_x = table->OuterRect.Max.x;
+                float top_y   = table->OuterRect.Min.y;
+                float bot_y   = table->OuterRect.Max.y;
+                const float hit_half_w = 4.0f * scale;
+
+                ImRect grip_r( right_x - hit_half_w, top_y, right_x + hit_half_w, bot_y );
+                ImGuiID grip_id = ImGui::GetID( "##md_table_right_resize_grip" );
+
+                ImGui::ItemAdd( grip_r, grip_id, NULL, ImGuiItemFlags_NoNav );
+                bool grip_hovered = false, grip_held = false;
+                bool grip_pressed = ImGui::ButtonBehavior( grip_r, grip_id, &grip_hovered, &grip_held,
+                    ImGuiButtonFlags_FlattenChildren | ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_PressedOnDoubleClick );
+
+                if( grip_pressed && ImGui::IsMouseDoubleClicked( 0 ) )
+                {
+                    // Double click: restore natural auto content width
+                    ImGui::GetStateStorage()->SetFloat( width_key, 0.0f );
+                    grip_held = false;
+                }
+                else if( grip_held )
+                {
+                    float mouse_x = ImGui::GetIO().MousePos.x;
+                    float new_w = mouse_x - table->OuterRect.Min.x;
+                    float clamped_w = ImClamp( new_w, ImMin( 50.0f * scale, avail_w ), avail_w );
+                    ImGui::GetStateStorage()->SetFloat( width_key, clamped_w );
+                }
+
+                if( grip_hovered || grip_held )
+                {
+                    ImGui::SetMouseCursor( ImGuiMouseCursor_ResizeEW );
+                    ImU32 line_col = ImGui::GetColorU32( grip_held ? ImGuiCol_SeparatorActive : ImGuiCol_SeparatorHovered );
+                    ImGui::GetWindowDrawList()->AddLine( ImVec2( right_x, top_y ), ImVec2( right_x, bot_y ), line_col, 2.0f * scale );
+                }
+            }
         }
 
         ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
