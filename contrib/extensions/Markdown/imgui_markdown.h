@@ -262,6 +262,7 @@ namespace ImGui
         int                     sortDirection = 0;              // 0 = None, 1 = Ascending, 2 = Descending
         std::string             sortColumnName;                 // Plaintext header of the sorted column
         std::vector<float>      columnWidths;                   // Per-column widths (normalized)
+        bool                    hasCustomColumnWidths = false;  // True if individual column widths were customized
         bool                    hasPreset = false;              // True if <!-- table-preset: ... --> exists
         bool                    hasState = false;               // True if <!-- table-state: ... --> exists
         bool                    isCommitted = true;             // True if change was committed (clicked sort, double-click toggled, drag released)
@@ -2722,12 +2723,20 @@ namespace ImGui
             current_meta_hash = ImHashData( &metadata.presetWidth, sizeof(float), current_meta_hash );
             current_meta_hash = ImHashData( &metadata.presetSortCol, sizeof(int), current_meta_hash );
             current_meta_hash = ImHashData( &metadata.presetSortDir, sizeof(int), current_meta_hash );
+            for( size_t c = 0; c < metadata.presetColWidths.size(); ++c )
+            {
+                current_meta_hash = ImHashData( &metadata.presetColWidths[c], sizeof(float), current_meta_hash );
+            }
         }
         if( metadata.hasState )
         {
             current_meta_hash = ImHashData( &metadata.stateWidth, sizeof(float), current_meta_hash );
             current_meta_hash = ImHashData( &metadata.stateSortCol, sizeof(int), current_meta_hash );
             current_meta_hash = ImHashData( &metadata.stateSortDir, sizeof(int), current_meta_hash );
+            for( size_t c = 0; c < metadata.stateColWidths.size(); ++c )
+            {
+                current_meta_hash = ImHashData( &metadata.stateColWidths[c], sizeof(float), current_meta_hash );
+            }
         }
 
         bool need_init = !ImGui::GetStateStorage()->GetBool( init_key, false ) ||
@@ -2746,10 +2755,34 @@ namespace ImGui
                 initial_norm_w   = preset_norm_w;
                 initial_sort_col = metadata.presetSortCol;
                 initial_sort_dir = metadata.presetSortDir;
+
+                for( size_t c = 0; c < metadata.presetColWidths.size(); ++c )
+                {
+                    ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, metadata.presetColWidths[c] );
+                }
             }
             if( metadata.hasState )
             {
-                initial_norm_w = metadata.stateWidth;
+                if( metadata.stateWidth > 0.0f )
+                {
+                    initial_norm_w = metadata.stateWidth;
+                    // Seed last_width_key with saved custom width so A/B toggle remembers it!
+                    ImGui::GetStateStorage()->SetFloat( last_width_key, metadata.stateWidth );
+                }
+                else if( metadata.hasPreset )
+                {
+                    initial_norm_w = metadata.presetWidth;
+                }
+
+                if( !metadata.stateColWidths.empty() )
+                {
+                    ImGui::GetStateStorage()->SetBool( header_hash + 10, true );
+                    for( size_t c = 0; c < metadata.stateColWidths.size(); ++c )
+                    {
+                        ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, metadata.stateColWidths[c] );
+                    }
+                }
+
                 if( metadata.stateSortCol >= -1 ) initial_sort_col = metadata.stateSortCol;
                 if( metadata.stateSortDir >= 0 )  initial_sort_dir = metadata.stateSortDir;
             }
@@ -2791,25 +2824,34 @@ namespace ImGui
         std::vector<float> col_widths( num_cols, 0.0f );
         for( size_t col = 0; col < num_cols; ++col )
         {
-            TableCell h_cell = ( col < headers.size() ) ? headers[col] : TableCell();
-            float max_w = TableDetail::CalcCellVisualWidth( h_cell, true, mdConfig_ );
-            if( flags & ImGuiTableFlags_Sortable )
+            float custom_cw = ImGui::GetStateStorage()->GetFloat( header_hash + 100 + (ImGuiID)col, 0.0f );
+            if( custom_cw > 0.0f )
             {
-                max_w += 14.0f * scale; // Extra margin for header sort indicator arrow
+                col_widths[col] = custom_cw * scale;
+                total_content_w += col_widths[col];
             }
-            for( size_t r = 0; r < rows.size(); ++r )
+            else
             {
-                if( col < rows[r].size() )
+                TableCell h_cell = ( col < headers.size() ) ? headers[col] : TableCell();
+                float max_w = TableDetail::CalcCellVisualWidth( h_cell, true, mdConfig_ );
+                if( flags & ImGuiTableFlags_Sortable )
                 {
-                    float cw = TableDetail::CalcCellVisualWidth( rows[r][col], false, mdConfig_ );
-                    if( cw > max_w ) max_w = cw;
+                    max_w += 14.0f * scale; // Extra margin for header sort indicator arrow
                 }
+                for( size_t r = 0; r < rows.size(); ++r )
+                {
+                    if( col < rows[r].size() )
+                    {
+                        float cw = TableDetail::CalcCellVisualWidth( rows[r][col], false, mdConfig_ );
+                        if( cw > max_w ) max_w = cw;
+                    }
+                }
+                // Add padding: left + right cell padding + extra breathing room (scaled by zoom/font scale)
+                max_w += ( ImGui::GetStyle().CellPadding.x * 2.0f + 16.0f ) * scale;
+                if( max_w < 30.0f * scale ) max_w = 30.0f * scale;
+                col_widths[col] = max_w;
+                total_content_w += max_w;
             }
-            // Add padding: left + right cell padding + extra breathing room (scaled by zoom/font scale)
-            max_w += ( ImGui::GetStyle().CellPadding.x * 2.0f + 16.0f ) * scale;
-            if( max_w < 30.0f * scale ) max_w = 30.0f * scale;
-            col_widths[col] = max_w;
-            total_content_w += max_w;
         }
 
         bool has_h_scroll = ( ImGui::GetCurrentWindow() && ( ImGui::GetCurrentWindow()->Flags & ImGuiWindowFlags_HorizontalScrollbar ) != 0 );
@@ -2851,7 +2893,9 @@ namespace ImGui
                 st.sortColumnName = TableDetail::GetCellPlainText( headers[active_sort_col] );
             }
             st.hasPreset = metadata.hasPreset;
-            st.hasState = ( metadata.hasState || st.totalWidth > 0.0f || st.sortColumn >= 0 );
+            st.hasState = ( metadata.hasState || st.totalWidth > 0.0f || st.sortColumn >= 0 ||
+                            ImGui::GetStateStorage()->GetBool( header_hash + 10, false ) );
+            st.hasCustomColumnWidths = ImGui::GetStateStorage()->GetBool( header_hash + 10, false );
             st.isCommitted = is_committed;
             st.config = &mdConfig_;
             st.userData = mdConfig_.userData;
@@ -3010,6 +3054,35 @@ namespace ImGui
                 }
             }
 
+            // Check if user is resizing any internal column separator
+            bool is_col_resizing = ( table && table->ResizedColumn != -1 );
+            ImGuiID col_resizing_key = header_hash + 9;
+            ImGuiID col_custom_key   = header_hash + 10;
+            bool was_col_resizing    = ImGui::GetStateStorage()->GetBool( col_resizing_key, false );
+
+            if( is_col_resizing )
+            {
+                ImGui::GetStateStorage()->SetBool( col_resizing_key, true );
+                ImGui::GetStateStorage()->SetBool( col_custom_key, true );
+            }
+            else if( was_col_resizing && !ImGui::IsMouseDown( 0 ) )
+            {
+                ImGui::GetStateStorage()->SetBool( col_resizing_key, false );
+                if( table )
+                {
+                    for( size_t c = 0; c < num_cols; ++c )
+                    {
+                        if( c < (size_t)table->ColumnsCount )
+                        {
+                            float cw = table->Columns[c].WidthGiven;
+                            float norm_c = ( scale > 0.0f ) ? ( cw / scale ) : cw;
+                            ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, norm_c );
+                        }
+                    }
+                }
+                fire_state_callback( true );
+            }
+
             ImGui::EndTable();
 
             // 5. Rightmost Border Resize Grip: allows expanding/contracting total table width
@@ -3045,9 +3118,17 @@ namespace ImGui
 
                     if( std::fabs( cur_w - preset_norm_w ) > 0.1f )
                     {
-                        // Currently custom width: remember it and reset to baseline
+                        // Currently custom width: remember it in last_width_key and reset to baseline
                         ImGui::GetStateStorage()->SetFloat( last_width_key, cur_w );
                         ImGui::GetStateStorage()->SetFloat( width_key, preset_norm_w );
+
+                        // Reset custom column widths back to baseline
+                        ImGui::GetStateStorage()->SetBool( col_custom_key, false );
+                        for( size_t c = 0; c < num_cols; ++c )
+                        {
+                            float pw = ( metadata.hasPreset && c < metadata.presetColWidths.size() ) ? metadata.presetColWidths[c] : 0.0f;
+                            ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, pw );
+                        }
                     }
                     else if( last_w > 0.0f && std::fabs( last_w - preset_norm_w ) > 0.1f )
                     {
@@ -4151,10 +4232,11 @@ namespace ImGui
         // 1. Determine target directive contents
         bool is_default_width = ( state.totalWidth <= 0.0f ) ||
                                 ( state.hasPreset && std::fabs( state.totalWidth - state.presetWidth ) < 0.5f );
+        bool is_default_cols  = !state.hasCustomColumnWidths || state.columnWidths.empty();
         bool is_default_sort  = ( state.sortColumn < 0 ) || ( state.sortDirection == 0 );
 
         std::string new_directive;
-        if( !is_default_width || !is_default_sort )
+        if( !is_default_width || !is_default_cols || !is_default_sort )
         {
             new_directive = "<!-- table-state:";
             if( !is_default_width )
@@ -4165,6 +4247,21 @@ namespace ImGui
                 else
                     snprintf( buf, sizeof(buf), " width=%.1f", state.totalWidth );
                 new_directive += buf;
+            }
+            if( !is_default_cols )
+            {
+                new_directive += " cols=";
+                for( size_t c = 0; c < state.columnWidths.size(); ++c )
+                {
+                    if( c > 0 ) new_directive += ",";
+                    char cbuf[32];
+                    float cw = state.columnWidths[c];
+                    if( std::fabs( cw - std::round( cw ) ) < 0.05f )
+                        snprintf( cbuf, sizeof(cbuf), "%.0f", cw );
+                    else
+                        snprintf( cbuf, sizeof(cbuf), "%.1f", cw );
+                    new_directive += cbuf;
+                }
             }
             if( !is_default_sort )
             {
