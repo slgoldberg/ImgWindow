@@ -348,6 +348,13 @@ namespace ImGui
 			float		scale = ImGui::GetFontScale(false);// use parent's scale
 #endif
             float       lineStartX = ImGui::GetCurrentWindow()->WorkRect.Min.x;
+            if( ImGuiTable* cur_table = ImGui::GetCurrentTable() )
+            {
+                if( cur_table->CurrentColumn != -1 && cur_table->CurrentColumn < cur_table->ColumnsCount )
+                {
+                    lineStartX = cur_table->Columns[cur_table->CurrentColumn].WorkMinX;
+                }
+            }
             float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
             float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
@@ -2304,7 +2311,7 @@ namespace ImGui
         }
 
         MarkdownConfig cell_config = mdConfig_;
-        cell_config.wrapWidth = -1.0f; // Single line per cell item; prevent erroneous word-wrapping/single-char collapse in table cells
+        cell_config.wrapWidth = 0.0f; // Wrap naturally at column cell boundary when narrowed (preventing clipping)
         Markdown::Render( cell.start, cell.size(), cell_config );
 
         if( pushed_font )
@@ -3362,6 +3369,13 @@ namespace ImGui
 		float		scale = ImGui::GetFontScale(false);	  // use parent's scale
 #endif
             float       lineStartX = ImGui::GetCurrentWindow()->WorkRect.Min.x;
+            if( ImGuiTable* cur_table = ImGui::GetCurrentTable() )
+            {
+                if( cur_table->CurrentColumn != -1 && cur_table->CurrentColumn < cur_table->ColumnsCount )
+                {
+                    lineStartX = cur_table->Columns[cur_table->CurrentColumn].WorkMinX;
+                }
+            }
             float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
             float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
