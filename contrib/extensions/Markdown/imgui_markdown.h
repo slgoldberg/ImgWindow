@@ -2422,16 +2422,21 @@ namespace ImGui
             total_content_w += max_w;
         }
 
+        bool has_h_scroll = ( ImGui::GetCurrentWindow() && ( ImGui::GetCurrentWindow()->Flags & ImGuiWindowFlags_HorizontalScrollbar ) != 0 );
         float min_table_w = (float)num_cols * 28.0f * scale;
         float avail_w = ( mdConfig_.wrapWidth > 0.0f ) ? mdConfig_.wrapWidth : ImGui::GetContentRegionAvail().x;
         float table_w = total_content_w;
-        if( avail_w > 0.0f )
+        if( avail_w > 0.0f && !has_h_scroll )
         {
             table_w = ImMin( total_content_w, avail_w );
             if( user_table_w > 0.0f )
             {
                 table_w = ImClamp( user_table_w, ImMin( min_table_w, avail_w ), avail_w );
             }
+        }
+        else if( user_table_w > 0.0f )
+        {
+            table_w = ImMax( user_table_w, min_table_w );
         }
 
         ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
@@ -2587,25 +2592,36 @@ namespace ImGui
                 bool grip_pressed = ImGui::ButtonBehavior( grip_r, grip_id, &grip_hovered, &grip_held,
                     ImGuiButtonFlags_FlattenChildren | ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_PressedOnDoubleClick );
 
-                if( grip_pressed && ImGui::IsMouseDoubleClicked( 0 ) )
+                ImGuiID reset_key = header_hash + 3;
+                bool is_resetting = ImGui::GetStateStorage()->GetBool( reset_key, false );
+                if( !ImGui::IsMouseDown( 0 ) )
+                {
+                    is_resetting = false;
+                    ImGui::GetStateStorage()->SetBool( reset_key, false );
+                }
+
+                float max_grip_w = has_h_scroll ? ImMax( avail_w * 5.0f, total_content_w * 3.0f ) : avail_w;
+
+                if( ( grip_pressed || grip_hovered ) && ImGui::IsMouseDoubleClicked( 0 ) )
                 {
                     // Double click: restore natural auto content width
                     ImGui::GetStateStorage()->SetFloat( width_key, 0.0f );
-                    grip_held = false;
+                    ImGui::GetStateStorage()->SetBool( reset_key, true );
+                    ImGui::ClearActiveID();
                 }
-                else if( grip_held )
+                else if( grip_held && !is_resetting && ImGui::IsMouseDragging( 0, 1.0f ) )
                 {
                     float mouse_x = ImGui::GetIO().MousePos.x;
                     float new_w = mouse_x - table->OuterRect.Min.x;
-                    float clamped_w = ImClamp( new_w, ImMin( min_table_w, avail_w ), avail_w );
+                    float clamped_w = ImClamp( new_w, min_table_w, max_grip_w );
                     float norm_w = ( scale > 0.0f ) ? ( clamped_w / scale ) : clamped_w;
                     ImGui::GetStateStorage()->SetFloat( width_key, norm_w );
                 }
 
-                if( grip_hovered || grip_held )
+                if( grip_hovered || ( grip_held && !is_resetting ) )
                 {
                     ImGui::SetMouseCursor( ImGuiMouseCursor_ResizeEW );
-                    ImU32 line_col = ImGui::GetColorU32( grip_held ? ImGuiCol_SeparatorActive : ImGuiCol_SeparatorHovered );
+                    ImU32 line_col = ImGui::GetColorU32( ( grip_held && !is_resetting ) ? ImGuiCol_SeparatorActive : ImGuiCol_SeparatorHovered );
                     ImGui::GetWindowDrawList()->AddLine( ImVec2( right_x, top_y ), ImVec2( right_x, bot_y ), line_col, 2.0f * scale );
                 }
             }
