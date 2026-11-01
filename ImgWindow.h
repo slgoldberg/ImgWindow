@@ -243,8 +243,25 @@ public:
     /** Gets the 1.0x baseline reference dimensions */
     void GetBaselineWindowSize (int& width, int& height) const { width = mBaselineWidth; height = mBaselineHeight; }
 
-    /** Pure math converter: scales (cur_w, cur_h) proportionally from from_scale to to_scale */
-    static void ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to_scale, int& out_w, int& out_h);
+    /** Sets invariant, unscaled chrome dimensions (e.g. fixed headers, footers, or sidebars)
+     *  that should not be multiplied by font scale ratio during proportional window resizing. */
+    void SetUnscaledChrome (int fixed_width, int fixed_height) {
+        mChromeWidth  = (fixed_width > 0) ? fixed_width : 0;
+        mChromeHeight = (fixed_height > 0) ? fixed_height : 0;
+    }
+
+    /** Gets invariant, unscaled chrome dimensions */
+    void GetUnscaledChrome (int& fixed_width, int& fixed_height) const {
+        fixed_width  = mChromeWidth;
+        fixed_height = mChromeHeight;
+    }
+    int  GetUnscaledChromeWidth () const  { return mChromeWidth; }
+    int  GetUnscaledChromeHeight () const { return mChromeHeight; }
+
+    /** Pure math converter: scales (cur_w, cur_h) proportionally from from_scale to to_scale,
+     *  optionally accounting for invariant unscaled chrome dimensions. */
+    static void ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to_scale, int& out_w, int& out_h,
+                                     int chrome_w = 0, int chrome_h = 0);
 
     /** Proportionally scales current window dimensions from from_scale to to_scale,
      *  anchoring the top-left corner and clamping to min/max window limits and screen bounds.
@@ -681,6 +698,10 @@ private:
     /** 1.0x baseline reference dimensions for ResizeToScale() */
     int mBaselineWidth  = 0;
     int mBaselineHeight = 0;
+
+    /** Invariant unscaled chrome dimensions (fixed headers, footers, sidebars) */
+    int mChromeWidth    = 0;
+    int mChromeHeight   = 0;
 
     /** Active top menu bar margin in boxels */
     static int sTopMenuBarMargin;

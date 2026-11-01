@@ -744,7 +744,8 @@ ImgWindow::SetWindowResizingLimits (int minW, int minH, int maxW, int maxH)
 }
 
 void
-ImgWindow::ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to_scale, int& out_w, int& out_h)
+ImgWindow::ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to_scale, int& out_w, int& out_h,
+                                int chrome_w, int chrome_h)
 {
     if (from_scale <= 0.001f || to_scale <= 0.001f) {
         out_w = cur_w;
@@ -752,8 +753,10 @@ ImgWindow::ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to
         return;
     }
     float ratio = to_scale / from_scale;
-    out_w = (int)std::round((float)cur_w * ratio);
-    out_h = (int)std::round((float)cur_h * ratio);
+    int scalable_w = (std::max)(0, cur_w - chrome_w);
+    int scalable_h = (std::max)(0, cur_h - chrome_h);
+    out_w = chrome_w + (int)std::round((float)scalable_w * ratio);
+    out_h = chrome_h + (int)std::round((float)scalable_h * ratio);
 }
 
 void
@@ -840,8 +843,11 @@ ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale)
         GetWindowGeometryVR(cur_w, cur_h);
         if (cur_w <= 0 || cur_h <= 0) return false;
 
-        int new_w = (int)std::round((float)cur_w * ratio);
-        int new_h = (int)std::round((float)cur_h * ratio);
+        int scalable_w = (std::max)(0, cur_w - mChromeWidth);
+        int scalable_h = (std::max)(0, cur_h - mChromeHeight);
+
+        int new_w = mChromeWidth  + (int)std::round((float)scalable_w * ratio);
+        int new_h = mChromeHeight + (int)std::round((float)scalable_h * ratio);
 
         new_w = ImClamp(new_w, minWidth, maxWidth);
         new_h = ImClamp(new_h, minHeight, maxHeight);
@@ -857,8 +863,11 @@ ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale)
         int cur_h = std::abs(t - b);
         if (cur_w <= 0 || cur_h <= 0) return false;
 
-        int new_w = (int)std::round((float)cur_w * ratio);
-        int new_h = (int)std::round((float)cur_h * ratio);
+        int scalable_w = (std::max)(0, cur_w - mChromeWidth);
+        int scalable_h = (std::max)(0, cur_h - mChromeHeight);
+
+        int new_w = mChromeWidth  + (int)std::round((float)scalable_w * ratio);
+        int new_h = mChromeHeight + (int)std::round((float)scalable_h * ratio);
 
         new_w = ImClamp(new_w, minWidth, maxWidth);
         new_h = ImClamp(new_h, minHeight, maxHeight);
@@ -877,8 +886,11 @@ ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale)
     int cur_h = t - b;
     if (cur_w <= 0 || cur_h <= 0) return false;
 
-    int new_w = (int)std::round((float)cur_w * ratio);
-    int new_h = (int)std::round((float)cur_h * ratio);
+    int scalable_w = (std::max)(0, cur_w - mChromeWidth);
+    int scalable_h = (std::max)(0, cur_h - mChromeHeight);
+
+    int new_w = mChromeWidth  + (int)std::round((float)scalable_w * ratio);
+    int new_h = mChromeHeight + (int)std::round((float)scalable_h * ratio);
 
     int new_l = l;
     int new_t = t;
@@ -899,8 +911,10 @@ ImgWindow::ResizeToScale (float target_scale, float baseline_scale)
 
     if (mBaselineWidth > 0 && mBaselineHeight > 0) {
         float effective_scale = target_scale / baseline_scale;
-        int target_w = (int)std::round((float)mBaselineWidth * effective_scale);
-        int target_h = (int)std::round((float)mBaselineHeight * effective_scale);
+        int scalable_base_w = (std::max)(0, mBaselineWidth - mChromeWidth);
+        int scalable_base_h = (std::max)(0, mBaselineHeight - mChromeHeight);
+        int target_w = mChromeWidth  + (int)std::round((float)scalable_base_w * effective_scale);
+        int target_h = mChromeHeight + (int)std::round((float)scalable_base_h * effective_scale);
 
         if (IsInVR()) {
             target_w = ImClamp(target_w, minWidth, maxWidth);
