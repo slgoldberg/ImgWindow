@@ -2712,9 +2712,12 @@ namespace ImGui
         ImGuiID reset_key      = header_hash + 3;
         ImGuiID last_width_key = header_hash + 4;
         ImGuiID init_key       = header_hash + 5;
-        ImGuiID preset_w_key   = header_hash + 6;
-        ImGuiID meta_hash_key  = header_hash + 7;
-        ImGuiID dragging_key   = header_hash + 8;
+        ImGuiID preset_w_key        = header_hash + 6;
+        ImGuiID meta_hash_key       = header_hash + 7;
+        ImGuiID dragging_key        = header_hash + 8;
+        ImGuiID col_resizing_key    = header_hash + 9;
+        ImGuiID col_custom_key      = header_hash + 10;
+        ImGuiID last_col_custom_key = header_hash + 11;
 
         // Detect if metadata was loaded or edited in raw markdown
         ImGuiID current_meta_hash = 1;
@@ -2776,10 +2779,12 @@ namespace ImGui
 
                 if( !metadata.stateColWidths.empty() )
                 {
-                    ImGui::GetStateStorage()->SetBool( header_hash + 10, true );
+                    ImGui::GetStateStorage()->SetBool( col_custom_key, true );
+                    ImGui::GetStateStorage()->SetBool( last_col_custom_key, true );
                     for( size_t c = 0; c < metadata.stateColWidths.size(); ++c )
                     {
                         ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, metadata.stateColWidths[c] );
+                        ImGui::GetStateStorage()->SetFloat( header_hash + 200 + (ImGuiID)c, metadata.stateColWidths[c] );
                     }
                 }
 
@@ -2893,24 +2898,23 @@ namespace ImGui
                 st.sortColumnName = TableDetail::GetCellPlainText( headers[active_sort_col] );
             }
             st.hasPreset = metadata.hasPreset;
-            st.hasState = ( metadata.hasState || st.totalWidth > 0.0f || st.sortColumn >= 0 ||
-                            ImGui::GetStateStorage()->GetBool( header_hash + 10, false ) );
-            st.hasCustomColumnWidths = ImGui::GetStateStorage()->GetBool( header_hash + 10, false );
+            bool custom_cols = ImGui::GetStateStorage()->GetBool( col_custom_key, false );
+            st.hasState = ( metadata.hasState || st.totalWidth > 0.0f || st.sortColumn >= 0 || custom_cols );
+            st.hasCustomColumnWidths = custom_cols;
             st.isCommitted = is_committed;
             st.config = &mdConfig_;
             st.userData = mdConfig_.userData;
 
-            if( table )
+            st.columnWidths.resize( num_cols, 0.0f );
+            for( size_t c = 0; c < num_cols; ++c )
             {
-                st.columnWidths.resize( num_cols );
-                for( size_t c = 0; c < num_cols; ++c )
+                float cw = ImGui::GetStateStorage()->GetFloat( header_hash + 100 + (ImGuiID)c, 0.0f );
+                if( cw <= 0.0f && table && c < (size_t)table->ColumnsCount )
                 {
-                    if( c < (size_t)table->ColumnsCount )
-                    {
-                        float cw = table->Columns[c].WidthGiven;
-                        st.columnWidths[c] = ( scale > 0.0f ) ? ( cw / scale ) : cw;
-                    }
+                    float w = table->Columns[c].WidthGiven;
+                    cw = ( scale > 0.0f ) ? ( w / scale ) : w;
                 }
+                st.columnWidths[c] = cw;
             }
             mdConfig_.tableStateCallback( st, mdConfig_.userData );
         };
@@ -3055,15 +3059,14 @@ namespace ImGui
             }
 
             // Check if user is resizing any internal column separator
-            bool is_col_resizing = ( table && table->ResizedColumn != -1 );
-            ImGuiID col_resizing_key = header_hash + 9;
-            ImGuiID col_custom_key   = header_hash + 10;
-            bool was_col_resizing    = ImGui::GetStateStorage()->GetBool( col_resizing_key, false );
+            bool is_col_resizing  = ( table && table->ResizedColumn != -1 );
+            bool was_col_resizing = ImGui::GetStateStorage()->GetBool( col_resizing_key, false );
 
             if( is_col_resizing )
             {
                 ImGui::GetStateStorage()->SetBool( col_resizing_key, true );
                 ImGui::GetStateStorage()->SetBool( col_custom_key, true );
+                ImGui::GetStateStorage()->SetBool( last_col_custom_key, true );
             }
             else if( was_col_resizing && !ImGui::IsMouseDown( 0 ) )
             {
@@ -3077,9 +3080,12 @@ namespace ImGui
                             float cw = table->Columns[c].WidthGiven;
                             float norm_c = ( scale > 0.0f ) ? ( cw / scale ) : cw;
                             ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, norm_c );
+                            ImGui::GetStateStorage()->SetFloat( header_hash + 200 + (ImGuiID)c, norm_c );
                         }
                     }
                 }
+                ImGui::GetStateStorage()->SetBool( col_custom_key, true );
+                ImGui::GetStateStorage()->SetBool( last_col_custom_key, true );
                 fire_state_callback( true );
             }
 
@@ -3112,28 +3118,80 @@ namespace ImGui
 
                 if( ( grip_pressed || grip_hovered ) && ImGui::IsMouseDoubleClicked( 0 ) )
                 {
-                    // Double click: A/B toggle between baseline (preset_norm_w or 0.0f auto) and last manual width!
+                    // Double click: A/B toggle between baseline (preset_norm_w or 0.0f auto) and last manual width & column widths!
                     float cur_w = ImGui::GetStateStorage()->GetFloat( width_key, preset_norm_w );
                     float last_w = ImGui::GetStateStorage()->GetFloat( last_width_key, 0.0f );
 
                     if( std::fabs( cur_w - preset_norm_w ) > 0.1f )
                     {
-                        // Currently custom width: remember it in last_width_key and reset to baseline
+                        // Transition: Custom Layout -> Baseline (Preset / Auto)
                         ImGui::GetStateStorage()->SetFloat( last_width_key, cur_w );
                         ImGui::GetStateStorage()->SetFloat( width_key, preset_norm_w );
 
-                        // Reset custom column widths back to baseline
-                        ImGui::GetStateStorage()->SetBool( col_custom_key, false );
+                        // Remember current custom column widths in header_hash + 200 + c
+                        bool had_custom_cols = ImGui::GetStateStorage()->GetBool( col_custom_key, false );
+                        ImGui::GetStateStorage()->SetBool( last_col_custom_key, had_custom_cols );
+
                         for( size_t c = 0; c < num_cols; ++c )
                         {
+                            float cur_cw = ImGui::GetStateStorage()->GetFloat( header_hash + 100 + (ImGuiID)c, 0.0f );
+                            if( cur_cw <= 0.0f && table && c < (size_t)table->ColumnsCount )
+                            {
+                                float cw = table->Columns[c].WidthGiven;
+                                cur_cw = ( scale > 0.0f ) ? ( cw / scale ) : cw;
+                            }
+                            ImGui::GetStateStorage()->SetFloat( header_hash + 200 + (ImGuiID)c, cur_cw );
+
+                            // Reset to baseline preset column width (or 0.0f auto)
                             float pw = ( metadata.hasPreset && c < metadata.presetColWidths.size() ) ? metadata.presetColWidths[c] : 0.0f;
                             ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, pw );
+
+                            if( table && c < (size_t)table->ColumnsCount )
+                            {
+                                if( pw > 0.0f )
+                                {
+                                    table->Columns[c].WidthRequest = pw * scale;
+                                    table->Columns[c].StretchWeight = pw * scale;
+                                    table->Columns[c].AutoFitQueue = 0x00;
+                                }
+                            }
                         }
+
+                        if( table )
+                        {
+                            if( metadata.hasPreset && !metadata.presetColWidths.empty() )
+                                ImGui::TableUpdateColumnsWeightFromWidth( table );
+                            else
+                                ImGui::TableSetColumnWidthAutoAll( table );
+                        }
+
+                        ImGui::GetStateStorage()->SetBool( col_custom_key, ( metadata.hasPreset && !metadata.presetColWidths.empty() ) );
                     }
                     else if( last_w > 0.0f && std::fabs( last_w - preset_norm_w ) > 0.1f )
                     {
-                        // Currently baseline: restore prior custom width!
+                        // Transition: Baseline -> Custom Layout (Restore prior custom width & column widths!)
                         ImGui::GetStateStorage()->SetFloat( width_key, last_w );
+
+                        bool restore_custom = ImGui::GetStateStorage()->GetBool( last_col_custom_key, false );
+                        ImGui::GetStateStorage()->SetBool( col_custom_key, restore_custom );
+
+                        for( size_t c = 0; c < num_cols; ++c )
+                        {
+                            float saved_cw = ImGui::GetStateStorage()->GetFloat( header_hash + 200 + (ImGuiID)c, 0.0f );
+                            ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, saved_cw );
+
+                            if( table && c < (size_t)table->ColumnsCount && saved_cw > 0.0f )
+                            {
+                                table->Columns[c].WidthRequest = saved_cw * scale;
+                                table->Columns[c].StretchWeight = saved_cw * scale;
+                                table->Columns[c].AutoFitQueue = 0x00;
+                            }
+                        }
+
+                        if( table && restore_custom )
+                        {
+                            ImGui::TableUpdateColumnsWeightFromWidth( table );
+                        }
                     }
 
                     ImGui::GetStateStorage()->SetBool( reset_key, true );
