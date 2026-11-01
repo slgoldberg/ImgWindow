@@ -206,6 +206,25 @@ public:
     /** Set resize limits. If set this way then the window object knows. */
     void SetWindowResizingLimits (int minW, int minH, int maxW, int maxH);
 
+    /** Sets the 1.0x baseline reference dimensions for ResizeToScale().
+     *  Initialized automatically to the window's initial construction dimensions. */
+    void SetBaselineWindowSize (int width, int height) { mBaselineWidth = width; mBaselineHeight = height; }
+
+    /** Gets the 1.0x baseline reference dimensions */
+    void GetBaselineWindowSize (int& width, int& height) const { width = mBaselineWidth; height = mBaselineHeight; }
+
+    /** Pure math converter: scales (cur_w, cur_h) proportionally from from_scale to to_scale */
+    static void ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to_scale, int& out_w, int& out_h);
+
+    /** Proportionally scales current window dimensions from from_scale to to_scale,
+     *  anchoring the top-left corner and clamping to min/max window limits and screen bounds.
+     *  Mode-aware: handles in-sim 2D, OS popped-out, and VR windows seamlessly. */
+    bool ScaleWindowGeometry (float from_scale, float to_scale);
+
+    /** Resizes window proportionally to target_scale based on 1.0x baseline reference dimensions.
+     *  If baseline_scale != 1.0f, scales relative to baseline_scale instead. */
+    bool ResizeToScale (float target_scale, float baseline_scale = 1.0f);
+
     /** SetVisible() makes the window visible after making the onShow() call.
      * It is also at this time that the window will be relocated onto the VR
      * display if the VR headset is in use.
@@ -584,6 +603,10 @@ private:
     int minHeight   = 100;
     int maxWidth    = INT_MAX;
     int maxHeight   = INT_MAX;
+
+    /** 1.0x baseline reference dimensions for ResizeToScale() */
+    int mBaselineWidth  = 0;
+    int mBaselineHeight = 0;
 
     /** Window drag area in ImGui coordinates (0,0 is top/left corner) */
     int dragLeft    = -1;

@@ -568,6 +568,9 @@ ImgWindow::ImgWindow(
         mWindowID = XPLMCreateWindowEx(&windowParams);
     }
 
+    mBaselineWidth = right - left;
+    mBaselineHeight = top - bottom;
+
 #if defined(XPLM301)
     // Initialize VR window geometry with the window's initial aspect ratio:
     int winW = right - left;
@@ -726,6 +729,178 @@ ImgWindow::SetWindowResizingLimits (int minW, int minH, int maxW, int maxH)
     maxWidth  = maxW;
     maxHeight = maxH;
     XPLMSetWindowResizingLimits(mWindowID, minW, minH, maxW, maxH);
+}
+
+void
+ImgWindow::ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to_scale, int& out_w, int& out_h)
+{
+    if (from_scale <= 0.001f || to_scale <= 0.001f) {
+        out_w = cur_w;
+        out_h = cur_h;
+        return;
+    }
+    float ratio = to_scale / from_scale;
+    out_w = (int)std::round((float)cur_w * ratio);
+    out_h = (int)std::round((float)cur_h * ratio);
+}
+
+bool
+ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale)
+{
+    if (from_scale <= 0.001f || to_scale <= 0.001f || !mWindowID)
+        return false;
+
+    float ratio = to_scale / from_scale;
+    if (std::abs(ratio - 1.0f) < 0.0001f)
+        return true;
+
+    if (IsInVR()) {
+        int cur_w = 0, cur_h = 0;
+        GetWindowGeometryVR(cur_w, cur_h);
+        if (cur_w <= 0 || cur_h <= 0) return false;
+
+        int new_w = (int)std::round((float)cur_w * ratio);
+        int new_h = (int)std::round((float)cur_h * ratio);
+
+        new_w = ImClamp(new_w, minWidth, maxWidth);
+        new_h = ImClamp(new_h, minHeight, maxHeight);
+
+        SetWindowGeometryVR(new_w, new_h);
+        return true;
+    }
+
+    if (IsPoppedOut()) {
+        int l = 0, t = 0, r = 0, b = 0;
+        GetWindowGeometryOS(l, t, r, b);
+        int cur_w = std::abs(r - l);
+        int cur_h = std::abs(t - b);
+        if (cur_w <= 0 || cur_h <= 0) return false;
+
+        int new_w = (int)std::round((float)cur_w * ratio);
+        int new_h = (int)std::round((float)cur_h * ratio);
+
+        new_w = ImClamp(new_w, minWidth, maxWidth);
+        new_h = ImClamp(new_h, minHeight, maxHeight);
+
+        int new_r = (r >= l) ? (l + new_w) : (l - new_w);
+        int new_b = (b >= t) ? (t + new_h) : (t - new_h);
+
+        SetWindowGeometryOS(l, t, new_r, new_b);
+        return true;
+    }
+
+    // Standard in-simulator 2D window:
+    int l = 0, t = 0, r = 0, b = 0;
+    GetWindowGeometry(l, t, r, b);
+    int cur_w = r - l;
+    int cur_h = t - b;
+    if (cur_w <= 0 || cur_h <= 0) return false;
+
+    int new_w = (int)std::round((float)cur_w * ratio);
+    int new_h = (int)std::round((float)cur_h * ratio);
+
+    new_w = ImClamp(new_w, minWidth, maxWidth);
+    new_h = ImClamp(new_h, minHeight, maxHeight);
+
+    // Anchor top-left (l, t):
+    int new_l = l;
+    int new_t = t;
+    int new_r = new_l + new_w;
+    int new_b = new_t - new_h;
+
+    // Safety checks against global screen bounds:
+    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+
+    if (new_b < sBottom) {
+        int overflow = sBottom - new_b;
+        if (new_t + overflow <= sTop) {
+            new_t += overflow;
+            new_b += overflow;
+        } else {
+            new_t = sTop;
+            new_b = sBottom;
+        }
+    }
+    if (new_r > sRight) {
+        int overflow = new_r - sRight;
+        if (new_l - overflow >= sLeft) {
+            new_l -= overflow;
+            new_r -= overflow;
+        } else {
+            new_l = sLeft;
+            new_r = sRight;
+        }
+    }
+
+    SetWindowGeometry(new_l, new_t, new_r, new_b);
+    return true;
+}
+
+bool
+ImgWindow::ResizeToScale (float target_scale, float baseline_scale)
+{
+    if (target_scale <= 0.001f || baseline_scale <= 0.001f || !mWindowID)
+        return false;
+
+    if (mBaselineWidth > 0 && mBaselineHeight > 0) {
+        float effective_scale = target_scale / baseline_scale;
+        int target_w = (int)std::round((float)mBaselineWidth * effective_scale);
+        int target_h = (int)std::round((float)mBaselineHeight * effective_scale);
+
+        target_w = ImClamp(target_w, minWidth, maxWidth);
+        target_h = ImClamp(target_h, minHeight, maxHeight);
+
+        if (IsInVR()) {
+            SetWindowGeometryVR(target_w, target_h);
+            return true;
+        }
+
+        if (IsPoppedOut()) {
+            int l = 0, t = 0, r = 0, b = 0;
+            GetWindowGeometryOS(l, t, r, b);
+            int new_r = (r >= l) ? (l + target_w) : (l - target_w);
+            int new_b = (b >= t) ? (t + target_h) : (t - target_h);
+            SetWindowGeometryOS(l, t, new_r, new_b);
+            return true;
+        }
+
+        int l = 0, t = 0, r = 0, b = 0;
+        GetWindowGeometry(l, t, r, b);
+        int new_l = l;
+        int new_t = t;
+        int new_r = new_l + target_w;
+        int new_b = new_t - target_h;
+
+        int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+        XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+
+        if (new_b < sBottom) {
+            int overflow = sBottom - new_b;
+            if (new_t + overflow <= sTop) {
+                new_t += overflow;
+                new_b += overflow;
+            } else {
+                new_t = sTop;
+                new_b = sBottom;
+            }
+        }
+        if (new_r > sRight) {
+            int overflow = new_r - sRight;
+            if (new_l - overflow >= sLeft) {
+                new_l -= overflow;
+                new_r -= overflow;
+            } else {
+                new_l = sLeft;
+                new_r = sRight;
+            }
+        }
+
+        SetWindowGeometry(new_l, new_t, new_r, new_b);
+        return true;
+    }
+
+    return ScaleWindowGeometry(baseline_scale, target_scale);
 }
 
 void
