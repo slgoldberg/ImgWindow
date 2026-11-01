@@ -123,14 +123,15 @@ struct WindowGeometry {
     }
 
     // 4. Auto-centered on main monitor
-    static WindowGeometry Centered(int width, int height);
+    static WindowGeometry Centered(int width, int height, XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle);
 
     // 5. Smart Auditing & Sanitization
     static WindowGeometry Sanitize(
         int l, int t, int r, int b,
         int defaultW = 640, int defaultH = 480,
         int minVisibleMargin = 40,
-        WindowSanitizeMode mode = WindowSanitizeMode::KeepVisibleMargin);
+        WindowSanitizeMode mode = WindowSanitizeMode::KeepVisibleMargin,
+        XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle);
 };
 
 class
@@ -153,14 +154,33 @@ public:
     static ImgWindow* GetCurrentBuildingWindow() { return s_CurrentBuildingWindow; }
 
     /** Default safety inset in boxels from the top of the X-Plane main screen to keep
-     *  the window's title bar and drag region clear of the X-Plane system menu bar. */
-    static constexpr int kDefaultTopMenuBarMargin = 20;
+     *  the window clear of the X-Plane system menu bar trigger zone. */
+    static constexpr int kDefaultTopMenuBarMargin = 30;
 
-    /** Gets the active top menu bar margin in boxels (default: 20) */
+    /** Estimated height in boxels of X-Plane's native round-rectangle window title bar
+     *  which is rendered ABOVE the window's top content coordinate. */
+    static constexpr int kDefaultSystemTitleBarHeight = 25;
+
+    /** Gets the active base top menu bar margin in boxels (default: 30) */
     static int GetTopMenuBarMargin() { return sTopMenuBarMargin; }
 
-    /** Sets the top menu bar margin in boxels */
+    /** Sets the base top menu bar margin in boxels */
     static void SetTopMenuBarMargin(int margin) { sTopMenuBarMargin = margin; }
+
+    /** Gets the estimated native system title bar height in boxels (default: 25) */
+    static int GetSystemTitleBarHeight() { return sSystemTitleBarHeight; }
+
+    /** Sets the estimated native system title bar height in boxels */
+    static void SetSystemTitleBarHeight(int height) { sSystemTitleBarHeight = height; }
+
+    /** Computes the total required top clearance for a given decoration style:
+     *  - Standard decorated (xplm_WindowDecorationRoundRectangle): menu margin + title bar (~55 boxels)
+     *  - Self-decorated or None: menu margin (~30 boxels)
+     */
+    static int GetTopMargin(XPLMWindowDecoration decoration) {
+        bool hasSysDec = (decoration == xplm_WindowDecorationRoundRectangle);
+        return sTopMenuBarMargin + (hasSysDec ? sSystemTitleBarHeight : 0);
+    }
 
     /** Returns the custom layout scale factor for this window. Subclasses
      * should override this to return their combined text zoom multiplier 
@@ -236,9 +256,11 @@ public:
     bool ResizeToScale (float target_scale, float baseline_scale = 1.0f);
 
     /** Clamps window geometry (l, t, r, b) to stay completely within legal screen boundaries,
-     *  honoring top menu bar safety margins and min/max limits without mutating aspect ratio. */
+     *  honoring top menu bar safety margins and min/max limits without mutating aspect ratio.
+     *  If top_margin is < 0, defaults to GetTopMargin(xplm_WindowDecorationRoundRectangle). */
     static void ClampGeometryToScreen(int& in_out_l, int& in_out_t, int& in_out_r, int& in_out_b,
-                                      int min_w = 0, int min_h = 0, int max_w = 0, int max_h = 0);
+                                      int min_w = 0, int min_h = 0, int max_w = 0, int max_h = 0,
+                                      int top_margin = -1);
 
     /** SetVisible() makes the window visible after making the onShow() call.
      * It is also at this time that the window will be relocated onto the VR
@@ -262,6 +284,27 @@ public:
     
     /** Is Window inside the sim? */
     bool IsInsideSim () const { return !IsPoppedOut() && !IsInVR(); }
+
+    /** Gets the decoration style specified at creation */
+    XPLMWindowDecoration GetWindowDecoration() const { return mDecoration; }
+
+    /** Returns true if window uses system window decorations (e.g. round rectangle) */
+    bool HasSystemDecoration() const {
+        return mDecoration == xplm_WindowDecorationRoundRectangle;
+    }
+
+    /** Returns true if window is self-decorated or undecorated (no system title bar) */
+    bool IsSelfDecorated() const {
+        return mDecoration == xplm_WindowDecorationSelfDecorated ||
+               mDecoration == xplm_WindowDecorationSelfDecoratedResizable ||
+               mDecoration == xplm_WindowDecorationNone;
+    }
+
+    /** Calculates the effective top clearance margin for this window instance,
+     *  accounting for both the system menu bar trigger zone and any native window title bar. */
+    int GetEffectiveTopMargin() const {
+        return GetTopMargin(mDecoration);
+    }
     
     /** Is Window using XPLM v4.4+'s Panel Graphics API instead of OpenGL? */
     bool IsUsingPanelGraphics () const;
@@ -452,7 +495,7 @@ protected:
         XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle,
         XPLMWindowLayer layer = xplm_WindowLayerFloatingWindows,
         bool cursors = false)
-        : ImgWindow(WindowGeometry::Centered(width, height), decoration, layer, cursors)
+        : ImgWindow(WindowGeometry::Centered(width, height, decoration), decoration, layer, cursors)
     {}
     
     /** An ImgWindow object must not be copied!
@@ -608,6 +651,7 @@ private:
      *  @see https://developer.x-plane.com/sdk/XPLMHandleMouseClick_f/ */
     const bool bHandleWndResize;
 
+    XPLMWindowDecoration mDecoration = xplm_WindowDecorationRoundRectangle;
     XPLMWindowLayer mPreferredLayer;
 
     /** Shall window allow ImGui to manage the mouse cursor inside windows? */
@@ -625,6 +669,9 @@ private:
 
     /** Active top menu bar margin in boxels */
     static int sTopMenuBarMargin;
+
+    /** Estimated native system title bar height in boxels */
+    static int sSystemTitleBarHeight;
 
     /** Window drag area in ImGui coordinates (0,0 is top/left corner) */
     int dragLeft    = -1;

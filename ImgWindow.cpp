@@ -206,6 +206,7 @@ std::shared_ptr<ImgFontAtlas> ImgWindow::sFontAtlas;
 ImgWindow* ImgWindow::s_CurrentBuildingWindow = nullptr;
 int ImgWindow::sBlankoutUntilCycle = 0;
 int ImgWindow::sTopMenuBarMargin = ImgWindow::kDefaultTopMenuBarMargin;
+int ImgWindow::sSystemTitleBarHeight = ImgWindow::kDefaultSystemTitleBarHeight;
 
 // Tracks textures pending destruction and the cycle they were queued
 static std::vector<std::pair<ImTextureID, int>> s_TexturesPendingDestruction;
@@ -371,6 +372,7 @@ ImgWindow::ImgWindow(
     XPLMWindowDecoration decoration,
     XPLMWindowLayer layer,
     bool cursors) :
+    mDecoration(decoration),
     mFirstRender(true),
     mFontAtlas(sFontAtlas),
     bHandleWndResize(xplm_WindowDecorationSelfDecoratedResizable == decoration),
@@ -620,12 +622,12 @@ ImgWindow::~ImgWindow()
 }
 
 WindowGeometry
-WindowGeometry::Centered(int width, int height)
+WindowGeometry::Centered(int width, int height, XPLMWindowDecoration decoration)
 {
     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
     XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
     int sWidth  = sRight - sLeft;
-    int effective_sTop = sTop - ImgWindow::GetTopMenuBarMargin();
+    int effective_sTop = sTop - ImgWindow::GetTopMargin(decoration);
     int sHeight = effective_sTop - sBottom;
 
     int l = sLeft + (sWidth - width) / 2;
@@ -638,7 +640,8 @@ WindowGeometry::Sanitize(
     int l, int t, int r, int b,
     int defaultW, int defaultH,
     int minVisibleMargin,
-    WindowSanitizeMode mode)
+    WindowSanitizeMode mode,
+    XPLMWindowDecoration decoration)
 {
     if (mode == WindowSanitizeMode::None) {
         return WindowGeometry(l, t, r, b);
@@ -656,12 +659,12 @@ WindowGeometry::Sanitize(
     int w = r - l;
     int h = t - b;
     if (w <= 0 || h <= 0) {
-        return Centered(defaultW > 0 ? defaultW : 640, defaultH > 0 ? defaultH : 480);
+        return Centered(defaultW > 0 ? defaultW : 640, defaultH > 0 ? defaultH : 480, decoration);
     }
 
     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
     XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
-    const int effective_sTop = sTop - ImgWindow::GetTopMenuBarMargin();
+    const int effective_sTop = sTop - ImgWindow::GetTopMargin(decoration);
 
     int interLeft   = (std::max)(l, sLeft);
     int interRight  = (std::min)(r, sRight);
@@ -672,12 +675,12 @@ WindowGeometry::Sanitize(
     int interH = interTop - interBottom;
 
     if (interW <= 0 || interH <= 0) {
-        return Centered(w > 0 ? w : defaultW, h > 0 ? h : defaultH);
+        return Centered(w > 0 ? w : defaultW, h > 0 ? h : defaultH, decoration);
     }
 
     if (mode == WindowSanitizeMode::SnapToCenter) {
         if (interW < w || interH < h) {
-            return Centered(w, h);
+            return Centered(w, h, decoration);
         }
         return WindowGeometry(l, t, r, b);
     }
@@ -750,12 +753,13 @@ ImgWindow::ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to
 void
 ImgWindow::ClampGeometryToScreen(
     int& in_out_l, int& in_out_t, int& in_out_r, int& in_out_b,
-    int min_w, int min_h, int max_w, int max_h)
+    int min_w, int min_h, int max_w, int max_h,
+    int top_margin)
 {
     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
     XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
 
-    const int topMargin = sTopMenuBarMargin;
+    const int topMargin = (top_margin >= 0) ? top_margin : GetTopMargin(xplm_WindowDecorationRoundRectangle);
     const int effective_sTop = sTop - topMargin;
 
     int req_w = std::abs(in_out_r - in_out_l);
@@ -875,7 +879,7 @@ ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale)
     int new_r = new_l + new_w;
     int new_b = new_t - new_h;
 
-    ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight);
+    ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight, GetEffectiveTopMargin());
 
     SetWindowGeometry(new_l, new_t, new_r, new_b);
     return true;
@@ -917,7 +921,7 @@ ImgWindow::ResizeToScale (float target_scale, float baseline_scale)
         int new_r = new_l + target_w;
         int new_b = new_t - target_h;
 
-        ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight);
+        ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight, GetEffectiveTopMargin());
 
         SetWindowGeometry(new_l, new_t, new_r, new_b);
         return true;
@@ -1453,7 +1457,7 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                     // Guard: keep top edge below X-Plane menu bar so title bar drag is never trapped!
                     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
                     XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
-                    const int effective_sTop = sTop - sTopMenuBarMargin;
+                    const int effective_sTop = sTop - GetEffectiveTopMargin();
                     if (mTop > effective_sTop) {
                         int diff = mTop - effective_sTop;
                         mTop -= diff;
@@ -1488,7 +1492,7 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                     // Prevent top edge from being resized into the menu bar:
                     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
                     XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
-                    const int effective_sTop = sTop - sTopMenuBarMargin;
+                    const int effective_sTop = sTop - GetEffectiveTopMargin();
                     if (mTop > effective_sTop) {
                         mTop = effective_sTop;
                     }
