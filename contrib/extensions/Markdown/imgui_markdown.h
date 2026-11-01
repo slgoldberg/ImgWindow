@@ -100,6 +100,23 @@ inline IMGUI_API float GetFontScale (bool useParent = false)
 		return 1.f;				  // fall-back in case something's really wrong
 #endif
 }
+
+/// Helper to get effective visual scale considering both window zoom and font size
+inline IMGUI_API float GetVisualScale()
+{
+	float font_scale = GetFontScale(false);
+	float font_size = GetFontSize();
+	if (font_scale > 0.0f && fabsf(font_scale - 1.0f) > 0.001f)
+	{
+		float base_sz = font_size / font_scale;
+		if (base_sz > 0.0f && fabsf(base_sz - 14.0f) > 1.0f)
+		{
+			return font_scale * (base_sz / 14.0f);
+		}
+		return font_scale;
+	}
+	return (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+}
 }
 #endif
 
@@ -970,7 +987,7 @@ namespace ImGui
         ImGuiWindow* window = g.CurrentWindow;
         if( !window ) return;
 
-        float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+        float scale = ImGui::GetVisualScale();
         float pad_x = 12.0f * scale;
         float pad_y = 8.0f * scale;
         float rounding = 4.0f * scale;
@@ -1969,7 +1986,7 @@ namespace ImGui
             while( end > p && ( end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n' ) ) --end;
             if( p >= end ) return 0.0f;
 
-            float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+            float scale = ImGui::GetVisualScale();
 
             // If cell begins with an HTML-style tag: <tag_name ...>inner_text</tag_name>
             if( *p == '<' )
@@ -2038,22 +2055,22 @@ namespace ImGui
                         float visual_w = inner_sz.x;
                         if( tag_name == "pill" )
                         {
-                            float pad_x = ImMax( 7.0f * scale, 6.0f );
+                            float pad_x = 7.0f * scale;
                             visual_w += pad_x * 2.0f;
                         }
                         else if( tag_name == "badge" || tag_name == "tag" )
                         {
-                            float pad_x = ImMax( 5.0f * scale, 4.0f );
+                            float pad_x = 5.0f * scale;
                             visual_w += pad_x * 2.0f;
                         }
                         else if( tag_name == "kbd" || tag_name == "key" || tag_name == "kdb" )
                         {
-                            float pad_x = ImMax( 5.5f * scale, 5.0f );
+                            float pad_x = 5.5f * scale;
                             visual_w += pad_x * 2.0f;
                         }
                         else if( tag_name == "btn" )
                         {
-                            visual_w += ImGui::GetStyle().FramePadding.x * 2.0f;
+                            visual_w += ImGui::GetStyle().FramePadding.x * 2.0f * scale;
                         }
                         else if( tag_name == "mono" || tag_name == "code" || tag_name == "backdrop" || tag_name == "bg" || tag_name == "highlight" )
                         {
@@ -2066,7 +2083,7 @@ namespace ImGui
                         while( after < end && ( *after == ' ' || *after == '\t' ) ) ++after;
                         if( after < end )
                         {
-                            visual_w += ImGui::GetStyle().ItemSpacing.x + ImGui::CalcTextSize( after, end ).x;
+                            visual_w += ImGui::GetStyle().ItemSpacing.x * scale + ImGui::CalcTextSize( after, end ).x;
                         }
 
                         return visual_w;
@@ -2264,19 +2281,19 @@ namespace ImGui
 
         float avail = ImGui::GetContentRegionAvail().x;
         float text_w = TableDetail::CalcCellVisualWidth( cell, is_header, mdConfig_ );
-        float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
-        float pad_right = ImMax( 6.0f * scale, ImGui::GetStyle().CellPadding.x + 2.0f * scale );
-        if( is_header )
-        {
-            pad_right += 14.0f * scale; // Reserve margin for sort indicator arrow
-        }
+        float scale = ImGui::GetVisualScale();
+
+        // In Dear ImGui table cells, GetContentRegionAvail().x already accounts for style.CellPadding.x.
+        // For header cells, reserve margin for the sort indicator arrow if sortable.
+        // For body cells, text can use the full avail region without subtracting extra padding.
+        float sort_margin = is_header ? ( 14.0f * scale ) : 0.0f;
 
         // Apply alignment offset if CENTER or RIGHT
         if( align == TableColumnAlign::RIGHT )
         {
-            if( text_w + pad_right < avail )
+            if( text_w + sort_margin < avail )
             {
-                float offset = avail - text_w - pad_right;
+                float offset = avail - text_w - sort_margin;
                 if( offset > 0.0f )
                 {
                     ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
@@ -2313,7 +2330,7 @@ namespace ImGui
         MarkdownConfig cell_config = mdConfig_;
         // If text fits comfortably in the column, do NOT wrap (prevents right-aligned sub-pixel wrap anomalies)
         // If text genuinely exceeds available column width (e.g. user dragged divider to narrow column), enable wrapping!
-        if( text_w + pad_right > avail )
+        if( text_w + sort_margin > avail + 0.5f )
         {
             cell_config.wrapWidth = avail;
         }
@@ -2358,7 +2375,7 @@ namespace ImGui
 
         int active_sort_col = ImGui::GetStateStorage()->GetInt( sort_col_key, -1 );
         int active_sort_dir = ImGui::GetStateStorage()->GetInt( sort_dir_key, (int)ImGuiSortDirection_None );
-        float user_table_w  = ImGui::GetStateStorage()->GetFloat( width_key, 0.0f );
+        float user_norm_w   = ImGui::GetStateStorage()->GetFloat( width_key, 0.0f );
 
         ImGuiTableFlags flags = mdConfig_.tableFlags;
         if( flags == 0 )
@@ -2376,7 +2393,8 @@ namespace ImGui
             flags |= ImGuiTableFlags_SortTristate;
         }
 
-        float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+        float scale = ImGui::GetVisualScale();
+        float user_table_w = ( user_norm_w > 0.0f ) ? ( user_norm_w * scale ) : 0.0f;
 
         // 2. Measure natural content width for each column to prevent 100% window width blowout
         float total_content_w = 0.0f;
@@ -2397,13 +2415,14 @@ namespace ImGui
                     if( cw > max_w ) max_w = cw;
                 }
             }
-            // Add padding: left + right cell padding + extra breathing room
-            max_w += ImGui::GetStyle().CellPadding.x * 2.0f + 16.0f * scale;
+            // Add padding: left + right cell padding + extra breathing room (scaled by zoom/font scale)
+            max_w += ( ImGui::GetStyle().CellPadding.x * 2.0f + 16.0f ) * scale;
             if( max_w < 30.0f * scale ) max_w = 30.0f * scale;
             col_widths[col] = max_w;
             total_content_w += max_w;
         }
 
+        float min_table_w = (float)num_cols * 28.0f * scale;
         float avail_w = ( mdConfig_.wrapWidth > 0.0f ) ? mdConfig_.wrapWidth : ImGui::GetContentRegionAvail().x;
         float table_w = total_content_w;
         if( avail_w > 0.0f )
@@ -2411,7 +2430,7 @@ namespace ImGui
             table_w = ImMin( total_content_w, avail_w );
             if( user_table_w > 0.0f )
             {
-                table_w = ImClamp( user_table_w, ImMin( 50.0f * scale, avail_w ), avail_w );
+                table_w = ImClamp( user_table_w, ImMin( min_table_w, avail_w ), avail_w );
             }
         }
 
@@ -2578,8 +2597,9 @@ namespace ImGui
                 {
                     float mouse_x = ImGui::GetIO().MousePos.x;
                     float new_w = mouse_x - table->OuterRect.Min.x;
-                    float clamped_w = ImClamp( new_w, ImMin( 50.0f * scale, avail_w ), avail_w );
-                    ImGui::GetStateStorage()->SetFloat( width_key, clamped_w );
+                    float clamped_w = ImClamp( new_w, ImMin( min_table_w, avail_w ), avail_w );
+                    float norm_w = ( scale > 0.0f ) ? ( clamped_w / scale ) : clamped_w;
+                    ImGui::GetStateStorage()->SetFloat( width_key, norm_w );
                 }
 
                 if( grip_hovered || grip_held )
