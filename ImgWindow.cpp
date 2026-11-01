@@ -1790,6 +1790,7 @@ struct MarkdownDiskTextureEntry {
     ImTextureID textureID = (ImTextureID)0;
     ImVec2 size = ImVec2(0.0f, 0.0f);
     bool failed = false;
+    double lastAttemptTime = 0.0;
 };
 static std::map<std::string, MarkdownDiskTextureEntry> s_MarkdownDiskTextureCache;
 
@@ -1876,22 +1877,27 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
     // 2. Tier 2: Check Disk Texture Cache
     auto it = s_MarkdownDiskTextureCache.find(url);
     if (it != s_MarkdownDiskTextureCache.end()) {
-        if (it->second.failed || !it->second.textureID) {
-            ImGui::MarkdownImageData invalid;
-            invalid.isValid = false;
-            return invalid;
+        if (it->second.failed) {
+            double now = ImGui::GetTime();
+            if (now - it->second.lastAttemptTime < 2.0) {
+                ImGui::MarkdownImageData invalid;
+                invalid.isValid = false;
+                return invalid;
+            }
+            // 2-second cooldown elapsed: allow retry
+        } else if (it->second.textureID) {
+            ImGui::MarkdownImageData img;
+            img.isValid = true;
+            img.user_texture_id = it->second.textureID;
+            img.size = it->second.size;
+            float avail_w = ImGui::GetContentRegionAvail().x;
+            if (avail_w > 10.0f && img.size.x > avail_w && img.size.x > 0.0f) {
+                float aspect = img.size.y / img.size.x;
+                img.size.x = avail_w;
+                img.size.y = avail_w * aspect;
+            }
+            return img;
         }
-        ImGui::MarkdownImageData img;
-        img.isValid = true;
-        img.user_texture_id = it->second.textureID;
-        img.size = it->second.size;
-        float avail_w = ImGui::GetContentRegionAvail().x;
-        if (avail_w > 10.0f && img.size.x > avail_w && img.size.x > 0.0f) {
-            float aspect = img.size.y / img.size.x;
-            img.size.x = avail_w;
-            img.size.y = avail_w * aspect;
-        }
-        return img;
     }
 
     // 3. Resolve File Path on Disk
@@ -1965,6 +1971,7 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
     if (!fileFound) {
         MarkdownDiskTextureEntry failEntry;
         failEntry.failed = true;
+        failEntry.lastAttemptTime = ImGui::GetTime();
         s_MarkdownDiskTextureCache[url] = failEntry;
         ImGui::MarkdownImageData invalid;
         invalid.isValid = false;
@@ -1977,6 +1984,7 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
     if (!pixels || width <= 0 || height <= 0) {
         MarkdownDiskTextureEntry failEntry;
         failEntry.failed = true;
+        failEntry.lastAttemptTime = ImGui::GetTime();
         s_MarkdownDiskTextureCache[url] = failEntry;
         if (pixels) stbi_image_free(pixels);
         ImGui::MarkdownImageData invalid;
@@ -1991,6 +1999,7 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
     if (!texID) {
         MarkdownDiskTextureEntry failEntry;
         failEntry.failed = true;
+        failEntry.lastAttemptTime = ImGui::GetTime();
         s_MarkdownDiskTextureCache[url] = failEntry;
         ImGui::MarkdownImageData invalid;
         invalid.isValid = false;
