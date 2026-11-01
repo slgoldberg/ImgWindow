@@ -70,6 +70,14 @@ The Markdown system is structured as a clean two-layer architecture:
 * **Layout Pre-Calculation (`CalcSize` / `CalcTextSize`):**
   * Exposes `ImGui::MD::CalcSize(...)` (aliased as `CalcTextSize`) to pre-measure exact wrapped multi-line Markdown dimensions without rendering to the screen—crucial for sizing OS floating windows, child frames, and stationary tooltips.
   * Defeats ImGui viewport culling by employing pass-unique offscreen window hashes.
+* **Interactive CommonMark Tables with Sorting & Bi-Directional State Serialization:**
+  * Parses standard CommonMark pipe tables with column alignment (`:---`, `:---:`, `---:`), natural cell content measurement, and rich inline Markdown/tags inside cells.
+  * **Tristate Interactive Sorting:** Click any header to cycle Ascending &uarr; &rarr; Descending &darr; &rarr; Unsorted, with responsive hand cursor hover and rendered sort indicator arrows.
+  * **Column Divider Resizing:** Drag any column boundary separator to customize column widths dynamically.
+  * **Total Width Border Grip:** Drag the right-border resize handle to stretch or contract table width up to 5x available window width (smooth horizontal scrolling in narrow viewports).
+  * **A/B Double-Click Toggle Memory:** Double-clicking the right border grip toggles back and forth between the baseline preset and user-modified geometry with 100% memory of column widths and total width.
+  * **Two-Tier Comment Persistence:** Transparently reads and writes Author Baseline Presets (`<!-- table-preset: ... -->`) and User State (`<!-- table-state: ... -->`) without cluttering rendered output.
+  * **Turnkey Host Serialization:** Provides `mdConfig.tableStateCallback` and `ImGui::ApplyTableStateToMarkdown(...)` to keep raw markdown editor buffers and persistence files in lockstep with user interactions.
 * **Dynamic Font Scaling:**
   * Uses `ImGui::GetFontScale()` to cleanly honor parent window text zoom and high-DPI display scales.
 * **Custom Tag Registration:**
@@ -278,6 +286,60 @@ Section 2 text.
 * Recognizes `---`, `***`, and `___` with optional spaces between markers or at the end of the line.
 * Renders a clean divider using `ImGui::Separator()`.
 * Automatically balances spacing so dividers preceding or following headings do not create excessive empty vertical voids or stacked separators.
+
+#### 6. Interactive CommonMark Tables (Sorting, Resizing & Bi-Directional Persistence)
+Standard CommonMark pipe tables render as full-featured, interactive Dear ImGui tables:
+
+```markdown
+| Waypoint | Target Alt | Fuel Remaining | Est. Time |
+|:---|:---:|---:|:---|
+| **SEA8** | 3,000 ft | 98% | 18:05z |
+| **JAWBN** | 8,000 ft | 92% | 18:18z |
+| **BTG** | 10,000 ft | 86% | 18:32z |
+<!-- table-preset: width=450 sort="Waypoint" asc -->
+<!-- table-state: width=329 cols=51,72,94,75 sort="Waypoint" asc -->
+```
+
+* **Features:**
+  * **CommonMark Syntax & Cell Alignment:** Parses headers, separator row, and data rows with cell text alignments (`:---` left, `:---:` center, `---:` right).
+  * **Rich Cell Content:** Cells support full inline Markdown formatting (bold, italic, code spans, `<pill>`, `<badge>`, etc.).
+  * **Tristate Header Sorting:** Click any column header to cycle between `Ascending` &uarr;, `Descending` &darr;, and `None` (unsorted). Renders directional arrows and native hand cursor (`ImGuiMouseCursor_Hand`).
+  * **Internal Column Divider Dragging:** Drag any column boundary separator to adjust relative column widths.
+  * **Rightmost Width Grip Handle:** An interactive grab-handle on the rightmost edge of the table allows stretching or contracting the overall table width up to 5x available window space.
+  * **Horizontal Scroll Protection:** If the containing window has `ImGuiWindowFlags_HorizontalScrollbar`, tables retain their natural readable widths without being squished when the host window is narrow.
+  * **Double-Click A/B Toggle Memory:** Double-clicking the right border grip toggles back and forth between the baseline preset dimensions and the user's customized geometry (`cols=` and `width=`), preserving custom column widths across multi-cycle toggling.
+
+##### Two-Tier Markdown Directives
+Table configuration is persisted directly inside the Markdown text via invisible HTML comment chasers docked immediately beneath the table:
+
+1. **Author Baseline Preset (`<!-- table-preset: ... -->` or `<!-- table: default ... -->`):**
+   * Placed by document authors to define reference geometry and default sort order:
+     ```markdown
+     <!-- table-preset: width=450 sort="Waypoint" asc -->
+     ```
+2. **Active User State (`<!-- table-state: ... -->` or `<!-- table: user ... -->`):**
+   * Generated automatically when a user modifies column widths, total width, or sort column/direction:
+     ```markdown
+     <!-- table-state: width=329 cols=51,72,94,75 sort="Waypoint" desc -->
+     ```
+   * When double-clicking to reset to baseline, `width=` and `cols=` are automatically omitted, retaining only non-default sort overrides (e.g. `<!-- table-state: sort="Waypoint" desc -->`).
+
+##### Bi-Directional Host Synchronization
+To synchronize live UI interactions (sorting, resizing) back to your raw Markdown buffer or file storage:
+
+```cpp
+ImGui::MD::Config mdConfig;
+
+mdConfig.tableStateCallback = [](const ImGui::MarkdownTableState& state, void* userData) {
+    auto* editorBuffer = static_cast<std::string*>(userData);
+    
+    // Commit only on user release or definitive clicks:
+    if (state.isCommitted) {
+        *editorBuffer = ImGui::ApplyTableStateToMarkdown(*editorBuffer, state);
+    }
+};
+mdConfig.userData = &myMarkdownString;
+```
 
 > [!IMPORTANT]
 > **Operating System Clipboard Integration Across Platforms:**  
