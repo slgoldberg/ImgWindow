@@ -2593,6 +2593,7 @@ namespace ImGui
                     ImGuiButtonFlags_FlattenChildren | ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_PressedOnDoubleClick );
 
                 ImGuiID reset_key = header_hash + 3;
+                ImGuiID last_width_key = header_hash + 4;
                 bool is_resetting = ImGui::GetStateStorage()->GetBool( reset_key, false );
                 if( !ImGui::IsMouseDown( 0 ) )
                 {
@@ -2604,8 +2605,22 @@ namespace ImGui
 
                 if( ( grip_pressed || grip_hovered ) && ImGui::IsMouseDoubleClicked( 0 ) )
                 {
-                    // Double click: restore natural auto content width
-                    ImGui::GetStateStorage()->SetFloat( width_key, 0.0f );
+                    // Double click: A/B toggle between natural auto content width (0.0f) and last manual width!
+                    float cur_w = ImGui::GetStateStorage()->GetFloat( width_key, 0.0f );
+                    float last_w = ImGui::GetStateStorage()->GetFloat( last_width_key, 0.0f );
+
+                    if( cur_w > 0.0f )
+                    {
+                        // Currently custom width: remember it and reset to auto content width
+                        ImGui::GetStateStorage()->SetFloat( last_width_key, cur_w );
+                        ImGui::GetStateStorage()->SetFloat( width_key, 0.0f );
+                    }
+                    else if( last_w > 0.0f )
+                    {
+                        // Currently auto content width: restore prior custom width!
+                        ImGui::GetStateStorage()->SetFloat( width_key, last_w );
+                    }
+
                     ImGui::GetStateStorage()->SetBool( reset_key, true );
                     ImGui::ClearActiveID();
                 }
