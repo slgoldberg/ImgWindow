@@ -2284,16 +2284,16 @@ namespace ImGui
         float scale = ImGui::GetVisualScale();
 
         // In Dear ImGui table cells, GetContentRegionAvail().x already accounts for style.CellPadding.x.
-        // For header cells, reserve margin for the sort indicator arrow if sortable.
-        // For body cells, text can use the full avail region without subtracting extra padding.
-        float sort_margin = is_header ? ( 14.0f * scale ) : 0.0f;
+        // For header cells, reserve margin for the sort arrow (14px).
+        // For body cells, reserve a 6px breathing gutter so right-aligned glyphs don't clip against the border.
+        float right_margin = ( is_header ? 14.0f : 6.0f ) * scale;
 
         // Apply alignment offset if CENTER or RIGHT
         if( align == TableColumnAlign::RIGHT )
         {
-            if( text_w + sort_margin < avail )
+            if( text_w + right_margin < avail )
             {
-                float offset = avail - text_w - sort_margin;
+                float offset = avail - text_w - right_margin;
                 if( offset > 0.0f )
                 {
                     ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
@@ -2330,7 +2330,7 @@ namespace ImGui
         MarkdownConfig cell_config = mdConfig_;
         // If text fits comfortably in the column, do NOT wrap (prevents right-aligned sub-pixel wrap anomalies)
         // If text genuinely exceeds available column width (e.g. user dragged divider to narrow column), enable wrapping!
-        if( text_w + sort_margin > avail + 0.5f )
+        if( text_w + right_margin > avail + 0.5f )
         {
             cell_config.wrapWidth = avail;
         }
