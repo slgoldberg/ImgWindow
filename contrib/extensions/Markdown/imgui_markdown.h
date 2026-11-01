@@ -2097,6 +2097,9 @@ namespace ImGui
             // Markdown formatting symbols: strip leading/trailing **, *, __, _, ~~, ++
             const char* s = p;
             const char* e = end;
+            while( s < e && ( *s == ' ' || *s == '\t' ) ) ++s;
+            while( e > s && ( e[-1] == ' ' || e[-1] == '\t' ) ) --e;
+
             bool is_bold = ( ( e - s >= 4 && s[0] == '*' && s[1] == '*' && e[-1] == '*' && e[-2] == '*' ) ||
                              ( e - s >= 4 && s[0] == '_' && s[1] == '_' && e[-1] == '_' && e[-2] == '_' ) );
             bool is_mono = ( e - s >= 2 && s[0] == '`' && e[-1] == '`' );
@@ -2259,38 +2262,35 @@ namespace ImGui
             return;
         }
 
-        // Apply alignment offset if CENTER or RIGHT
-        if( align == TableColumnAlign::CENTER || align == TableColumnAlign::RIGHT )
+        float avail = ImGui::GetContentRegionAvail().x;
+        float text_w = TableDetail::CalcCellVisualWidth( cell, is_header, mdConfig_ );
+        float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
+        float pad_right = ImMax( 6.0f * scale, ImGui::GetStyle().CellPadding.x + 2.0f * scale );
+        if( is_header )
         {
-            float avail = ImGui::GetContentRegionAvail().x;
-            float text_w = TableDetail::CalcCellVisualWidth( cell, is_header, mdConfig_ );
-            float scale = ( ImGui::GetFontSize() > 0.0f ) ? ( ImGui::GetFontSize() / 14.0f ) : 1.0f;
-            float pad_right = ImMax( 6.0f * scale, ImGui::GetStyle().CellPadding.x + 2.0f * scale );
-            if( is_header )
-            {
-                pad_right += 14.0f * scale; // Reserve margin for sort indicator arrow
-            }
+            pad_right += 14.0f * scale; // Reserve margin for sort indicator arrow
+        }
 
-            if( align == TableColumnAlign::RIGHT )
+        // Apply alignment offset if CENTER or RIGHT
+        if( align == TableColumnAlign::RIGHT )
+        {
+            if( text_w + pad_right < avail )
             {
-                if( text_w + pad_right < avail )
+                float offset = avail - text_w - pad_right;
+                if( offset > 0.0f )
                 {
-                    float offset = avail - text_w - pad_right;
-                    if( offset > 0.0f )
-                    {
-                        ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
-                    }
+                    ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
                 }
             }
-            else // CENTER
+        }
+        else if( align == TableColumnAlign::CENTER )
+        {
+            if( text_w < avail )
             {
-                if( text_w < avail )
+                float offset = ( avail - text_w ) * 0.5f;
+                if( offset > 0.0f )
                 {
-                    float offset = ( avail - text_w ) * 0.5f;
-                    if( offset > 0.0f )
-                    {
-                        ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
-                    }
+                    ImGui::SetCursorPosX( ImGui::GetCursorPosX() + offset );
                 }
             }
         }
@@ -2311,7 +2311,16 @@ namespace ImGui
         }
 
         MarkdownConfig cell_config = mdConfig_;
-        cell_config.wrapWidth = 0.0f; // Wrap naturally at column cell boundary when narrowed (preventing clipping)
+        // If text fits comfortably in the column, do NOT wrap (prevents right-aligned sub-pixel wrap anomalies)
+        // If text genuinely exceeds available column width (e.g. user dragged divider to narrow column), enable wrapping!
+        if( text_w + pad_right > avail )
+        {
+            cell_config.wrapWidth = avail;
+        }
+        else
+        {
+            cell_config.wrapWidth = -1.0f;
+        }
         Markdown::Render( cell.start, cell.size(), cell_config );
 
         if( pushed_font )
