@@ -398,6 +398,10 @@ namespace ImGui
         ImFont*                 h1Font = nullptr;                   // If nullptr, falls back to headingFormats[0].font
         ImFont*                 h2Font = nullptr;                   // If nullptr, falls back to headingFormats[1].font
         ImFont*                 h3Font = nullptr;                   // If nullptr, falls back to headingFormats[2].font
+        ImFont*                 h1ItalicFont = nullptr;             // Optional italic font for # H1
+        ImFont*                 h2ItalicFont = nullptr;             // Optional italic font for ## H2
+        ImFont*                 h3ItalicFont = nullptr;             // Optional italic font for ### H3
+        ImFont*                 headingItalicFont = nullptr;        // Fallback italic font for all headings
         ImFont*                 boldFont = nullptr;                 // If nullptr, falls back to headingFormats[3].font
         ImFont*                 italicFont = nullptr;               // If nullptr, falls back to ImGuiCol_TextDisabled
         ImFont*                 monoFont = nullptr;                 // If nullptr, falls back to ambient window font
@@ -2788,9 +2792,16 @@ namespace ImGui
         }
 
         MarkdownConfig cell_config = mdConfig_;
+        // Prevent mid-word syllable chopping: only enable wrapping if the cell contains whitespace
+        bool has_space = false;
+        for( const char* sp = cell.start; sp < cell.end; ++sp )
+        {
+            if( *sp == ' ' || *sp == '\t' || *sp == '\n' ) { has_space = true; break; }
+        }
+
         // If text fits comfortably in the column, do NOT wrap (prevents right-aligned sub-pixel wrap anomalies)
-        // If text genuinely exceeds available column width (e.g. user dragged divider to narrow column), enable wrapping!
-        if( text_w + right_margin > avail + 0.5f )
+        // If multi-word text genuinely exceeds available column width, enable wrapping!
+        if( has_space && ( text_w + right_margin > avail + 0.5f ) )
         {
             cell_config.wrapWidth = avail;
         }
@@ -3056,11 +3067,7 @@ namespace ImGui
                 ImGui::TableSetupColumn( col_name.c_str(), ImGuiTableColumnFlags_WidthStretch, col_widths[col] );
             }
 
-            // 2. Submit Header Row (with interactive sort click, hand cursor, and visual sort indicators)
-            float header_h = ImMax( ImGui::GetFrameHeight(), ImGui::GetFontSize() + ImGui::GetStyle().CellPadding.y * 2.0f );
-            ImGui::TableNextRow( ImGuiTableRowFlags_Headers, header_h );
             table = ImGui::GetCurrentTable();
-
             if( need_init && table )
             {
                 for( size_t c = 0; c < num_cols; ++c )
@@ -3074,6 +3081,10 @@ namespace ImGui
                 }
                 ImGui::TableUpdateColumnsWeightFromWidth( table );
             }
+
+            // 2. Submit Header Row (with interactive sort click, hand cursor, and visual sort indicators)
+            float header_h = ImMax( ImGui::GetFrameHeight(), ImGui::GetFontSize() + ImGui::GetStyle().CellPadding.y * 2.0f );
+            ImGui::TableNextRow( ImGuiTableRowFlags_Headers, header_h );
 
             for( size_t col = 0; col < num_cols; ++col )
             {
@@ -3599,6 +3610,58 @@ namespace ImGui
                             {
                                 MarkdownConfig headingConfig = mdConfig_;
                                 headingConfig.regularFont = nullptr; // preserve active heading font for normal text
+
+                                // Resolve active heading font
+                                ImFont* h_font = nullptr;
+                                if( h_count == 1 && mdConfig_.h1Font ) h_font = mdConfig_.h1Font;
+                                else if( h_count == 2 && mdConfig_.h2Font ) h_font = mdConfig_.h2Font;
+                                else if( h_count == 3 && mdConfig_.h3Font ) h_font = mdConfig_.h3Font;
+                                else if( h_count <= MarkdownConfig::NUMHEADINGS ) h_font = mdConfig_.headingFormats[ h_count - 1 ].font;
+                                else h_font = mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font;
+
+                                // Resolve heading-level italic font if provided
+                                ImFont* h_italic = nullptr;
+                                if( h_count == 1 && mdConfig_.h1ItalicFont ) h_italic = mdConfig_.h1ItalicFont;
+                                else if( h_count == 2 && mdConfig_.h2ItalicFont ) h_italic = mdConfig_.h2ItalicFont;
+                                else if( h_count >= 3 && mdConfig_.h3ItalicFont ) h_italic = mdConfig_.h3ItalicFont;
+                                if( !h_italic ) h_italic = mdConfig_.headingItalicFont;
+
+                                float h_size = 0.0f;
+                                if( h_font )
+                                {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+                                    h_size = ( h_font->LegacySize > 0.0f ) ? h_font->LegacySize : ImGui::GetFontSize();
+#else
+                                    h_size = ( h_font->FontSize > 0.0f ) ? h_font->FontSize : ImGui::GetFontSize();
+#endif
+                                }
+
+                                float body_italic_size = 0.0f;
+                                if( mdConfig_.italicFont )
+                                {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+                                    body_italic_size = ( mdConfig_.italicFont->LegacySize > 0.0f ) ? mdConfig_.italicFont->LegacySize : 0.0f;
+#else
+                                    body_italic_size = ( mdConfig_.italicFont->FontSize > 0.0f ) ? mdConfig_.italicFont->FontSize : 0.0f;
+#endif
+                                }
+
+                                if( h_italic )
+                                {
+                                    headingConfig.italicFont = h_italic;
+                                }
+                                else if( body_italic_size > 0.0f && h_size > 0.0f && body_italic_size < ( h_size - 1.0f ) )
+                                {
+                                    // Body italic font is smaller than heading; inherit heading font to avoid jarring drop
+                                    headingConfig.italicFont = h_font;
+                                }
+
+                                // Bold inside heading stays at full heading size:
+                                if( h_font )
+                                {
+                                    headingConfig.boldFont = h_font;
+                                }
+
                                 Markdown::Render( h_start, heading_text_len, headingConfig );
                             }
 

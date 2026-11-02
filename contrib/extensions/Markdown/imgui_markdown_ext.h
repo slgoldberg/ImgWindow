@@ -312,6 +312,12 @@ namespace ImGui {
         else if (heading_level == 2 && config && config->h2Font) base_font = config->h2Font;
         else if (heading_level >= 3 && config && config->h3Font) base_font = config->h3Font;
 
+        ImFont* heading_italic = nullptr;
+        if (heading_level == 1 && config && config->h1ItalicFont) heading_italic = config->h1ItalicFont;
+        else if (heading_level == 2 && config && config->h2ItalicFont) heading_italic = config->h2ItalicFont;
+        else if (heading_level >= 3 && config && config->h3ItalicFont) heading_italic = config->h3ItalicFont;
+        if (!heading_italic && config) heading_italic = config->headingItalicFont;
+
 #if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
         float font_size = (base_font && base_font->LegacySize > 0.0f) ? base_font->LegacySize : ImGui::GetFontSize();
 #else
@@ -341,12 +347,20 @@ namespace ImGui {
             if (c == '*' || c == '_' || c == '~' || c == '+') {
                 if (i + 1 < len && text[i + 1] == c) {
                     flush_seg(cur_font);
-                    cur_font = (cur_font == base_font && config && config->boldFont) ? config->boldFont : base_font;
+                    if (heading_level > 0) {
+                        cur_font = base_font;
+                    } else {
+                        cur_font = (cur_font == base_font && config && config->boldFont) ? config->boldFont : base_font;
+                    }
                     i += 2;
                     continue;
                 } else if (c == '*' || c == '_') {
                     flush_seg(cur_font);
-                    cur_font = (cur_font == base_font && config && config->italicFont) ? config->italicFont : base_font;
+                    if (heading_level > 0) {
+                        cur_font = (cur_font == base_font && heading_italic) ? heading_italic : base_font;
+                    } else {
+                        cur_font = (cur_font == base_font && config && config->italicFont) ? config->italicFont : base_font;
+                    }
                     ++i;
                     continue;
                 }
