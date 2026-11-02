@@ -318,6 +318,15 @@ namespace ImGui {
         else if (heading_level >= 3 && config && config->h3ItalicFont) heading_italic = config->h3ItalicFont;
         if (!heading_italic && config) heading_italic = config->headingItalicFont;
 
+        float body_italic_size = 0.0f;
+        if (config && config->italicFont) {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+            body_italic_size = (config->italicFont->LegacySize > 0.0f) ? config->italicFont->LegacySize : 0.0f;
+#else
+            body_italic_size = (config->italicFont->FontSize > 0.0f) ? config->italicFont->FontSize : 0.0f;
+#endif
+        }
+
 #if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
         float font_size = (base_font && base_font->LegacySize > 0.0f) ? base_font->LegacySize : ImGui::GetFontSize();
 #else
@@ -357,7 +366,9 @@ namespace ImGui {
                 } else if (c == '*' || c == '_') {
                     flush_seg(cur_font);
                     if (heading_level > 0) {
-                        cur_font = (cur_font == base_font && heading_italic) ? heading_italic : base_font;
+                        if (heading_italic) cur_font = heading_italic;
+                        else if (body_italic_size > 0.0f && body_italic_size >= (font_size - 0.5f) && config && config->italicFont) cur_font = config->italicFont;
+                        else cur_font = base_font;
                     } else {
                         cur_font = (cur_font == base_font && config && config->italicFont) ? config->italicFont : base_font;
                     }

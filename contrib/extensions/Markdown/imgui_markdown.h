@@ -3650,7 +3650,7 @@ namespace ImGui
                                 {
                                     headingConfig.italicFont = h_italic;
                                 }
-                                else if( body_italic_size > 0.0f && h_size > 0.0f && body_italic_size < ( h_size - 1.0f ) )
+                                else if( body_italic_size > 0.0f && h_size > 0.0f && body_italic_size < ( h_size - 0.5f ) )
                                 {
                                     // Body italic font is smaller than heading; inherit heading font to avoid jarring drop
                                     headingConfig.italicFont = h_font;
