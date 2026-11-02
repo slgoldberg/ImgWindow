@@ -367,6 +367,39 @@ Images in Markdown (`![alt text](url)`) are resolved automatically via `ImgWindo
    * **Zero External Dependencies:** Dynamically resolves system `libcurl` on macOS/Linux and native `WinINet` on Windows without requiring any downstream plugins to modify their linker flags or `CMakeLists.txt`.
    * **Custom Fetch Overrides:** Host plugins with dedicated HTTP managers can register a custom downloader via `ImgWindow::SetMarkdownRemoteFetchCallback(...)`.
 
+#### 8. Image Sizing, Auto-Constraints & Treatments
+
+Images in Markdown support rich layout modifiers, responsive viewport constraints, and decorative treatments:
+
+1. **Auto-Constraint to Viewport Width (`max-width: 100%; height: auto`):**
+   * High-resolution graphics or photos that exceed the current window or column width (`ImGui::GetContentRegionAvail().x`) are automatically downscaled proportionally, preventing unwanted horizontal scrollbars or clipped avionics layouts.
+
+2. **Explicit Pandoc / Extended Markdown URL Sizing:**
+   * **Explicit Dimensions:** `![Diagram](diagram.png =300x200)` renders at 300x200 px.
+   * **Proportional Width:** `![Logo](logo.png =150x)` renders at 150px wide with height scaled to preserve natural aspect ratio.
+   * **Proportional Height:** `![Badge](badge.png =x30)` renders at 30px high with proportional width.
+   * **Viewport Percentage:** `![Banner](banner.png =50%)` dynamically renders at 50% of available window width with proportional height.
+   * **Angle-Bracket CommonMark URLs:** `![Banner](<https://example.com/banner.png =50%>)` or `![Pic](<https://example.com/pic.png> =200x150)`.
+
+3. **Pandoc Attribute Block Syntax:**
+   * Append curly attributes after the image link:
+     ```markdown
+     ![Cockpit](panel.png){ width=250px height=180px border=#4a90e2 }
+     ```
+
+4. **HTML `<img ... />` Element Support:**
+   * Supports standard HTML tags, self-closing tags, and void elements:
+     ```html
+     <img src="https://example.com/badge.png" width="180" height="40" border="#00ff00" />
+     <img src="gauge.png" width="50%" border />
+     ```
+
+5. **Image Treatments (Borders & Frames):**
+   * Add a border by specifying `border` (subtle default frame), `border=red`, or hex colors `border=#4a90e2` across any syntax variant. Cleanly mapped to `ImGui::Image()`'s native border parameter.
+
+6. **VRAM Texture Cache Deduplication:**
+   * Sizing and treatment modifiers are parsed and stripped *before* cache lookup and network fetch. Multiple markdown instances referencing the same URL with different sizes or borders reuse the exact same underlying GPU texture in VRAM.
+
 > [!IMPORTANT]
 > **Operating System Clipboard Integration Across Platforms:**  
 > * **macOS (`APL=1` / `__APPLE__`):** Upstream Dear ImGui compiles with OS clipboard support disabled unless `#define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS` is defined in your `imconfig.h` (and `-framework ApplicationServices` linked). If unconfigured, the `[Copy]` button automatically renders as a disabled button with an on-hover guidance tooltip.

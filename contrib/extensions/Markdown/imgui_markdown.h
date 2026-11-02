@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <cstdio>
 #include <string>
 #include <vector>
 #include <cmath>
@@ -271,6 +272,103 @@ namespace ImGui
         void*                   userData = nullptr;
     };
     typedef void                MarkdownTableStateCallback( const MarkdownTableState& state, void* userData );
+
+    // -------------------------------------------------------------------------
+    // Markdown Color Parser (Named UI Colors, Hex #RRGGBB, #RRGGBBAA, 0xRRGGBB)
+    // -------------------------------------------------------------------------
+    inline bool ParseMarkdownColor( const std::string& raw_str, ImVec4& out_col )
+    {
+        if( raw_str.empty() ) return false;
+
+        std::string str = raw_str;
+        for( char& c : str ) c = (char)tolower( (unsigned char)c );
+
+        // Strip optional key= prefix
+        if( str.rfind( "bgcolor=", 0 ) == 0 )       str = str.substr( 8 );
+        else if( str.rfind( "bgcol=", 0 ) == 0 )    str = str.substr( 6 );
+        else if( str.rfind( "bg=", 0 ) == 0 )       str = str.substr( 3 );
+        else if( str.rfind( "fgcolor=", 0 ) == 0 )  str = str.substr( 8 );
+        else if( str.rfind( "fgcol=", 0 ) == 0 )    str = str.substr( 6 );
+        else if( str.rfind( "fg=", 0 ) == 0 )       str = str.substr( 3 );
+        else if( str.rfind( "color=", 0 ) == 0 )    str = str.substr( 6 );
+        else if( str.rfind( "col=", 0 ) == 0 )      str = str.substr( 4 );
+        else if( str.rfind( "text=", 0 ) == 0 )     str = str.substr( 5 );
+        else if( str.rfind( "border=", 0 ) == 0 )   str = str.substr( 7 );
+        else if( str.rfind( "bcolor=", 0 ) == 0 )   str = str.substr( 7 );
+        else if( str.rfind( "bcol=", 0 ) == 0 )     str = str.substr( 5 );
+
+        if( str.size() >= 2 && ( ( str.front() == '"' && str.back() == '"' ) || ( str.front() == '\'' && str.back() == '\'' ) ) )
+        {
+            str = str.substr( 1, str.size() - 2 );
+        }
+        if( str.empty() ) return false;
+
+        // Named UI colors
+        if( str == "red" )     { out_col = ImVec4( 0.95f, 0.25f, 0.25f, 1.0f ); return true; }
+        if( str == "green" )   { out_col = ImVec4( 0.25f, 0.85f, 0.35f, 1.0f ); return true; }
+        if( str == "blue" )    { out_col = ImVec4( 0.30f, 0.65f, 1.0f,  1.0f ); return true; }
+        if( str == "yellow" )  { out_col = ImVec4( 1.0f,  0.85f, 0.20f, 1.0f ); return true; }
+        if( str == "orange" )  { out_col = ImVec4( 1.0f,  0.647f, 0.0f, 1.0f ); return true; }
+        if( str == "purple" || str == "violet" ) { out_col = ImVec4( 0.60f, 0.25f, 0.90f, 1.0f ); return true; }
+        if( str == "cyan" )    { out_col = ImVec4( 0.20f, 0.85f, 0.95f, 1.0f ); return true; }
+        if( str == "magenta" ) { out_col = ImVec4( 0.90f, 0.30f, 0.90f, 1.0f ); return true; }
+        if( str == "white" )   { out_col = ImVec4( 1.0f,  1.0f,  1.0f,  1.0f ); return true; }
+        if( str == "black" )   { out_col = ImVec4( 0.0f,  0.0f,  0.0f,  1.0f ); return true; }
+        if( str == "gray" || str == "grey" ) { out_col = ImVec4( 0.60f, 0.60f, 0.60f, 1.0f ); return true; }
+        if( str == "gold" )    { out_col = ImVec4( 1.0f,  0.84f, 0.0f,  1.0f ); return true; }
+        if( str == "dark" )    { out_col = ImVec4( 0.18f, 0.18f, 0.22f, 1.0f ); return true; }
+        if( str == "light" )   { out_col = ImVec4( 0.90f, 0.90f, 0.92f, 1.0f ); return true; }
+        if( str == "danger" )  { out_col = ImVec4( 0.85f, 0.15f, 0.15f, 1.0f ); return true; }
+        if( str == "warning" ) { out_col = ImVec4( 0.95f, 0.75f, 0.10f, 1.0f ); return true; }
+        if( str == "success" ) { out_col = ImVec4( 0.15f, 0.70f, 0.25f, 1.0f ); return true; }
+        if( str == "info" )    { out_col = ImVec4( 0.20f, 0.55f, 0.90f, 1.0f ); return true; }
+
+        // Hex formats: #RRGGBB, #RRGGBBAA, 0xRRGGBB, 0xRRGGBBAA
+        size_t start = 0;
+        if( str[0] == '#' )
+        {
+            start = 1;
+        }
+        else if( str.size() >= 2 && str[0] == '0' && ( str[1] == 'x' || str[1] == 'X' ) )
+        {
+            start = 2;
+        }
+        else if( isxdigit( (unsigned char)str[0] ) )
+        {
+            start = 0;
+        }
+        else
+        {
+            return false;
+        }
+
+        std::string hex = str.substr( start );
+        if( hex.length() == 6 )
+        {
+            unsigned int val = 0;
+            if( sscanf( hex.c_str(), "%x", &val ) == 1 )
+            {
+                out_col.x = ( ( val >> 16 ) & 0xFF ) / 255.0f;
+                out_col.y = ( ( val >> 8 ) & 0xFF ) / 255.0f;
+                out_col.z = ( val & 0xFF ) / 255.0f;
+                out_col.w = 1.0f;
+                return true;
+            }
+        }
+        else if( hex.length() == 8 )
+        {
+            unsigned long long val = 0;
+            if( sscanf( hex.c_str(), "%llx", &val ) == 1 )
+            {
+                out_col.x = ( ( val >> 24 ) & 0xFF ) / 255.0f;
+                out_col.y = ( ( val >> 16 ) & 0xFF ) / 255.0f;
+                out_col.z = ( ( val >> 8 ) & 0xFF ) / 255.0f;
+                out_col.w = ( val & 0xFF ) / 255.0f;
+                return true;
+            }
+        }
+        return false;
+    }
 
     struct MarkdownConfig
     {
@@ -3538,8 +3636,9 @@ namespace ImGui
                 continue;
             }
 
-            // Test to see if we have a custom styling tag <tag=param>...</tag>
-            if( c == '<' && mdConfig_.tagCallback != NULL && link.state == Link::NO_LINK && em.state == Emphasis::NONE )
+            // Test to see if we have a custom styling tag <tag=param>...</tag> or self-closing/void tag <img ... />
+            if( c == '<' && link.state == Link::NO_LINK && em.state == Emphasis::NONE &&
+                ( mdConfig_.tagCallback != NULL || mdConfig_.imageCallback != NULL || GetDefaultMarkdownImageCallback() != NULL ) )
             {
                 int openClose = -1;
                 for( int k = i + 1; k < (int)markdownLength_; ++k )
@@ -3563,106 +3662,177 @@ namespace ImGui
                     int nameEnd = ( sep != -1 ) ? sep : tagHeaderEnd;
                     int nameLen = nameEnd - tagHeaderStart;
 
-                    char closeTag[64];
-                    int closeTagLen = snprintf( closeTag, sizeof(closeTag), "</%.*s>", nameLen, markdown_ + tagHeaderStart );
-                    if( closeTagLen > 0 && closeTagLen < (int)sizeof(closeTag) )
+                    // Check for self-closing tag (<tag ... />) or HTML void tag (<img ...>)
+                    bool isSelfClosing = false;
+                    int actualHeaderEnd = openClose;
+                    int p_slash = openClose - 1;
+                    while( p_slash >= tagHeaderStart && ( markdown_[p_slash] == ' ' || markdown_[p_slash] == '\t' ) )
                     {
-                        const char* closeFound = nullptr;
-                        int searchStart = openClose + 1;
-                        int maxSearch = (int)markdownLength_ - closeTagLen;
-                        for( int k = searchStart; k <= maxSearch; ++k )
+                        --p_slash;
+                    }
+                    if( p_slash >= tagHeaderStart && markdown_[p_slash] == '/' )
+                    {
+                        isSelfClosing = true;
+                        actualHeaderEnd = p_slash;
+                    }
+
+                    bool isImgTag = ( nameLen == 3 && ( ( markdown_[tagHeaderStart] == 'i' || markdown_[tagHeaderStart] == 'I' ) &&
+                                                        ( markdown_[tagHeaderStart + 1] == 'm' || markdown_[tagHeaderStart + 1] == 'M' ) &&
+                                                        ( markdown_[tagHeaderStart + 2] == 'g' || markdown_[tagHeaderStart + 2] == 'G' ) ) );
+
+                    int closeStart = -1;
+                    int closeEnd = -1;
+
+                    if( isSelfClosing || isImgTag )
+                    {
+                        closeStart = openClose + 1;
+                        closeEnd = openClose + 1;
+                        tagHeaderEnd = actualHeaderEnd;
+                    }
+                    else
+                    {
+                        char closeTag[64];
+                        int closeTagLen = snprintf( closeTag, sizeof(closeTag), "</%.*s>", nameLen, markdown_ + tagHeaderStart );
+                        if( closeTagLen > 0 && closeTagLen < (int)sizeof(closeTag) )
                         {
-                            if( markdown_[k] == '<' && strncmp( markdown_ + k, closeTag, closeTagLen ) == 0 )
+                            const char* closeFound = nullptr;
+                            int searchStart = openClose + 1;
+                            int maxSearch = (int)markdownLength_ - closeTagLen;
+                            for( int k = searchStart; k <= maxSearch; ++k )
                             {
-                                closeFound = markdown_ + k;
-                                break;
+                                if( markdown_[k] == '<' && strncmp( markdown_ + k, closeTag, closeTagLen ) == 0 )
+                                {
+                                    closeFound = markdown_ + k;
+                                    break;
+                                }
+                            }
+                            if( closeFound != nullptr )
+                            {
+                                closeStart = (int)(closeFound - markdown_);
+                                closeEnd = closeStart + closeTagLen;
                             }
                         }
-                        if( closeFound != nullptr )
+                    }
+
+                    if( closeStart != -1 )
+                    {
+                        line.lineEnd = i;
+                        if( line.lineEnd > line.lineStart && line.lineEnd > line.lastRenderPosition + 1 )
                         {
-                            int closeStart = (int)(closeFound - markdown_);
-                            int closeEnd = closeStart + closeTagLen;
+                            RenderLine( markdown_, line, textRegion, mdConfig_ );
+                            line.isUnorderedListStart = false;
+                            line.isOrderedListStart = false;
+                            ImGui::SameLine( 0.0f, 0.0f );
+                        }
+                        else if( line.isUnorderedListStart )
+                        {
+                            int numLeadIndents = line.leadSpaceCount / 2;
+                            textRegion.ApplyLeadIndent( numLeadIndents );
+                            textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                            line.isUnorderedListStart = false;
+                        }
+                        else if( line.isOrderedListStart )
+                        {
+                            int numLeadIndents = line.leadSpaceCount / 2;
+                            textRegion.ApplyLeadIndent( numLeadIndents );
+                            textRegion.ApplyOrderedNumber( markdown_ + line.orderedListNumStart, markdown_ + line.orderedListNumEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                            line.isOrderedListStart = false;
+                        }
 
-                            line.lineEnd = i;
-                            if( line.lineEnd > line.lineStart && line.lineEnd > line.lastRenderPosition + 1 )
-                            {
-                                RenderLine( markdown_, line, textRegion, mdConfig_ );
-                                line.isUnorderedListStart = false;
-                                line.isOrderedListStart = false;
-                                ImGui::SameLine( 0.0f, 0.0f );
-                            }
-                            else if( line.isUnorderedListStart )
-                            {
-                                int numLeadIndents = line.leadSpaceCount / 2;
-                                textRegion.ApplyLeadIndent( numLeadIndents );
-                                textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
-                                line.isUnorderedListStart = false;
-                            }
-                            else if( line.isOrderedListStart )
-                            {
-                                int numLeadIndents = line.leadSpaceCount / 2;
-                                textRegion.ApplyLeadIndent( numLeadIndents );
-                                textRegion.ApplyOrderedNumber( markdown_ + line.orderedListNumStart, markdown_ + line.orderedListNumEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
-                                line.isOrderedListStart = false;
-                            }
-
-                            MarkdownTagData tagData;
-                            tagData.tagName = markdown_ + tagHeaderStart;
-                            tagData.tagNameLength = nameLen;
-                            tagData.tagParam = ( sep != -1 ) ? ( markdown_ + sep + 1 ) : nullptr;
-                            tagData.tagParamLength = ( sep != -1 ) ? ( tagHeaderEnd - sep - 1 ) : 0;
-                            while( tagData.tagParamLength > 0 && ( *tagData.tagParam == ' ' || *tagData.tagParam == '\"' || *tagData.tagParam == '\'' ) )
-                            {
-                                ++tagData.tagParam;
-                                --tagData.tagParamLength;
-                            }
-                            while( tagData.tagParamLength > 0 && ( tagData.tagParam[tagData.tagParamLength - 1] == ' ' || tagData.tagParam[tagData.tagParamLength - 1] == '\"' || tagData.tagParam[tagData.tagParamLength - 1] == '\'' ) )
-                            {
-                                --tagData.tagParamLength;
-                            }
+                        MarkdownTagData tagData;
+                        tagData.tagName = markdown_ + tagHeaderStart;
+                        tagData.tagNameLength = nameLen;
+                        tagData.tagParam = ( sep != -1 && tagHeaderEnd > sep + 1 ) ? ( markdown_ + sep + 1 ) : nullptr;
+                        tagData.tagParamLength = ( sep != -1 && tagHeaderEnd > sep + 1 ) ? ( tagHeaderEnd - sep - 1 ) : 0;
+                        while( tagData.tagParamLength > 0 && ( *tagData.tagParam == ' ' || *tagData.tagParam == '\t' ) )
+                        {
+                            ++tagData.tagParam;
+                            --tagData.tagParamLength;
+                        }
+                        while( tagData.tagParamLength > 0 && ( tagData.tagParam[tagData.tagParamLength - 1] == ' ' || tagData.tagParam[tagData.tagParamLength - 1] == '\t' ) )
+                        {
+                            --tagData.tagParamLength;
+                        }
+                        if( tagData.tagParamLength >= 2 &&
+                            ( ( *tagData.tagParam == '\"' && tagData.tagParam[tagData.tagParamLength - 1] == '\"' ) ||
+                              ( *tagData.tagParam == '\'' && tagData.tagParam[tagData.tagParamLength - 1] == '\'' ) ) )
+                        {
+                            ++tagData.tagParam;
+                            tagData.tagParamLength -= 2;
+                        }
+                        if( isSelfClosing || isImgTag )
+                        {
+                            tagData.innerText = "";
+                            tagData.innerTextLength = 0;
+                        }
+                        else
+                        {
                             tagData.innerText = markdown_ + openClose + 1;
                             tagData.innerTextLength = closeStart - ( openClose + 1 );
-                            tagData.config = &mdConfig_;
-                            tagData.userData = mdConfig_.userData;
+                        }
+                        tagData.config = &mdConfig_;
+                        tagData.userData = mdConfig_.userData;
 
+                        if( mdConfig_.tagCallback != NULL )
+                        {
                             mdConfig_.tagCallback( tagData );
+                        }
+                        else if( isImgTag )
+                        {
+                            MarkdownImageCallback* imageCb = mdConfig_.imageCallback ? mdConfig_.imageCallback : GetDefaultMarkdownImageCallback();
+                            if( imageCb )
+                            {
+                                MarkdownImageData imgData = imageCb( { "", 0, tagData.tagParam, (int)tagData.tagParamLength, mdConfig_.userData, true } );
+                                if( imgData.isValid )
+                                {
+                                    ImVec2 render_size = imgData.size;
+                                    float avail_w = ImGui::GetContentRegionAvail().x;
+                                    if( avail_w > 0.0f && render_size.x > avail_w )
+                                    {
+                                        float scale = avail_w / render_size.x;
+                                        render_size.x = avail_w;
+                                        render_size.y = std::round( render_size.y * scale );
+                                    }
+                                    ImGui::Image( imgData.user_texture_id, render_size, imgData.uv0, imgData.uv1, imgData.tint_col, imgData.border_col );
+                                }
+                            }
+                        }
 
-                            int peek = closeEnd;
-                            while( peek < (int)markdownLength_ && ( markdown_[peek] == ' ' || markdown_[peek] == '\t' ) )
+                        int peek = closeEnd;
+                        while( peek < (int)markdownLength_ && ( markdown_[peek] == ' ' || markdown_[peek] == '\t' ) )
+                        {
+                            ++peek;
+                        }
+
+                        if( peek >= (int)markdownLength_ || markdown_[peek] == '\n' || markdown_[peek] == '\r' )
+                        {
+                            // Tag was at end of line. The tag widget already advanced ImGui to the next line.
+                            // Consume optional \r and single trailing \n so it doesn't double-advance!
+                            if( peek < (int)markdownLength_ && markdown_[peek] == '\r' )
                             {
                                 ++peek;
                             }
-
-                            if( peek >= (int)markdownLength_ || markdown_[peek] == '\n' || markdown_[peek] == '\r' )
+                            if( peek < (int)markdownLength_ && markdown_[peek] == '\n' )
                             {
-                                // Tag was at end of line. The tag widget already advanced ImGui to the next line.
-                                // Consume optional \r and single trailing \n so it doesn't double-advance!
-                                if( peek < (int)markdownLength_ && markdown_[peek] == '\r' )
-                                {
-                                    ++peek;
-                                }
-                                if( peek < (int)markdownLength_ && markdown_[peek] == '\n' )
-                                {
-                                    ++peek;
-                                }
-                                textRegion.ResetIndent();
-                                line = Line();
-                                em = Emphasis();
-                                link = Link();
-                                line.lineStart = peek;
-                                line.lastRenderPosition = peek - 1;
-                                i = peek - 1;
-                                continue;
+                                ++peek;
                             }
-                            else
-                            {
-                                // Tag was mid-line; flow inline with following text without eating spaces!
-                                i = closeEnd - 1;
-                                line.lastRenderPosition = closeEnd - 1;
-                                line.lineStart = closeEnd;
-                                ImGui::SameLine( 0.0f, 0.0f );
-                                continue;
-                            }
+                            textRegion.ResetIndent();
+                            line = Line();
+                            em = Emphasis();
+                            link = Link();
+                            line.lineStart = peek;
+                            line.lastRenderPosition = peek - 1;
+                            i = peek - 1;
+                            continue;
+                        }
+                        else
+                        {
+                            // Tag was mid-line; flow inline with following text without eating spaces!
+                            i = closeEnd - 1;
+                            line.lastRenderPosition = closeEnd - 1;
+                            line.lineStart = closeEnd;
+                            ImGui::SameLine( 0.0f, 0.0f );
+                            continue;
                         }
                     }
                 }
@@ -3761,29 +3931,87 @@ namespace ImGui
                     link.url.stop = i;
                     if( link.isImage )
                     {
+                        // Check for trailing Pandoc attribute block: ![alt](url){ width=180px ... }
+                        int attrStart = -1;
+                        int attrEnd = -1;
+                        int p_attr = i + 1;
+                        while( p_attr < (int)markdownLength_ && ( markdown_[p_attr] == ' ' || markdown_[p_attr] == '\t' ) )
+                        {
+                            ++p_attr;
+                        }
+                        if( p_attr < (int)markdownLength_ && markdown_[p_attr] == '{' )
+                        {
+                            int closeBrace = -1;
+                            for( int k = p_attr + 1; k < (int)markdownLength_; ++k )
+                            {
+                                if( markdown_[k] == '}' ) { closeBrace = k; break; }
+                                if( markdown_[k] == '\n' || markdown_[k] == '\r' ) break;
+                            }
+                            if( closeBrace != -1 )
+                            {
+                                attrStart = p_attr + 1;
+                                attrEnd = closeBrace;
+                                i = closeBrace; // Advance loop index to consume the attribute block
+                            }
+                        }
+
                         bool drawnImage = false;
                         bool useLinkCallback = false;
                         MarkdownImageData imageData;
                         MarkdownImageCallback* imageCb = mdConfig_.imageCallback ? mdConfig_.imageCallback : GetDefaultMarkdownImageCallback();
                         if( imageCb )
                         {
-                            imageData = imageCb( { markdown_ + link.text.start, link.text.size(), markdown_ + link.url.start, link.url.size(), mdConfig_.userData, true } );
+                            if( attrStart != -1 && attrEnd > attrStart )
+                            {
+                                std::string combinedUrl( markdown_ + link.url.start, link.url.size() );
+                                combinedUrl += ' ';
+                                combinedUrl.append( markdown_ + attrStart, attrEnd - attrStart );
+                                imageData = imageCb( { markdown_ + link.text.start, link.text.size(), combinedUrl.c_str(), (int)combinedUrl.length(), mdConfig_.userData, true } );
+                            }
+                            else
+                            {
+                                imageData = imageCb( { markdown_ + link.text.start, link.text.size(), markdown_ + link.url.start, link.url.size(), mdConfig_.userData, true } );
+                            }
                             useLinkCallback = imageData.useLinkCallback;
                             if( imageData.isValid )
                             {
-                                ImGui::Image( imageData.user_texture_id, imageData.size, imageData.uv0, imageData.uv1, imageData.tint_col, imageData.border_col );
+                                ImVec2 render_size = imageData.size;
+                                float avail_w = ImGui::GetContentRegionAvail().x;
+                                if( avail_w > 0.0f && render_size.x > avail_w )
+                                {
+                                    float scale = avail_w / render_size.x;
+                                    render_size.x = avail_w;
+                                    render_size.y = std::round( render_size.y * scale );
+                                }
+                                ImGui::Image( imageData.user_texture_id, render_size, imageData.uv0, imageData.uv1, imageData.tint_col, imageData.border_col );
                                 drawnImage = true;
                             }
                         }
                         if( !drawnImage )
                         {
+                            // Strip modifiers and angle brackets from display if present (e.g. "<url =200x150>")
+                            int display_url_len = link.url.size();
+                            const char* url_ptr = markdown_ + link.url.start;
+                            if( display_url_len > 0 && *url_ptr == '<' )
+                            {
+                                ++url_ptr;
+                                --display_url_len;
+                            }
+                            for( int ui = 0; ui < display_url_len; ++ui )
+                            {
+                                if( url_ptr[ui] == ' ' || url_ptr[ui] == '\t' || url_ptr[ui] == '>' )
+                                {
+                                    display_url_len = ui;
+                                    break;
+                                }
+                            }
                             if( imageData.isLoading )
                             {
-                                ImGui::TextDisabled( "( Loading %.*s... )", link.url.size(), markdown_ + link.url.start );
+                                ImGui::TextDisabled( "( Loading %.*s... )", display_url_len, url_ptr );
                             }
                             else
                             {
-                                ImGui::Text( "( Image %.*s not loaded )", link.url.size(), markdown_ + link.url.start );
+                                ImGui::Text( "( Image %.*s not loaded )", display_url_len, url_ptr );
                             }
                         }
                         if( ImGui::IsItemHovered() )

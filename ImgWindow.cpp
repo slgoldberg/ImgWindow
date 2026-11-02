@@ -2375,6 +2375,266 @@ static void FetchRemoteImageWorker(std::string url) {
     s_MarkdownCompletedQueue.push_back(payload);
 }
 
+struct MarkdownImageModifiers {
+    std::string clean_url;
+    float width = -1.0f;
+    float height = -1.0f;
+    bool width_is_percent = false;
+    float width_percent = 0.0f;
+    bool height_is_percent = false;
+    float height_percent = 0.0f;
+    bool has_border = false;
+    ImVec4 border_col = ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
+};
+
+static inline std::string TrimMarkdownModifierWhitespace(const std::string& str) {
+    size_t start = 0;
+    while (start < str.size() && (str[start] == ' ' || str[start] == '\t' || str[start] == '\r' || str[start] == '\n')) {
+        ++start;
+    }
+    size_t end = str.size();
+    while (end > start && (str[end - 1] == ' ' || str[end - 1] == '\t' || str[end - 1] == '\r' || str[end - 1] == '\n')) {
+        --end;
+    }
+    return str.substr(start, end - start);
+}
+
+static inline MarkdownImageModifiers ParseMarkdownImageModifiers(const std::string& raw_input) {
+    MarkdownImageModifiers mods;
+    std::string s = TrimMarkdownModifierWhitespace(raw_input);
+    if (s.empty()) return mods;
+
+    // Check if this is an HTML attribute string containing "src="
+    size_t src_pos = s.find("src=");
+    if (src_pos != std::string::npos && (src_pos == 0 || s[src_pos - 1] == ' ' || s[src_pos - 1] == '\t')) {
+        size_t p = 0;
+        while (p < s.size()) {
+            while (p < s.size() && (s[p] == ' ' || s[p] == '\t' || s[p] == '\r' || s[p] == '\n')) ++p;
+            if (p >= s.size()) break;
+            
+            size_t key_start = p;
+            while (p < s.size() && s[p] != '=' && s[p] != ' ' && s[p] != '\t' && s[p] != '/' && s[p] != '>') ++p;
+            std::string key = s.substr(key_start, p - key_start);
+            for (char& c : key) c = (char)tolower((unsigned char)c);
+            
+            std::string val;
+            if (p < s.size() && s[p] == '=') {
+                ++p; // skip '='
+                while (p < s.size() && (s[p] == ' ' || s[p] == '\t')) ++p;
+                if (p < s.size()) {
+                    if (s[p] == '"' || s[p] == '\'') {
+                        char quote = s[p++];
+                        size_t vstart = p;
+                        while (p < s.size() && s[p] != quote) ++p;
+                        val = s.substr(vstart, p - vstart);
+                        if (p < s.size()) ++p; // skip quote
+                    } else {
+                        size_t vstart = p;
+                        while (p < s.size() && s[p] != ' ' && s[p] != '\t' && s[p] != '/' && s[p] != '>') ++p;
+                        val = s.substr(vstart, p - vstart);
+                    }
+                }
+            }
+            
+            if (key == "src") {
+                mods.clean_url = val;
+            } else if (key == "width" || key == "w") {
+                if (!val.empty() && val.back() == '%') {
+                    mods.width_is_percent = true;
+                    mods.width_percent = (float)atof(val.c_str());
+                } else {
+                    mods.width = (float)atof(val.c_str());
+                }
+            } else if (key == "height" || key == "h") {
+                if (!val.empty() && val.back() == '%') {
+                    mods.height_is_percent = true;
+                    mods.height_percent = (float)atof(val.c_str());
+                } else {
+                    mods.height = (float)atof(val.c_str());
+                }
+            } else if (key == "border") {
+                if (val.empty() || val == "1" || val == "true") {
+                    mods.has_border = true;
+                    mods.border_col = ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
+                } else if (val == "0" || val == "false" || val == "none") {
+                    mods.has_border = false;
+                } else {
+                    mods.has_border = true;
+                    ImGui::ParseMarkdownColor(val, mods.border_col);
+                }
+            }
+        }
+        return mods;
+    }
+
+    // CommonMark / Extended URL syntax
+    if (s.front() == '<' && s.back() == '>') {
+        s = TrimMarkdownModifierWhitespace(s.substr(1, s.size() - 2));
+    }
+
+    std::string url;
+    std::string remainder;
+
+    if (s.front() == '<') {
+        size_t end_angle = s.find('>');
+        if (end_angle != std::string::npos) {
+            url = s.substr(1, end_angle - 1);
+            remainder = s.substr(end_angle + 1);
+        } else {
+            url = s.substr(1);
+        }
+    } else if (s.front() == '"' || s.front() == '\'') {
+        char quote = s.front();
+        size_t end_quote = s.find(quote, 1);
+        if (end_quote != std::string::npos) {
+            url = s.substr(1, end_quote - 1);
+            remainder = s.substr(end_quote + 1);
+        } else {
+            url = s.substr(1);
+        }
+    } else {
+        size_t sep = s.find_first_of(" \t{");
+        if (sep != std::string::npos) {
+            url = s.substr(0, sep);
+            remainder = s.substr(sep);
+        } else {
+            url = s;
+        }
+    }
+
+    mods.clean_url = url;
+    remainder = TrimMarkdownModifierWhitespace(remainder);
+    if (remainder.empty()) return mods;
+
+    if (!remainder.empty() && remainder.front() == '{' && remainder.back() == '}') {
+        remainder = TrimMarkdownModifierWhitespace(remainder.substr(1, remainder.size() - 2));
+    }
+
+    size_t p = 0;
+    while (p < remainder.size()) {
+        while (p < remainder.size() && (remainder[p] == ' ' || remainder[p] == '\t' || remainder[p] == '{' || remainder[p] == '}')) ++p;
+        if (p >= remainder.size()) break;
+        
+        if (remainder[p] == '"' || remainder[p] == '\'') {
+            char quote = remainder[p++];
+            while (p < remainder.size() && remainder[p] != quote) ++p;
+            if (p < remainder.size()) ++p;
+            continue;
+        }
+        
+        size_t tok_start = p;
+        while (p < remainder.size() && remainder[p] != ' ' && remainder[p] != '\t' && remainder[p] != '}') ++p;
+        std::string tok = remainder.substr(tok_start, p - tok_start);
+        
+        if (tok.front() == '=') {
+            std::string dim = tok.substr(1);
+            if (!dim.empty() && dim.back() == '%') {
+                mods.width_is_percent = true;
+                mods.width_percent = (float)atof(dim.c_str());
+            } else {
+                size_t x_pos = dim.find_first_of("xX");
+                if (x_pos != std::string::npos) {
+                    std::string sw = dim.substr(0, x_pos);
+                    std::string sh = dim.substr(x_pos + 1);
+                    if (!sw.empty()) mods.width = (float)atof(sw.c_str());
+                    if (!sh.empty()) mods.height = (float)atof(sh.c_str());
+                } else {
+                    mods.width = (float)atof(dim.c_str());
+                }
+            }
+        } else if (tok.rfind("width=", 0) == 0 || tok.rfind("w=", 0) == 0) {
+            size_t eq = tok.find('=');
+            std::string val = tok.substr(eq + 1);
+            if (val.size() >= 2 && ((val.front() == '"' && val.back() == '"') || (val.front() == '\'' && val.back() == '\''))) {
+                val = val.substr(1, val.size() - 2);
+            }
+            if (!val.empty() && val.back() == '%') {
+                mods.width_is_percent = true;
+                mods.width_percent = (float)atof(val.c_str());
+            } else {
+                mods.width = (float)atof(val.c_str());
+            }
+        } else if (tok.rfind("height=", 0) == 0 || tok.rfind("h=", 0) == 0) {
+            size_t eq = tok.find('=');
+            std::string val = tok.substr(eq + 1);
+            if (val.size() >= 2 && ((val.front() == '"' && val.back() == '"') || (val.front() == '\'' && val.back() == '\''))) {
+                val = val.substr(1, val.size() - 2);
+            }
+            if (!val.empty() && val.back() == '%') {
+                mods.height_is_percent = true;
+                mods.height_percent = (float)atof(val.c_str());
+            } else {
+                mods.height = (float)atof(val.c_str());
+            }
+        } else if (tok == "border") {
+            mods.has_border = true;
+            mods.border_col = ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
+        } else if (tok.rfind("border=", 0) == 0) {
+            std::string val = tok.substr(7);
+            if (val.size() >= 2 && ((val.front() == '"' && val.back() == '"') || (val.front() == '\'' && val.back() == '\''))) {
+                val = val.substr(1, val.size() - 2);
+            }
+            if (val == "0" || val == "none" || val == "false") {
+                mods.has_border = false;
+            } else if (val == "1" || val == "true") {
+                mods.has_border = true;
+                mods.border_col = ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
+            } else {
+                mods.has_border = true;
+                ImGui::ParseMarkdownColor(val, mods.border_col);
+            }
+        }
+    }
+    return mods;
+}
+
+static inline void ApplyMarkdownImageModifiers(ImGui::MarkdownImageData& img, const MarkdownImageModifiers& mods, const ImVec2& native_size) {
+    float avail_w = ImGui::GetContentRegionAvail().x;
+    
+    if (mods.has_border) {
+        img.border_col = mods.border_col;
+    } else {
+        img.border_col = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    }
+
+    float target_w = native_size.x;
+    float target_h = native_size.y;
+    float aspect = (native_size.x > 0.0f) ? (native_size.y / native_size.x) : 1.0f;
+
+    if (mods.width_is_percent) {
+        float ref_w = (avail_w > 10.0f) ? avail_w : (native_size.x > 0.0f ? native_size.x : 100.0f);
+        target_w = ref_w * (mods.width_percent / 100.0f);
+        if (mods.height > 0.0f) {
+            target_h = mods.height;
+        } else if (mods.height_is_percent) {
+            target_h = ref_w * (mods.height_percent / 100.0f);
+        } else {
+            target_h = std::round(target_w * aspect);
+        }
+    } else if (mods.width > 0.0f && mods.height > 0.0f) {
+        target_w = mods.width;
+        target_h = mods.height;
+    } else if (mods.width > 0.0f) {
+        target_w = mods.width;
+        target_h = std::round(target_w * aspect);
+    } else if (mods.height > 0.0f) {
+        target_h = mods.height;
+        target_w = (aspect > 0.0f) ? std::round(target_h / aspect) : native_size.x;
+    }
+
+    // Auto-constraint to available viewport width (max-width: 100%; height: auto)
+    if (avail_w > 10.0f && target_w > avail_w && target_w > 0.0f) {
+        float scale = avail_w / target_w;
+        target_w = avail_w;
+        target_h = std::round(target_h * scale);
+    }
+
+    if (target_w < 1.0f) target_w = 1.0f;
+    if (target_h < 1.0f) target_h = 1.0f;
+
+    img.size = ImVec2(target_w, target_h);
+}
+
 ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::MarkdownLinkCallbackData data)
 {
     if (!data.link || data.linkLength <= 0) {
@@ -2383,7 +2643,15 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
         return invalid;
     }
 
-    std::string url(data.link, (size_t)data.linkLength);
+    std::string raw_input(data.link, (size_t)data.linkLength);
+    MarkdownImageModifiers mods = ParseMarkdownImageModifiers(raw_input);
+    const std::string& url = mods.clean_url;
+
+    if (url.empty()) {
+        ImGui::MarkdownImageData invalid;
+        invalid.isValid = false;
+        return invalid;
+    }
 
     // 0. Process any newly completed background texture downloads on the main thread:
     ProcessPendingMarkdownTextures();
@@ -2391,12 +2659,7 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
     // 1. Tier 1: Check In-Memory Named Texture Registry
     ImGui::MarkdownImageData namedData;
     if (GetMarkdownNamedTexture(url, namedData)) {
-        float avail_w = ImGui::GetContentRegionAvail().x;
-        if (avail_w > 10.0f && namedData.size.x > avail_w && namedData.size.x > 0.0f) {
-            float aspect = namedData.size.y / namedData.size.x;
-            namedData.size.x = avail_w;
-            namedData.size.y = avail_w * aspect;
-        }
+        ApplyMarkdownImageModifiers(namedData, mods, namedData.size);
         return namedData;
     }
 
@@ -2424,12 +2687,7 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
             img.isLoading = false;
             img.user_texture_id = it->second.textureID;
             img.size = it->second.size;
-            float avail_w = ImGui::GetContentRegionAvail().x;
-            if (avail_w > 10.0f && img.size.x > avail_w && img.size.x > 0.0f) {
-                float aspect = img.size.y / img.size.x;
-                img.size.x = avail_w;
-                img.size.y = avail_w * aspect;
-            }
+            ApplyMarkdownImageModifiers(img, mods, it->second.size);
             return img;
         }
     }
@@ -2569,13 +2827,7 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
     img.isValid = true;
     img.user_texture_id = texID;
     img.size = successEntry.size;
-
-    float avail_w = ImGui::GetContentRegionAvail().x;
-    if (avail_w > 10.0f && img.size.x > avail_w && img.size.x > 0.0f) {
-        float aspect = img.size.y / img.size.x;
-        img.size.x = avail_w;
-        img.size.y = avail_w * aspect;
-    }
+    ApplyMarkdownImageModifiers(img, mods, successEntry.size);
     return img;
 }
 #endif

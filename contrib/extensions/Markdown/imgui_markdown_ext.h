@@ -59,81 +59,7 @@ namespace ImGui {
     }
 
     // 2. Color Helper for Built-in Styling Tags
-    inline bool ParseMarkdownColor(const std::string& raw_str, ImVec4& out_col) {
-        if (raw_str.empty()) return false;
-
-        std::string str = raw_str;
-        for (char& c : str) c = (char)tolower((unsigned char)c);
-
-        // Strip optional key= prefix (e.g. color=0xFFA500, col=orange, bg=#FF0000, text=white)
-        if (str.rfind("bgcolor=", 0) == 0)       str = str.substr(8);
-        else if (str.rfind("bgcol=", 0) == 0)    str = str.substr(6);
-        else if (str.rfind("bg=", 0) == 0)       str = str.substr(3);
-        else if (str.rfind("fgcolor=", 0) == 0)  str = str.substr(8);
-        else if (str.rfind("fgcol=", 0) == 0)    str = str.substr(6);
-        else if (str.rfind("fg=", 0) == 0)       str = str.substr(3);
-        else if (str.rfind("color=", 0) == 0)    str = str.substr(6);
-        else if (str.rfind("col=", 0) == 0)      str = str.substr(4);
-        else if (str.rfind("text=", 0) == 0)     str = str.substr(5);
-        if (str.size() >= 2 && ((str.front() == '"' && str.back() == '"') || (str.front() == '\'' && str.back() == '\''))) {
-            str = str.substr(1, str.size() - 2);
-        }
-        if (str.empty()) return false;
-        
-        // Named UI colors
-        if (str == "red")     { out_col = ImVec4(0.95f, 0.25f, 0.25f, 1.0f); return true; }
-        if (str == "green")   { out_col = ImVec4(0.25f, 0.85f, 0.35f, 1.0f); return true; }
-        if (str == "blue")    { out_col = ImVec4(0.30f, 0.65f, 1.0f,  1.0f); return true; }
-        if (str == "yellow")  { out_col = ImVec4(1.0f,  0.85f, 0.20f, 1.0f); return true; }
-        if (str == "orange")  { out_col = ImVec4(1.0f,  0.647f, 0.0f, 1.0f); return true; } // 0xFFA500
-        if (str == "purple" || str == "violet") { out_col = ImVec4(0.60f, 0.25f, 0.90f, 1.0f); return true; }
-        if (str == "cyan")    { out_col = ImVec4(0.20f, 0.85f, 0.95f, 1.0f); return true; }
-        if (str == "magenta") { out_col = ImVec4(0.90f, 0.30f, 0.90f, 1.0f); return true; }
-        if (str == "white")   { out_col = ImVec4(1.0f,  1.0f,  1.0f,  1.0f); return true; }
-        if (str == "black")   { out_col = ImVec4(0.0f,  0.0f,  0.0f,  1.0f); return true; }
-        if (str == "gray" || str == "grey") { out_col = ImVec4(0.60f, 0.60f, 0.60f, 1.0f); return true; }
-        if (str == "gold")    { out_col = ImVec4(1.0f,  0.84f, 0.0f,  1.0f); return true; }
-        if (str == "dark")    { out_col = ImVec4(0.18f, 0.18f, 0.22f, 1.0f); return true; }
-        if (str == "light")   { out_col = ImVec4(0.90f, 0.90f, 0.92f, 1.0f); return true; }
-        if (str == "danger")  { out_col = ImVec4(0.85f, 0.15f, 0.15f, 1.0f); return true; }
-        if (str == "warning") { out_col = ImVec4(0.95f, 0.75f, 0.10f, 1.0f); return true; }
-        if (str == "success") { out_col = ImVec4(0.15f, 0.70f, 0.25f, 1.0f); return true; }
-        if (str == "info")    { out_col = ImVec4(0.20f, 0.55f, 0.90f, 1.0f); return true; }
-
-        // Hex formats: #RRGGBB, #RRGGBBAA, 0xRRGGBB, 0xRRGGBBAA
-        size_t start = 0;
-        if (str[0] == '#') {
-            start = 1;
-        } else if (str.size() >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
-            start = 2;
-        } else if (isxdigit((unsigned char)str[0])) {
-            start = 0;
-        } else {
-            return false;
-        }
-
-        std::string hex = str.substr(start);
-        if (hex.length() == 6) {
-            unsigned int val = 0;
-            if (sscanf(hex.c_str(), "%x", &val) == 1) {
-                out_col.x = ((val >> 16) & 0xFF) / 255.0f;
-                out_col.y = ((val >> 8) & 0xFF) / 255.0f;
-                out_col.z = (val & 0xFF) / 255.0f;
-                out_col.w = 1.0f;
-                return true;
-            }
-        } else if (hex.length() == 8) {
-            unsigned long long val = 0;
-            if (sscanf(hex.c_str(), "%llx", &val) == 1) {
-                out_col.x = ((val >> 24) & 0xFF) / 255.0f;
-                out_col.y = ((val >> 16) & 0xFF) / 255.0f;
-                out_col.z = ((val >> 8) & 0xFF) / 255.0f;
-                out_col.w = (val & 0xFF) / 255.0f;
-                return true;
-            }
-        }
-        return false;
-    }
+    // (ParseMarkdownColor is defined in imgui_markdown.h in namespace ImGui)
 
     // 3. Custom Markdown Styling Tags Pre-Processor
     struct MarkdownTagStyle {
@@ -382,7 +308,7 @@ namespace ImGui {
         else if (heading_level == 2 && config && config->h2Font) base_font = config->h2Font;
         else if (heading_level >= 3 && config && config->h3Font) base_font = config->h3Font;
 
-        float font_size = base_font ? base_font->FontSize : ImGui::GetFontSize();
+        float font_size = ImGui::GetFontSize();
         float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
 
         float total_w = 0.0f;
@@ -611,6 +537,10 @@ namespace ImGui {
 
         return any_replaced;
     }
+
+    // Forward declarations
+    inline void MarkdownExt(const char* markdown_text, size_t markdown_len, const MarkdownConfig* config_override);
+    inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override);
 
     inline std::unordered_map<std::string, CustomTagCallback>& GetCustomMarkdownTags() {
         static std::unordered_map<std::string, CustomTagCallback> s_CustomTags;
@@ -1019,6 +949,71 @@ namespace ImGui {
             };
             s_CustomTags["center"] = centerHandler;
             s_CustomTags["centre"] = centerHandler;
+
+            // Built-in Tag 9: <img ... /> or <img ...>
+            auto imgHandler = [](const std::string& inner_text, const std::string& param) {
+                (void)inner_text;
+                auto imageCb = GetActiveMarkdownConfig() && GetActiveMarkdownConfig()->imageCallback 
+                               ? GetActiveMarkdownConfig()->imageCallback 
+                               : GetDefaultMarkdownImageCallback();
+                if (!imageCb) {
+                    ImGui::TextDisabled("( Image service disabled )");
+                    return;
+                }
+
+                MarkdownLinkCallbackData cbData;
+                cbData.text = "";
+                cbData.textLength = 0;
+                cbData.link = param.c_str();
+                cbData.linkLength = (int)param.length();
+                cbData.userData = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig()->userData : nullptr;
+                cbData.isImage = true;
+
+                MarkdownImageData imgData = imageCb(cbData);
+                if (imgData.isValid) {
+                    ImVec2 render_size = imgData.size;
+                    float avail_w = ImGui::GetContentRegionAvail().x;
+                    if (avail_w > 0.0f && render_size.x > avail_w) {
+                        float scale = avail_w / render_size.x;
+                        render_size.x = avail_w;
+                        render_size.y = std::round(render_size.y * scale);
+                    }
+                    ImGui::Image(imgData.user_texture_id, render_size, imgData.uv0, imgData.uv1, imgData.tint_col, imgData.border_col);
+                } else if (imgData.isLoading) {
+                    std::string clean_src = param;
+                    size_t src_pos = clean_src.find("src=");
+                    if (src_pos != std::string::npos) {
+                        clean_src = clean_src.substr(src_pos + 4);
+                        if (!clean_src.empty() && (clean_src.front() == '"' || clean_src.front() == '\'')) {
+                            char q = clean_src.front();
+                            clean_src = clean_src.substr(1);
+                            size_t qend = clean_src.find(q);
+                            if (qend != std::string::npos) clean_src = clean_src.substr(0, qend);
+                        } else {
+                            size_t sp = clean_src.find_first_of(" \t/>");
+                            if (sp != std::string::npos) clean_src = clean_src.substr(0, sp);
+                        }
+                    }
+                    ImGui::TextDisabled("( Loading %s... )", clean_src.c_str());
+                } else {
+                    std::string clean_src = param;
+                    size_t src_pos = clean_src.find("src=");
+                    if (src_pos != std::string::npos) {
+                        clean_src = clean_src.substr(src_pos + 4);
+                        if (!clean_src.empty() && (clean_src.front() == '"' || clean_src.front() == '\'')) {
+                            char q = clean_src.front();
+                            clean_src = clean_src.substr(1);
+                            size_t qend = clean_src.find(q);
+                            if (qend != std::string::npos) clean_src = clean_src.substr(0, qend);
+                        } else {
+                            size_t sp = clean_src.find_first_of(" \t/>");
+                            if (sp != std::string::npos) clean_src = clean_src.substr(0, sp);
+                        }
+                    }
+                    ImGui::Text("( Image %s not loaded )", clean_src.c_str());
+                }
+            };
+            s_CustomTags["img"] = imgHandler;
 #endif
         }
         return s_CustomTags;
