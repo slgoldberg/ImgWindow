@@ -727,6 +727,28 @@ namespace ImGui
                  c_ == '}' || c_ == '~' );
     }
 
+    // CommonMark 4.2: Strip optional closing sequence of '#' characters
+    inline void TrimTrailingHeadingHashes( const char* text, const char*& textEnd )
+    {
+        while( textEnd > text && ( textEnd[-1] == ' ' || textEnd[-1] == '\t' || textEnd[-1] == '\r' ) )
+        {
+            --textEnd;
+        }
+        const char* hashScan = textEnd;
+        while( hashScan > text && hashScan[-1] == '#' )
+        {
+            --hashScan;
+        }
+        if( hashScan < textEnd && ( hashScan == text || hashScan[-1] == ' ' || hashScan[-1] == '\t' ) )
+        {
+            textEnd = hashScan;
+            while( textEnd > text && ( textEnd[-1] == ' ' || textEnd[-1] == '\t' ) )
+            {
+                --textEnd;
+            }
+        }
+    }
+
     inline void RenderLine( const char* markdown_, Line& line_, TextRegion& textRegion_, const MarkdownConfig& mdConfig_ )
     {
         // Apply line-level leading space indentation (nested list depth)
@@ -782,7 +804,12 @@ namespace ImGui
             formatInfo.type = MarkdownFormatType::HEADING;
             mdConfig_.formatCallback( formatInfo, true );
             const char* text = markdown_ + textStart + 1;
-            textRegion_.RenderTextWrapped( text, text + textSize - 1 );
+            const char* textEnd = markdown_ + line_.lineEnd;
+            TrimTrailingHeadingHashes( text, textEnd );
+            if( textEnd > text )
+            {
+                textRegion_.RenderTextWrapped( text, textEnd );
+            }
 
             MarkdownHeadingFormat fmt;
             if( line_.headingCount > MarkdownConfig::NUMHEADINGS )
@@ -3034,6 +3061,20 @@ namespace ImGui
             ImGui::TableNextRow( ImGuiTableRowFlags_Headers, header_h );
             table = ImGui::GetCurrentTable();
 
+            if( need_init && table )
+            {
+                for( size_t c = 0; c < num_cols; ++c )
+                {
+                    if( c < (size_t)table->ColumnsCount && col_widths[c] > 0.0f )
+                    {
+                        table->Columns[c].WidthRequest = col_widths[c];
+                        table->Columns[c].StretchWeight = col_widths[c];
+                        table->Columns[c].AutoFitQueue = 0x00;
+                    }
+                }
+                ImGui::TableUpdateColumnsWeightFromWidth( table );
+            }
+
             for( size_t col = 0; col < num_cols; ++col )
             {
                 if( !ImGui::TableSetColumnIndex( (int)col ) ) continue;
@@ -3492,32 +3533,94 @@ namespace ImGui
                     }
                     else if( c == '#' )
                     {
-                        line.headingCount++;
+                        int h_count = 1;
                         bool bContinueChecking = true;
                         int j = i;
                         while( ++j < (int)markdownLength_ && bContinueChecking )
                         {
                             c = markdown_[j];
-                            switch( c )
+                            if( c == '#' )
                             {
-                            case '#':
-                                line.headingCount++;
-                                break;
-                            case ' ':
-                                line.lastRenderPosition = j - 1;
-                                i = j;
-                                line.isHeading = true;
+                                ++h_count;
+                                if( h_count > 6 ) bContinueChecking = false;
+                            }
+                            else if( c == ' ' || c == '\t' )
+                            {
                                 bContinueChecking = false;
-                                break;
-                            default:
-                                line.isHeading = false;
+                            }
+                            else
+                            {
+                                h_count = 0;
                                 bContinueChecking = false;
-                                break;
                             }
                         }
-                        if( line.isHeading )
+                        if( h_count > 0 && h_count <= 6 && ( c == ' ' || c == '\t' ) )
                         {
+                            // CommonMark 4.2: ATX Heading block processing (inline parsed, trailing '#' stripped)
+                            int line_end = j;
+                            while( line_end < (int)markdownLength_ && markdown_[line_end] != '\n' && markdown_[line_end] != '\r' )
+                            {
+                                ++line_end;
+                            }
+
+                            int text_start = j;
+                            while( text_start < line_end && ( markdown_[text_start] == ' ' || markdown_[text_start] == '\t' ) )
+                            {
+                                ++text_start;
+                            }
+
+                            const char* h_start = markdown_ + text_start;
+                            const char* h_end = markdown_ + line_end;
+                            TrimTrailingHeadingHashes( h_start, h_end );
+                            size_t heading_text_len = (size_t)( h_end - h_start );
+
+                            MarkdownFormatInfo formatInfo;
+                            formatInfo.config = &mdConfig_;
+                            formatInfo.level = h_count;
+                            formatInfo.type = MarkdownFormatType::HEADING;
+                            formatInfo.isPrecededBySeparator = lastWasSeparator;
+                            formatInfo.isPrecededByBlankLine = lastWasBlankLine;
+
+                            bool isAtStart = true;
+                            for( int k = 0; k < i; ++k )
+                            {
+                                char ch = markdown_[k];
+                                if( ch != ' ' && ch != '\t' && ch != '\r' && ch != '\n' )
+                                {
+                                    isAtStart = false;
+                                    break;
+                                }
+                            }
+                            formatInfo.isStartOfDoc = isAtStart;
+
+                            mdConfig_.formatCallback( formatInfo, true );
+
+                            if( heading_text_len > 0 )
+                            {
+                                MarkdownConfig headingConfig = mdConfig_;
+                                headingConfig.regularFont = nullptr; // preserve active heading font for normal text
+                                Markdown::Render( h_start, heading_text_len, headingConfig );
+                            }
+
+                            mdConfig_.formatCallback( formatInfo, false );
+
+                            lastWasSeparator = ( h_count <= MarkdownConfig::NUMHEADINGS ) ?
+                                               mdConfig_.headingFormats[ h_count - 1 ].separator :
+                                               mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].separator;
+                            lastWasBlankLine = false;
+
+                            int peek = line_end;
+                            if( peek < (int)markdownLength_ && markdown_[peek] == '\r' ) ++peek;
+                            if( peek < (int)markdownLength_ && markdown_[peek] == '\n' ) ++peek;
+
+                            textRegion.ResetIndent();
+                            line = Line();
+                            line.isLeadingSpace = true;
+                            line.lineStart = peek;
+                            line.lastRenderPosition = peek - 1;
                             em = Emphasis();
+                            link = Link();
+                            i = peek - 1;
                             continue;
                         }
                     }

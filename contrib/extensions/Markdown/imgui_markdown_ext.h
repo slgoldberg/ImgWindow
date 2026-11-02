@@ -296,8 +296,12 @@ namespace ImGui {
             ++heading_level;
             ++i;
         }
-        if (heading_level > 0 && i < len && text[i] == ' ') {
+        if (heading_level > 0 && i < len && (text[i] == ' ' || text[i] == '\t')) {
             ++i; // skip space after '#'
+            // CommonMark 4.2: Strip optional trailing closing '#' sequence
+            const char* h_end = text + len;
+            TrimTrailingHeadingHashes(text + i, h_end);
+            len = (size_t)(h_end - text);
         } else {
             heading_level = 0;
             i = h_start;
@@ -308,7 +312,11 @@ namespace ImGui {
         else if (heading_level == 2 && config && config->h2Font) base_font = config->h2Font;
         else if (heading_level >= 3 && config && config->h3Font) base_font = config->h3Font;
 
-        float font_size = ImGui::GetFontSize();
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+        float font_size = (base_font && base_font->LegacySize > 0.0f) ? base_font->LegacySize : ImGui::GetFontSize();
+#else
+        float font_size = (base_font && base_font->FontSize > 0.0f) ? base_font->FontSize : ImGui::GetFontSize();
+#endif
         float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
 
         float total_w = 0.0f;
@@ -539,8 +547,8 @@ namespace ImGui {
     }
 
     // Forward declarations
-    inline void MarkdownExt(const char* markdown_text, size_t markdown_len, const MarkdownConfig* config_override);
-    inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override);
+    inline void MarkdownExt(const char* markdown_text, size_t markdown_len, const MarkdownConfig* config_override = nullptr);
+    inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);
 
     inline std::unordered_map<std::string, CustomTagCallback>& GetCustomMarkdownTags() {
         static std::unordered_map<std::string, CustomTagCallback> s_CustomTags;
@@ -1039,7 +1047,7 @@ namespace ImGui {
     }
 
     // 4. Core Markdown Extension Engine (Unified Single-Pass Pipeline)
-    inline void MarkdownExt(const char* markdown_text, size_t markdown_len, const MarkdownConfig* config_override = nullptr) {
+    inline void MarkdownExt(const char* markdown_text, size_t markdown_len, const MarkdownConfig* config_override) {
         if (!markdown_text) return;
         const MarkdownConfig* config = config_override ? config_override : GetDefaultMarkdownConfig();
         static const MarkdownConfig s_FallbackConfig;
@@ -1081,7 +1089,7 @@ namespace ImGui {
         GetActiveMarkdownConfig() = prev_active;
     }
 
-    inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
+    inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override) {
         MarkdownExt(markdown_text.c_str(), markdown_text.length(), config_override);
     }
 
