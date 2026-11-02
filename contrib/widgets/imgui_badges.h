@@ -108,13 +108,17 @@ namespace ImGui {
         const float total_w = text_size.x + pad_x * 2.0f;
         const float total_h = text_size.y + pad_y * 2.0f;
 
-        ImVec2 pos = window->DC.CursorPos;
-        if (window->DC.CurrLineTextBaseOffset > pad_y) {
-            pos.y += window->DC.CurrLineTextBaseOffset - pad_y;
-        }
+        // Continuous baseline alignment:
+        // Regular bare text renders at y = window->DC.CursorPos.y + window->DC.CurrLineTextBaseOffset.
+        // Align capsule text directly with that baseline:
+        const ImVec2 pos = window->DC.CursorPos;
+        const float text_y = pos.y + window->DC.CurrLineTextBaseOffset;
+        const ImVec2 text_pos(pos.x + pad_x, text_y);
 
-        const ImRect bb(pos, ImVec2(pos.x + total_w, pos.y + total_h));
-        ItemSize(ImVec2(total_w, total_h), pad_y);
+        // Expand the pill/badge bounding box symmetrically around the text:
+        const ImRect bb(ImVec2(pos.x, text_y - pad_y), ImVec2(pos.x + total_w, text_y + text_size.y + pad_y));
+
+        ItemSize(ImVec2(total_w, text_size.y), 0.0f);
         const ImGuiID id = window->GetID(text);
         if (!ItemAdd(bb, id)) return;
 
@@ -123,7 +127,7 @@ namespace ImGui {
 
         // Render background framing and perfectly centered text
         GetWindowDrawList()->AddRectFilled(bb.Min, bb.Max, GetColorU32(bg_col), rounding);
-        GetWindowDrawList()->AddText(ImVec2(pos.x + pad_x, pos.y + pad_y), GetColorU32(text_col), text, text_end);
+        GetWindowDrawList()->AddText(text_pos, GetColorU32(text_col), text, text_end);
     }
 
     inline IMGUI_API void Badge(const char* text, ImU32 bg_col, ImU32 fg_col = 0, float custom_rounding = -1.0f) {
@@ -175,13 +179,14 @@ namespace ImGui {
         const float total_w = text_size.x + pad_x * 2.0f;
         const float total_h = text_size.y + pad_y * 2.0f + bevel;
 
-        ImVec2 pos = window->DC.CursorPos;
-        if (window->DC.CurrLineTextBaseOffset > pad_y) {
-            pos.y += window->DC.CurrLineTextBaseOffset - pad_y;
-        }
+        // Continuous baseline alignment:
+        const ImVec2 pos = window->DC.CursorPos;
+        const float text_y = pos.y + window->DC.CurrLineTextBaseOffset;
+        const ImVec2 text_pos(pos.x + pad_x, text_y);
 
-        const ImRect bb(pos, ImVec2(pos.x + total_w, pos.y + total_h));
-        ItemSize(ImVec2(total_w, total_h), pad_y);
+        const ImRect bb(ImVec2(pos.x, text_y - pad_y), ImVec2(pos.x + total_w, text_y + text_size.y + pad_y + bevel));
+
+        ItemSize(ImVec2(total_w, text_size.y), 0.0f);
         const ImGuiID id = window->GetID(key_label);
         if (!ItemAdd(bb, id)) return;
 
@@ -193,11 +198,11 @@ namespace ImGui {
         ImDrawList* dl = GetWindowDrawList();
 
         // 3D bottom bevel / shadow for keycap effect
-        dl->AddRectFilled(ImVec2(pos.x, pos.y + bevel), ImVec2(pos.x + total_w, pos.y + total_h), bottom_shadow, rounding);
-        dl->AddRectFilled(pos, ImVec2(pos.x + total_w, pos.y + total_h - bevel), bg_col, rounding);
-        dl->AddRect(pos, ImVec2(pos.x + total_w, pos.y + total_h - bevel), border_col, rounding, 0, 1.0f * scale);
+        dl->AddRectFilled(ImVec2(pos.x, bb.Min.y + bevel), bb.Max, bottom_shadow, rounding);
+        dl->AddRectFilled(bb.Min, ImVec2(bb.Max.x, bb.Max.y - bevel), bg_col, rounding);
+        dl->AddRect(bb.Min, ImVec2(bb.Max.x, bb.Max.y - bevel), border_col, rounding, 0, 1.0f * scale);
 
-        dl->AddText(ImVec2(pos.x + pad_x, pos.y + pad_y), GetColorU32(GetStyle().Colors[ImGuiCol_Text]), key_label, text_end);
+        dl->AddText(text_pos, GetColorU32(GetStyle().Colors[ImGuiCol_Text]), key_label, text_end);
     }
 
     // Friendly C++ aliases matching Markdown tags (<tag>, <key>, <keycap>):

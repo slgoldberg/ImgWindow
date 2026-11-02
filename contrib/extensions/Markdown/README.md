@@ -78,6 +78,11 @@ The Markdown system is structured as a clean two-layer architecture:
   * **A/B Double-Click Toggle Memory:** Double-clicking the right border grip toggles back and forth between the baseline preset and user-modified geometry with 100% memory of column widths and total width.
   * **Two-Tier Comment Persistence:** Transparently reads and writes Author Baseline Presets (`<!-- table-preset: ... -->`) and User State (`<!-- table-state: ... -->`) without cluttering rendered output.
   * **Turnkey Host Serialization:** Provides `mdConfig.tableStateCallback` and `ImGui::ApplyTableStateToMarkdown(...)` to keep raw markdown editor buffers and persistence files in lockstep with user interactions.
+* **Continuous Vertical Baseline Alignment for Inline Tags:**
+  * In `<pill>`, `<badge>`, and `<kbd>`, text rendering anchors directly to the line's natural font baseline (`CursorPos.y + CurrLineTextBaseOffset`), and the background capsule expands symmetrically above and below. Bare text, bold text, and capsule text share a single unbroken typographic baseline without sagging or vertical drift.
+* **Centering Layout Primitives (`<center>` and `-> text <-`):**
+  * Effortlessly center briefing headers, warnings, and status lines via HTML-style `<center>text</center>` (or `<centre>`) tags or ASCII block-level markers (`-> Centered Text <-` and `= Centered Text =`).
+  * Dynamically pre-measures line advance width across headers, bold/italics, pills, and badges to ensure true horizontal optical centering.
 * **Dynamic Font Scaling:**
   * Uses `ImGui::GetFontScale()` to cleanly honor parent window text zoom and high-DPI display scales.
 * **Custom Tag Registration:**
@@ -466,6 +471,7 @@ The following tags are pre-registered and active by default:
 | **`kbd` / `key` / `kdb`** | `<kbd>Key</kbd>`<br>`<key>Ctrl+C</key>` | Keyboard key or shortcut label (`kdb` is a built-in typo alias). | Delegates directly to `ImGui::Kbd`. Renders a 3D tactile keyboard keycap with bottom bevel/shadow. |
 | **`u` / `ins`** | `<u>text</u>`<br>`<ins>text</ins>` | Optional color attribute (`<u #FFCC00>`). | Renders text with a pixel-aligned underline rule along the baseline. |
 | **`s` / `del` / `strike`** | `<s>text</s>`<br>`<del>text</del>`<br>`<strike>text</strike>` | Optional color attribute (`<s red>`). | Renders text with a pixel-aligned strikethrough rule across the vertical midline. |
+| **`center` / `centre`** | `<center>text</center>`<br>`<centre>text</centre>` | Centered block or inline span. | Centers text or multiline blocks horizontally within the available content area. Pre-measures content width across headers, bold/italics, pills, and badges. |
 | **`btn`** | `<btn=ID>label</btn>`<br>`<btn [bold] [italic] [mono]>label</btn>` | Unique button ID or style flags (`bold`, `italic`, `mono`). | Renders an inline, clickable `ImGui::SmallButton` directly within text flow. |
 | **`mono` / `code`** | `<mono>text</mono>`<br>`<code [COLOR]>text</code>` | Accepts optional custom background color or hex parameter (and optional `fg=COLOR`). | Renders `text` in monospace (`mdConfig.monoFont`) inside a subtle, translucent rounded background pill. |
 

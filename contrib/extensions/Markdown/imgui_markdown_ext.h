@@ -33,6 +33,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <sstream>
 #include "imgui_markdown.h"
 #include "../../widgets/imgui_badges.h"
 
@@ -352,6 +353,263 @@ namespace ImGui {
         if ((cursorX - lineStartX) > (10.0f * scale) && required_width > avail) {
             ImGui::NewLine();
         }
+    }
+
+    // Pre-measures the total rendered horizontal advance width of an inline Markdown line,
+    // accounting for font headers (#, ##, ###), bold/italic/code spans, and inline capsules (<pill>, <badge>, <kbd>).
+    inline float MeasureMarkdownLineWidth(const char* text, size_t len, const MarkdownConfig* config = nullptr) {
+        if (!text || len == 0) return 0.0f;
+        if (!config) config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+
+        // Check for leading header (#, ##, ###)
+        int heading_level = 0;
+        size_t i = 0;
+        while (i < len && text[i] == ' ') ++i;
+        size_t h_start = i;
+        while (i < len && text[i] == '#') {
+            ++heading_level;
+            ++i;
+        }
+        if (heading_level > 0 && i < len && text[i] == ' ') {
+            ++i; // skip space after '#'
+        } else {
+            heading_level = 0;
+            i = h_start;
+        }
+
+        ImFont* base_font = ImGui::GetFont();
+        if (heading_level == 1 && config && config->h1Font) base_font = config->h1Font;
+        else if (heading_level == 2 && config && config->h2Font) base_font = config->h2Font;
+        else if (heading_level >= 3 && config && config->h3Font) base_font = config->h3Font;
+
+        float font_size = base_font ? base_font->FontSize : ImGui::GetFontSize();
+        float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+
+        float total_w = 0.0f;
+        std::string seg;
+
+        auto flush_seg = [&](ImFont* seg_font) {
+            if (!seg.empty()) {
+                ImFont* f = seg_font ? seg_font : base_font;
+                if (!f) f = ImGui::GetFont();
+                ImVec2 sz = f->CalcTextSizeA(font_size, FLT_MAX, 0.0f, seg.c_str(), seg.c_str() + seg.size());
+                total_w += sz.x;
+                seg.clear();
+            }
+        };
+
+        ImFont* cur_font = base_font;
+
+        while (i < len) {
+            char c = text[i];
+
+            // Markdown bold/italic/strikethrough/underline delimiters
+            if (c == '*' || c == '_' || c == '~' || c == '+') {
+                if (i + 1 < len && text[i + 1] == c) {
+                    flush_seg(cur_font);
+                    cur_font = (cur_font == base_font && config && config->boldFont) ? config->boldFont : base_font;
+                    i += 2;
+                    continue;
+                } else if (c == '*' || c == '_') {
+                    flush_seg(cur_font);
+                    cur_font = (cur_font == base_font && config && config->italicFont) ? config->italicFont : base_font;
+                    ++i;
+                    continue;
+                }
+            }
+            if (c == '`') {
+                flush_seg(cur_font);
+                cur_font = (cur_font == base_font && config && config->monoFont) ? config->monoFont : base_font;
+                ++i;
+                continue;
+            }
+
+            // Inline tags: <pill...>, <badge...>, <kbd...>, <backdrop...>, etc.
+            if (c == '<') {
+                size_t tag_close = std::string::npos;
+                for (size_t k = i + 1; k < len; ++k) {
+                    if (text[k] == '>') { tag_close = k; break; }
+                    if (text[k] == '\n' || text[k] == '<') break;
+                }
+                if (tag_close != std::string::npos) {
+                    size_t name_start = i + 1;
+                    size_t name_end = tag_close;
+                    for (size_t k = name_start; k < tag_close; ++k) {
+                        if (text[k] == '=' || text[k] == ' ' || text[k] == '\t' || text[k] == ':') {
+                            name_end = k;
+                            break;
+                        }
+                    }
+                    std::string tag_name = std::string(text + name_start, name_end - name_start);
+                    for (char& ch : tag_name) ch = (char)tolower((unsigned char)ch);
+
+                    std::string close_tag = "</" + tag_name + ">";
+                    size_t close_pos = std::string::npos;
+                    for (size_t k = tag_close + 1; k + close_tag.size() <= len; ++k) {
+                        if (text[k] == '<') {
+                            std::string candidate(text + k, close_tag.size());
+                            for (char& ch : candidate) ch = (char)tolower((unsigned char)ch);
+                            if (candidate == close_tag) {
+                                close_pos = k;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (close_pos != std::string::npos) {
+                        flush_seg(cur_font);
+                        std::string inner(text + tag_close + 1, close_pos - (tag_close + 1));
+                        MarkdownTagStyle style = ParseMarkdownTagStyle(inner, "");
+                        ImFont* tf = cur_font ? cur_font : base_font;
+                        if (!tf) tf = ImGui::GetFont();
+                        ImVec2 inner_sz = tf->CalcTextSizeA(font_size, FLT_MAX, 0.0f, style.clean_text.c_str(), style.clean_text.c_str() + style.clean_text.size());
+                        float pad_x = 0.0f;
+                        if (tag_name == "pill") {
+                            pad_x = ImMax(7.0f * scale, 6.0f);
+                        } else if (tag_name == "badge" || tag_name == "tag") {
+                            pad_x = ImMax(5.0f * scale, 4.0f);
+                        } else if (tag_name == "kbd" || tag_name == "key" || tag_name == "kdb") {
+                            pad_x = ImMax(5.5f * scale, 5.0f);
+                        } else if (tag_name == "btn") {
+                            pad_x = ImMax(ImGui::GetStyle().FramePadding.x, 8.0f * scale);
+                        } else if (tag_name == "mono" || tag_name == "code" || tag_name == "backdrop" || tag_name == "bg" || tag_name == "highlight") {
+                            pad_x = 3.0f * scale;
+                        }
+                        total_w += inner_sz.x + pad_x * 2.0f;
+                        i = close_pos + close_tag.size();
+                        continue;
+                    }
+                }
+            }
+
+            seg.push_back(c);
+            ++i;
+        }
+        flush_seg(cur_font);
+        return total_w;
+    }
+
+    // Pre-processes Markdown text to convert block-level centering markers (-> text <- or =text=)
+    // into canonical <center>text</center> tags outside of fenced code blocks.
+    inline bool PreprocessMarkdownCenteredBlocks(const char* text, size_t len, std::string& out) {
+        if (!text || len == 0) return false;
+        bool has_candidates = false;
+        for (size_t i = 0; i + 1 < len; ++i) {
+            if ((text[i] == '-' && text[i + 1] == '>') || (text[i] == '=' && (i == 0 || text[i-1] == '\n' || text[i-1] == '\r'))) {
+                has_candidates = true;
+                break;
+            }
+        }
+        if (!has_candidates) {
+            return false;
+        }
+
+        out.reserve(len + 64);
+        bool any_replaced = false;
+        bool in_fence = false;
+        char fence_char = '\0';
+        int fence_len = 0;
+
+        size_t i = 0;
+        while (i < len) {
+            size_t line_start = i;
+            while (i < len && text[i] != '\n' && text[i] != '\r') {
+                ++i;
+            }
+            size_t line_end = i;
+            if (i < len && text[i] == '\r') ++i;
+            if (i < len && text[i] == '\n') ++i;
+            size_t next_line = i;
+
+            size_t line_len = line_end - line_start;
+            const char* lptr = text + line_start;
+
+            size_t lead = 0;
+            while (lead < line_len && (lptr[lead] == ' ' || lptr[lead] == '\t')) ++lead;
+
+            if (lead < line_len && (lptr[lead] == '`' || lptr[lead] == '~')) {
+                char fc = lptr[lead];
+                int fl = 0;
+                while (lead + fl < line_len && lptr[lead + fl] == fc) ++fl;
+                if (fl >= 3) {
+                    if (!in_fence) {
+                        in_fence = true;
+                        fence_char = fc;
+                        fence_len = fl;
+                    } else if (fc == fence_char && fl >= fence_len) {
+                        in_fence = false;
+                        fence_char = '\0';
+                        fence_len = 0;
+                    }
+                }
+            }
+
+            if (!in_fence && line_len >= 5) {
+                size_t start_idx = lead;
+                // 1. Check for "-> " ... " <-"
+                if (start_idx + 2 < line_len && lptr[start_idx] == '-' && lptr[start_idx + 1] == '>' &&
+                    (lptr[start_idx + 2] == ' ' || lptr[start_idx + 2] == '\t')) {
+                    size_t trail = line_len;
+                    while (trail > start_idx + 3 && (lptr[trail - 1] == ' ' || lptr[trail - 1] == '\t')) {
+                        --trail;
+                    }
+                    if (trail >= start_idx + 5 && lptr[trail - 2] == '<' && lptr[trail - 1] == '-' &&
+                        (lptr[trail - 3] == ' ' || lptr[trail - 3] == '\t')) {
+                        size_t content_start = start_idx + 3;
+                        while (content_start < trail - 2 && (lptr[content_start] == ' ' || lptr[content_start] == '\t')) {
+                            ++content_start;
+                        }
+                        size_t content_end = trail - 2;
+                        while (content_end > content_start && (lptr[content_end - 1] == ' ' || lptr[content_end - 1] == '\t')) {
+                            --content_end;
+                        }
+                        if (content_end > content_start) {
+                            out.append(lptr, lead);
+                            out.append("<center>");
+                            out.append(lptr + content_start, content_end - content_start);
+                            out.append("</center>\n");
+                            any_replaced = true;
+                            continue;
+                        }
+                    }
+                }
+                // 2. Check for "= " ... " =" or "=Text="
+                else if (start_idx + 1 < line_len && lptr[start_idx] == '=') {
+                    size_t trail = line_len;
+                    while (trail > start_idx + 1 && (lptr[trail - 1] == ' ' || lptr[trail - 1] == '\t')) {
+                        --trail;
+                    }
+                    if (trail >= start_idx + 3 && lptr[trail - 1] == '=') {
+                        bool all_equals = true;
+                        for (size_t k = start_idx; k < trail; ++k) {
+                            if (lptr[k] != '=') { all_equals = false; break; }
+                        }
+                        if (!all_equals) {
+                            size_t content_start = start_idx + 1;
+                            while (content_start < trail - 1 && (lptr[content_start] == ' ' || lptr[content_start] == '\t')) {
+                                ++content_start;
+                            }
+                            size_t content_end = trail - 1;
+                            while (content_end > content_start && (lptr[content_end - 1] == ' ' || lptr[content_end - 1] == '\t')) {
+                                --content_end;
+                            }
+                            if (content_end > content_start) {
+                                out.append(lptr, lead);
+                                out.append("<center>");
+                                out.append(lptr + content_start, content_end - content_start);
+                                out.append("</center>\n");
+                                any_replaced = true;
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
+            out.append(lptr, next_line - line_start);
+        }
+
+        return any_replaced;
     }
 
     inline std::unordered_map<std::string, CustomTagCallback>& GetCustomMarkdownTags() {
@@ -726,6 +984,41 @@ namespace ImGui {
             s_CustomTags["s"]      = strikeHandler;
             s_CustomTags["del"]    = strikeHandler;
             s_CustomTags["strike"] = strikeHandler;
+
+            // Built-in Tag 8: <center>, <centre>
+            auto centerHandler = [](const std::string& inner_text, const std::string& param) {
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
+
+                std::istringstream stream(inner_text);
+                std::string line;
+                bool first = true;
+                while (std::getline(stream, line)) {
+                    if (!line.empty() && line.back() == '\r') line.pop_back();
+                    size_t first_non = line.find_first_not_of(" \t");
+                    if (first_non == std::string::npos) {
+                        if (!first) ImGui::NewLine();
+                        first = false;
+                        continue;
+                    }
+                    std::string trimmed = line.substr(first_non);
+                    size_t last_non = trimmed.find_last_not_of(" \t");
+                    if (last_non != std::string::npos) {
+                        trimmed = trimmed.substr(0, last_non + 1);
+                    }
+
+                    float line_w = MeasureMarkdownLineWidth(trimmed.c_str(), trimmed.size(), config);
+                    float offset_x = (avail_w - line_w) * 0.5f;
+                    if (offset_x > 0.0f) {
+                        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offset_x);
+                    }
+
+                    MarkdownExt(trimmed.c_str(), trimmed.size(), config);
+                    first = false;
+                }
+            };
+            s_CustomTags["center"] = centerHandler;
+            s_CustomTags["centre"] = centerHandler;
 #endif
         }
         return s_CustomTags;
@@ -759,12 +1052,18 @@ namespace ImGui {
             config = &s_FallbackConfig;
         }
 
+        std::string processed;
+        bool has_blocks = PreprocessMarkdownCenteredBlocks(markdown_text, markdown_len, processed);
+        const char* actual_text = has_blocks ? processed.c_str() : markdown_text;
+        size_t actual_len = has_blocks ? processed.length() : markdown_len;
+
         MarkdownConfig local_config = *config;
         const MarkdownConfig* prev_active = GetActiveMarkdownConfig();
         GetActiveMarkdownConfig() = &local_config;
 
         local_config.tagCallback = [](const MarkdownTagData& data) {
             std::string tag_name(data.tagName, data.tagNameLength);
+            for (char& c : tag_name) c = (char)tolower((unsigned char)c);
             std::string tag_param(data.tagParam ? data.tagParam : "", data.tagParamLength);
             std::string inner_text(data.innerText, data.innerTextLength);
             
@@ -782,7 +1081,7 @@ namespace ImGui {
             GetActiveMarkdownConfig() = prev;
         };
 
-        Markdown::Render(markdown_text, markdown_len, local_config);
+        Markdown::Render(actual_text, actual_len, local_config);
 
         GetActiveMarkdownConfig() = prev_active;
     }
