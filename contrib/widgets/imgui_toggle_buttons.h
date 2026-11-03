@@ -332,7 +332,7 @@ namespace ImGui {
 
         // Always render a subtle track boundary for clean definition on dark themes:
         ImU32 border_col = (style.FrameBorderSize > 0.0f) ? GetColorU32(ImGuiCol_Border) : IM_COL32(255, 255, 255, 35);
-        draw_list->AddRect(pill_min, pill_max, border_col, radius, 0, 1.0f);
+        draw_list->AddRect(pill_min, pill_max, border_col, radius);
 
         // Render Sliding Circular Thumb (Crisp white knob for high contrast on all themes)
         float thumb_radius = radius - 1.25f;

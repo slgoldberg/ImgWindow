@@ -200,7 +200,11 @@ namespace ImGui {
         // 3D bottom bevel / shadow for keycap effect
         dl->AddRectFilled(ImVec2(pos.x, bb.Min.y + bevel), bb.Max, bottom_shadow, rounding);
         dl->AddRectFilled(bb.Min, ImVec2(bb.Max.x, bb.Max.y - bevel), bg_col, rounding);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+        dl->AddRect(bb.Min, ImVec2(bb.Max.x, bb.Max.y - bevel), border_col, rounding, 1.0f * scale, 0);
+#else
         dl->AddRect(bb.Min, ImVec2(bb.Max.x, bb.Max.y - bevel), border_col, rounding, 0, 1.0f * scale);
+#endif
 
         dl->AddText(text_pos, GetColorU32(GetStyle().Colors[ImGuiCol_Text]), key_label, text_end);
     }

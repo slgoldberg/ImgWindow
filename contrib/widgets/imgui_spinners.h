@@ -90,7 +90,11 @@ namespace ImGui {
         // Animated foreground arc:
         window->DrawList->PathClear();
         window->DrawList->PathArcTo(center, track_radius, start_angle, start_angle + arc, 32);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+        window->DrawList->PathStroke(color, thickness, false);
+#else
         window->DrawList->PathStroke(color, false, thickness);
+#endif
 
         // Optional text label beside spinner:
         if (has_label) {
@@ -165,7 +169,11 @@ namespace ImGui {
 
             window->DrawList->PathClear();
             window->DrawList->PathArcTo(center, track_radius, start_angle, end_angle, 32);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+            window->DrawList->PathStroke(color, thickness, false);
+#else
             window->DrawList->PathStroke(color, false, thickness);
+#endif
         }
 
         // Optional text label beside timer dial:

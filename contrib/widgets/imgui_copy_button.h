@@ -194,7 +194,11 @@ namespace ImGui {
 
         float btn_rounding = (style.FrameRounding > 0.0f) ? style.FrameRounding : (3.5f * scale);
         dl->AddRectFilled(bb.Min, bb.Max, btn_bg, btn_rounding);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+        dl->AddRect(bb.Min, bb.Max, btn_border, btn_rounding, 1.0f * scale, 0);
+#else
         dl->AddRect(bb.Min, bb.Max, btn_border, btn_rounding, 0, 1.0f * scale);
+#endif
 
         // Layout icon & text centered inside button:
         ImVec2 cur_text_sz = CalcTextSize(copy_label);
@@ -220,13 +224,21 @@ namespace ImGui {
             // Back page:
             ImVec2 b_min(icon_x + 2.5f * scale, icon_y);
             ImVec2 b_max(icon_x + 9.5f * scale, icon_y + 7.5f * scale);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+            dl->AddRect(b_min, b_max, icon_col, 1.0f * scale, 1.0f * scale, 0);
+#else
             dl->AddRect(b_min, b_max, icon_col, 1.0f * scale, 0, 1.0f * scale);
+#endif
 
             // Front page:
             ImVec2 f_min(icon_x, icon_y + 2.5f * scale);
             ImVec2 f_max(icon_x + 7.0f * scale, icon_y + 10.0f * scale);
             dl->AddRectFilled(f_min, f_max, btn_bg, 1.0f * scale); // mask out back sheet
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+            dl->AddRect(f_min, f_max, icon_col, 1.0f * scale, 1.0f * scale, 0);
+#else
             dl->AddRect(f_min, f_max, icon_col, 1.0f * scale, 0, 1.0f * scale);
+#endif
         }
 
         // Draw Label:

@@ -43,6 +43,9 @@
 
 #include "imgui_internal.h"
 #include <sys/stat.h>
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#endif
 #include <map>
 #include <thread>
 #include <mutex>

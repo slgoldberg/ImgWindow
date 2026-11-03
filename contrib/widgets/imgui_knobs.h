@@ -371,7 +371,11 @@ namespace Detail {
         ImU32 track_bg_col = GetColorU32(ImGuiCol_FrameBg);
         draw_list->PathClear();
         draw_list->PathArcTo(center, track_radius, kMinAngleActive, kMaxAngle, 32);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+        draw_list->PathStroke(track_bg_col, track_thickness, false);
+#else
         draw_list->PathStroke(track_bg_col, false, track_thickness);
+#endif
 
         // 2. Active Value Arc
         if (!is_in_off_detente && current_angle > kMinAngleActive) {
@@ -381,7 +385,11 @@ namespace Detail {
             }
             draw_list->PathClear();
             draw_list->PathArcTo(center, track_radius, kMinAngleActive, current_angle, 32);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+            draw_list->PathStroke(active_arc_col, track_thickness, false);
+#else
             draw_list->PathStroke(active_arc_col, false, track_thickness);
+#endif
         }
 
         // 3. Detente Station Markings (OFF Notch & Graduation Ticks)

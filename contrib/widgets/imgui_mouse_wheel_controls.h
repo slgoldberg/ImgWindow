@@ -767,8 +767,13 @@ namespace ImGui {
                                    GetColorU32(ImGuiCol_Text), arrow_dir, parent_font_size, 1.0f);
                 }
                 if (style.FrameBorderSize > 0.0f) {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+                    parent_draw_list->AddRect(box_min, box_max, GetColorU32(ImGuiCol_Border),
+                                              style.FrameRounding, style.FrameBorderSize, 0);
+#else
                     parent_draw_list->AddRect(box_min, box_max, GetColorU32(ImGuiCol_Border),
                                               style.FrameRounding, 0, style.FrameBorderSize);
+#endif
                 }
             }
 
@@ -1411,7 +1416,11 @@ namespace ImGui {
 #endif
         draw_list->AddRectFilled(p, ImVec2(p.x + width, p.y + height), bg_col, rounding, round_flags);
         if (style.FrameBorderSize > 0.0f && !abutting) {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+            draw_list->AddRect(p, ImVec2(p.x + width, p.y + height), GetColorU32(ImGuiCol_Border), rounding, style.FrameBorderSize, round_flags);
+#else
             draw_list->AddRect(p, ImVec2(p.x + width, p.y + height), GetColorU32(ImGuiCol_Border), rounding, round_flags, style.FrameBorderSize);
+#endif
         }
 
         // Color: prominent text color if actionable (modified OR restore-previous ready), dimmed if idle at default!
@@ -1435,7 +1444,11 @@ namespace ImGui {
             const float a_tail = 0.28f * kPI;
             const float a_head = 1.62f * kPI;
             draw_list->PathArcTo(center, radius, a_tail, a_head, 16);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+            draw_list->PathStroke(icon_col, thickness, 0);
+#else
             draw_list->PathStroke(icon_col, 0, thickness);
+#endif
 
             // Tangent-aligned arrowhead at a_head pointing clockwise (increasing angle):
             float cos_a = std::cos(a_head);
@@ -1469,7 +1482,11 @@ namespace ImGui {
             const float a_head = -0.62f * kPI;
             const float a_tail =  0.72f * kPI;
             draw_list->PathArcTo(center, radius, a_head, a_tail, 16);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+            draw_list->PathStroke(icon_col, thickness, 0);
+#else
             draw_list->PathStroke(icon_col, 0, thickness);
+#endif
 
             // Tangent-aligned arrowhead at a_head pointing counter-clockwise (decreasing angle):
             float cos_a = std::cos(a_head);

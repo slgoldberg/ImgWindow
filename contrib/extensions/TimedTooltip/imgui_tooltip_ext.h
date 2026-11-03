@@ -32,6 +32,28 @@
 #include <cmath>
 #include <algorithm>
 
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) && defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
+#ifndef IMGUI_OBSOLETE_SHIMS_DEFINED
+#define IMGUI_OBSOLETE_SHIMS_DEFINED
+namespace ImGui {
+    inline void PushFont(ImFont* font) {
+        PushFont(font, font ? font->LegacySize : 0.0f);
+    }
+    inline void Image(ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), const ImVec4& border_col = ImVec4(0, 0, 0, 0)) {
+        (void)tint_col; (void)border_col;
+        Image(ImTextureRef(user_texture_id), image_size, uv0, uv1);
+    }
+    inline void SetWindowFontScale(float scale) {
+        ImGuiWindow* window = GetCurrentWindow();
+        if (window) {
+            window->FontWindowScale = scale;
+            UpdateCurrentFontSize(0.0f);
+        }
+    }
+}
+#endif
+#endif
+
 namespace ImGui {
 namespace TimedTooltip {
     using std::min;

@@ -50,6 +50,49 @@
   #define ImTrunc(v) ((float)(int)(v))
 #endif
 
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) && defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
+#ifndef IMGUI_OBSOLETE_SHIMS_DEFINED
+#define IMGUI_OBSOLETE_SHIMS_DEFINED
+namespace ImGui {
+    inline void PushFont(ImFont* font) {
+        PushFont(font, font ? font->LegacySize : 0.0f);
+    }
+    inline void Image(ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), const ImVec4& border_col = ImVec4(0, 0, 0, 0)) {
+        (void)tint_col; (void)border_col;
+        Image(ImTextureRef(user_texture_id), image_size, uv0, uv1);
+    }
+    inline void SetWindowFontScale(float scale) {
+        ImGuiWindow* window = GetCurrentWindow();
+        if (window) {
+            window->FontWindowScale = scale;
+            UpdateCurrentFontSize(0.0f);
+        }
+    }
+}
+#endif
+#endif
+
+namespace ImGui {
+namespace MarkdownDetail {
+    inline void AddRectCompat(ImDrawList* dl, const ImVec2& p_min, const ImVec2& p_max, ImU32 col, float rounding = 0.0f, ImDrawFlags flags = 0, float thickness = 1.0f) {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+        dl->AddRect(p_min, p_max, col, rounding, thickness, flags);
+#else
+        dl->AddRect(p_min, p_max, col, rounding, flags, thickness);
+#endif
+    }
+
+    inline const char* CalcWordWrapPositionCompat(ImFont* font, float scale, const char* text, const char* text_end, float wrap_width) {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+        float font_size = (font && font->LegacySize > 0.0f) ? font->LegacySize : ImGui::GetFontSize();
+        return font->CalcWordWrapPosition(font_size * scale, text, text_end, wrap_width);
+#else
+        return font->CalcWordWrapPositionA(scale, text, text_end, wrap_width);
+#endif
+    }
+} // namespace MarkdownDetail
+} // namespace ImGui
+
 namespace ImGui {
 namespace Contrib {
     inline bool& GetMouseWheelAutoDefeatEnabled() {
@@ -519,7 +562,7 @@ namespace ImGui
 #endif
             float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
             float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
-            const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+            const char* endLine = ImGui::MarkdownDetail::CalcWordWrapPositionCompat( ImGui::GetFont(), scale, text_, text_end_, widthLeft );
             endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
 
             // If we are continuing on an existing line with prior content (usedOnLine > 0),
@@ -551,7 +594,7 @@ namespace ImGui
                     ImGui::NewLine();
                     text_ = first_non_space;
                     widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : ImGui::GetContentRegionAvail().x;
-                    endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                    endLine = ImGui::MarkdownDetail::CalcWordWrapPositionCompat( ImGui::GetFont(), scale, text_, text_end_, widthLeft );
                     endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                 }
             }
@@ -562,7 +605,7 @@ namespace ImGui
             {
                 text_ = endLine;
                 while( text_ < text_end_ && *text_ == ' ' ) { ++text_; }    // skip spaces at start of line
-                endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                endLine = ImGui::MarkdownDetail::CalcWordWrapPositionCompat( ImGui::GetFont(), scale, text_, text_end_, widthLeft );
                 endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                 if( text_ == endLine && text_ < text_end_ ) 
                 {
@@ -1375,7 +1418,7 @@ namespace ImGui
             dl->AddLine( ImVec2( box_min.x, header_max.y ), header_max, divider_col, 1.0f * scale );
         }
 
-        dl->AddRect( box_min, box_max, border_col, rounding, 0, 1.0f * scale );
+        ImGui::MarkdownDetail::AddRectCompat( dl, box_min, box_max, border_col, rounding, 0, 1.0f * scale );
 
         splitter.SetCurrentChannel( dl, 1 ); // Foreground channel
 
@@ -1454,7 +1497,7 @@ namespace ImGui
                 dl->AddRectFilled( chip_min, chip_max, cur_bg, 3.0f * scale );
                 if( !is_recognized )
                 {
-                    dl->AddRect( chip_min, chip_max, IM_COL32( 65, 68, 75, 180 ), 3.0f * scale, 0, 1.0f * scale );
+                    ImGui::MarkdownDetail::AddRectCompat( dl, chip_min, chip_max, IM_COL32( 65, 68, 75, 180 ), 3.0f * scale, 0, 1.0f * scale );
                 }
 
                 ImVec2 tag_sz = ImGui::CalcTextSize( lang_tag.c_str() );
@@ -1601,7 +1644,7 @@ namespace ImGui
 
                 float btn_rounding = 3.5f * scale;
                 dl->AddRectFilled( btn_min, btn_max, btn_bg, btn_rounding );
-                dl->AddRect( btn_min, btn_max, btn_border, btn_rounding, 0, 1.0f * scale );
+                ImGui::MarkdownDetail::AddRectCompat( dl, btn_min, btn_max, btn_border, btn_rounding, 0, 1.0f * scale );
 
                 // Layout icon & text centered inside button:
                 ImVec2 cur_text_sz = ImGui::CalcTextSize( copy_label );
@@ -1626,13 +1669,13 @@ namespace ImGui
                     // Back page:
                     ImVec2 b_min( icon_x + 2.5f * scale, icon_y );
                     ImVec2 b_max( icon_x + 9.5f * scale, icon_y + 7.5f * scale );
-                    dl->AddRect( b_min, b_max, icon_col, 1.0f * scale, 0, 1.0f * scale );
+                    ImGui::MarkdownDetail::AddRectCompat( dl, b_min, b_max, icon_col, 1.0f * scale, 0, 1.0f * scale );
 
                     // Front page:
                     ImVec2 f_min( icon_x, icon_y + 2.5f * scale );
                     ImVec2 f_max( icon_x + 7.0f * scale, icon_y + 10.0f * scale );
                     dl->AddRectFilled( f_min, f_max, btn_bg, 1.0f * scale ); // mask out back sheet
-                    dl->AddRect( f_min, f_max, icon_col, 1.0f * scale, 0, 1.0f * scale );
+                    ImGui::MarkdownDetail::AddRectCompat( dl, f_min, f_max, icon_col, 1.0f * scale, 0, 1.0f * scale );
                 }
 
                 // Draw Label:
@@ -1775,7 +1818,7 @@ namespace ImGui
                 );
                 ImU32 track_col = ImGui::ColorConvertFloat4ToU32( track_c );
                 dl->AddRectFilled( pill_min, pill_max, track_col, track_r );
-                dl->AddRect( pill_min, pill_max, IM_COL32( 70, 74, 85, 180 ), track_r, 0, 1.0f * scale );
+                ImGui::MarkdownDetail::AddRectCompat( dl, pill_min, pill_max, IM_COL32( 70, 74, 85, 180 ), track_r, 0, 1.0f * scale );
 
                 // Sliding thumb
                 float thumb_r = track_r - 1.25f * scale;
@@ -4488,7 +4531,7 @@ namespace ImGui
 #endif
             float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
             float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
-            const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+            const char* endLine = ImGui::MarkdownDetail::CalcWordWrapPositionCompat( ImGui::GetFont(), scale, text_, text_end_, widthLeft );
             endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
 
             // If we are continuing on an existing line with prior content (usedOnLine > 0),
@@ -4520,7 +4563,7 @@ namespace ImGui
                     ImGui::NewLine();
                     text_ = first_non_space;
                     widthLeft = ( wrapWidth > 0.0f ) ? wrapWidth : ImGui::GetContentRegionAvail().x;
-                    endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                    endLine = ImGui::MarkdownDetail::CalcWordWrapPositionCompat( ImGui::GetFont(), scale, text_, text_end_, widthLeft );
                     endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                 }
             }
@@ -4540,7 +4583,7 @@ namespace ImGui
             {
                 text_ = endLine;
                 while( text_ < text_end_ && *text_ == ' ' ) { ++text_; }    // skip spaces at start of line
-                endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
+                endLine = ImGui::MarkdownDetail::CalcWordWrapPositionCompat( ImGui::GetFont(), scale, text_, text_end_, widthLeft );
                 endLine = AdjustWrapForTypography( text_, endLine, text_end_ );
                 if( text_ == endLine && text_ < text_end_ ) 
                 {
