@@ -142,8 +142,8 @@ For years, the original `ImgWindow` (created by Christopher Collins / `@kuroneko
 
 | Pillar | What `ImgWindow v2` Gives You Out of the Box |
 | :--- | :--- |
-| **1. Community Roll-Up** | Incorporates years of community fixes and enhancements across known `ImgWindow` forks (VR window attach/detach handling, boxel/HiDPI scaling, window positioning/gravity helpers, safe popup closure, and Dear ImGui v1.89.7+ / v1.92+ compatibility). |
-| **2. Native Panel Graphics + Backward Compatibility** | Automatically renders via X-Plane 12.4.4+'s native **Panel Graphics (`XPLMPanelGraphics`)** pipeline when available, while falling back to OpenGL at runtime on X-Plane 11.10–12.4.3—**from a single compiled `.xpl` binary**. |
+| **1. Community Roll-Up** | Incorporates years of community fixes and enhancements across known `ImgWindow` forks (VR window attach/detach handling, boxel/HiDPI scaling, window positioning/gravity helpers, safe popup closure, and universal Dear ImGui v1.78 WIP through v1.92+ compatibility). |
+| **2. Native Panel Graphics + Backward Compatibility** | Automatically renders via X-Plane 12.4.4+'s native **Panel Graphics (`XPLMPanelGraphics`)** pipeline across **all** Dear ImGui versions (v1.78 WIP through v1.92+) when available, while falling back to OpenGL at runtime on X-Plane 11.10–12.4.3—**from a single compiled `.xpl` binary**. |
 | **3. Zero-OpenGL Texture Management** | Built-in `ImgWindow::CreateTexture()` and `ImgWindow::DeleteTexture()` APIs let you render `.png`/`.jpg` images via `ImGui::Image()` without writing a single line of OpenGL code. |
 | **4. Optional `contrib/` Suite** | A header-only collection (`#include "contrib/includes.h"`) of X-Plane-ready ImGui widgets and extensions: mouse-wheel sliders/combos with 1-click Reset/Undo, Markdown rendering (`ImGui::MD`), clickable links, stationary sticky-note `TimedTooltip`s, and toggle buttons. |
 

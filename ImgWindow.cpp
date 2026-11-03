@@ -51,11 +51,9 @@
 #include <dlfcn.h>
 #endif
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "contrib/stb_image.h"
-#endif
 
 #if defined(__APPLE__) || defined(__MACH__)
 #include <ApplicationServices/ApplicationServices.h>
@@ -2036,7 +2034,21 @@ void ImgWindow::DeleteTexture(ImTextureID textureID) {
 static std::atomic<bool> s_MarkdownShutdownRequested{false};
 #endif
 
+struct MemoryTextureEntry {
+    ImTextureID textureID = (ImTextureID)0;
+    ImVec2 size = ImVec2(0.0f, 0.0f);
+};
+static std::map<std::string, MemoryTextureEntry> s_MemoryTextures;
+
 void ImgWindow::Shutdown() {
+    // 1. Clean up registered in-memory textures
+    for (auto& pair : s_MemoryTextures) {
+        if (pair.second.textureID) {
+            ImgWindow::DeleteTexture(pair.second.textureID);
+        }
+    }
+    s_MemoryTextures.clear();
+
 #if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     s_MarkdownShutdownRequested = true;
     ClearMarkdownTextureCache();
@@ -2053,6 +2065,113 @@ void ImgWindow::Shutdown() {
         }
     }
     s_TexturesPendingDestruction.clear();
+}
+
+ImTextureID ImgWindow::RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth, int* outHeight)
+{
+    if (outWidth) *outWidth = 0;
+    if (outHeight) *outHeight = 0;
+    if (name.empty() || !data || lengthBytes == 0) return (ImTextureID)0;
+
+    // 1. If an existing image was registered under this name, clean it up first:
+    auto it = s_MemoryTextures.find(name);
+    if (it != s_MemoryTextures.end()) {
+        if (it->second.textureID) {
+            ImgWindow::DeleteTexture(it->second.textureID);
+        }
+        s_MemoryTextures.erase(it);
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+        UnregisterMarkdownNamedTexture(name);
+#endif
+    }
+
+    // 2. Decode from memory using stb_image (forcing 4-channel RGBA8):
+    int w = 0, h = 0, comp = 0;
+    stbi_uc* pixels = stbi_load_from_memory((const stbi_uc*)data, (int)lengthBytes, &w, &h, &comp, 4);
+    if (!pixels) {
+        return (ImTextureID)0;
+    }
+
+    // 3. Upload to GPU via unified ImgWindow::CreateTexture()
+    ImTextureID texID = ImgWindow::CreateTexture(pixels, w, h);
+    stbi_image_free(pixels);
+
+    if (!texID) return (ImTextureID)0;
+
+    if (outWidth) *outWidth = w;
+    if (outHeight) *outHeight = h;
+
+    MemoryTextureEntry entry;
+    entry.textureID = texID;
+    entry.size = ImVec2((float)w, (float)h);
+    s_MemoryTextures[name] = entry;
+
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+    // 4. Automatically mirror into Markdown named texture registry:
+    RegisterMarkdownNamedTexture(name, texID, entry.size);
+#endif
+
+    return texID;
+}
+
+void ImgWindow::UnregisterMemoryImage(const std::string& name)
+{
+    auto it = s_MemoryTextures.find(name);
+    if (it != s_MemoryTextures.end()) {
+        if (it->second.textureID) {
+            ImgWindow::DeleteTexture(it->second.textureID);
+        }
+        s_MemoryTextures.erase(it);
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+        UnregisterMarkdownNamedTexture(name);
+#endif
+    }
+}
+
+ImTextureID ImgWindow::GetNamedTexture(const std::string& name, ImVec2* outSize)
+{
+    if (outSize) *outSize = ImVec2(0.0f, 0.0f);
+    if (name.empty()) return (ImTextureID)0;
+
+    auto it = s_MemoryTextures.find(name);
+    if (it != s_MemoryTextures.end()) {
+        if (outSize) *outSize = it->second.size;
+        return it->second.textureID;
+    }
+
+#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+    ImGui::MarkdownImageData mdData;
+    if (GetMarkdownNamedTexture(name, mdData) && mdData.isValid) {
+        if (outSize) *outSize = mdData.size;
+        return mdData.user_texture_id;
+    }
+#endif
+
+    return (ImTextureID)0;
+}
+
+void ImGui::ImageNamed(const char* name, const ImVec2& size, const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint_col, const ImVec4& border_col)
+{
+    if (!name || !*name) return;
+    ImVec2 nativeSize;
+    ImTextureID tex = ImgWindow::GetNamedTexture(name, &nativeSize);
+    if (!tex) return;
+
+    ImVec2 renderSize = size;
+    if (renderSize.x <= 0.0f && renderSize.y <= 0.0f) {
+        renderSize = nativeSize;
+    } else if (renderSize.x <= 0.0f && nativeSize.y > 0.0f) {
+        renderSize.x = std::round(renderSize.y * (nativeSize.x / nativeSize.y));
+    } else if (renderSize.y <= 0.0f && nativeSize.x > 0.0f) {
+        renderSize.y = std::round(renderSize.x * (nativeSize.y / nativeSize.x));
+    }
+
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+    (void)tint_col; (void)border_col;
+    ImGui::Image(tex, renderSize, uv0, uv1);
+#else
+    ImGui::Image(tex, renderSize, uv0, uv1, tint_col, border_col);
+#endif
 }
 
 #if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)

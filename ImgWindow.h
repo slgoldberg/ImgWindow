@@ -379,6 +379,28 @@ public:
     static ImTextureID CreateTexture(const unsigned char* pixels, int width, int height);
     static void DeleteTexture(ImTextureID textureID);
 
+    /** In-Memory Image Service:
+     *  Registers an in-memory compressed image (PNG, JPG, BMP, TGA, etc. from compiled byte arrays or memory buffers)
+     *  by name. Automatically decodes to RGBA8 via stb_image, uploads to GPU via CreateTexture(),
+     *  and registers it into the named texture registry for use in both C++ and Markdown.
+     *  Cleaned up automatically on Shutdown().
+     *  @param name Unique identifier string (e.g. "company_logo" or "icon_warning")
+     *  @param data Pointer to raw compressed image file data in memory (e.g. from an .inc / .h file)
+     *  @param lengthBytes Size of data in bytes
+     *  @param outWidth Optional pointer to receive the decoded image width in pixels
+     *  @param outHeight Optional pointer to receive the decoded image height in pixels
+     *  @return The created ImTextureID, or (ImTextureID)0 if decoding or GPU texture creation failed. */
+    static ImTextureID RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth = nullptr, int* outHeight = nullptr);
+
+    /** Unregisters a named in-memory image and frees its GPU texture resource. */
+    static void UnregisterMemoryImage(const std::string& name);
+
+    /** Looks up a named texture (registered via RegisterMemoryImage or RegisterMarkdownNamedTexture).
+     *  @param name The texture identifier
+     *  @param outSize Optional pointer to receive the native dimensions of the texture
+     *  @return The ImTextureID, or (ImTextureID)0 if not found. */
+    static ImTextureID GetNamedTexture(const std::string& name, ImVec2* outSize = nullptr);
+
     /** Clear ActiveID early if an InputText currently holds focus and the user clicked outside its bounding rect.
      *  Automatically invoked every frame in updateImgui() right after ImGui::NewFrame().
      *  Can also be called manually by custom event loops or toolbar renderers.
@@ -738,5 +760,15 @@ protected:
         operator bool() const { return wnd || left || top || right || bottom; }
     } dragWhat;
 };
+
+namespace ImGui {
+#ifndef IMGUI_IMAGE_NAMED_DECLARED
+#define IMGUI_IMAGE_NAMED_DECLARED
+    /** Renders an image registered by name via ImgWindow::RegisterMemoryImage or ImgWindow::RegisterMarkdownNamedTexture.
+     *  If size is {0, 0}, automatically renders at the texture's native 1:1 pixel dimensions.
+     *  If one dimension is 0, automatically scales the other dimension while preserving aspect ratio. */
+    IMGUI_API void ImageNamed(const char* name, const ImVec2& size = ImVec2(0.0f, 0.0f), const ImVec2& uv0 = ImVec2(0.0f, 0.0f), const ImVec2& uv1 = ImVec2(1.0f, 1.0f), const ImVec4& tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f), const ImVec4& border_col = ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+#endif
+}
  
 #endif // #ifndef IMGWINDOW_H

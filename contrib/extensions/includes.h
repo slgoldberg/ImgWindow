@@ -41,6 +41,15 @@
 #include "Markdown/imgui_markdown_ext.h"
 #endif
 
+#if !defined(CONTRIB_DISABLE_TYPOGRAPHY) && \
+    !defined(IMGUI_CONTRIB_DISABLE_TYPOGRAPHY) && \
+    !defined(IMGUI_DISABLE_CONTRIB_TYPOGRAPHY) && \
+    !defined(IMGUI_DISABLE_TYPOGRAPHY) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_TYPOGRAPHY)
+#include "Typography/imgui_font_roles.h"
+#include "Typography/imgui_styled_text.h"
+#endif
+
 #endif // !CONTRIB_DISABLE_EXTENSIONS
 
 #endif // IMGUI_CONTRIB_EXTENSIONS_INCLUDES_H

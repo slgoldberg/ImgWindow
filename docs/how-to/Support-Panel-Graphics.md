@@ -31,6 +31,7 @@ flowchart TD
 This TripTik is for developers who **already have a working X-Plane plugin** using an earlier version of `ImgWindow` (such as `v1.x`, `v1.3.0`, or the original `xsb_public` fork) and want to:
 
 * **Support X-Plane 12.4.4+ modern Panel Graphics**: Take full advantage of Laminar Research's native Vulkan/Metal panel rendering pipeline without frame stutters or graphics context stalls.
+* **Universal Dear ImGui Compatibility (v1.78 WIP through v1.92+)**: You do **not** need to upgrade your Dear ImGui version to use Panel Graphics! Legacy static font atlases (v1.78–v1.89), interim (v1.90–v1.91), and modern dynamic atlases (v1.92+) are all bridged seamlessly into Vulkan/Metal.
 * **Maintain 100% Backward Compatibility**: Keep supporting your existing users running older X-Plane 12 builds and X-Plane 11 with a **single compiled binary**—no separate downloads or branching codebases.
 * **Upgrade in under 10 minutes**: The core `ImgWindow` subclassing API (`buildInterface()`, `SetVisible()`, `SetWindowTitle()`, coordinate conversion) is 100% backward compatible.
 
