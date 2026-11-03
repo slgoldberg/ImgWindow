@@ -57,6 +57,7 @@
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "contrib/stb_image.h"
+#include "contrib/widgets/imgui_badges.h"
 
 #if defined(__APPLE__) || defined(__MACH__)
 #include <ApplicationServices/ApplicationServices.h>
@@ -2151,6 +2152,17 @@ ImTextureID ImgWindow::GetNamedTexture(const std::string& name, ImVec2* outSize)
 #endif
 
     return (ImTextureID)0;
+}
+
+namespace {
+    struct AutoBadgeTextureResolverInit {
+        AutoBadgeTextureResolverInit() {
+            ImGui::SetNamedTextureResolver([](const char* name, ImVec2* outSize) -> ImTextureID {
+                return ImgWindow::GetNamedTexture(name ? name : "", outSize);
+            });
+        }
+    };
+    static AutoBadgeTextureResolverInit s_AutoBadgeResolver;
 }
 
 void ImGui::ImageNamed(const char* name, const ImVec2& size, const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint_col, const ImVec4& border_col)

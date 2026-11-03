@@ -48,6 +48,12 @@ namespace ImGui {
     };
 
     namespace Detail {
+        typedef ImTextureID (*NamedTextureResolverFn)(const char* name, ImVec2* outSize);
+        inline NamedTextureResolverFn& GetNamedTextureResolver() {
+            static NamedTextureResolverFn s_Resolver = nullptr;
+            return s_Resolver;
+        }
+
         inline void GetBadgeColors(ImGuiBadgeVariant variant, ImVec4& out_bg, ImVec4& out_fg) {
             switch (variant) {
                 case ImGuiBadgeVariant_Primary:
@@ -79,9 +85,15 @@ namespace ImGui {
         }
     } // namespace Detail
 
-    // Core Badge renderer
-    inline IMGUI_API void Badge(const char* text, const ImVec4& bg_col, const ImVec4* fg_col = nullptr, float custom_rounding = -1.0f) {
-        if (!text || !*text) return;
+    inline IMGUI_API void SetNamedTextureResolver(Detail::NamedTextureResolverFn fn) {
+        Detail::GetNamedTextureResolver() = fn;
+    }
+
+    // Core Badge renderer (supports text, texture icons, and icon-only annunciators)
+    inline IMGUI_API void Badge(const char* text, const ImVec4& bg_col, const ImVec4* fg_col = nullptr, float custom_rounding = -1.0f, ImTextureID icon = (ImTextureID)0, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        const bool has_icon = (icon != (ImTextureID)0);
+        const bool has_text = (text != nullptr && *text != '\0');
+        if (!has_icon && !has_text) return;
 
         ImGuiWindow* window = GetCurrentWindow();
         if (window->SkipItems) return;
@@ -97,66 +109,151 @@ namespace ImGui {
 
         const float font_size = GetFontSize();
         const float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
-        const char* text_end = FindRenderedTextEnd(text);
-        const ImVec2 text_size = CalcTextSize(text, text_end, true);
+        const char* text_end = has_text ? FindRenderedTextEnd(text) : nullptr;
+        const ImVec2 text_size = has_text ? CalcTextSize(text, text_end, true) : ImVec2(0.0f, 0.0f);
 
-        // Intrinsic padding: backdrop frames the text symmetrically with dedicated internal padding
+        // Calculate icon dimensions
+        ImVec2 actual_icon_size = icon_size;
+        if (has_icon) {
+            if (actual_icon_size.y <= 0.0f) {
+                float target_h = font_size;
+                float aspect = (actual_icon_size.x > 0.0f && actual_icon_size.y > 0.0f) ? (actual_icon_size.x / actual_icon_size.y) : 1.0f;
+                actual_icon_size = ImVec2(target_h * aspect, target_h);
+            } else if (actual_icon_size.x <= 0.0f) {
+                actual_icon_size.x = actual_icon_size.y;
+            }
+        } else {
+            actual_icon_size = ImVec2(0.0f, 0.0f);
+        }
+
+        // Intrinsic padding: backdrop frames the content symmetrically
         const bool is_pill = (custom_rounding > 4.0f * scale || custom_rounding >= 900.0f);
-        const float pad_x = is_pill ? ImMax(7.0f * scale, 6.0f) : ImMax(5.0f * scale, 4.0f);
+        float pad_x = is_pill ? ImMax(7.0f * scale, 6.0f) : ImMax(5.0f * scale, 4.0f);
         const float pad_y = ImMax(2.0f * scale, 2.0f);
+        if (has_icon && !has_text) {
+            // Unary / icon-only annunciator capsule
+            pad_x = is_pill ? ImMax(5.0f * scale, 4.0f) : ImMax(4.0f * scale, 3.0f);
+        }
+        const float gap_x = (has_icon && has_text) ? ImMax(4.0f * scale, 3.0f) : 0.0f;
 
-        const float total_w = text_size.x + pad_x * 2.0f;
-        const float total_h = text_size.y + pad_y * 2.0f;
+        const float content_w = (has_icon ? actual_icon_size.x : 0.0f) + gap_x + (has_text ? text_size.x : 0.0f);
+        const float content_h = ImMax(has_icon ? actual_icon_size.y : 0.0f, has_text ? text_size.y : 0.0f);
+
+        const float total_w = content_w + pad_x * 2.0f;
+        const float total_h = content_h + pad_y * 2.0f;
 
         // Continuous baseline alignment:
-        // Regular bare text renders at y = window->DC.CursorPos.y + window->DC.CurrLineTextBaseOffset.
-        // Align capsule text directly with that baseline:
         const ImVec2 pos = window->DC.CursorPos;
         const float text_y = pos.y + window->DC.CurrLineTextBaseOffset;
-        const ImVec2 text_pos(pos.x + pad_x, text_y);
 
-        // Expand the pill/badge bounding box symmetrically around the text:
-        const ImRect bb(ImVec2(pos.x, text_y - pad_y), ImVec2(pos.x + total_w, text_y + text_size.y + pad_y));
+        // Expand the pill/badge bounding box symmetrically around the content:
+        const ImRect bb(ImVec2(pos.x, text_y - pad_y), ImVec2(pos.x + total_w, text_y + content_h + pad_y));
 
-        ItemSize(ImVec2(total_w, text_size.y), 0.0f);
-        const ImGuiID id = window->GetID(text);
+        ItemSize(ImVec2(total_w, content_h), 0.0f);
+        const ImGuiID id = window->GetID(has_text ? text : (has_icon ? (const void*)icon : "##badge"));
         if (!ItemAdd(bb, id)) return;
 
         const float default_rounding = is_pill ? (total_h * 0.5f) : ImMax(3.0f * scale, GetStyle().FrameRounding);
         const float rounding = (custom_rounding >= 900.0f) ? (total_h * 0.5f) : ((custom_rounding >= 0.0f) ? custom_rounding : default_rounding);
 
-        // Render background framing and perfectly centered text
+        // Render background framing
         GetWindowDrawList()->AddRectFilled(bb.Min, bb.Max, GetColorU32(bg_col), rounding);
-        GetWindowDrawList()->AddText(text_pos, GetColorU32(text_col), text, text_end);
-    }
 
-    inline IMGUI_API void Badge(const char* text, ImU32 bg_col, ImU32 fg_col = 0, float custom_rounding = -1.0f) {
-        ImVec4 bg = ColorConvertU32ToFloat4(bg_col);
-        if (fg_col != 0) {
-            ImVec4 fg = ColorConvertU32ToFloat4(fg_col);
-            Badge(text, bg, &fg, custom_rounding);
-        } else {
-            Badge(text, bg, nullptr, custom_rounding);
+        // Render icon
+        if (has_icon) {
+            float icon_y = text_y + (content_h - actual_icon_size.y) * 0.5f;
+            ImVec2 icon_min(pos.x + pad_x, icon_y);
+            ImVec2 icon_max(icon_min.x + actual_icon_size.x, icon_min.y + actual_icon_size.y);
+            GetWindowDrawList()->AddImage(icon, icon_min, icon_max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), IM_COL32_WHITE);
+        }
+
+        // Render text
+        if (has_text) {
+            float text_x = pos.x + pad_x + (has_icon ? (actual_icon_size.x + gap_x) : 0.0f);
+            GetWindowDrawList()->AddText(ImVec2(text_x, text_y), GetColorU32(text_col), text, text_end);
         }
     }
 
-    inline IMGUI_API void Badge(const char* text, ImGuiBadgeVariant variant = ImGuiBadgeVariant_Default, float custom_rounding = -1.0f) {
+    inline IMGUI_API void Badge(const char* text, ImU32 bg_col, ImU32 fg_col = 0, float custom_rounding = -1.0f, ImTextureID icon = (ImTextureID)0, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        ImVec4 bg = ColorConvertU32ToFloat4(bg_col);
+        if (fg_col != 0) {
+            ImVec4 fg = ColorConvertU32ToFloat4(fg_col);
+            Badge(text, bg, &fg, custom_rounding, icon, icon_size);
+        } else {
+            Badge(text, bg, nullptr, custom_rounding, icon, icon_size);
+        }
+    }
+
+    inline IMGUI_API void Badge(const char* text, ImGuiBadgeVariant variant = ImGuiBadgeVariant_Default, float custom_rounding = -1.0f, ImTextureID icon = (ImTextureID)0, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
         ImVec4 bg, fg;
         Detail::GetBadgeColors(variant, bg, fg);
-        Badge(text, bg, &fg, custom_rounding);
+        Badge(text, bg, &fg, custom_rounding, icon, icon_size);
+    }
+
+    inline IMGUI_API void Badge(ImTextureID icon, const ImVec4& bg_col = ImVec4(0.25f, 0.25f, 0.30f, 1.0f), float custom_rounding = -1.0f, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        Badge(nullptr, bg_col, nullptr, custom_rounding, icon, icon_size);
+    }
+
+    inline IMGUI_API void Badge(ImTextureID icon, ImU32 bg_col, float custom_rounding = -1.0f, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        Badge(nullptr, bg_col, 0, custom_rounding, icon, icon_size);
     }
 
     // Pill aliases (fully rounded badge)
-    inline IMGUI_API void Pill(const char* text, ImGuiBadgeVariant variant = ImGuiBadgeVariant_Default) {
-        Badge(text, variant, 999.0f);
+    inline IMGUI_API void Pill(const char* text, ImGuiBadgeVariant variant = ImGuiBadgeVariant_Default, ImTextureID icon = (ImTextureID)0, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        Badge(text, variant, 999.0f, icon, icon_size);
     }
 
-    inline IMGUI_API void Pill(const char* text, const ImVec4& bg_col, const ImVec4* fg_col = nullptr) {
-        Badge(text, bg_col, fg_col, 999.0f);
+    inline IMGUI_API void Pill(const char* text, const ImVec4& bg_col, const ImVec4* fg_col = nullptr, ImTextureID icon = (ImTextureID)0, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        Badge(text, bg_col, fg_col, 999.0f, icon, icon_size);
     }
 
-    inline IMGUI_API void Pill(const char* text, ImU32 bg_col, ImU32 fg_col = 0) {
-        Badge(text, bg_col, fg_col, 999.0f);
+    inline IMGUI_API void Pill(const char* text, ImU32 bg_col, ImU32 fg_col = 0, ImTextureID icon = (ImTextureID)0, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        Badge(text, bg_col, fg_col, 999.0f, icon, icon_size);
+    }
+
+    inline IMGUI_API void Pill(ImTextureID icon, const ImVec4& bg_col = ImVec4(0.20f, 0.50f, 0.95f, 1.0f), ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        Badge(nullptr, bg_col, nullptr, 999.0f, icon, icon_size);
+    }
+
+    inline IMGUI_API void Pill(ImTextureID icon, ImU32 bg_col, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        Badge(nullptr, bg_col, 0, 999.0f, icon, icon_size);
+    }
+
+    // Named Texture Pill and Badge APIs
+    inline IMGUI_API void BadgeNamed(const char* imageName, const char* text = nullptr, const ImVec4& bg_col = ImVec4(0.25f, 0.25f, 0.30f, 1.0f), const ImVec4* fg_col = nullptr, float custom_rounding = -1.0f, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        ImTextureID tex = (ImTextureID)0;
+        ImVec2 native_sz(0.0f, 0.0f);
+        if (imageName && Detail::GetNamedTextureResolver()) {
+            tex = Detail::GetNamedTextureResolver()(imageName, &native_sz);
+        }
+        if (icon_size.x <= 0.0f && icon_size.y <= 0.0f) icon_size = native_sz;
+        Badge(text, bg_col, fg_col, custom_rounding, tex, icon_size);
+    }
+
+    inline IMGUI_API void BadgeNamed(const char* imageName, const char* text, ImU32 bg_col, ImU32 fg_col = 0, float custom_rounding = -1.0f, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        ImVec4 bg = ColorConvertU32ToFloat4(bg_col);
+        if (fg_col != 0) {
+            ImVec4 fg = ColorConvertU32ToFloat4(fg_col);
+            BadgeNamed(imageName, text, bg, &fg, custom_rounding, icon_size);
+        } else {
+            BadgeNamed(imageName, text, bg, nullptr, custom_rounding, icon_size);
+        }
+    }
+
+    inline IMGUI_API void BadgeNamed(const char* imageName, ImU32 bg_col, float custom_rounding = -1.0f, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        BadgeNamed(imageName, nullptr, bg_col, 0, custom_rounding, icon_size);
+    }
+
+    inline IMGUI_API void PillNamed(const char* imageName, const char* text = nullptr, const ImVec4& bg_col = ImVec4(0.20f, 0.50f, 0.95f, 1.0f), const ImVec4* fg_col = nullptr, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        BadgeNamed(imageName, text, bg_col, fg_col, 999.0f, icon_size);
+    }
+
+    inline IMGUI_API void PillNamed(const char* imageName, const char* text, ImU32 bg_col, ImU32 fg_col = 0, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        BadgeNamed(imageName, text, bg_col, fg_col, 999.0f, icon_size);
+    }
+
+    inline IMGUI_API void PillNamed(const char* imageName, ImU32 bg_col, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {
+        PillNamed(imageName, nullptr, bg_col, 0, icon_size);
     }
 
     // Keyboard Key Cap widget: <kbd> or Kbd("Ctrl+C")

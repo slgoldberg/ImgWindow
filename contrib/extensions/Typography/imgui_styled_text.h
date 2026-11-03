@@ -98,6 +98,11 @@ namespace ImGui {
             else if (name == "black")   outColor = IM_COL32(0, 0, 0, 255);
             else if (name == "gray" || name == "grey") outColor = IM_COL32(149, 165, 166, 255);
             else if (name == "dim" || name == "dimmed") outColor = IM_COL32(127, 140, 141, 255);
+            else if (name == "danger")                  outColor = IM_COL32(231, 76, 60, 255);
+            else if (name == "warning")                 outColor = IM_COL32(241, 196, 15, 255);
+            else if (name == "success")                 outColor = IM_COL32(46, 204, 113, 255);
+            else if (name == "info")                    outColor = IM_COL32(52, 152, 219, 255);
+            else if (name == "primary")                 outColor = IM_COL32(52, 152, 219, 255);
             else return ParseHexColor(s, len, outColor);
 
             return true;
@@ -311,57 +316,151 @@ namespace ImGui {
                 continue;
             }
 
-            // <pill color=#hex>text</pill>
+            // <pill color=#hex>text</pill> or <pill icon=name color=#hex />
             if (tagName == "pill") {
-                std::string closeTag = "</pill>";
-                const char* closePos = std::strstr(tag_end, closeTag.c_str());
-                if (closePos && closePos < text_end) {
-                    std::string innerText(tag_end, closePos - tag_end);
-                    std::string colVal;
-                    ImU32 bgCol = IM_COL32(52, 152, 219, 255); // default primary
-                    if (Detail::ExtractAttribute(tagStr, "color", colVal)) {
-                        Detail::ParseColor(colVal.c_str(), colVal.length(), bgCol);
-                    }
+                bool isSelfClosing = false;
+                size_t slashPos = tagStr.find_last_not_of(" \t\r\n");
+                if (slashPos != std::string::npos && tagStr[slashPos] == '/') {
+                    isSelfClosing = true;
+                }
 
+                std::string iconName;
+                if (!Detail::ExtractAttribute(tagStr, "icon", iconName)) {
+                    if (!Detail::ExtractAttribute(tagStr, "img", iconName)) {
+                        Detail::ExtractAttribute(tagStr, "image", iconName);
+                    }
+                }
+
+                std::string colVal;
+                ImU32 bgCol = IM_COL32(52, 152, 219, 255); // default primary
+                if (Detail::ExtractAttribute(tagStr, "color", colVal) || Detail::ExtractAttribute(tagStr, "bg", colVal)) {
+                    Detail::ParseColor(colVal.c_str(), colVal.length(), bgCol);
+                } else {
+                    std::istringstream iss(tagStr);
+                    std::string token;
+                    iss >> token; // skip "pill"
+                    while (iss >> token) {
+                        if (token == "/" || token == "mono" || token == "bold" || token == "italic") continue;
+                        if (token.rfind("icon=", 0) == 0 || token.rfind("img=", 0) == 0 || token.rfind("image=", 0) == 0) continue;
+                        ImU32 c = 0;
+                        if (Detail::ParseColor(token.c_str(), token.length(), c)) {
+                            bgCol = c;
+                            break;
+                        }
+                    }
+                }
+
+                bool isMono = (tagStr.find("mono") != std::string::npos);
+
+                if (isSelfClosing) {
                     if (needSameLine) ImGui::SameLine(0.0f, 0.0f);
 #if defined(IMGUI_STYLED_TEXT_HAS_BADGES)
-                    bool isMono = (tagStr.find("mono") != std::string::npos);
                     if (isMono) ImGui::PushFontRole(ImFontRole::Monospace);
-                    ImGui::Pill(innerText.c_str(), bgCol);
+                    if (!iconName.empty()) {
+                        ImGui::PillNamed(iconName.c_str(), bgCol);
+                    } else {
+                        ImGui::Pill("", bgCol);
+                    }
                     if (isMono) ImGui::PopFontRole();
-#else
-                    ImGui::Text("[%s]", innerText.c_str());
 #endif
                     needSameLine = true;
-                    cur = closePos + closeTag.length();
+                    cur = tag_end;
                     continue;
+                } else {
+                    std::string closeTag = "</pill>";
+                    const char* closePos = std::strstr(tag_end, closeTag.c_str());
+                    if (closePos && closePos < text_end) {
+                        std::string innerText(tag_end, closePos - tag_end);
+                        if (needSameLine) ImGui::SameLine(0.0f, 0.0f);
+#if defined(IMGUI_STYLED_TEXT_HAS_BADGES)
+                        if (isMono) ImGui::PushFontRole(ImFontRole::Monospace);
+                        if (!iconName.empty()) {
+                            ImGui::PillNamed(iconName.c_str(), innerText.c_str(), bgCol);
+                        } else {
+                            ImGui::Pill(innerText.c_str(), bgCol);
+                        }
+                        if (isMono) ImGui::PopFontRole();
+#else
+                        ImGui::Text("[%s]", innerText.c_str());
+#endif
+                        needSameLine = true;
+                        cur = closePos + closeTag.length();
+                        continue;
+                    }
                 }
             }
 
-            // <badge color=#hex>text</badge>
+            // <badge color=#hex>text</badge> or <badge icon=name />
             if (tagName == "badge") {
-                std::string closeTag = "</badge>";
-                const char* closePos = std::strstr(tag_end, closeTag.c_str());
-                if (closePos && closePos < text_end) {
-                    std::string innerText(tag_end, closePos - tag_end);
-                    std::string colVal;
-                    ImU32 bgCol = IM_COL32(52, 73, 94, 255); // default neutral badge
-                    if (Detail::ExtractAttribute(tagStr, "color", colVal)) {
-                        Detail::ParseColor(colVal.c_str(), colVal.length(), bgCol);
-                    }
+                bool isSelfClosing = false;
+                size_t slashPos = tagStr.find_last_not_of(" \t\r\n");
+                if (slashPos != std::string::npos && tagStr[slashPos] == '/') {
+                    isSelfClosing = true;
+                }
 
+                std::string iconName;
+                if (!Detail::ExtractAttribute(tagStr, "icon", iconName)) {
+                    if (!Detail::ExtractAttribute(tagStr, "img", iconName)) {
+                        Detail::ExtractAttribute(tagStr, "image", iconName);
+                    }
+                }
+
+                std::string colVal;
+                ImU32 bgCol = IM_COL32(52, 73, 94, 255); // default neutral badge
+                if (Detail::ExtractAttribute(tagStr, "color", colVal) || Detail::ExtractAttribute(tagStr, "bg", colVal)) {
+                    Detail::ParseColor(colVal.c_str(), colVal.length(), bgCol);
+                } else {
+                    std::istringstream iss(tagStr);
+                    std::string token;
+                    iss >> token; // skip "badge"
+                    while (iss >> token) {
+                        if (token == "/" || token == "mono" || token == "bold" || token == "italic") continue;
+                        if (token.rfind("icon=", 0) == 0 || token.rfind("img=", 0) == 0 || token.rfind("image=", 0) == 0) continue;
+                        ImU32 c = 0;
+                        if (Detail::ParseColor(token.c_str(), token.length(), c)) {
+                            bgCol = c;
+                            break;
+                        }
+                    }
+                }
+
+                bool isMono = (tagStr.find("mono") != std::string::npos);
+
+                if (isSelfClosing) {
                     if (needSameLine) ImGui::SameLine(0.0f, 0.0f);
 #if defined(IMGUI_STYLED_TEXT_HAS_BADGES)
-                    bool isMono = (tagStr.find("mono") != std::string::npos);
                     if (isMono) ImGui::PushFontRole(ImFontRole::Monospace);
-                    ImGui::Badge(innerText.c_str(), bgCol);
+                    if (!iconName.empty()) {
+                        ImGui::BadgeNamed(iconName.c_str(), bgCol);
+                    } else {
+                        ImGui::Badge("", bgCol);
+                    }
                     if (isMono) ImGui::PopFontRole();
-#else
-                    ImGui::Text("[%s]", innerText.c_str());
 #endif
                     needSameLine = true;
-                    cur = closePos + closeTag.length();
+                    cur = tag_end;
                     continue;
+                } else {
+                    std::string closeTag = "</badge>";
+                    const char* closePos = std::strstr(tag_end, closeTag.c_str());
+                    if (closePos && closePos < text_end) {
+                        std::string innerText(tag_end, closePos - tag_end);
+                        if (needSameLine) ImGui::SameLine(0.0f, 0.0f);
+#if defined(IMGUI_STYLED_TEXT_HAS_BADGES)
+                        if (isMono) ImGui::PushFontRole(ImFontRole::Monospace);
+                        if (!iconName.empty()) {
+                            ImGui::BadgeNamed(iconName.c_str(), innerText.c_str(), bgCol);
+                        } else {
+                            ImGui::Badge(innerText.c_str(), bgCol);
+                        }
+                        if (isMono) ImGui::PopFontRole();
+#else
+                        ImGui::Text("[%s]", innerText.c_str());
+#endif
+                        needSameLine = true;
+                        cur = closePos + closeTag.length();
+                        continue;
+                    }
                 }
             }
 

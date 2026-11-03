@@ -67,6 +67,7 @@ namespace ImGui {
         std::string color_param; // Legacy single-color parameter
         std::string bg_color;    // Background color override or primary color
         std::string fg_color;    // Foreground / text color override
+        std::string icon_name;   // Named texture icon identifier (e.g. "avionics_beacon")
         bool is_bold = false;
         bool is_italic = false;
         bool is_mono = false;
@@ -114,6 +115,15 @@ namespace ImGui {
                 found_explicit_style = true;
             } else if (t == "underline" || t == "u" || t == "ins") {
                 style.is_underline = true;
+                found_explicit_style = true;
+            } else if (t.rfind("icon=", 0) == 0) {
+                style.icon_name = strip_quotes(token.substr(5));
+                found_explicit_style = true;
+            } else if (t.rfind("img=", 0) == 0) {
+                style.icon_name = strip_quotes(token.substr(4));
+                found_explicit_style = true;
+            } else if (t.rfind("image=", 0) == 0) {
+                style.icon_name = strip_quotes(token.substr(6));
                 found_explicit_style = true;
             } else {
                 if (t.rfind("fgcolor=", 0) == 0) {
@@ -418,15 +428,31 @@ namespace ImGui {
                     if (close_pos != std::string::npos) {
                         flush_seg(cur_font);
                         std::string inner(text + tag_close + 1, close_pos - (tag_close + 1));
-                        MarkdownTagStyle style = ParseMarkdownTagStyle(inner, "");
+                        std::string params = (name_end < tag_close) ? std::string(text + name_end, tag_close - name_end) : "";
+                        MarkdownTagStyle style = ParseMarkdownTagStyle(inner, params);
                         ImFont* tf = cur_font ? cur_font : base_font;
                         if (!tf) tf = ImGui::GetFont();
                         ImVec2 inner_sz = tf->CalcTextSizeA(font_size, FLT_MAX, 0.0f, style.clean_text.c_str(), style.clean_text.c_str() + style.clean_text.size());
+                        float icon_w = 0.0f;
+                        float gap_x = 0.0f;
+                        if (!style.icon_name.empty()) {
+                            ImVec2 isz(0.0f, 0.0f);
+                            if (Detail::GetNamedTextureResolver()) {
+                                Detail::GetNamedTextureResolver()(style.icon_name.c_str(), &isz);
+                            }
+                            if (isz.y > 0.0f) {
+                                float aspect = (isz.x > 0.0f) ? (isz.x / isz.y) : 1.0f;
+                                icon_w = font_size * aspect;
+                            } else {
+                                icon_w = font_size;
+                            }
+                            if (!style.clean_text.empty()) gap_x = ImMax(4.0f * scale, 3.0f);
+                        }
                         float pad_x = 0.0f;
                         if (tag_name == "pill") {
-                            pad_x = ImMax(7.0f * scale, 6.0f);
+                            pad_x = !style.clean_text.empty() ? ImMax(7.0f * scale, 6.0f) : ImMax(5.0f * scale, 4.0f);
                         } else if (tag_name == "badge" || tag_name == "tag") {
-                            pad_x = ImMax(5.0f * scale, 4.0f);
+                            pad_x = !style.clean_text.empty() ? ImMax(5.0f * scale, 4.0f) : ImMax(4.0f * scale, 3.0f);
                         } else if (tag_name == "kbd" || tag_name == "key" || tag_name == "kdb") {
                             pad_x = ImMax(5.5f * scale, 5.0f);
                         } else if (tag_name == "btn") {
@@ -434,9 +460,40 @@ namespace ImGui {
                         } else if (tag_name == "mono" || tag_name == "code" || tag_name == "backdrop" || tag_name == "bg" || tag_name == "highlight") {
                             pad_x = 3.0f * scale;
                         }
-                        total_w += inner_sz.x + pad_x * 2.0f;
+                        total_w += icon_w + gap_x + inner_sz.x + pad_x * 2.0f;
                         i = close_pos + close_tag.size();
                         continue;
+                    } else {
+                        // Check if self-closing: e.g. <pill icon=foo /> or <img ... />
+                        bool is_self_closing = (tag_close > name_start && text[tag_close - 1] == '/');
+                        if (is_self_closing || tag_name == "img") {
+                            flush_seg(cur_font);
+                            size_t p_end = is_self_closing ? (tag_close - 1) : tag_close;
+                            std::string params = (name_end < p_end) ? std::string(text + name_end, p_end - name_end) : "";
+                            MarkdownTagStyle style = ParseMarkdownTagStyle("", params);
+                            float item_w = 0.0f;
+                            if (!style.icon_name.empty()) {
+                                ImVec2 isz(0.0f, 0.0f);
+                                if (Detail::GetNamedTextureResolver()) {
+                                    Detail::GetNamedTextureResolver()(style.icon_name.c_str(), &isz);
+                                }
+                                if (isz.y > 0.0f) {
+                                    float aspect = (isz.x > 0.0f) ? (isz.x / isz.y) : 1.0f;
+                                    item_w = font_size * aspect;
+                                } else {
+                                    item_w = font_size;
+                                }
+                            }
+                            float pad_x = 0.0f;
+                            if (tag_name == "pill") {
+                                pad_x = ImMax(5.0f * scale, 4.0f);
+                            } else if (tag_name == "badge" || tag_name == "tag") {
+                                pad_x = ImMax(4.0f * scale, 3.0f);
+                            }
+                            total_w += item_w + pad_x * 2.0f;
+                            i = tag_close + 1;
+                            continue;
+                        }
                     }
                 }
             }
@@ -708,13 +765,42 @@ namespace ImGui {
                     ParseMarkdownColor(style.fg_color, text_col);
                 }
 
-                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
-                float pad_x = ImMax(5.0f * scale, 4.0f);
-                float required_w = text_size.x + pad_x * 2.0f;
+                ImTextureID icon_tex = (ImTextureID)0;
+                ImVec2 icon_size(0.0f, 0.0f);
+                if (!style.icon_name.empty()) {
+                    if (Detail::GetNamedTextureResolver()) {
+                        icon_tex = Detail::GetNamedTextureResolver()(style.icon_name.c_str(), &icon_size);
+                    }
+                    if (!icon_tex) {
+                        auto imageCb = GetActiveMarkdownConfig() && GetActiveMarkdownConfig()->imageCallback 
+                                       ? GetActiveMarkdownConfig()->imageCallback 
+                                       : GetDefaultMarkdownImageCallback();
+                        if (imageCb) {
+                            MarkdownImageData imgData = imageCb({ "", 0, style.icon_name.c_str(), (int)style.icon_name.length(), nullptr, true });
+                            if (imgData.isValid) {
+                                icon_tex = imgData.user_texture_id;
+                                icon_size = imgData.size;
+                            }
+                        }
+                    }
+                }
+
+                const float font_size = ImGui::GetFontSize();
+                const float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+                ImVec2 actual_icon_size = icon_size;
+                if (icon_tex) {
+                    float target_h = font_size;
+                    float aspect = (actual_icon_size.x > 0.0f && actual_icon_size.y > 0.0f) ? (actual_icon_size.x / actual_icon_size.y) : 1.0f;
+                    actual_icon_size = ImVec2(target_h * aspect, target_h);
+                }
+
+                ImVec2 text_size = !style.clean_text.empty() ? ImGui::CalcTextSize(style.clean_text.c_str()) : ImVec2(0.0f, 0.0f);
+                float pad_x = !style.clean_text.empty() ? ImMax(5.0f * scale, 4.0f) : ImMax(4.0f * scale, 3.0f);
+                float gap_x = (icon_tex && !style.clean_text.empty()) ? ImMax(4.0f * scale, 3.0f) : 0.0f;
+                float required_w = (icon_tex ? actual_icon_size.x : 0.0f) + gap_x + text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
-                ImGui::Badge(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr);
+                ImGui::Badge(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr, -1.0f, icon_tex, actual_icon_size);
 
                 PopMarkdownTagFont(config, style);
             };
@@ -751,13 +837,42 @@ namespace ImGui {
                     ParseMarkdownColor(style.fg_color, text_col);
                 }
 
-                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
-                float pad_x = ImMax(7.0f * scale, 6.0f);
-                float required_w = text_size.x + pad_x * 2.0f;
+                ImTextureID icon_tex = (ImTextureID)0;
+                ImVec2 icon_size(0.0f, 0.0f);
+                if (!style.icon_name.empty()) {
+                    if (Detail::GetNamedTextureResolver()) {
+                        icon_tex = Detail::GetNamedTextureResolver()(style.icon_name.c_str(), &icon_size);
+                    }
+                    if (!icon_tex) {
+                        auto imageCb = GetActiveMarkdownConfig() && GetActiveMarkdownConfig()->imageCallback 
+                                       ? GetActiveMarkdownConfig()->imageCallback 
+                                       : GetDefaultMarkdownImageCallback();
+                        if (imageCb) {
+                            MarkdownImageData imgData = imageCb({ "", 0, style.icon_name.c_str(), (int)style.icon_name.length(), nullptr, true });
+                            if (imgData.isValid) {
+                                icon_tex = imgData.user_texture_id;
+                                icon_size = imgData.size;
+                            }
+                        }
+                    }
+                }
+
+                const float font_size = ImGui::GetFontSize();
+                const float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+                ImVec2 actual_icon_size = icon_size;
+                if (icon_tex) {
+                    float target_h = font_size;
+                    float aspect = (actual_icon_size.x > 0.0f && actual_icon_size.y > 0.0f) ? (actual_icon_size.x / actual_icon_size.y) : 1.0f;
+                    actual_icon_size = ImVec2(target_h * aspect, target_h);
+                }
+
+                ImVec2 text_size = !style.clean_text.empty() ? ImGui::CalcTextSize(style.clean_text.c_str()) : ImVec2(0.0f, 0.0f);
+                float pad_x = !style.clean_text.empty() ? ImMax(7.0f * scale, 6.0f) : ImMax(5.0f * scale, 4.0f);
+                float gap_x = (icon_tex && !style.clean_text.empty()) ? ImMax(4.0f * scale, 3.0f) : 0.0f;
+                float required_w = (icon_tex ? actual_icon_size.x : 0.0f) + gap_x + text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
-                ImGui::Pill(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr);
+                ImGui::Pill(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr, icon_tex, actual_icon_size);
 
                 PopMarkdownTagFont(config, style);
             };

@@ -49,7 +49,15 @@ jobs:
       - name: Extract XPSDK
         shell: bash
         working-directory: mx-source-build/libs
-        run: unzip -o XPSDK.zip
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            ditto -x -k XPSDK.zip .
+          else
+            unzip -o XPSDK.zip
+          fi
+          chmod -R u+w xpsdk 2>/dev/null || true
+          rm -rf xpsdk
+          mv xpsdk-master xpsdk
 
       # 5. Configure CMake
       - name: Configure CMake
