@@ -60,11 +60,6 @@
 #include "contrib/extensions/Markdown/imgui_markdown.h"
 #endif
 
-// Enforce constraint that IMGWINDOW_USE_PANEL_GRAPHICS requires IMGUI_V192_REFACTOR (modern dynamic font atlas support).
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS) && !defined(IMGUI_V192_REFACTOR)
-    #error "IMGWINDOW_USE_PANEL_GRAPHICS requires IMGUI_V192_REFACTOR (modern dynamic font atlas support)."
-#endif
-
 /** ImgWindow is a Window for creating dear imgui widgets within.
  *
  * There's a few traps to be aware of when using dear imgui with X-Plane:

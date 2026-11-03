@@ -35,8 +35,8 @@ Here are the major additions to the framework since it was forked:
   
     _**N.B.:** We did this so your code shouldn't have to change at all. We intentionally hide ImGui's new per-window atlas management (which would needlessly complicate 98% of X-Plane plugins). ImgWindow just auto-detects your ImGui version at compile time and does the heavy lifting for you._
 
-+ **A dynamic "Panel Graphics Bridge":**<br>
-  If you're using ImGui v1.92+, you can finally take advantage of the modern X-Plane 12.4.4+ **Panel Graphics API** (Vulkan/Metal) _without_ forcing your plugin to require `XPLM440=1`!
++ **A universal, dynamic "Panel Graphics Bridge":**<br>
+  Across **all** supported Dear ImGui versions (legacy v1.7x/v1.8x, interim v1.90–v1.91, and modern v1.92+), you can take full advantage of the modern X-Plane 12.4.4+ **Panel Graphics API** (Vulkan/Metal) _without_ forcing your plugin to require `XPLM440=1` or upgrading your bundled ImGui dependency!
   
 > [!NOTE]
 > This is a **critical build choice!**

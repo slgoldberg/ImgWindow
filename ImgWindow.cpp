@@ -478,32 +478,50 @@ ImgWindow::ImgWindow(
     if (mFontAtlas) {
         mFontTexture = (ImTextureID)(intptr_t)io.Fonts->TexID;
     } else {
-        if (!iFontAtlas || iFontAtlas->TexID == nullptr) {
+        if (!iFontAtlas || iFontAtlas->TexID == (ImTextureID)0) {
             // fallback binding if an atlas wasn't explicitly set.
-            unsigned char *pixels;
-            int width, height;
-            io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+            if (ImgPanelGraphics::IsAvailable()) {
+                unsigned char *pixels = nullptr;
+                int width = 0, height = 0;
+                io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+                if (pixels && width > 0 && height > 0) {
+                    std::vector<unsigned char> lin_pixels(pixels, pixels + (width * height * 4));
+                    for (int i = 0; i < width * height; i++) {
+                        unsigned char* p = &lin_pixels[i * 4];
+                        p[3] = (unsigned char)(powf(p[3] / 255.0f, 2.2f) * 255.0f + 0.5f);
+                    }
+                    mFontTexture = (ImTextureID)(intptr_t)ImgPanelGraphics::CreateTexture(lin_pixels.data(), width, height);
+                    io.Fonts->SetTexID(mFontTexture);
+                }
+            } else
+#endif
+            {
+                unsigned char *pixels;
+                int width, height;
+                io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
 
-            // slightly stupid dance around the texture number due to XPLM not using GLint here.
-            int texNum = 0;
-            XPLMGenerateTextureNumbers(&texNum, 1);
-            mFontTexture = (ImTextureID)(intptr_t)texNum;
+                // slightly stupid dance around the texture number due to XPLM not using GLint here.
+                int texNum = 0;
+                XPLMGenerateTextureNumbers(&texNum, 1);
+                mFontTexture = (ImTextureID)(intptr_t)texNum;
 
-            // upload texture.
-            XPLMBindTexture2d((int)(intptr_t)mFontTexture, 0);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-            glTexImage2D(GL_TEXTURE_2D,
-                         0,
-                         GL_ALPHA,
-                         width,
-                         height,
-                         0,
-                         GL_ALPHA,
-                         GL_UNSIGNED_BYTE,
-                         pixels);
-            io.Fonts->SetTexID((void *)(mFontTexture));
+                // upload texture.
+                XPLMBindTexture2d((int)(intptr_t)mFontTexture, 0);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                glTexImage2D(GL_TEXTURE_2D,
+                             0,
+                             GL_ALPHA,
+                             width,
+                             height,
+                             0,
+                             GL_ALPHA,
+                             GL_UNSIGNED_BYTE,
+                             pixels);
+                io.Fonts->SetTexID(mFontTexture);
+            }
         }
     }
 #else
@@ -1311,6 +1329,10 @@ ImgWindow::updateImgui()
     // (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
     if (mFontAtlas && mFontAtlas->getAtlas()) {
         CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
+    }
+#else
+    if (io.Fonts && io.Fonts->TexID != (ImTextureID)0) {
+        mFontTexture = (ImTextureID)(intptr_t)io.Fonts->TexID;
     }
 #endif /* IMGUI_V192_REFACTOR */
 

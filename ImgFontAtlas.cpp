@@ -123,6 +123,21 @@ ImgFontAtlas::bindTexture()
 
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     if (ImgPanelGraphics::IsAvailable()) {
+#ifndef IMGUI_V192_REFACTOR
+        unsigned char *pixels = nullptr;
+        int width = 0, height = 0;
+        mOurAtlas->GetTexDataAsRGBA32(&pixels, &width, &height);
+        if (pixels && width > 0 && height > 0) {
+            std::vector<unsigned char> lin_pixels(pixels, pixels + (width * height * 4));
+            for (int i = 0; i < width * height; i++) {
+                unsigned char* p = &lin_pixels[i * 4];
+                p[3] = (unsigned char)(powf(p[3] / 255.0f, 2.2f) * 255.0f + 0.5f);
+            }
+            mTextureID = (ImTextureID)(intptr_t)ImgPanelGraphics::CreateTexture(lin_pixels.data(), width, height);
+            mOurAtlas->SetTexID(mTextureID);
+            mTextureBound = (mTextureID != (ImTextureID)0);
+        }
+#else
         strct_texture_info outInfo;
         GetCustomAtlasTextureData(mOurAtlas, outInfo);
         
@@ -135,6 +150,7 @@ ImgFontAtlas::bindTexture()
             mTextureID = (ImTextureID)(intptr_t)ImgPanelGraphics::CreateTexture(lin_pixels.data(), outInfo.width, outInfo.height);
             mOurAtlas->TexData->SetTexID(mTextureID);
         }
+#endif
     } else {
         int gl_tex = 0;
         XPLMGenerateTextureNumbers(&gl_tex, 1);
@@ -155,7 +171,7 @@ ImgFontAtlas::bindTexture()
 
 #ifndef IMGUI_V192_REFACTOR
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
-        mOurAtlas->SetTexID((void *)((intptr_t)gl_tex));
+        mOurAtlas->SetTexID((ImTextureID)(intptr_t)gl_tex);
 #else
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
         mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)gl_tex);
@@ -182,7 +198,7 @@ ImgFontAtlas::bindTexture()
 
 #ifndef IMGUI_V192_REFACTOR
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixData);
-    mOurAtlas->SetTexID((void *)((intptr_t)gl_tex));
+    mOurAtlas->SetTexID((ImTextureID)(intptr_t)gl_tex);
 #else
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, outInfo.width, outInfo.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, outInfo.pixels);
     mOurAtlas->TexData->SetTexID((ImTextureID)(intptr_t)gl_tex);
