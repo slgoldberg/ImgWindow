@@ -1,0 +1,366 @@
+// ============================================================================
+// ImGui Contrib: Directional Popup Menus & Select Pulldown Widgets
+// ----------------------------------------------------------------------------
+// Author: Steven L. Goldberg (@slgoldberg)
+// License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
+//
+// Description:
+//   Provides first-class popup placement, anchoring, and selection widgets:
+//   1. Directional Item Anchoring:
+//      - OpenPopupAtItem() / BeginAnchoredPopup():
+//        Anchors popups relative to the preceding item's bounding box
+//        (ImGui::GetItemRectMin/Max).
+//      - Supports ImGuiPopupAnchor_AboveItem (blossoms UP for status bars docked
+//        at the screen bottom) or ImGuiPopupAnchor_BelowItem (standard dropdown).
+//      - Font-scale invariant: anchors to live pixel metrics with sub-pixel
+//        precision, eliminating hardcoded magic offsets and text-zoom drift.
+//      - Muscle-memory toggle safety: clicking the opener button when the popup
+//        is open cleanly toggles it closed without re-opening flicker.
+//      - Headroom reporting: ImGui::GetLastPopupHeight(str_id) lets window
+//        managers (e.g. WidgetImgWindow) query the exact pixel height needed
+//        for XPLM window expansion without manual "boxel" guessing.
+//
+//   2. SelectPulldown() Widget:
+//      - Compact 1-line inline summary dropdown for dataref selectors (IS_SELECT).
+//      - Renders active option with down-caret indicator.
+//      - Scroll pass-through when closed: mouse-wheel events are NOT captured,
+//        allowing parent scrolling lists to scroll smoothly without mutating settings.
+//      - Mouse-wheel cycling when open: spinning the wheel inside the open popup
+//        cycles active options dynamically without closing the menu.
+//      - Optional per-item tooltips and custom widths.
+// ============================================================================
+
+#pragma once
+
+#ifndef IMGUI_POPUP_MENUS_H
+#define IMGUI_POPUP_MENUS_H
+
+#if !defined(CONTRIB_DISABLE_POPUP_MENUS) && \
+    !defined(IMGUI_CONTRIB_DISABLE_POPUP_MENUS) && \
+    !defined(IMGUI_DISABLE_POPUP_MENUS) && \
+    !defined(IMGUI_DISABLE_CONTRIB_POPUP_MENUS)
+
+#include <string>
+#include <vector>
+#include <map>
+#include <cstdio>
+
+#ifndef IMGUI_API
+#define IMGUI_API
+#endif
+
+namespace ImGui {
+
+    enum ImGuiPopupAnchor {
+        ImGuiPopupAnchor_BelowItem = 0, // Dropdown: popup top anchors below item
+        ImGuiPopupAnchor_AboveItem = 1, // Status bar: popup bottom anchors above item
+        ImGuiPopupAnchor_Auto      = 2  // Automatically selects Above or Below based on screen space
+    };
+
+    enum ImGuiPopupAlign {
+        ImGuiPopupAlign_Left   = 0, // Align popup left edge with item left edge
+        ImGuiPopupAlign_Right  = 1, // Align popup right edge with item right edge
+        ImGuiPopupAlign_Center = 2, // Horizontally center popup over item
+        ImGuiPopupAlign_Auto   = 3  // Left-align, but right-align if near display right boundary
+    };
+
+    namespace Detail {
+        struct AnchoredPopupState {
+            ImVec2 anchor_pos  = ImVec2(0.0f, 0.0f);
+            ImVec2 item_min    = ImVec2(0.0f, 0.0f);
+            ImVec2 item_max    = ImVec2(0.0f, 0.0f);
+            ImVec2 last_size   = ImVec2(0.0f, 0.0f);
+            ImGuiPopupAnchor anchor = ImGuiPopupAnchor_Auto;
+            ImGuiPopupAlign  align  = ImGuiPopupAlign_Auto;
+            bool was_open = false;
+            bool force_close = false;
+        };
+
+        inline std::map<ImGuiID, AnchoredPopupState>& GetPopupStateMap() {
+            static std::map<ImGuiID, AnchoredPopupState> s_Map;
+            return s_Map;
+        }
+    }
+
+    // ========================================================================
+    // Headroom Queries (For Window Managers / Subclasses)
+    // ========================================================================
+
+    /// Returns the last measured content size of the specified popup window,
+    /// or ImVec2(0, 0) if it has not yet been rendered.
+    inline IMGUI_API ImVec2 GetLastPopupSize(const char* str_id) {
+        if (!str_id || !*str_id) return ImVec2(0.0f, 0.0f);
+        ImGuiID id = ImGui::GetID(str_id);
+        auto& m = Detail::GetPopupStateMap();
+        auto it = m.find(id);
+        if (it != m.end()) return it->second.last_size;
+        return ImVec2(0.0f, 0.0f);
+    }
+
+    /// Returns the last measured height in pixels of the specified popup window.
+    inline IMGUI_API float GetLastPopupHeight(const char* str_id) {
+        return GetLastPopupSize(str_id).y;
+    }
+
+    // ========================================================================
+    // Anchored Popup Openers & Chasers
+    // ========================================================================
+
+    /// Open a popup anchored to the preceding item (Button, ButtonMD, Pill, Selectable, etc.).
+    /// Call immediately after submitting the item:
+    ///   if (ImGui::Button("View Mode")) {
+    ///       ImGui::OpenPopupAtItem("##ViewMenu", ImGuiPopupAnchor_AboveItem);
+    ///   }
+    /// Returns true if the popup was opened, or false if it was toggled closed.
+    inline IMGUI_API bool OpenPopupAtItem(const char* str_id,
+                                          ImGuiPopupAnchor anchor = ImGuiPopupAnchor_Auto,
+                                          ImGuiPopupAlign align = ImGuiPopupAlign_Auto,
+                                          ImGuiPopupFlags popup_flags = 0)
+    {
+        if (!str_id || !*str_id) return false;
+        ImGuiID id = ImGui::GetID(str_id);
+        auto& state = Detail::GetPopupStateMap()[id];
+
+        // Muscle-memory toggle safety: if already open, toggle it closed cleanly
+        if (ImGui::IsPopupOpen(str_id, popup_flags)) {
+            state.force_close = true;
+            state.was_open = false;
+            return false;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        ImGuiStyle& style = ImGui::GetStyle();
+
+        state.item_min = ImGui::GetItemRectMin();
+        state.item_max = ImGui::GetItemRectMax();
+        state.anchor   = anchor;
+        state.align    = align;
+
+        // Auto resolution based on screen position
+        if (state.anchor == ImGuiPopupAnchor_Auto) {
+            state.anchor = (state.item_max.y > io.DisplaySize.y * 0.70f)
+                ? ImGuiPopupAnchor_AboveItem
+                : ImGuiPopupAnchor_BelowItem;
+        }
+        if (state.align == ImGuiPopupAlign_Auto) {
+            state.align = (state.item_max.x > io.DisplaySize.x * 0.75f)
+                ? ImGuiPopupAlign_Right
+                : ImGuiPopupAlign_Left;
+        }
+
+        // Calculate target anchor coordinates
+        float target_y = (state.anchor == ImGuiPopupAnchor_AboveItem)
+            ? (state.item_min.y - style.ItemSpacing.y)
+            : (state.item_max.y + style.ItemSpacing.y);
+
+        float target_x = state.item_min.x;
+        if (state.align == ImGuiPopupAlign_Right) {
+            target_x = state.item_max.x;
+        } else if (state.align == ImGuiPopupAlign_Center) {
+            target_x = (state.item_min.x + state.item_max.x) * 0.5f;
+        }
+
+        state.anchor_pos = ImVec2(target_x, target_y);
+        state.was_open   = true;
+
+        ImGui::OpenPopup(str_id, popup_flags);
+        return true;
+    }
+
+    /// Open a popup anchored to an explicit screen position.
+    inline IMGUI_API bool OpenPopupAtPos(const char* str_id,
+                                         ImVec2 pos,
+                                         ImGuiPopupAnchor anchor = ImGuiPopupAnchor_Auto,
+                                         ImGuiPopupAlign align = ImGuiPopupAlign_Auto,
+                                         ImGuiPopupFlags popup_flags = 0)
+    {
+        if (!str_id || !*str_id) return false;
+        ImGuiID id = ImGui::GetID(str_id);
+        auto& state = Detail::GetPopupStateMap()[id];
+
+        if (ImGui::IsPopupOpen(str_id, popup_flags)) {
+            ImGui::CloseCurrentPopup();
+            state.was_open = false;
+            return false;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        state.item_min = pos;
+        state.item_max = pos;
+        state.anchor   = anchor;
+        state.align    = align;
+
+        if (state.anchor == ImGuiPopupAnchor_Auto) {
+            state.anchor = (pos.y > io.DisplaySize.y * 0.70f)
+                ? ImGuiPopupAnchor_AboveItem
+                : ImGuiPopupAnchor_BelowItem;
+        }
+        if (state.align == ImGuiPopupAlign_Auto) {
+            state.align = (pos.x > io.DisplaySize.x * 0.75f)
+                ? ImGuiPopupAlign_Right
+                : ImGuiPopupAlign_Left;
+        }
+
+        state.anchor_pos = pos;
+        state.was_open   = true;
+
+        ImGui::OpenPopup(str_id, popup_flags);
+        return true;
+    }
+
+    /// Begin a popup window positioned according to its anchor coordinates.
+    /// Call in place of standard ImGui::BeginPopup():
+    ///   if (ImGui::BeginAnchoredPopup("##ViewMenu")) {
+    ///       // ... menu items ...
+    ///       ImGui::EndPopup();
+    ///   }
+    inline IMGUI_API bool BeginAnchoredPopup(const char* str_id, ImGuiWindowFlags flags = 0) {
+        if (!str_id || !*str_id) return false;
+        ImGuiID id = ImGui::GetID(str_id);
+        auto& m = Detail::GetPopupStateMap();
+        auto it = m.find(id);
+
+        if (it != m.end() && it->second.was_open) {
+            auto& state = it->second;
+            ImVec2 pivot(0.0f, (state.anchor == ImGuiPopupAnchor_AboveItem) ? 1.0f : 0.0f);
+            if (state.align == ImGuiPopupAlign_Right) pivot.x = 1.0f;
+            else if (state.align == ImGuiPopupAlign_Center) pivot.x = 0.5f;
+
+            if (state.last_size.y > 0.0f) {
+                // Known size from previous opening: exact pivot placement
+                ImGui::SetNextWindowPos(state.anchor_pos, ImGuiCond_Always, pivot);
+            } else {
+                // First appearance before measurement: estimate top-left to avoid jumping
+                float est_h = ImGui::GetFontSize() * 3.5f;
+                float start_y = (state.anchor == ImGuiPopupAnchor_AboveItem)
+                    ? (state.anchor_pos.y - est_h)
+                    : state.anchor_pos.y;
+                ImGui::SetNextWindowPos(ImVec2(state.anchor_pos.x, start_y), ImGuiCond_Always, ImVec2(pivot.x, 0.0f));
+            }
+        }
+
+        if (it != m.end() && it->second.force_close) {
+            it->second.force_close = false;
+            it->second.was_open = false;
+            if (ImGui::BeginPopup(str_id, flags)) {
+                ImGui::CloseCurrentPopup();
+                ImGui::EndPopup();
+            }
+            return false;
+        }
+
+        bool open = ImGui::BeginPopup(str_id, flags);
+        if (open) {
+            if (it != m.end()) {
+                it->second.last_size = ImGui::GetWindowSize();
+            }
+        } else {
+            if (it != m.end()) {
+                it->second.was_open = false;
+            }
+        }
+        return open;
+    }
+
+    // ========================================================================
+    // SelectPulldown Widget (For Settings & Inline Datarefs)
+    // ========================================================================
+
+    /// Renders a compact 1-line dataref / radio pulldown selector.
+    /// - When closed: Renders active item with down-caret. Mouse-wheel events
+    ///   are NOT captured, allowing parent container scrolling without accidental edits.
+    /// - When open: Mouse-wheel cycles active selection dynamically without closing popup.
+    /// - Optional per-item tooltips displayed on option hover.
+    inline IMGUI_API bool SelectPulldown(const char* label,
+                                         int* current_item,
+                                         const char* const items[],
+                                         int items_count,
+                                         const char* const tooltips[] = nullptr,
+                                         float width = 0.0f)
+    {
+        if (!current_item || !items || items_count <= 0) return false;
+        ImGuiIO& io = ImGui::GetIO();
+
+        ImGuiID id = ImGui::GetID(label);
+        char popup_id[64];
+        std::snprintf(popup_id, sizeof(popup_id), "##SelectPulldown_%08X", (unsigned int)id);
+
+        int cur_idx = *current_item;
+        if (cur_idx < 0) cur_idx = 0;
+        if (cur_idx >= items_count) cur_idx = items_count - 1;
+
+        const char* preview_text = items[cur_idx];
+        std::string btn_label = std::string(preview_text) + "  \xE2\x96\xBE"; // Down-caret ▼
+
+        if (width > 0.0f) {
+            ImGui::SetNextItemWidth(width);
+        }
+
+        bool value_changed = false;
+        if (ImGui::Button(btn_label.c_str())) {
+            OpenPopupAtItem(popup_id, ImGuiPopupAnchor_BelowItem, ImGuiPopupAlign_Left);
+        }
+
+        // Render options inside open popup
+        if (BeginAnchoredPopup(popup_id)) {
+            for (int i = 0; i < items_count; i++) {
+                bool is_selected = (i == *current_item);
+                if (ImGui::Selectable(items[i], is_selected)) {
+                    if (*current_item != i) {
+                        *current_item = i;
+                        value_changed = true;
+                    }
+                }
+                if (tooltips && tooltips[i] && *tooltips[i] && ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s", tooltips[i]);
+                }
+            }
+
+            // In-menu wheel cycling without closing the popup
+            if (ImGui::IsWindowHovered()) {
+                float wheel = io.MouseWheel;
+                if (wheel != 0.0f) {
+                    int dir = (wheel > 0.0f) ? -1 : 1;
+                    int next_idx = *current_item + dir;
+                    if (next_idx < 0) next_idx = 0;
+                    if (next_idx >= items_count) next_idx = items_count - 1;
+                    if (next_idx != *current_item) {
+                        *current_item = next_idx;
+                        value_changed = true;
+                    }
+                }
+            }
+
+            ImGui::EndPopup();
+        }
+
+        return value_changed;
+    }
+
+    /// std::vector overload of SelectPulldown
+    inline IMGUI_API bool SelectPulldown(const char* label,
+                                         int* current_item,
+                                         const std::vector<std::string>& items,
+                                         const std::vector<std::string>* tooltips = nullptr,
+                                         float width = 0.0f)
+    {
+        if (!current_item || items.empty()) return false;
+        std::vector<const char*> item_ptrs;
+        item_ptrs.reserve(items.size());
+        for (const auto& s : items) item_ptrs.push_back(s.c_str());
+
+        std::vector<const char*> tip_ptrs;
+        if (tooltips && tooltips->size() == items.size()) {
+            tip_ptrs.reserve(tooltips->size());
+            for (const auto& t : *tooltips) tip_ptrs.push_back(t.c_str());
+        }
+
+        return SelectPulldown(label, current_item, item_ptrs.data(), (int)item_ptrs.size(),
+                              tip_ptrs.empty() ? nullptr : tip_ptrs.data(), width);
+    }
+
+} // namespace ImGui
+
+#endif // !CONTRIB_DISABLE_POPUP_MENUS
+
+#endif // IMGUI_POPUP_MENUS_H

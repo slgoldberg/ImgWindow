@@ -33,6 +33,7 @@ If your project defines a function with the same name, define any of the followi
 #define CONTRIB_DISABLE_COPY_BUTTON           // Disables CopyButton, CopyLastItemButton & semantic aliases
 
 // Fine-grained opt-outs & style defaults within imgui_mouse_wheel_controls.h:
+#define CONTRIB_DISABLE_POPUP_MENUS           // Disables SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
 #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Disables GetMouseWheel* primitives
 #define CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL    // Disables AdjustItemOnMouseWheel()
 #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL     // Disables CycleItemOnMouseWheel()
@@ -516,6 +517,51 @@ ImGui::Knob("XPNDR", &s_TransponderGain, 0.0f, 1.0f, "%.2f", 20.0f, 0.01f, ImGui
   * **Dual-Mode Input Ergonomics:** Primary mouse-wheel rotation with automatic scroll-defeat prevents scrolling the parent window. Secondary vertical/horizontal click-dragging supports VR/touchscreen use, with `Shift` (fine $0.1\times$) and `Ctrl` (coarse $2.0\times$) speed modifiers.
   * **Default `ResizeEW` (<-->) Cursor:** Shows horizontal range selection cursor by default on hover, confirming interactive status at a glance.
   * **Double-Click Reset / Detente Toggle:** Double-clicking the knob restores calibrated baseline default (or toggles between `OFF` and default).
+
+---
+
+### 8. Directional Popup Menus & Select Pulldowns (`imgui_popup_menus.h`)
+
+First-class popup anchoring and selection widgets solving directional placement, muscle-memory toggle protection, font-scale invariant alignment, and closed-state wheel pass-through:
+
+```cpp
+#include "contrib/widgets/imgui_popup_menus.h"
+
+// 1. Directional Item Anchoring (Status Bars & HUDs):
+// Blossoms UP above the button with sub-pixel precision:
+if (ImGui::Button("View Mode")) {
+    ImGui::OpenPopupAtItem("##ViewModeMenu", ImGuiPopupAnchor_AboveItem, ImGuiPopupAlign_Auto);
+}
+
+// 2. Begin Anchored Popup:
+if (ImGui::BeginAnchoredPopup("##ViewModeMenu")) {
+    if (ImGui::MenuItem("Circle View")) { SetView(0); }
+    if (ImGui::MenuItem("Spot View"))   { SetView(1); }
+    if (ImGui::MenuItem("Tower View"))  { SetView(2); }
+    ImGui::EndPopup();
+}
+
+// 3. Headroom Query for Window Managers / Subclasses (e.g. WidgetImgWindow):
+// Returns exact measured height in pixels so XPLM window expansion has zero guessing:
+float headroom = ImGui::GetLastPopupHeight("##ViewModeMenu");
+
+// 4. SelectPulldown Widget (Settings Window 1-Line Dataref Selectors):
+// Closed: ignores mouse-wheel (smooth parent list scrolling without accidental edits).
+// Open: mouse-wheel cycles active selection dynamically without closing menu!
+static int s_SelectedCam = 1;
+const char* const kCamModes[] = { "Circle", "Spot", "Tower", "Cockpit" };
+const char* const kCamTips[]  = { "Follow aircraft", "Fixed distance", "Tower view", "Pilot eye" };
+if (ImGui::SelectPulldown("##CameraMode", &s_SelectedCam, kCamModes, 4, kCamTips)) {
+    UpdateCamera(s_SelectedCam);
+}
+```
+
+* **Features:**
+  * **Font-Scale Invariant Placement:** Uses live `GetItemRectMin()` and `ItemSpacing.y` bounding geometry from the rendering frame, eliminating magic pixel offsets and text-zoom drift.
+  * **Muscle-Memory Toggle Safety:** Clicking the opener button while the popup is open cleanly toggles it closed without re-opening flicker.
+  * **Universal Widget Compatibility:** `OpenPopupAtItem()` anchors cleanly behind any widget: `ImGui::Button`, `ImGui::ButtonLink`, `ImGui::MD::ButtonMD`, `ImGui::Pill`, `ImGui::Badge`, or custom controls.
+  * **Exact Headroom Reporting:** `GetLastPopupHeight(str_id)` reports the measured pixel height for dynamic XPLM window expansion.
+  * **Scroll Pass-Through:** `SelectPulldown` never captures the mouse-wheel while closed, preventing unwanted dataref changes while scrolling settings.
 
 ---
 

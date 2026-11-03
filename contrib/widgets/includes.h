@@ -21,6 +21,7 @@
 //   #define CONTRIB_DISABLE_COPY_BUTTON           // Exclude CopyButton & CopyLastItemButton
 //   #define CONTRIB_DISABLE_KNOBS                 // Exclude Knob, DimmerKnob & RotaryDial
 //   #define CONTRIB_DISABLE_FILE_DIALOG           // Exclude FilePickerCombo, OpenFileDialog & SaveFileDialog
+//   #define CONTRIB_DISABLE_POPUP_MENUS           // Exclude SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
 //
 // Fine-grained opt-outs within imgui_mouse_wheel_controls.h:
 //   #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Exclude GetMouseWheel* primitives
@@ -59,6 +60,7 @@
 #include "imgui_copy_button.h"
 #include "imgui_knobs.h"
 #include "imgui_file_dialog.h"
+#include "imgui_popup_menus.h"
 
 #endif // !CONTRIB_DISABLE_WIDGETS
 
