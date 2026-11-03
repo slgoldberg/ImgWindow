@@ -598,7 +598,11 @@ namespace ImGui {
 
         // --- 5. Overwrite Confirmation Modal ---
         bool close_parent = false;
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18000
+        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+#else
         ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+#endif
         if (ImGui::BeginPopupModal(overwrite_popup_title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Spacing();
             ImGui::Text("A file named \"%s\" already exists.", state.pending_target.c_str());

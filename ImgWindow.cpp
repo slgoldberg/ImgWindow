@@ -437,9 +437,11 @@ ImgWindow::ImgWindow(
     }
 
 #ifndef IMGUI_V192_REFACTOR
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM < 18000)
 #ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
     // we render ourselves, we don't use the DrawListsFunc
     io.RenderDrawListsFn = nullptr;
+#endif
 #endif
 #endif /* IMGUI_V192_REFACTOR */
 

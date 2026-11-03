@@ -56,6 +56,24 @@
     #define IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER() do { GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect; } while (0)
   #endif
 #endif
+
+#ifndef ImDrawFlags_RoundCornersAll
+  #ifdef ImDrawCornerFlags_All
+    #define ImDrawFlags_RoundCornersAll ImDrawCornerFlags_All
+    #define ImDrawFlags_RoundCornersRight (ImDrawCornerFlags_TopRight | ImDrawCornerFlags_BotRight)
+    typedef ImDrawCornerFlags ImDrawFlags;
+  #else
+    #define ImDrawFlags_RoundCornersAll (0xF)
+    #define ImDrawFlags_RoundCornersRight (2 | 8)
+    typedef int ImDrawFlags;
+  #endif
+#endif
+
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM < 18000)
+  #ifndef ImGuiSliderFlags
+    typedef int ImGuiSliderFlags;
+  #endif
+#endif
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
@@ -336,6 +354,34 @@ namespace ImGui {
     namespace WheelSliderDetail {
 
         using Contrib::IsCurrentWindowScrollableY;
+
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18000
+        inline bool CallSliderFloat(const char* label, float* v, float v_min, float v_max, const char* format, ImGuiSliderFlags) {
+            return SliderFloat(label, v, v_min, v_max, format);
+        }
+        inline bool CallSliderInt(const char* label, int* v, int v_min, int v_max, const char* format, ImGuiSliderFlags) {
+            return SliderInt(label, v, v_min, v_max, format);
+        }
+        inline bool CallDragFloat(const char* label, float* v, float v_speed, float v_min, float v_max, const char* format, ImGuiSliderFlags) {
+            return DragFloat(label, v, v_speed, v_min, v_max, format);
+        }
+        inline bool CallDragInt(const char* label, int* v, float v_speed, int v_min, int v_max, const char* format, ImGuiSliderFlags) {
+            return DragInt(label, v, v_speed, v_min, v_max, format);
+        }
+#else
+        inline bool CallSliderFloat(const char* label, float* v, float v_min, float v_max, const char* format, ImGuiSliderFlags flags) {
+            return SliderFloat(label, v, v_min, v_max, format, flags);
+        }
+        inline bool CallSliderInt(const char* label, int* v, int v_min, int v_max, const char* format, ImGuiSliderFlags flags) {
+            return SliderInt(label, v, v_min, v_max, format, flags);
+        }
+        inline bool CallDragFloat(const char* label, float* v, float v_speed, float v_min, float v_max, const char* format, ImGuiSliderFlags flags) {
+            return DragFloat(label, v, v_speed, v_min, v_max, format, flags);
+        }
+        inline bool CallDragInt(const char* label, int* v, float v_speed, int v_min, int v_max, const char* format, ImGuiSliderFlags flags) {
+            return DragInt(label, v, v_speed, v_min, v_max, format, flags);
+        }
+#endif
 
         template<typename T>
         inline T Clamp(T v, T lo, T hi) {
@@ -1458,7 +1504,7 @@ namespace ImGui {
                                            ImGuiSliderFlags flags = 0,
                                            float wheel_step = 0.01f)
     {
-        bool changed = SliderFloat(label, v, v_min, v_max, format, flags);
+        bool changed = WheelSliderDetail::CallSliderFloat(label, v, v_min, v_max, format, flags);
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, wheel_step))
             changed = true;
         return changed;
@@ -1472,7 +1518,7 @@ namespace ImGui {
                                            ImGuiSliderFlags flags = 0,
                                            float wheel_step = 1.0f)
     {
-        bool changed = SliderInt(label, v, v_min, v_max, format, flags);
+        bool changed = WheelSliderDetail::CallSliderInt(label, v, v_min, v_max, format, flags);
         if (WheelSliderDetail::AdjustInt(v, v_min, v_max, wheel_step))
             changed = true;
         return changed;
@@ -1489,7 +1535,7 @@ namespace ImGui {
                                          ImGuiSliderFlags flags = 0,
                                          float wheel_step = 0.0f)
     {
-        bool changed = DragFloat(label, v, v_speed, v_min, v_max, format, flags);
+        bool changed = WheelSliderDetail::CallDragFloat(label, v, v_speed, v_min, v_max, format, flags);
         float step = (wheel_step > 0.0f) ? wheel_step : ((v_speed > 0.0f) ? v_speed : 1.0f);
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, step))
             changed = true;
@@ -1505,7 +1551,7 @@ namespace ImGui {
                                          ImGuiSliderFlags flags = 0,
                                          float wheel_step = 0.0f)
     {
-        bool changed = DragInt(label, v, v_speed, v_min, v_max, format, flags);
+        bool changed = WheelSliderDetail::CallDragInt(label, v, v_speed, v_min, v_max, format, flags);
         float step = (wheel_step > 0.0f) ? wheel_step : std::max(1.0f, v_speed);
         if (WheelSliderDetail::AdjustInt(v, v_min, v_max, step))
             changed = true;
@@ -1531,7 +1577,7 @@ namespace ImGui {
         if (!v) return false;
 
         float pct = *v * 100.0f;
-        bool changed = SliderFloat(label, &pct, v_min * 100.0f, v_max * 100.0f, format, flags);
+        bool changed = WheelSliderDetail::CallSliderFloat(label, &pct, v_min * 100.0f, v_max * 100.0f, format, flags);
         *v = pct / 100.0f;
 
         if (WheelSliderDetail::AdjustFloat(v, v_min, v_max, wheel_step))
@@ -1596,7 +1642,7 @@ namespace ImGui {
 
         // 1. Slider Track:
         PushItemWidth(slider_w);
-        bool changed = SliderFloat("##slider", v, v_min, v_max, format, flags);
+        bool changed = WheelSliderDetail::CallSliderFloat("##slider", v, v_min, v_max, format, flags);
         PopItemWidth();
         bool slider_active = IsItemActive();
 
@@ -1706,7 +1752,7 @@ namespace ImGui {
 
         // 1. Slider Track:
         PushItemWidth(slider_w);
-        bool changed = SliderInt("##slider", v, v_min, v_max, format, flags);
+        bool changed = WheelSliderDetail::CallSliderInt("##slider", v, v_min, v_max, format, flags);
         PopItemWidth();
         bool slider_active = IsItemActive();
 
@@ -1816,7 +1862,7 @@ namespace ImGui {
         // 1. Slider Track (Percent):
         float pct = *v * 100.0f;
         PushItemWidth(slider_w);
-        bool changed = SliderFloat("##slider", &pct, v_min * 100.0f, v_max * 100.0f, format, flags);
+        bool changed = WheelSliderDetail::CallSliderFloat("##slider", &pct, v_min * 100.0f, v_max * 100.0f, format, flags);
         PopItemWidth();
         *v = pct / 100.0f;
         bool slider_active = IsItemActive();
@@ -1929,7 +1975,7 @@ namespace ImGui {
 
         // 1. Drag Box:
         PushItemWidth(drag_w);
-        bool changed = DragFloat("##drag", v, v_speed, v_min, v_max, format, flags);
+        bool changed = WheelSliderDetail::CallDragFloat("##drag", v, v_speed, v_min, v_max, format, flags);
         PopItemWidth();
         bool drag_active = IsItemActive();
 
@@ -2041,7 +2087,7 @@ namespace ImGui {
 
         // 1. Drag Box:
         PushItemWidth(drag_w);
-        bool changed = DragInt("##drag", v, v_speed, v_min, v_max, format, flags);
+        bool changed = WheelSliderDetail::CallDragInt("##drag", v, v_speed, v_min, v_max, format, flags);
         PopItemWidth();
         bool drag_active = IsItemActive();
 

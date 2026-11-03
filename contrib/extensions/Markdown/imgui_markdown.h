@@ -264,6 +264,12 @@ namespace ImGui
     };
     typedef void                MarkdownCodeBlockCallback( const MarkdownCodeBlockData& data );
 
+#ifndef IMGUI_HAS_TABLE
+    typedef int ImGuiTableFlags;
+    typedef int ImGuiTableRowFlags;
+    typedef int ImGuiTableColumnFlags;
+#endif
+
     struct MarkdownTableState
     {
         size_t                  tableIndex = 0;                 // 0-based index of table in the markdown document
@@ -502,6 +508,7 @@ namespace ImGui
 			float		scale = ImGui::GetFontScale(false);// use parent's scale
 #endif
             float       lineStartX = ImGui::GetCurrentWindow()->WorkRect.Min.x;
+#if !defined(IMGUI_VERSION_NUM) || IMGUI_VERSION_NUM >= 18000
             if( ImGuiTable* cur_table = ImGui::GetCurrentTable() )
             {
                 if( cur_table->CurrentColumn != -1 && cur_table->CurrentColumn < cur_table->ColumnsCount )
@@ -509,6 +516,7 @@ namespace ImGui
                     lineStartX = cur_table->Columns[cur_table->CurrentColumn].WorkMinX;
                 }
             }
+#endif
             float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
             float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
@@ -2854,6 +2862,28 @@ namespace ImGui
         char table_id[64];
         snprintf( table_id, sizeof(table_id), "##md_table_%08x_%d", (unsigned int)header_hash, (int)table_idx );
 
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18000
+        // Pre-1.80 fallback: Dear ImGui did not introduce official BeginTable() until v1.80
+        float fallback_scale = ImGui::GetFontScale( false );
+        for( size_t col = 0; col < headers.size(); ++col )
+        {
+            if( col > 0 ) ImGui::SameLine( 0.0f, 16.0f * fallback_scale );
+            RenderTableCell( headers[col], TableColumnAlign::LEFT, true, mdConfig_ );
+        }
+        ImGui::Separator();
+        for( size_t row = 0; row < rows.size(); ++row )
+        {
+            for( size_t col = 0; col < rows[row].size(); ++col )
+            {
+                if( col > 0 ) ImGui::SameLine( 0.0f, 16.0f * fallback_scale );
+                RenderTableCell( rows[row][col], ( col < alignments.size() ) ? alignments[col] : TableColumnAlign::LEFT, false, mdConfig_ );
+            }
+        }
+        return;
+#endif
+
+#if !defined(IMGUI_VERSION_NUM) || IMGUI_VERSION_NUM >= 18000
+
         // Persistent sort & width state stored in ImGuiStorage for this deterministic table hash
         ImGuiID sort_col_key   = header_hash;
         ImGuiID sort_dir_key   = header_hash + 1;
@@ -3114,7 +3144,11 @@ namespace ImGui
                     }
 
                     ImGuiID header_id = ImGui::GetID( (const void*)(intptr_t)col );
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18300
+                    ImGui::ItemAdd( cell_r, header_id, NULL );
+#else
                     ImGui::ItemAdd( cell_r, header_id, NULL, ImGuiItemFlags_NoNav );
+#endif
                     bool hovered = false, held = false;
                     bool pressed = ImGui::ButtonBehavior( cell_r, header_id, &hovered, &held, ImGuiButtonFlags_AllowOverlap );
 
@@ -3265,7 +3299,11 @@ namespace ImGui
                 ImRect grip_r( right_x - hit_half_w, top_y, right_x + hit_half_w, bot_y );
                 ImGuiID grip_id = ImGui::GetID( "##md_table_right_resize_grip" );
 
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18300
+                ImGui::ItemAdd( grip_r, grip_id, NULL );
+#else
                 ImGui::ItemAdd( grip_r, grip_id, NULL, ImGuiItemFlags_NoNav );
+#endif
                 bool grip_hovered = false, grip_held = false;
                 bool grip_pressed = ImGui::ButtonBehavior( grip_r, grip_id, &grip_hovered, &grip_held,
                     ImGuiButtonFlags_FlattenChildren | ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_PressedOnDoubleClick );
@@ -3388,6 +3426,7 @@ namespace ImGui
         }
 
         ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
+#endif // IMGUI_VERSION_NUM >= 18000
     }
 
     inline void RenderTableBlock(
@@ -4438,6 +4477,7 @@ namespace ImGui
 		float		scale = ImGui::GetFontScale(false);	  // use parent's scale
 #endif
             float       lineStartX = ImGui::GetCurrentWindow()->WorkRect.Min.x;
+#if !defined(IMGUI_VERSION_NUM) || IMGUI_VERSION_NUM >= 18000
             if( ImGuiTable* cur_table = ImGui::GetCurrentTable() )
             {
                 if( cur_table->CurrentColumn != -1 && cur_table->CurrentColumn < cur_table->ColumnsCount )
@@ -4445,6 +4485,7 @@ namespace ImGui
                     lineStartX = cur_table->Columns[cur_table->CurrentColumn].WorkMinX;
                 }
             }
+#endif
             float       usedOnLine = ImMax( 0.0f, ImGui::GetCursorScreenPos().x - lineStartX );
             float       widthLeft = ( wrapWidth > 0.0f ) ? ImMax( 10.0f, wrapWidth - usedOnLine ) : GetContentRegionAvail().x;
             const char* endLine = ImGui::GetFont()->CalcWordWrapPositionA( scale, text_, text_end_, widthLeft );
