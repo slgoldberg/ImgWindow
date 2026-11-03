@@ -210,6 +210,7 @@ Historically, `ImgWindow` v1 only managed the **Font Atlas texture** for you. If
 
 In **`ImgWindow v2`**, you don't even have to do that anymore!
 * `ImgWindow::CreateTexture(rgba_pixels, width, height)` takes your raw RGBA image bytes and creates the underlying texture on whichever backend X-Plane is running (Panel Graphics or OpenGL) behind the scenes, returning a standard `ImTextureID` you can pass straight to `ImGui::Image()`.
+* **Turnkey In-Memory Texture Service (`ImgWindow::RegisterMemoryImage`)**: You can register static PNG/JPG byte arrays compiled into your plugin (e.g. `RegisterMemoryImage("beacon", bytes, len, &w, &h)`) with zero disk I/O. It automatically aliases the texture for C++ (`ImGui::ImageNamed("beacon")`), Markdown (`![Beacon](beacon)`), `StyledText` (`<img name='beacon' />`), and native icon capsules (`<pill icon=beacon color=#2ecc71>ACTIVE</pill>`).
 * That means **you can delete 100% of custom OpenGL code from your plugin**, let `ImgWindow v2` manage all of your textures alongside the font atlas, and get native Panel Graphics + OpenGL compatibility for free.
 
 ---

@@ -242,6 +242,75 @@ void deleteImage() {
 
 ---
 
+## ⚡ Step 5: Turnkey In-Memory Image Service (`ImgWindow::RegisterMemoryImage`)
+
+If your plugin bundles embedded images (e.g. static `.h` or `.png` byte arrays compiled directly into your binary) or downloads images from memory streams, `ImgWindow v2.3.0+` provides a turnkey **In-Memory Image Service** (codenamed `xyzzy`).
+
+It handles the entire lifecycle—decoding PNG/JPG buffers via embedded `stb_image`, uploading to the active GPU driver (OpenGL, Vulkan, or Metal), caching dimensions, and registering global texture aliases—with **zero disk I/O and a single line of C++**:
+
+```cpp
+#include "ImgWindow.h"
+
+// Static embedded PNG array:
+static const unsigned char g_AvionicsBeaconPng[] = { 0x89, 0x50, 0x4e, 0x47, ... };
+
+void InitializePluginAssets() {
+    int w = 0, h = 0;
+    // Register by identifier:
+    ImTextureID tex = ImgWindow::RegisterMemoryImage(
+        "avionics_beacon", 
+        g_AvionicsBeaconPng, 
+        sizeof(g_AvionicsBeaconPng), 
+        &w, &h
+    );
+}
+```
+
+### 1. Automatic Unified Markdown & StyledText Aliasing
+Registering a memory image automatically aliases it for all Markdown and `StyledText` consumers:
+* **Standard Markdown**:
+  ```markdown
+  ![Beacon Icon](avionics_beacon)
+  ![Beacon Fixed Width](<avionics_beacon =32x0>)
+  ```
+* **Inline StyledText**:
+  ```cpp
+  ImGui::StyledText("Transponder: <img name='avionics_beacon' width=24 height=24 /> ACTIVE");
+  ```
+
+### 2. Native Icon Badges, Pills & Unary Annunciators
+Memory images automatically bridge directly into `ImGui::Badge` and `ImGui::Pill`:
+* **Embedded Icon Capsules**:
+  ```markdown
+  * Transponder: <pill icon=avionics_beacon color=#2ecc71>ACTIVE</pill>
+  * Pitot Heat:  <pill icon=avionics_beacon orange>ON</pill>
+  * Firmware:    <badge icon=avionics_beacon>v1.14</badge>
+  ```
+* **Standalone Unary Annunciators (No Closing Tag)**:
+  ```markdown
+  * Master Warning: <pill icon=avionics_beacon color=#e74c3c />
+  * Marker Beacon:  <pill icon=avionics_beacon color=#f39c12 />
+  * Hardware Key:   <badge icon=avionics_beacon />
+  ```
+* **Direct C++ APIs**:
+  ```cpp
+  // Draw named image directly with automatic aspect ratio scaling:
+  ImGui::ImageNamed("avionics_beacon", ImVec2(24.0f, 0.0f)); // 0 height = auto-calculated
+
+  // Draw icon pills and badges:
+  ImGui::PillNamed("avionics_beacon", "ACTIVE", 0xFF2ECC71);
+  ImGui::PillNamed("avionics_beacon", 0xFFE74C3C); // Unary icon-only annunciator
+  ImGui::BadgeNamed("avionics_beacon", "v1.14");
+  ```
+
+### 3. Cleanup & Unregistration
+You can explicitly unregister a texture at runtime, or let `ImgWindow::Shutdown()` automatically purge all registered memory images from VRAM upon plugin disable:
+```cpp
+ImgWindow::UnregisterMemoryImage("avionics_beacon");
+```
+
+---
+
 ## 🧭 What's Next?
 
 * 🚀 **Migrating an existing plugin framework?**

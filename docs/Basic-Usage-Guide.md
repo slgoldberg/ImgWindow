@@ -224,6 +224,48 @@ Instead, always call **`SafeDelete()`**, which is an `ImgWindow` helper method. 
 
 &rarr;&nbsp;_Note: don't confuse the `ImgWindow::SafeDelete()` helper method with the `ImgWindow::DeleteTexture()` method! **They serve completely different purposes!**_
 
+---
+
+## 4. Modern UI & Typography Enhancements (`v2.3.0+`)
+
+Starting in `ImgWindow v2.3.0`, the framework includes high-level architectural services for semantic typography, memory imagery, and first-class menus:
+
+### 4.1 Semantic Font Roles (`ImFontRole`)
+Instead of hardcoding raw pointer manipulations or guessing font indices, `ImgWindow` provides a semantic font registry:
+* **Roles:** `ImFontRole::Title`, `ImFontRole::Header`, `ImFontRole::Body`, `ImFontRole::Small`, and `ImFontRole::Mono`.
+* **4-Tier Fallback Hierarchy:** If an explicit font role is not configured, it gracefully falls back (e.g. `Title` $\rightarrow$ `Header` $\rightarrow$ `Body` $\rightarrow$ `DefaultFont`), guaranteeing that UI text never crashes.
+* **RAII Scoped Guards:**
+  ```cpp
+  {
+      ScopedFontRole guard(ImFontRole::Header);
+      ImGui::Text("Avionics Status");
+  } // Automatically restores previous font stack state upon exiting scope
+  ```
+
+### 4.2 In-Memory Image Service (`ImgWindow::RegisterMemoryImage`)
+Load static `.png` or `.jpg` byte arrays compiled into your plugin directly into GPU textures with zero disk I/O:
+```cpp
+int w = 0, h = 0;
+ImgWindow::RegisterMemoryImage("my_badge", g_PngBytes, sizeof(g_PngBytes), &w, &h);
+
+// Use in C++:
+ImGui::ImageNamed("my_badge", ImVec2(32.0f, 0.0f)); // Auto-computed height!
+
+// Or in Markdown & StyledText:
+ImGui::TextMD("![Badge](my_badge)");
+ImGui::StyledText("Transponder: <img name='my_badge' width=24 height=24 /> ACTIVE");
+```
+
+### 4.3 Directional Popups & SelectPulldown
+* **Anchored Popups (`OpenPopupAtItem` & `BeginAnchoredPopup`)**:
+  Anchor popups above (`ImGuiPopupAnchor_AboveItem`) or below buttons with sub-pixel precision, font-scale invariant geometry, and muscle-memory toggle protection.
+* **Headroom Queries (`GetLastPopupHeight`)**:
+  Allows window subclasses (like `WidgetImgWindow`) to query exact measured popup height in pixels for dynamic XPLM window expansion.
+* **SelectPulldown**:
+  Compact 1-line dataref selectors with closed-state scroll pass-through and open-state wheel cycling.
+
+---
+
 ## What's Next?
 Once you understand the basic usage model, you can safely write your UI code without worrying about how X-Plane actually gets it onto the screen.
 

@@ -84,15 +84,19 @@ ImgWindow/
     │
     ├── extensions/                        # Feature-complete ImGui::<Package>:: subsystems
     │   ├── TimedTooltip/                  # Stationary & delayed tooltip engine with auto-bounds clamping
-    │   └── Markdown/                      # Markdown parser & renderer with dynamic font scaling & tags
+    │   ├── Markdown/                      # Markdown parser & renderer with dynamic font scaling & tags
+    │   └── Typography/                    # Semantic font roles (ImFontRole) & inline StyledText engine
     │
     └── widgets/                           # Lightweight, immediate-mode ImGui:: UI controls
         ├── imgui_toggle_buttons.h         # Animated toggle switches & segmented button pairs
         ├── imgui_mouse_wheel_controls.h   # Sliders, drags, combos & chasers with mouse-wheel support
         ├── imgui_clickable_links.h        # ButtonLink, TextLink, MenuItemLink & AttachItemCursor affordances
-        ├── imgui_badges.h                 # Standalone C++ status badges, pills, and 3D keycaps (<kbd>)
+        ├── imgui_badges.h                 # Status badges, pills, icon capsules, unary annunciators, and <kbd>
         ├── imgui_spinners.h               # Procedural activity spinners & radial countdown dials
-        └── imgui_copy_button.h            # Standalone & chaser copy buttons with vector icons & feedback
+        ├── imgui_copy_button.h            # Standalone & chaser copy buttons with vector icons & feedback
+        ├── imgui_knobs.h                  # Avionics rotary knobs, dimmer dials & 2-step OFF detente switches
+        ├── imgui_file_dialog.h            # In-sim file open / save dialogs without modal window freezes
+        └── imgui_popup_menus.h            # Directional popups, item anchoring & SelectPulldown widgets
 ```
 
 ### 1. Packages & Extensions (`contrib/extensions/`)
@@ -114,6 +118,7 @@ Everything in `contrib/` is **active and ready by default**. If your project hap
 | **`CONTRIB_DISABLE_WIDGETS`** | **Opt-Out** | *Off* | Excludes all contributed widgets (`contrib/widgets/`). |
 | **`CONTRIB_DISABLE_TIMED_TOOLTIP`** | **Opt-Out** | *Off* | Excludes the `TimedTooltip` extension. |
 | **`CONTRIB_DISABLE_MARKDOWN`** | **Opt-Out** | *Off* | Excludes the `Markdown` extension. |
+| **`CONTRIB_DISABLE_TYPOGRAPHY`** | **Opt-Out** | *Off* | Excludes the `Typography` and `StyledText` extension. |
 | **`CONTRIB_DISABLE_TEXT_MD`** | **Opt-Out** | *Off* | Excludes all root `ImGui::TextMD` / `TextWrappedMD` aliases. |
 | **`CONTRIB_DISABLE_TEXT_WRAPPED_MD`** | **Opt-Out** | *Off* | Excludes ONLY root `ImGui::TextWrappedMD` (retains `TextMD`). |
 | **`CONTRIB_DISABLE_TOGGLE_BUTTONS`** | **Opt-Out** | *Off* | Excludes `ToggleButton` and `ToggleButtons`. |
@@ -123,6 +128,9 @@ Everything in `contrib/` is **active and ready by default**. If your project hap
 | **`CONTRIB_DISABLE_BADGES`**          | **Opt-Out** | *Off* | Excludes standalone `Badge`, `Pill`, and `Kbd` widgets. |
 | **`CONTRIB_DISABLE_SPINNERS`**        | **Opt-Out** | *Off* | Excludes `Spinner`, `RadialTimer`, and `CountdownTimer`. |
 | **`CONTRIB_DISABLE_COPY_BUTTON`**    | **Opt-Out** | *Off* | Excludes `CopyButton` and `CopyLastItemButton`. |
+| **`CONTRIB_DISABLE_KNOBS`**          | **Opt-Out** | *Off* | Excludes `Knob`, `DimmerKnob`, and `RotaryDial`. |
+| **`CONTRIB_DISABLE_FILE_DIALOG`**    | **Opt-Out** | *Off* | Excludes `OpenFileDialog`, `SaveFileDialog`, and file pickers. |
+| **`CONTRIB_DISABLE_POPUP_MENUS`**    | **Opt-Out** | *Off* | Excludes `SelectPulldown`, `OpenPopupAtItem`, and `BeginAnchoredPopup`. |
 | **`CONTRIB_DISABLE_PERCENT_SLIDER`** | **Opt-Out** | *Off* | Excludes `PercentSlider` and `SliderPercent`. |
 | **`CONTRIB_DISABLE_MOUSE_WHEEL_COMBO`** | **Opt-Out** | *Off* | Excludes `MouseWheelCombo` and `ComboWithReset`. |
 | **`IMGUI_CONTRIB_DISABLE_RESET_UNDO`** | **Opt-Out** | *Off* | Disables 1-click Reset-with-Undo on reset buttons. |
