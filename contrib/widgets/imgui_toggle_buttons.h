@@ -32,6 +32,14 @@
 
 #include <cmath>
 
+#if !defined(IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER)
+  #if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18500
+    #define IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER() do { if (GImGui->CurrentWindow) GImGui->CurrentWindow->DC.LastItemStatusFlags &= ~ImGuiItemStatusFlags_HoveredRect; } while (0)
+  #else
+    #define IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER() do { GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect; } while (0)
+  #endif
+#endif
+
 #ifndef IMGUI_EXTRA_TOGGLE_DEFAULT_CURSOR
 #define IMGUI_EXTRA_TOGGLE_DEFAULT_CURSOR ImGuiMouseCursor_Hand
 #endif
@@ -377,7 +385,7 @@ namespace ImGui {
 #endif
 
         if (changed || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         if (item_tooltips) {
@@ -685,7 +693,7 @@ namespace ImGui {
 #endif
 
         if (changed || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         return changed;

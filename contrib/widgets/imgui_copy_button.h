@@ -270,7 +270,11 @@ namespace ImGui {
 
 #if defined(IMGUI_CONTRIB_INTERNAL_INCLUDED) || defined(IMGUI_INTERNAL_H)
         ImGuiContext& g = *GImGui;
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18500
+        ImGuiID prev_id = g.CurrentWindow ? g.CurrentWindow->DC.LastItemId : 0;
+#else
         ImGuiID prev_id = g.LastItemData.ID;
+#endif
 
         if (prev_id != 0)
         {
@@ -283,10 +287,12 @@ namespace ImGui {
             {
                 text_to_copy = g.InputTextState.TextA.Data;
             }
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM >= 18700
             else if (g.InputTextDeactivatedState.ID == prev_id && g.InputTextDeactivatedState.TextA.Data)
             {
                 text_to_copy = g.InputTextDeactivatedState.TextA.Data;
             }
+#endif
         }
 #endif
 

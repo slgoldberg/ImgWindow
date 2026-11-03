@@ -53,6 +53,14 @@
     #include "imgui_internal.h"
 #endif
 
+#if !defined(IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER)
+  #if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18500
+    #define IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER() do { if (GImGui->CurrentWindow) GImGui->CurrentWindow->DC.LastItemStatusFlags &= ~ImGuiItemStatusFlags_HoveredRect; } while (0)
+  #else
+    #define IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER() do { GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect; } while (0)
+  #endif
+#endif
+
 #include <cmath>
 #include <algorithm>
 #include <cstdio>
@@ -470,7 +478,7 @@ namespace Detail {
 #if defined(IMGUI_TOOLTIP_EXT_H)
             TimedTooltip::ClearActiveTooltip();
 #endif
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         return value_changed;
@@ -641,7 +649,12 @@ namespace Detail {
 
         PopID();
         EndGroup();
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18500
+        if (g.CurrentWindow)
+            g.CurrentWindow->DC.LastItemId = group_id;
+#else
         g.LastItemData.ID = group_id;
+#endif
 
         if (knob_active || is_scrolling || changed) {
 #if defined(IMGUI_TOOLTIP_EXT_H)
@@ -650,7 +663,7 @@ namespace Detail {
         }
 
         if (reset_hovered || knob_active || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
         return changed;
     }

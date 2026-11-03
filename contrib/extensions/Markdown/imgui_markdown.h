@@ -38,6 +38,18 @@
   #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
 #endif
 
+#ifndef ImGuiButtonFlags_AllowOverlap
+  #ifdef ImGuiButtonFlags_AllowItemOverlap
+    #define ImGuiButtonFlags_AllowOverlap ImGuiButtonFlags_AllowItemOverlap
+  #else
+    #define ImGuiButtonFlags_AllowOverlap (1 << 12)
+  #endif
+#endif
+
+#ifndef ImTrunc
+  #define ImTrunc(v) ((float)(int)(v))
+#endif
+
 namespace ImGui {
 namespace Contrib {
     inline bool& GetMouseWheelAutoDefeatEnabled() {
@@ -3101,7 +3113,7 @@ namespace ImGui
                         cell_r.Max.y = cell_r.Min.y + header_h;
                     }
 
-                    ImGuiID header_id = ImGui::GetID( (int)col );
+                    ImGuiID header_id = ImGui::GetID( (const void*)(intptr_t)col );
                     ImGui::ItemAdd( cell_r, header_id, NULL, ImGuiItemFlags_NoNav );
                     bool hovered = false, held = false;
                     bool pressed = ImGui::ButtonBehavior( cell_r, header_id, &hovered, &held, ImGuiButtonFlags_AllowOverlap );

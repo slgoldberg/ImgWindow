@@ -2874,7 +2874,11 @@ ImgWindow::ClearActiveInputTextIfClickedOutside()
                 const ImRect& relRect = activeWindow->NavRectRel[layer];
                 if (!relRect.IsInverted())
                 {
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM >= 18900
                     ImRect absRect = ImGui::WindowRectRelToAbs(activeWindow, relRect);
+#else
+                    ImRect absRect(relRect.Min.x + activeWindow->Pos.x, relRect.Min.y + activeWindow->Pos.y, relRect.Max.x + activeWindow->Pos.x, relRect.Max.y + activeWindow->Pos.y);
+#endif
                     absRect.ClipWith(activeWindow->ClipRect);
                     if (!absRect.Contains(io.MousePos))
                     {

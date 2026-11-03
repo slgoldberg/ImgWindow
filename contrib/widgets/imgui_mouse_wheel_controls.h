@@ -48,6 +48,14 @@
 
 #include "imgui.h"
 #include <cmath>
+
+#if !defined(IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER)
+  #if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM < 18500
+    #define IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER() do { if (GImGui->CurrentWindow) GImGui->CurrentWindow->DC.LastItemStatusFlags &= ~ImGuiItemStatusFlags_HoveredRect; } while (0)
+  #else
+    #define IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER() do { GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect; } while (0)
+  #endif
+#endif
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
@@ -277,6 +285,7 @@ namespace Detail {
   #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
 #endif
 
+
 namespace ImGui {
 namespace Contrib {
     inline bool& GetMouseWheelAutoDefeatEnabled() {
@@ -425,7 +434,7 @@ namespace ImGui {
                 }
 
                 // Active wheel scrolling isolates hover from downstream chasers (e.g. TimedTooltip)
-                GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+                IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
             }
 
             if (setCustomCursor) {
@@ -482,7 +491,7 @@ namespace ImGui {
                 }
 
                 // Active wheel scrolling isolates hover from downstream chasers (e.g. TimedTooltip)
-                GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+                IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
             }
 
             if (setCustomCursor) {
@@ -969,7 +978,7 @@ namespace ImGui {
             TimedTooltip::ClearActiveTooltip();
 #endif
             if (clicks != 0.0f) {
-                GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+                IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
             }
         }
         return cycled;
@@ -1050,7 +1059,7 @@ namespace ImGui {
             TimedTooltip::ClearActiveTooltip();
 #endif
             if (clicks != 0.0f) {
-                GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+                IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
             }
         }
         return changed;
@@ -1664,7 +1673,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || slider_active || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         return changed;
@@ -1773,7 +1782,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || slider_active || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         return changed;
@@ -1885,7 +1894,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || slider_active || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         return changed;
@@ -1998,7 +2007,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || drag_active || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         return changed;
@@ -2109,7 +2118,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || drag_active || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         return changed;
@@ -2231,7 +2240,7 @@ namespace ImGui {
 #endif
         }
         if (popup_open || combo_header_active || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
         return changed;
     }
@@ -2365,7 +2374,7 @@ namespace ImGui {
         }
 
         if (reset_hovered || popup_open || combo_header_active || is_scrolling) {
-            GImGui->LastItemData.StatusFlags &= ~ImGuiItemStatusFlags_HoveredRect;
+            IMGUI_CONTRIB_CLEAR_LAST_ITEM_HOVER();
         }
 
         return changed;

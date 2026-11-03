@@ -260,12 +260,15 @@ namespace ImGui {
     // Dear ImGui's hyperlink, `TextLink` is redirected to `TextLinkContrib` below
     // (with Dear ImGui's native hyperlink preserved as `ImGui::NativeTextLink`).
 
+    // Forward declaration for NativeTextLink fallback
+    inline IMGUI_API LinkClickResult TextLinkContrib(const char* label, const ImVec4* col_override);
+
     inline IMGUI_API bool NativeTextLink(const char* label)
     {
 #if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM >= 19090
         return ::ImGui::TextLink(label);
 #else
-        return TextLinkContrib(label);
+        return (bool)TextLinkContrib(label, nullptr);
 #endif
     }
 
