@@ -107,16 +107,45 @@ ImGui::StyledTextWrapped("Notice: Route clearance is <i>pending</i> from <color=
 
 | Tag | Example Syntax | Description |
 | :--- | :--- | :--- |
-| **Bold** | `<b>bold text</b>` | Applies `ImFontRole::Bold` (or falls back to Header/Default) |
-| **Italic** | `<i>italic text</i>` | Applies `ImFontRole::Italic` |
-| **Monospace** | `<m>code</m>` or `<mono>code</mono>` | Applies `ImFontRole::Mono` |
+| **Small** | `<small>reduced text</small>` | Applies `ImFontRole::Small` (Slot 2, typically 12px / -2px) |
+| **Tiny** | `<tiny>micro text</tiny>` | Applies `ImFontRole::Tiny` (10px micro font, or fallback to `Small`) |
+| **Big / Large** | `<big>larger text</big>` or `<large>...</large>` | Applies `ImFontRole::Title` (Slot 1, typically 16px / +2px) |
+| **Huge** | `<huge>hero text</huge>` | Applies `ImFontRole::BoldLarge` (Slot 4, 16px+ bold) |
+| **Regular** | `<regular>normal</regular>` or `<sans>...</sans>` | Applies `ImFontRole::Regular` (Slot 0 default body font) |
+| **Bold** | `<b>bold text</b>` or `<strong>...</strong>` | Applies `ImFontRole::Bold` (Slot 3) |
+| **Italic** | `<i>italic text</i>` or `<em>...</em>` | Applies `ImFontRole::Italic` (Slot 6) |
+| **Monospace** | `<mono>code</mono>` or `<code>code</code>` | Applies `ImFontRole::Monospace` (Slot 5) |
 | **Color** | `<color=red>warning</color>` or `<color=#ffaa00>caution</color>` | Applies foreground text color (named or hex) |
-| **Headings** | `<h1>Title</h1>`, `<h2>Section</h2>` | Applies Title / Header font roles |
+| **Headings** | `<h1>Banner</h1>`, `<h2>Section</h2>`, `<h3>Subsection</h3>` | Applies Heading1..3 / Title / Bold font roles |
 | **Badges** | `<badge=primary>v1.14</badge>` | Inline rounded badge pill |
 | **Pills** | `<pill color=#2ecc71>ARMED</pill>` | Interactive status pill with background color |
 | **Keys** | `<kbd>Ctrl+C</kbd>` | 3D-styled keyboard keycap |
 | **Textures** | `<img name="my_logo" width=24 height=24 />` | In-memory texture registered via `ImgWindow::RegisterMemoryImage` |
 | **Vector Icons**| `<icon caret-up />`, `:gear:`, `▲` | Procedural vector icon from `imgui_icons.h` |
+
+---
+
+## 3. Direct Semantic Text Helpers (`imgui_font_roles.h`)
+
+For standard Dear ImGui UI layouts where XML tags are not needed, direct wrapper functions render text immediately with semantic font roles:
+
+```cpp
+#include "contrib/extensions/Typography/imgui_font_roles.h"
+
+// Formatted and unformatted small text (Slot 2, 12px):
+ImGui::SmallText("Altitude: %.0f ft", altitude);
+ImGui::SmallTextUnformatted("Captions and secondary subtext");
+
+// Micro tiny text (Slot 2 fallback or dedicated 10px):
+ImGui::TinyText("v1.0.2 [Beta]");
+ImGui::TinyTextUnformatted("FAA Advisory Circular AC 90-66B");
+
+// Title / header text (Slot 1, 16px):
+ImGui::TitleText("Flight Plan: %s -> %s", dep, dest);
+
+// Monospace text (Slot 5):
+ImGui::MonoText("ICAO: %s | SQUAWK: %04d", callsign, squawk);
+```
 
 ---
 

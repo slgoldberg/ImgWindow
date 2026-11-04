@@ -70,6 +70,23 @@
 #endif
 #endif
 
+#if !defined(CONTRIB_DISABLE_TYPOGRAPHY) && \
+    !defined(IMGUI_CONTRIB_DISABLE_TYPOGRAPHY) && \
+    !defined(IMGUI_DISABLE_CONTRIB_TYPOGRAPHY) && \
+    !defined(IMGUI_DISABLE_TYPOGRAPHY) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_TYPOGRAPHY) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB)
+#if defined(__has_include)
+    #if __has_include("../Typography/imgui_font_roles.h")
+        #include "../Typography/imgui_font_roles.h"
+        #define CONTRIB_HAS_TYPOGRAPHY 1
+    #endif
+#else
+    #include "../Typography/imgui_font_roles.h"
+    #define CONTRIB_HAS_TYPOGRAPHY 1
+#endif
+#endif
+
 namespace ImGui {
 
     // -------------------------------------------------------------------------
@@ -683,6 +700,13 @@ namespace ImGui {
                         std::string params = (name_end < tag_close) ? std::string(text + name_end, tag_close - name_end) : "";
                         MarkdownTagStyle style = ParseMarkdownTagStyle(inner, params);
                         ImFont* tf = cur_font ? cur_font : base_font;
+#if defined(CONTRIB_HAS_TYPOGRAPHY) || defined(IMGUI_FONT_ROLES_H)
+                        if (tag_name == "small") tf = ImGui::GetFont(ImFontRole::Small);
+                        else if (tag_name == "tiny") tf = ImGui::GetFont(ImFontRole::Tiny);
+                        else if (tag_name == "big" || tag_name == "large") tf = ImGui::GetFont(ImFontRole::Title);
+                        else if (tag_name == "huge") tf = ImGui::GetFont(ImFontRole::BoldLarge);
+                        else if (tag_name == "regular" || tag_name == "prop" || tag_name == "sans") tf = ImGui::GetFont(ImFontRole::Regular);
+#endif
                         if (!tf) tf = ImGui::GetFont();
                         ImVec2 inner_sz = tf->CalcTextSizeA(font_size, FLT_MAX, 0.0f, style.clean_text.c_str(), style.clean_text.c_str() + style.clean_text.size());
                         float icon_w = 0.0f;
@@ -1532,6 +1556,56 @@ namespace ImGui {
             };
             s_CustomTags["icon"] = iconHandler;
 #endif
+#endif
+
+#if defined(CONTRIB_HAS_TYPOGRAPHY) || defined(IMGUI_FONT_ROLES_H)
+            auto sizedTextHandler = [](const std::string& inner_text, const std::string& param, ImFontRole role) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+
+                ImGui::PushFontRole(role);
+
+                ImVec4 col = ImGui::GetStyle().Colors[ImGuiCol_Text];
+                bool has_col = false;
+                std::string col_str = !style.fg_color.empty() ? style.fg_color : (!style.color_param.empty() ? style.color_param : style.bg_color);
+                if (!col_str.empty()) {
+                    has_col = ParseMarkdownColor(col_str, col);
+                    if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
+                }
+
+                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
+                EnsureTagFitsOnLine(text_size.x);
+
+                bool no_wrap = (config && config->wrapWidth < 0.0f);
+                float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
+                if (no_wrap || text_size.x <= avail_w) {
+                    ImGui::TextUnformatted(style.clean_text.c_str());
+                } else {
+                    float wrap_pos = (config && config->wrapWidth > 0.0f) ? (ImGui::GetCursorPos().x + config->wrapWidth) : 0.0f;
+                    ImGui::PushTextWrapPos(wrap_pos);
+                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    ImGui::PopTextWrapPos();
+                }
+
+                if (style.is_strike) {
+                    DrawTextDecorationLine(ImGui::GetColorU32(has_col ? col : ImGui::GetStyle().Colors[ImGuiCol_Text]), true);
+                }
+                if (style.is_underline) {
+                    DrawTextDecorationLine(ImGui::GetColorU32(has_col ? col : ImGui::GetStyle().Colors[ImGuiCol_Text]), false);
+                }
+
+                if (has_col) ImGui::PopStyleColor();
+                ImGui::PopFontRole();
+            };
+
+            s_CustomTags["small"]   = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Small); };
+            s_CustomTags["tiny"]    = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Tiny); };
+            s_CustomTags["big"]     = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Title); };
+            s_CustomTags["large"]   = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Title); };
+            s_CustomTags["huge"]    = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::BoldLarge); };
+            s_CustomTags["regular"] = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Regular); };
+            s_CustomTags["prop"]    = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Regular); };
+            s_CustomTags["sans"]    = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Regular); };
 #endif
         }
         return s_CustomTags;

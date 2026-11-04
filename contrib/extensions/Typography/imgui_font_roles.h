@@ -17,6 +17,7 @@
 #include "imgui.h"
 #include <cstddef>
 #include <string>
+#include <cstdarg>
 
 namespace ImGui {
 
@@ -33,6 +34,7 @@ namespace ImGui {
         Heading1,           // Markdown H1 banner title
         Heading2,           // Markdown H2 section header
         Heading3,           // Markdown H3 subsection header
+        Tiny,               // Micro subtext, footnotes, annunciator labels (e.g. Roboto 10px / fallback to Small)
         Count
     };
 
@@ -100,6 +102,10 @@ namespace ImGui {
                 f = GetFont(ImFontRole::Monospace);
                 if (f) return f;
                 break;
+            case ImFontRole::Tiny:
+                f = GetFont(ImFontRole::Small);
+                if (f) return f;
+                break;
             default:
                 break;
         }
@@ -138,6 +144,82 @@ namespace ImGui {
             PopFontRole();
         }
     };
+
+    // ========================================================================
+    // Semantic Font Role Direct Text Helpers
+    // ========================================================================
+
+    /** Renders unformatted text using ImFontRole::Small (Slot 2, typically 12px) */
+    inline void SmallTextUnformatted(const char* text, const char* text_end = nullptr) {
+        PushFontRole(ImFontRole::Small);
+        ImGui::TextUnformatted(text, text_end);
+        PopFontRole();
+    }
+
+    /** Renders formatted text using ImFontRole::Small (Slot 2, typically 12px) */
+    inline void SmallText(const char* fmt, ...) IM_FMTARGS(1);
+    inline void SmallText(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        PushFontRole(ImFontRole::Small);
+        ImGui::TextV(fmt, args);
+        PopFontRole();
+        va_end(args);
+    }
+
+    /** Renders unformatted text using ImFontRole::Tiny (Slot 2 fallback or dedicated 10px) */
+    inline void TinyTextUnformatted(const char* text, const char* text_end = nullptr) {
+        PushFontRole(ImFontRole::Tiny);
+        ImGui::TextUnformatted(text, text_end);
+        PopFontRole();
+    }
+
+    /** Renders formatted text using ImFontRole::Tiny (Slot 2 fallback or dedicated 10px) */
+    inline void TinyText(const char* fmt, ...) IM_FMTARGS(1);
+    inline void TinyText(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        PushFontRole(ImFontRole::Tiny);
+        ImGui::TextV(fmt, args);
+        PopFontRole();
+        va_end(args);
+    }
+
+    /** Renders unformatted text using ImFontRole::Title (Slot 1, typically 16px) */
+    inline void TitleTextUnformatted(const char* text, const char* text_end = nullptr) {
+        PushFontRole(ImFontRole::Title);
+        ImGui::TextUnformatted(text, text_end);
+        PopFontRole();
+    }
+
+    /** Renders formatted text using ImFontRole::Title (Slot 1, typically 16px) */
+    inline void TitleText(const char* fmt, ...) IM_FMTARGS(1);
+    inline void TitleText(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        PushFontRole(ImFontRole::Title);
+        ImGui::TextV(fmt, args);
+        PopFontRole();
+        va_end(args);
+    }
+
+    /** Renders unformatted text using ImFontRole::Monospace (Slot 5, code / datarefs) */
+    inline void MonoTextUnformatted(const char* text, const char* text_end = nullptr) {
+        PushFontRole(ImFontRole::Monospace);
+        ImGui::TextUnformatted(text, text_end);
+        PopFontRole();
+    }
+
+    /** Renders formatted text using ImFontRole::Monospace (Slot 5, code / datarefs) */
+    inline void MonoText(const char* fmt, ...) IM_FMTARGS(1);
+    inline void MonoText(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        PushFontRole(ImFontRole::Monospace);
+        ImGui::TextV(fmt, args);
+        PopFontRole();
+        va_end(args);
+    }
 
 } // namespace ImGui
 

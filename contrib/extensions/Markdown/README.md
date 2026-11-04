@@ -507,6 +507,10 @@ The following tags are pre-registered and active by default:
 | **`center` / `centre`** | `<center>text</center>`<br>`<centre>text</centre>` | Centered block or inline span. | Centers text or multiline blocks horizontally within the available content area. Pre-measures content width across headers, bold/italics, pills, and badges. |
 | **`btn`** | `<btn=ID>label</btn>`<br>`<btn [bold] [italic] [mono]>label</btn>` | Unique button ID or style flags (`bold`, `italic`, `mono`). | Renders an inline, clickable `ImGui::SmallButton` directly within text flow. |
 | **`mono` / `code`** | `<mono>text</mono>`<br>`<code [COLOR]>text</code>` | Accepts optional custom background color or hex parameter (and optional `fg=COLOR`). | Renders `text` in monospace (`mdConfig.monoFont`) inside a subtle, translucent rounded background pill. |
+| **`small` / `tiny`** | `<small>text</small>`<br>`<tiny>micro text</tiny>` | Optional color attribute (`<small #aaa>`). | Renders text using `ImFontRole::Small` (Slot 2, typically 12px) or `ImFontRole::Tiny` (10px micro font or `Small` fallback). |
+| **`big` / `large`** | `<big>text</big>`<br>`<large>text</large>` | Optional color attribute (`<big orange>`). | Renders text using `ImFontRole::Title` (Slot 1, typically 16px). |
+| **`huge`** | `<huge>text</huge>` | Optional color attribute (`<huge #ffcc00>`). | Renders text using `ImFontRole::BoldLarge` (Slot 4, typically 16px+ bold). |
+| **`regular` / `prop` / `sans`** | `<regular>text</regular>`<br>`<sans>text</sans>` | Optional color attribute. | Resets text font back to `ImFontRole::Regular` (Slot 0 base body font) inside mono or heading spans. |
 
 *(To disable default tags, define `#define IMGUI_DISABLE_MARKDOWN_DEFAULT_TAGS` before including the header.)*
 
