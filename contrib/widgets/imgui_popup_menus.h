@@ -44,25 +44,63 @@
 #include <vector>
 #include <map>
 #include <cstdio>
+#include <cmath>
+#include <algorithm>
+#include <cfloat>
+
+#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP)
+#if defined(__has_include)
+    #if __has_include("../extensions/TimedTooltip/imgui_tooltip_ext.h")
+        #include "../extensions/TimedTooltip/imgui_tooltip_ext.h"
+    #endif
+#endif
+#endif
 
 #ifndef IMGUI_API
 #define IMGUI_API
 #endif
 
+// Optional compile-time icon strings for SelectPulldown carets:
+#ifndef IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_DOWN
+#define IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_DOWN nullptr // e.g. ICON_FA_CHEVRON_DOWN or "  v"
+#endif
+
+#ifndef IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_UP
+#define IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_UP nullptr   // e.g. ICON_FA_CHEVRON_UP or "  ^"
+#endif
+
+enum ImGuiPopupAnchor {
+    ImGuiPopupAnchor_BelowItem = 0, // Dropdown: popup top anchors below item
+    ImGuiPopupAnchor_AboveItem = 1, // Status bar: popup bottom anchors above item
+    ImGuiPopupAnchor_Auto      = 2  // Automatically selects Above or Below based on screen space
+};
+
+enum ImGuiPopupAlign {
+    ImGuiPopupAlign_Left   = 0, // Align popup left edge with item left edge
+    ImGuiPopupAlign_Right  = 1, // Align popup right edge with item right edge
+    ImGuiPopupAlign_Center = 2, // Horizontally center popup over item
+    ImGuiPopupAlign_Auto   = 3  // Left-align, but right-align if near display right boundary
+};
+
 namespace ImGui {
 
-    enum ImGuiPopupAnchor {
-        ImGuiPopupAnchor_BelowItem = 0, // Dropdown: popup top anchors below item
-        ImGuiPopupAnchor_AboveItem = 1, // Status bar: popup bottom anchors above item
-        ImGuiPopupAnchor_Auto      = 2  // Automatically selects Above or Below based on screen space
-    };
+    using PopupAnchor = ImGuiPopupAnchor;
+    using PopupAlign  = ImGuiPopupAlign;
+    constexpr ImGuiPopupAnchor ImGuiPopupAnchor_BelowItem = ::ImGuiPopupAnchor_BelowItem;
+    constexpr ImGuiPopupAnchor ImGuiPopupAnchor_AboveItem = ::ImGuiPopupAnchor_AboveItem;
+    constexpr ImGuiPopupAnchor ImGuiPopupAnchor_Auto      = ::ImGuiPopupAnchor_Auto;
+    constexpr ImGuiPopupAnchor PopupAnchor_BelowItem      = ::ImGuiPopupAnchor_BelowItem;
+    constexpr ImGuiPopupAnchor PopupAnchor_AboveItem      = ::ImGuiPopupAnchor_AboveItem;
+    constexpr ImGuiPopupAnchor PopupAnchor_Auto           = ::ImGuiPopupAnchor_Auto;
 
-    enum ImGuiPopupAlign {
-        ImGuiPopupAlign_Left   = 0, // Align popup left edge with item left edge
-        ImGuiPopupAlign_Right  = 1, // Align popup right edge with item right edge
-        ImGuiPopupAlign_Center = 2, // Horizontally center popup over item
-        ImGuiPopupAlign_Auto   = 3  // Left-align, but right-align if near display right boundary
-    };
+    constexpr ImGuiPopupAlign  ImGuiPopupAlign_Left       = ::ImGuiPopupAlign_Left;
+    constexpr ImGuiPopupAlign  ImGuiPopupAlign_Right      = ::ImGuiPopupAlign_Right;
+    constexpr ImGuiPopupAlign  ImGuiPopupAlign_Center     = ::ImGuiPopupAlign_Center;
+    constexpr ImGuiPopupAlign  ImGuiPopupAlign_Auto       = ::ImGuiPopupAlign_Auto;
+    constexpr ImGuiPopupAlign  PopupAlign_Left            = ::ImGuiPopupAlign_Left;
+    constexpr ImGuiPopupAlign  PopupAlign_Right           = ::ImGuiPopupAlign_Right;
+    constexpr ImGuiPopupAlign  PopupAlign_Center          = ::ImGuiPopupAlign_Center;
+    constexpr ImGuiPopupAlign  PopupAlign_Auto            = ::ImGuiPopupAlign_Auto;
 
     namespace Detail {
         struct AnchoredPopupState {
@@ -80,6 +118,70 @@ namespace ImGui {
             static std::map<ImGuiID, AnchoredPopupState> s_Map;
             return s_Map;
         }
+
+        inline const char*& GetDefaultPulldownCaretDownStorage() {
+            static const char* s_Down = IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_DOWN;
+            return s_Down;
+        }
+
+        inline const char*& GetDefaultPulldownCaretUpStorage() {
+            static const char* s_Up = IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_UP;
+            return s_Up;
+        }
+    } // namespace Detail
+
+    // ========================================================================
+    // Global Caret Configuration & Procedural Drawing
+    // ========================================================================
+
+    /// Configure global default caret strings for SelectPulldown widgets (e.g. ICON_FA_CHEVRON_DOWN, ICON_FA_CHEVRON_UP).
+    /// If set to nullptr or "", SelectPulldown automatically renders crisp procedural vector arrows!
+    inline IMGUI_API void SetDefaultPulldownCaret(const char* down_caret, const char* up_caret = nullptr) {
+        Detail::GetDefaultPulldownCaretDownStorage() = down_caret;
+        Detail::GetDefaultPulldownCaretUpStorage() = up_caret;
+    }
+
+    /// Returns the global default down-caret string (or nullptr if vector fallback is active).
+    inline IMGUI_API const char* GetDefaultPulldownCaretDown() {
+        return Detail::GetDefaultPulldownCaretDownStorage();
+    }
+
+    /// Returns the global default up-caret string (or nullptr if vector fallback is active).
+    inline IMGUI_API const char* GetDefaultPulldownCaretUp() {
+        return Detail::GetDefaultPulldownCaretUpStorage();
+    }
+
+    /// Procedural vector arrow rendering helper (DPI-scaled equilateral triangle rendered via ImDrawList).
+    /// Draws crisp vector arrows without requiring font icons or Unicode Geometric Shapes glyphs.
+    inline IMGUI_API void DrawPulldownArrow(ImDrawList* draw_list, ImVec2 pos, ImU32 col, ImGuiDir dir, float font_size, float scale = 1.0f) {
+        if (!draw_list) return;
+        const float h = font_size;
+        float r = h * 0.40f * scale;
+        ImVec2 center(pos.x + h * 0.50f, pos.y + h * 0.50f * scale);
+
+        ImVec2 a(0.0f, 0.0f), b(0.0f, 0.0f), c(0.0f, 0.0f);
+        switch (dir) {
+        case ImGuiDir_Up:
+        case ImGuiDir_Down:
+            if (dir == ImGuiDir_Up) r = -r;
+            a = ImVec2(+0.000f * r, +0.750f * r);
+            b = ImVec2(-0.866f * r, -0.750f * r);
+            c = ImVec2(+0.866f * r, -0.750f * r);
+            break;
+        case ImGuiDir_Left:
+        case ImGuiDir_Right:
+            if (dir == ImGuiDir_Left) r = -r;
+            a = ImVec2(+0.750f * r, +0.000f * r);
+            b = ImVec2(-0.750f * r, +0.866f * r);
+            c = ImVec2(-0.750f * r, -0.866f * r);
+            break;
+        default:
+            return;
+        }
+        draw_list->AddTriangleFilled(ImVec2(center.x + a.x, center.y + a.y),
+                                     ImVec2(center.x + b.x, center.y + b.y),
+                                     ImVec2(center.x + c.x, center.y + c.y),
+                                     col);
     }
 
     // ========================================================================
@@ -267,19 +369,26 @@ namespace ImGui {
     // ========================================================================
 
     /// Renders a compact 1-line dataref / radio pulldown selector.
-    /// - When closed: Renders active item with down-caret. Mouse-wheel events
-    ///   are NOT captured, allowing parent container scrolling without accidental edits.
+    /// - When closed: Renders active item with caret (vector arrow or custom icon font).
+    ///   Mouse-wheel events are NOT captured, allowing parent container scrolling without accidental edits.
     /// - When open: Mouse-wheel cycles active selection dynamically without closing popup.
-    /// - Optional per-item tooltips displayed on option hover.
+    /// - Supports directional anchoring (ImGuiPopupAnchor_BelowItem or ImGuiPopupAnchor_AboveItem).
+    /// - Optional per-item tooltips displayed on option hover (using TimedTooltip if available).
     inline IMGUI_API bool SelectPulldown(const char* label,
                                          int* current_item,
                                          const char* const items[],
                                          int items_count,
                                          const char* const tooltips[] = nullptr,
-                                         float width = 0.0f)
+                                         float width = 0.0f,
+                                         ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
+                                         ImGuiPopupAlign align = ImGuiPopupAlign_Left)
     {
         if (!current_item || !items || items_count <= 0) return false;
         ImGuiIO& io = ImGui::GetIO();
+        ImGuiStyle& style = ImGui::GetStyle();
+        float font_size = ImGui::GetFontSize();
+        float btn_h = ImGui::GetFrameHeight();
+        float pad_x = style.FramePadding.x;
 
         ImGuiID id = ImGui::GetID(label);
         char popup_id[64];
@@ -290,16 +399,71 @@ namespace ImGui {
         if (cur_idx >= items_count) cur_idx = items_count - 1;
 
         const char* preview_text = items[cur_idx];
-        std::string btn_label = std::string(preview_text) + "  \xE2\x96\xBE"; // Down-caret ▼
+        if (!preview_text) preview_text = "";
 
+        bool is_open = ImGui::IsPopupOpen(popup_id);
+
+        // Determine caret direction & custom icon string:
+        // Anchored above (e.g. status bar): closed points UP (▲), open points DOWN (▼).
+        // Anchored below (e.g. dropdown): closed points DOWN (▼), open points UP (▲).
+        bool points_up = (anchor == ImGuiPopupAnchor_AboveItem) ? !is_open : is_open;
+
+        const char* down_caret = GetDefaultPulldownCaretDown();
+        const char* up_caret   = GetDefaultPulldownCaretUp();
+        const char* custom_icon = points_up ? (up_caret ? up_caret : down_caret) : down_caret;
+        bool has_custom_icon = (custom_icon != nullptr && custom_icon[0] != '\0');
+
+        // Calculate button width:
+        ImVec2 text_sz = ImGui::CalcTextSize(preview_text, nullptr, true);
+        float arrow_w = has_custom_icon 
+            ? ImGui::CalcTextSize(custom_icon, nullptr, true).x 
+            : (font_size * 0.70f);
+        float arrow_zone_w = arrow_w + pad_x;
+        float min_btn_w = text_sz.x + pad_x * 2.0f + arrow_zone_w;
+
+        float btn_w = min_btn_w;
         if (width > 0.0f) {
-            ImGui::SetNextItemWidth(width);
+            btn_w = width;
+        } else if (width < 0.0f) {
+            btn_w = std::max(min_btn_w, ImGui::GetContentRegionAvail().x + width);
+        }
+
+        if (is_open) {
+            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonHovered]);
+        }
+
+        ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
+        std::string btn_id = std::string(preview_text) + "##" + popup_id;
+        bool clicked = ImGui::Button(btn_id.c_str(), ImVec2(btn_w, btn_h));
+        ImGui::PopStyleVar();
+
+        if (is_open) {
+            ImGui::PopStyleColor();
+        }
+
+        // Draw caret / arrow docked at the right edge of the button:
+        ImVec2 item_min = ImGui::GetItemRectMin();
+        ImVec2 item_max = ImGui::GetItemRectMax();
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        ImU32 icon_col = ImGui::GetColorU32(ImGuiCol_Text);
+
+        if (has_custom_icon) {
+            ImVec2 icon_sz = ImGui::CalcTextSize(custom_icon, nullptr, true);
+            ImVec2 icon_pos(item_max.x - pad_x - icon_sz.x, item_min.y + (btn_h - icon_sz.y) * 0.5f);
+            draw_list->AddText(icon_pos, icon_col, custom_icon);
+        } else {
+            ImGuiDir arrow_dir = points_up ? ImGuiDir_Up : ImGuiDir_Down;
+            ImVec2 arrow_pos(item_max.x - pad_x - font_size * 0.85f, item_min.y + (btn_h - font_size) * 0.5f);
+            DrawPulldownArrow(draw_list, arrow_pos, icon_col, arrow_dir, font_size, 1.0f);
         }
 
         bool value_changed = false;
-        if (ImGui::Button(btn_label.c_str())) {
-            OpenPopupAtItem(popup_id, ImGuiPopupAnchor_BelowItem, ImGuiPopupAlign_Left);
+        if (clicked) {
+            OpenPopupAtItem(popup_id, anchor, align);
         }
+
+        // Enforce popup minimum width to match button width
+        ImGui::SetNextWindowSizeConstraints(ImVec2(btn_w, 0.0f), ImVec2(FLT_MAX, FLT_MAX));
 
         // Render options inside open popup
         if (BeginAnchoredPopup(popup_id)) {
@@ -311,13 +475,19 @@ namespace ImGui {
                         value_changed = true;
                     }
                 }
-                if (tooltips && tooltips[i] && *tooltips[i] && ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("%s", tooltips[i]);
+                if (tooltips && tooltips[i] && *tooltips[i]) {
+#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && defined(IMGUI_TOOLTIP_EXT_H)
+                    ImGui::TimedTooltip::Text("%s", tooltips[i]);
+#else
+                    if (ImGui::IsItemHovered()) {
+                        ImGui::SetTooltip("%s", tooltips[i]);
+                    }
+#endif
                 }
             }
 
             // In-menu wheel cycling without closing the popup
-            if (ImGui::IsWindowHovered()) {
+            if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) || ImGui::IsWindowHovered() || ImGui::IsAnyItemHovered()) {
                 float wheel = io.MouseWheel;
                 if (wheel != 0.0f) {
                     int dir = (wheel > 0.0f) ? -1 : 1;
@@ -342,7 +512,9 @@ namespace ImGui {
                                          int* current_item,
                                          const std::vector<std::string>& items,
                                          const std::vector<std::string>* tooltips = nullptr,
-                                         float width = 0.0f)
+                                         float width = 0.0f,
+                                         ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
+                                         ImGuiPopupAlign align = ImGuiPopupAlign_Left)
     {
         if (!current_item || items.empty()) return false;
         std::vector<const char*> item_ptrs;
@@ -356,7 +528,7 @@ namespace ImGui {
         }
 
         return SelectPulldown(label, current_item, item_ptrs.data(), (int)item_ptrs.size(),
-                              tip_ptrs.empty() ? nullptr : tip_ptrs.data(), width);
+                              tip_ptrs.empty() ? nullptr : tip_ptrs.data(), width, anchor, align);
     }
 
 } // namespace ImGui

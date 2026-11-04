@@ -43,9 +43,11 @@ If your project defines a function with the same name, define any of the followi
 #define IMGUI_CONTRIB_DISABLE_RESET_UNDO      // Disables 1-click Reset-with-Undo (restore previous value)
 
 // Optional compile-time icon & chevron style customization:
-#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL      ICON_FA_UNDO     // Custom primary reset icon (default: vector ↺)
-#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT  ICON_FA_REDO     // Custom restore/redo icon (default: vector ↻)
-#define IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE ImGui::ComboArrowStyle_RightWhenClosed // Combo chevron polarity
+#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL          ICON_FA_UNDO     // Custom primary reset icon (default: vector ↺)
+#define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT      ICON_FA_REDO     // Custom restore/redo icon (default: vector ↻)
+#define IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE     ImGui::ComboArrowStyle_RightWhenClosed // Combo chevron polarity
+#define IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_DOWN  ICON_FA_CHEVRON_DOWN // Custom pulldown down-caret (default: procedural vector ▼)
+#define IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_UP    ICON_FA_CHEVRON_UP   // Custom pulldown up-caret (default: procedural vector ▲)
 ```
 
 ---
@@ -548,15 +550,35 @@ float headroom = ImGui::GetLastPopupHeight("##ViewModeMenu");
 // 4. SelectPulldown Widget (Settings Window 1-Line Dataref Selectors):
 // Closed: ignores mouse-wheel (smooth parent list scrolling without accidental edits).
 // Open: mouse-wheel cycles active selection dynamically without closing menu!
+// Caret: automatically renders crisp procedural vector arrows (▼ / ▲) without requiring Unicode font glyphs!
 static int s_SelectedCam = 1;
 const char* const kCamModes[] = { "Circle", "Spot", "Tower", "Cockpit" };
 const char* const kCamTips[]  = { "Follow aircraft", "Fixed distance", "Tower view", "Pilot eye" };
 if (ImGui::SelectPulldown("##CameraMode", &s_SelectedCam, kCamModes, 4, kCamTips)) {
     UpdateCamera(s_SelectedCam);
 }
+
+// 5. Upward Blossoming Pulldown (Status Bars & Screen-Bottom Docks):
+static int s_PowerMode = 0;
+const char* const kPowerModes[] = { "Battery", "APU", "External Power" };
+if (ImGui::SelectPulldown("##PowerMode", &s_PowerMode, kPowerModes, 3, nullptr, 140.0f, ImGuiPopupAnchor_AboveItem)) {
+    UpdatePowerSource(s_PowerMode);
+}
+
+// 6. Caret Customization & Procedural Vector Drawing:
+// Optional: Configure FontAwesome glyphs or custom ASCII strings globally at runtime:
+ImGui::SetDefaultPulldownCaret(ICON_FA_CHEVRON_DOWN, ICON_FA_CHEVRON_UP);
+
+// Or call the procedural vector arrow helper directly in custom controls:
+ImGui::DrawPulldownArrow(ImGui::GetWindowDrawList(), arrow_pos, text_col, ImGuiDir_Down, font_size);
 ```
 
 * **Features:**
+  * **Procedural Vector Caret Fallback:** Eliminates unmapped Unicode Geometric Shapes (`U+25BE`) missing-glyph issues. Defaults to crisp, antialiased procedural vector triangles rendered directly to `ImDrawList`, matching `ResetButton` vector rendering.
+  * **Configurable Font Carets & Runtime Setters:** Host apps with FontAwesome can define `#define IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_DOWN` or call `ImGui::SetDefaultPulldownCaret(...)` to use native icon-font glyphs.
+  * **Directional Blossoming (`ImGuiPopupAnchor`):** Supports `ImGuiPopupAnchor_AboveItem` for bottom status bars and docks, dynamically flipping caret directions between open and closed states.
+  * **Smooth TimedTooltip Integration:** Item hover tooltips automatically use `ImGui::TimedTooltip` (with fallback to `ImGui::SetTooltip`), preventing cursor jitter.
+  * **Broad In-Popup Hover Scope:** Mouse-wheel spinning anywhere inside the open popup window (including while hovering individual `Selectable` rows) cycles active options smoothly.
   * **Font-Scale Invariant Placement:** Uses live `GetItemRectMin()` and `ItemSpacing.y` bounding geometry from the rendering frame, eliminating magic pixel offsets and text-zoom drift.
   * **Muscle-Memory Toggle Safety:** Clicking the opener button while the popup is open cleanly toggles it closed without re-opening flicker.
   * **Universal Widget Compatibility:** `OpenPopupAtItem()` anchors cleanly behind any widget: `ImGui::Button`, `ImGui::ButtonLink`, `ImGui::MD::ButtonMD`, `ImGui::Pill`, `ImGui::Badge`, or custom controls.

@@ -66,6 +66,8 @@
 // #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL      ICON_FA_UNDO  // Custom reset button icon (default: vector ↺)
 // #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL_ALT  ICON_FA_REDO  // Custom restore/redo icon (default: vector ↻)
 // #define IMGUI_CONTRIB_DEFAULT_COMBO_ARROW_STYLE ImGui::ComboArrowStyle_RightWhenClosed // Combo chevron style
+// #define IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_DOWN ICON_FA_CHEVRON_DOWN // Custom pulldown down-caret (default: procedural vector ▼)
+// #define IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_UP   ICON_FA_CHEVRON_UP   // Custom pulldown up-caret (default: procedural vector ▲)
 
 // (Note: IMGUI_CONTRIB_DISABLE_*, IMGUI_DISABLE_CONTRIB_*, and legacy
 //  IMGUI_DISABLE_EXTRA_* macro names are also honored automatically.)
