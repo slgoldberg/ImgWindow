@@ -48,11 +48,14 @@ namespace ImGui {
     };
 
     namespace Detail {
+#ifndef IMGUI_NAMED_TEXTURE_RESOLVER_DEFINED
+#define IMGUI_NAMED_TEXTURE_RESOLVER_DEFINED
         typedef ImTextureID (*NamedTextureResolverFn)(const char* name, ImVec2* outSize);
         inline NamedTextureResolverFn& GetNamedTextureResolver() {
             static NamedTextureResolverFn s_Resolver = nullptr;
             return s_Resolver;
         }
+#endif
 
         inline void GetBadgeColors(ImGuiBadgeVariant variant, ImVec4& out_bg, ImVec4& out_fg) {
             switch (variant) {
@@ -85,9 +88,12 @@ namespace ImGui {
         }
     } // namespace Detail
 
+#ifndef IMGUI_SET_NAMED_TEXTURE_RESOLVER_DEFINED
+#define IMGUI_SET_NAMED_TEXTURE_RESOLVER_DEFINED
     inline IMGUI_API void SetNamedTextureResolver(Detail::NamedTextureResolverFn fn) {
         Detail::GetNamedTextureResolver() = fn;
     }
+#endif
 
     // Core Badge renderer (supports text, texture icons, and icon-only annunciators)
     inline IMGUI_API void Badge(const char* text, const ImVec4& bg_col, const ImVec4* fg_col = nullptr, float custom_rounding = -1.0f, ImTextureID icon = (ImTextureID)0, ImVec2 icon_size = ImVec2(0.0f, 0.0f)) {

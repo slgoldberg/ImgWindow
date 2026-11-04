@@ -35,7 +35,23 @@
 #include <cstring>
 #include <sstream>
 #include "imgui_markdown.h"
-#include "../../widgets/imgui_badges.h"
+#if !defined(CONTRIB_DISABLE_BADGES) && \
+    !defined(CONTRIB_DISABLE_BADGE) && \
+    !defined(CONTRIB_DISABLE_WIDGETS) && \
+    !defined(IMGUI_CONTRIB_DISABLE_BADGES) && \
+    !defined(IMGUI_DISABLE_CONTRIB_BADGES) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_WIDGETS) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB)
+#if defined(__has_include)
+    #if __has_include("../../widgets/imgui_badges.h")
+        #include "../../widgets/imgui_badges.h"
+        #define CONTRIB_HAS_BADGES 1
+    #endif
+#else
+    #include "../../widgets/imgui_badges.h"
+    #define CONTRIB_HAS_BADGES 1
+#endif
+#endif
 
 namespace ImGui {
 
@@ -800,7 +816,13 @@ namespace ImGui {
                 float required_w = (icon_tex ? actual_icon_size.x : 0.0f) + gap_x + text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
+#if defined(CONTRIB_HAS_BADGES)
                 ImGui::Badge(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr, -1.0f, icon_tex, actual_icon_size);
+#else
+                ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+                ImGui::Text("[%s]", style.clean_text.c_str());
+                ImGui::PopStyleColor();
+#endif
 
                 PopMarkdownTagFont(config, style);
             };
@@ -872,7 +894,13 @@ namespace ImGui {
                 float required_w = (icon_tex ? actual_icon_size.x : 0.0f) + gap_x + text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
+#if defined(CONTRIB_HAS_BADGES)
                 ImGui::Pill(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr, icon_tex, actual_icon_size);
+#else
+                ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+                ImGui::Text("(%s)", style.clean_text.c_str());
+                ImGui::PopStyleColor();
+#endif
 
                 PopMarkdownTagFont(config, style);
             };
@@ -890,7 +918,11 @@ namespace ImGui {
                 float required_w = text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
+#if defined(CONTRIB_HAS_BADGES)
                 ImGui::Kbd(style.clean_text.c_str());
+#else
+                ImGui::Text("[%s]", style.clean_text.c_str());
+#endif
 
                 PopMarkdownTagFont(config, style);
             };

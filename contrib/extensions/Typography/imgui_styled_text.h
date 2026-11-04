@@ -25,9 +25,22 @@
 #include <cstring>
 #include <cstdlib>
 
-#if __has_include("../../widgets/imgui_badges.h")
-#include "../../widgets/imgui_badges.h"
-#define IMGUI_STYLED_TEXT_HAS_BADGES 1
+#if !defined(CONTRIB_DISABLE_BADGES) && \
+    !defined(CONTRIB_DISABLE_BADGE) && \
+    !defined(CONTRIB_DISABLE_WIDGETS) && \
+    !defined(IMGUI_CONTRIB_DISABLE_BADGES) && \
+    !defined(IMGUI_DISABLE_CONTRIB_BADGES) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_WIDGETS) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB)
+#if defined(__has_include)
+    #if __has_include("../../widgets/imgui_badges.h")
+        #include "../../widgets/imgui_badges.h"
+        #define IMGUI_STYLED_TEXT_HAS_BADGES 1
+    #endif
+#else
+    #include "../../widgets/imgui_badges.h"
+    #define IMGUI_STYLED_TEXT_HAS_BADGES 1
+#endif
 #endif
 
 namespace ImGui {

@@ -762,6 +762,23 @@ protected:
 };
 
 namespace ImGui {
+#ifndef IMGUI_NAMED_TEXTURE_RESOLVER_DEFINED
+#define IMGUI_NAMED_TEXTURE_RESOLVER_DEFINED
+    namespace Detail {
+        typedef ImTextureID (*NamedTextureResolverFn)(const char* name, ImVec2* outSize);
+        inline NamedTextureResolverFn& GetNamedTextureResolver() {
+            static NamedTextureResolverFn s_Resolver = nullptr;
+            return s_Resolver;
+        }
+    }
+#endif
+#ifndef IMGUI_SET_NAMED_TEXTURE_RESOLVER_DEFINED
+#define IMGUI_SET_NAMED_TEXTURE_RESOLVER_DEFINED
+    inline void SetNamedTextureResolver(Detail::NamedTextureResolverFn fn) {
+        Detail::GetNamedTextureResolver() = fn;
+    }
+#endif
+
 #ifndef IMGUI_IMAGE_NAMED_DECLARED
 #define IMGUI_IMAGE_NAMED_DECLARED
     /** Renders an image registered by name via ImgWindow::RegisterMemoryImage or ImgWindow::RegisterMarkdownNamedTexture.

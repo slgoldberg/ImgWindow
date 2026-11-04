@@ -57,7 +57,24 @@
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "contrib/stb_image.h"
-#include "contrib/widgets/imgui_badges.h"
+
+#if !defined(CONTRIB_DISABLE_BADGES) && \
+    !defined(CONTRIB_DISABLE_BADGE) && \
+    !defined(CONTRIB_DISABLE_WIDGETS) && \
+    !defined(IMGUI_CONTRIB_DISABLE_BADGES) && \
+    !defined(IMGUI_DISABLE_CONTRIB_BADGES) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_WIDGETS) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB)
+#if defined(__has_include)
+    #if __has_include("contrib/widgets/imgui_badges.h")
+        #include "contrib/widgets/imgui_badges.h"
+        #define IMGWINDOW_HAS_BADGES 1
+    #endif
+#else
+    #include "contrib/widgets/imgui_badges.h"
+    #define IMGWINDOW_HAS_BADGES 1
+#endif
+#endif
 
 #if defined(__APPLE__) || defined(__MACH__)
 #include <ApplicationServices/ApplicationServices.h>
@@ -2154,6 +2171,7 @@ ImTextureID ImgWindow::GetNamedTexture(const std::string& name, ImVec2* outSize)
     return (ImTextureID)0;
 }
 
+#if defined(IMGWINDOW_HAS_BADGES)
 namespace {
     struct AutoBadgeTextureResolverInit {
         AutoBadgeTextureResolverInit() {
@@ -2164,6 +2182,7 @@ namespace {
     };
     static AutoBadgeTextureResolverInit s_AutoBadgeResolver;
 }
+#endif
 
 void ImGui::ImageNamed(const char* name, const ImVec2& size, const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint_col, const ImVec4& border_col)
 {
