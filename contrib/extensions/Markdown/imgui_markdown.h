@@ -4109,9 +4109,9 @@ namespace ImGui
             {
             case Link::NO_LINK:
 #if defined(IMGUI_MARKDOWN_DELIMITER_CURLY_ONLY) || defined(CONTRIB_MARKDOWN_CURLY_ONLY)
-                if( c == '{' && !line.isHeading )
+                if( c == '{' && !line.isHeading && !( em.state != Emphasis::NONE && em.sym == '`' ) )
 #else
-                if( ( c == '[' || c == '{' ) && !line.isHeading )
+                if( ( c == '[' || c == '{' ) && !line.isHeading && !( em.state != Emphasis::NONE && em.sym == '`' ) )
 #endif
                 {
                     link.state = Link::HAS_SQUARE_BRACKET_OPEN;

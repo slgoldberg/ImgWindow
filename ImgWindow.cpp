@@ -2217,6 +2217,7 @@ struct MarkdownDiskTextureEntry {
     bool inFlight = false;
     bool failed = false;
     double lastAttemptTime = 0.0;
+    int retryCount = 0;
 };
 static std::map<std::string, MarkdownDiskTextureEntry> s_MarkdownDiskTextureCache;
 
@@ -2338,6 +2339,7 @@ void ImgWindow::ProcessPendingMarkdownTextures()
                 entry.textureID = texID;
                 entry.size = ImVec2(static_cast<float>(item.width), static_cast<float>(item.height));
                 entry.failed = false;
+                entry.retryCount = 0;
             } else {
                 entry.failed = true;
                 entry.lastAttemptTime = ImGui::GetTime();
@@ -2513,14 +2515,34 @@ static bool FetchRemoteBytesDefault(const std::string& url, std::vector<uint8_t>
 static void FetchRemoteImageWorker(std::string url) {
     if (s_MarkdownShutdownRequested) return;
 
+    // Detect shields.io vector badge URLs lacking a raster extension and query the PNG raster variant:
+    std::string fetchUrl = url;
+    if ((fetchUrl.find("img.shields.io/") != std::string::npos ||
+         fetchUrl.find("shields.io/") != std::string::npos) &&
+        fetchUrl.find(".png") == std::string::npos &&
+        fetchUrl.find(".jpg") == std::string::npos &&
+        fetchUrl.find(".jpeg") == std::string::npos) {
+        fetchUrl += ".png";
+    }
+
     std::vector<uint8_t> buffer;
     bool fetched = false;
 
     if (s_MarkdownRemoteFetchCallback) {
-        fetched = s_MarkdownRemoteFetchCallback(url, buffer);
+        fetched = s_MarkdownRemoteFetchCallback(fetchUrl, buffer);
     }
     if (!fetched) {
-        fetched = FetchRemoteBytesDefault(url, buffer);
+        fetched = FetchRemoteBytesDefault(fetchUrl, buffer);
+    }
+
+    // Fallback: if modified fetchUrl failed, retry with original url
+    if (!fetched && fetchUrl != url) {
+        if (s_MarkdownRemoteFetchCallback) {
+            fetched = s_MarkdownRemoteFetchCallback(url, buffer);
+        }
+        if (!fetched) {
+            fetched = FetchRemoteBytesDefault(url, buffer);
+        }
     }
 
     if (s_MarkdownShutdownRequested) return;
@@ -2851,13 +2873,14 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
         }
         if (it->second.failed) {
             double now = ImGui::GetTime();
-            if (now - it->second.lastAttemptTime < 5.0) {
+            // Stop endless flickering: limit retry frequency and total retries
+            if (it->second.retryCount >= 3 || (now - it->second.lastAttemptTime < 60.0)) {
                 ImGui::MarkdownImageData invalid;
                 invalid.isValid = false;
                 invalid.isLoading = false;
                 return invalid;
             }
-            // 5-second cooldown elapsed: allow retry
+            // 60-second cooldown elapsed: allow retry
         } else if (it->second.textureID) {
             ImGui::MarkdownImageData img;
             img.isValid = true;
@@ -2876,6 +2899,7 @@ ImGui::MarkdownImageData ImgWindow::DefaultMarkdownImageCallback(ImGui::Markdown
         entry.inFlight = true;
         entry.failed = false;
         entry.lastAttemptTime = ImGui::GetTime();
+        entry.retryCount++;
 
         std::thread([url]() {
             FetchRemoteImageWorker(url);
