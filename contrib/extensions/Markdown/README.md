@@ -607,10 +607,47 @@ namespace ImGui {
         ImVec2 CalcTextSize(ImGuiID id, int pass, const std::string& text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr);
         ImVec2 CalcMarkdownSize(ImGuiID id, int pass, const std::string& text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr);
 
-        // Interactive Button with Tooltip:
-        bool ButtonMD(const std::string& label, const std::string& tooltip_md = "", float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true);
+        // Interactive Button with Rich Tooltip & Vector Icon Rendering:
+        bool ButtonMD(const std::string& label, const std::string& tooltip_md = "", float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true, const ImVec2& size = ImVec2(0, 0));
+        bool ButtonMD(const std::string& label, const ImVec2& size, const std::string& tooltip_md = "", float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true);
     }
 }
+
+// Top-Level Convenience Aliases (root ImGui:: namespace):
+bool ImGui::ButtonMD(const std::string& label, const std::string& tooltip_md = "", float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true, const ImVec2& size = ImVec2(0, 0));
+bool ImGui::ButtonMD(const std::string& label, const ImVec2& size, const std::string& tooltip_md = "", float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true);
+```
+
+### Interactive Buttons (`ImGui::ButtonMD` / `ImGui::Markdown::ButtonMD`)
+
+`ButtonMD` provides an immediate-mode push button that seamlessly combines Dear ImGui native button styling, procedural vector icon rendering, hand cursor feedback, and rich Markdown tooltips.
+
+* **Vector Icon Button Faces:**
+  If the button label includes an icon tag (`<icon caret-up />`), an emoji shortcode (`:undo: Reset`), raw Unicode (`▲##up`), or Steven's raw-fallback link macro (`#[^](ICON_CARET_UP)`), `ButtonMD` renders the procedural vector icon directly to `ImDrawList` on the button face.
+  * **Pure icon buttons** (e.g. `ButtonMD("<icon caret-up />##up")`) default to square geometry matching `ImGui::GetFrameHeight()`.
+  * **Icon + Text buttons** (e.g. `ButtonMD(":gear: Settings")` or `ButtonMD("<icon undo color=#ff5555 /> Revert")`) auto-size to fit both the icon and text with standard inner item spacing.
+  * **No font dependencies:** Never displays missing-glyph diamond boxes (`?`).
+* **Rich Markdown Tooltips:**
+  When hovered, renders formatted multi-line Markdown tooltips wrapped to `tooltip_wrap_width` (default 400px).
+* **Hand Cursor:**
+  Automatically activates `ImGuiMouseCursor_Hand` when hovered.
+
+```cpp
+// Pure icon button (square, auto-sized to GetFrameHeight()):
+if (ImGui::ButtonMD("<icon caret-up />##scroll_top", "Scroll to top of document")) {
+    ScrollToTop();
+}
+
+// Raw Unicode rescue:
+if (ImGui::ButtonMD("▲##zoom_in", "Increase preview zoom")) {
+    ZoomIn();
+}
+
+// Icon + Text with custom icon color and Markdown tooltip:
+if (ImGui::ButtonMD("<icon undo color=#ff5555 /> Reset All##reset", "**Warning:** Reverts *all* preferences to factory defaults.")) {
+    ResetDefaults();
+}
+```
 ```
 
 ---

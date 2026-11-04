@@ -33,6 +33,7 @@ If your project defines a function with the same name, define any of the followi
 #define CONTRIB_DISABLE_COPY_BUTTON           // Disables CopyButton, CopyLastItemButton & semantic aliases
 #define CONTRIB_DISABLE_POPUP_MENUS           // Disables SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
 #define CONTRIB_DISABLE_ICONS                 // Disables procedural vector icon engine & ImGui::Icon
+#define CONTRIB_DISABLE_ICON_BUTTON           // Disables IconButton & ButtonIcon push-button widgets
 #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Disables GetMouseWheel* primitives
 #define CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL    // Disables AdjustItemOnMouseWheel()
 #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL     // Disables CycleItemOnMouseWheel()
@@ -601,10 +602,24 @@ ImGui::Icon("undo");
 ImGui::Icon("caret-up", 18.0f);
 ImGui::Icon("gear", 16.0f, &ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
 
-// 2. Direct DrawList Procedural Vector Path Rendering:
+// 2. Procedural Vector Push-Buttons:
+// IconButton: square button with centered vector icon, hand cursor, and optional tooltip:
+if (ImGui::IconButton("##zoom_up", "caret-up", ImVec2(0, 0), "Zoom In")) {
+    ZoomIn();
+}
+
+// ButtonIcon: dual icon + text button (or text + icon if icon_on_right = true):
+if (ImGui::ButtonIcon("Settings", "gear", ImVec2(0, 0), false, "Open avionics configuration")) {
+    OpenSettings();
+}
+if (ImGui::ButtonIcon("Next Page", "caret-right", ImVec2(0, 0), true)) {
+    AdvancePage();
+}
+
+// 3. Direct DrawList Procedural Vector Path Rendering:
 ImGui::DrawVectorIcon(ImGui::GetWindowDrawList(), pos, size, col_u32, "search");
 
-// 3. Forgiving Name Normalization:
+// 4. Forgiving Name Normalization:
 // Accepts any format: "undo", ":undo:", "ICON_FA_UNDO", "ICON_UNDO", "reset", or raw UTF-8:
 ImGui::Icon("ICON_FA_UNDO");
 ImGui::Icon(":gear:");

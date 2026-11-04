@@ -43,6 +43,7 @@
 // #define CONTRIB_DISABLE_TYPOGRAPHY             // Exclude Typography & StyledText extensions
 // #define CONTRIB_DISABLE_TEXT_MD                // Exclude all root ImGui::TextMD / TextWrappedMD aliases
 // #define CONTRIB_DISABLE_TEXT_WRAPPED_MD        // Exclude ONLY root ImGui::TextWrappedMD (retains TextMD)
+// #define CONTRIB_DISABLE_BUTTON_MD              // Exclude all root ImGui::ButtonMD / ButtonMarkdown aliases
 // #define CONTRIB_ENABLE_GLOBAL_NAMESPACES       // Publish TimedTooltip:: and Markdown:: to global scope
 
 // --- Widget Collections (contrib/widgets/) ---
@@ -54,6 +55,7 @@
 // #define CONTRIB_DISABLE_SPINNERS               // Exclude Spinner, RadialTimer & CountdownTimer
 // #define CONTRIB_DISABLE_POPUP_MENUS            // Exclude SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
 // #define CONTRIB_DISABLE_ICONS                  // Exclude procedural vector icon engine & ImGui::Icon
+// #define CONTRIB_DISABLE_ICON_BUTTON            // Exclude IconButton & ButtonIcon
 
 // --- Fine-Grained Mouse-Wheel Control Opt-Outs & Style Defaults ---
 // #define CONTRIB_DISABLE_GET_MOUSE_WHEEL        // Exclude GetMouseWheel* primitives

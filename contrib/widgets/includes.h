@@ -23,6 +23,7 @@
 //   #define CONTRIB_DISABLE_FILE_DIALOG           // Exclude FilePickerCombo, OpenFileDialog & SaveFileDialog
 //   #define CONTRIB_DISABLE_POPUP_MENUS           // Exclude SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
 //   #define CONTRIB_DISABLE_ICONS                 // Exclude procedural vector icon engine & ImGui::Icon
+//   #define CONTRIB_DISABLE_ICON_BUTTON           // Exclude IconButton & ButtonIcon
 //
 // Fine-grained opt-outs within imgui_mouse_wheel_controls.h:
 //   #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Exclude GetMouseWheel* primitives

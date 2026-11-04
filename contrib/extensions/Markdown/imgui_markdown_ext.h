@@ -1870,15 +1870,175 @@ namespace ImGui {
         }
 #endif
 
-        inline bool ButtonMD(const std::string& label, const std::string& tooltip_markdown = "", float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true) {
-            bool clicked = ImGui::Button(label.c_str());
+        /// Renders an interactive Dear ImGui push button supporting procedural vector icons,
+        /// shortcodes, Unicode glyphs, hand cursor on hover, and rich Markdown tooltips.
+        ///
+        /// Supported icon syntaxes in label:
+        /// - XML tags: "<icon caret-up />", "<icon undo color=#ffaa00 />", "<icon gear size=16 />"
+        /// - Shortcodes: ":undo:", ":gear: Settings", ":check: OK"
+        /// - Unicode glyphs: "▲##up", "↺##reset", "⚙ Settings"
+        /// - Steven's macros: "#[^](ICON_CARET_UP)"
+        /// - Bare icon names: "ICON_FA_UNDO", "caret-up", "undo"
+        ///
+        /// If no icon syntax is detected, falls back to standard ImGui::Button with hand cursor.
+        inline bool ButtonMD(const std::string& label,
+                             const std::string& tooltip_markdown = "",
+                             float tooltip_wrap_width = 400.0f,
+                             bool tooltip_allowed = true,
+                             const ImVec2& size_arg = ImVec2(0.0f, 0.0f)) {
+            // Separate display part and ID part
+            std::string display_part = label;
+            std::string id_part = label;
+            size_t id_pos_triple = label.find("###");
+            if (id_pos_triple != std::string::npos) {
+                display_part = label.substr(0, id_pos_triple);
+                id_part = label.substr(id_pos_triple + 3);
+            } else {
+                size_t id_pos_double = label.find("##");
+                if (id_pos_double != std::string::npos) {
+                    display_part = label.substr(0, id_pos_double);
+                    id_part = label.substr(id_pos_double + 2);
+                }
+            }
+
+#if defined(CONTRIB_HAS_ICONS)
+            std::string preprocessed;
+            bool had_preprocessing = PreprocessMarkdownIconsAndShortcodes(display_part.c_str(), display_part.length(), preprocessed);
+            std::string target_display = had_preprocessing ? preprocessed : display_part;
+
+            bool has_icon = false;
+            std::string icon_name = "";
+            float custom_icon_size = 0.0f;
+            ImVec4 icon_color(0, 0, 0, 0);
+            bool has_custom_color = false;
+            std::string prefix_text = "";
+            std::string suffix_text = "";
+
+            size_t tag_start = target_display.find("<icon");
+            if (tag_start != std::string::npos) {
+                size_t tag_end = target_display.find(">", tag_start);
+                if (tag_end != std::string::npos) {
+                    has_icon = true;
+                    prefix_text = target_display.substr(0, tag_start);
+                    suffix_text = target_display.substr(tag_end + 1);
+
+                    // Trim whitespace
+                    while (!prefix_text.empty() && (prefix_text.front() == ' ' || prefix_text.front() == '\t')) prefix_text.erase(0, 1);
+                    while (!prefix_text.empty() && (prefix_text.back() == ' ' || prefix_text.back() == '\t')) prefix_text.pop_back();
+                    while (!suffix_text.empty() && (suffix_text.front() == ' ' || suffix_text.front() == '\t')) suffix_text.erase(0, 1);
+                    while (!suffix_text.empty() && (suffix_text.back() == ' ' || suffix_text.back() == '\t')) suffix_text.pop_back();
+
+                    std::string tag_body = target_display.substr(tag_start + 5, tag_end - (tag_start + 5));
+                    if (!tag_body.empty() && tag_body.back() == '/') tag_body.pop_back();
+
+                    std::istringstream iss(tag_body);
+                    std::string token;
+                    while (iss >> token) {
+                        if (token.find("color=") == 0 || token.find("col=") == 0) {
+                            size_t eq = token.find('=');
+                            has_custom_color = ParseMarkdownColor(token.substr(eq + 1), icon_color);
+                        } else if (token.find("name=") == 0 || token.find("icon=") == 0) {
+                            size_t eq = token.find('=');
+                            icon_name = NormalizeIconName(token.substr(eq + 1).c_str());
+                        } else if (token.find("size=") == 0) {
+                            size_t eq = token.find('=');
+                            custom_icon_size = (float)atof(token.substr(eq + 1).c_str());
+                        } else {
+                            std::string norm = NormalizeIconName(token.c_str());
+                            if (IsVectorIcon(norm.c_str()) && icon_name.empty()) {
+                                icon_name = norm;
+                            } else {
+                                ImVec4 test_c;
+                                if (ParseMarkdownColor(token, test_c) && !has_custom_color) {
+                                    icon_color = test_c;
+                                    has_custom_color = true;
+                                } else if (icon_name.empty()) {
+                                    icon_name = norm;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                std::string norm = NormalizeIconName(display_part.c_str());
+                if (IsVectorIcon(norm.c_str())) {
+                    has_icon = true;
+                    icon_name = norm;
+                }
+            }
+
+            if (has_icon && !icon_name.empty()) {
+                ImGuiStyle& style = ImGui::GetStyle();
+                float frame_h = ImGui::GetFrameHeight();
+                float font_size = ImGui::GetFontSize();
+                float icon_sz = (custom_icon_size > 0.0f) ? custom_icon_size : std::round(font_size * 0.90f);
+
+                std::string label_text = prefix_text.empty() ? suffix_text : (suffix_text.empty() ? prefix_text : (prefix_text + " " + suffix_text));
+                bool has_text = !label_text.empty();
+                ImVec2 text_sz = has_text ? ImGui::CalcTextSize(label_text.c_str()) : ImVec2(0.0f, 0.0f);
+                float spacing = has_text ? style.ItemInnerSpacing.x : 0.0f;
+                float content_w = has_text ? (icon_sz + spacing + text_sz.x) : icon_sz;
+
+                ImVec2 btn_sz = size_arg;
+                if (btn_sz.x <= 0.0f) {
+                    btn_sz.x = has_text ? (content_w + style.FramePadding.x * 2.0f) : ((btn_sz.y > 0.0f) ? btn_sz.y : frame_h);
+                }
+                if (btn_sz.y <= 0.0f) {
+                    btn_sz.y = frame_h;
+                }
+
+                std::string invisible_label = "###" + id_part;
+                bool clicked = ImGui::Button(invisible_label.c_str(), btn_sz);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                }
+
+                ImVec2 p_min = ImGui::GetItemRectMin();
+                ImVec2 p_max = ImGui::GetItemRectMax();
+                ImDrawList* draw_list = ImGui::GetWindowDrawList();
+                ImU32 text_col = ImGui::GetColorU32(ImGuiCol_Text);
+                ImU32 icol = has_custom_color ? ImGui::GetColorU32(icon_color) : text_col;
+
+                float start_x = std::round((p_min.x + p_max.x - content_w) * 0.5f);
+                if (!has_text) {
+                    ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+                    ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
+                } else if (prefix_text.empty()) {
+                    ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+                    ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
+                    ImVec2 text_pos(start_x + icon_sz + spacing, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
+                    draw_list->AddText(text_pos, text_col, label_text.c_str());
+                } else {
+                    ImVec2 text_pos(start_x, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
+                    draw_list->AddText(text_pos, text_col, label_text.c_str());
+                    ImVec2 icon_pos(start_x + text_sz.x + spacing, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+                    ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
+                }
+
+                if (tooltip_allowed && !tooltip_markdown.empty() && ImGui::IsItemHovered()) {
+                    ImGui::BeginTooltip();
+#if IMGUI_VERSION_NUM >= 18989
+                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+#else
+                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+#endif
+                    TextWrapped(tooltip_markdown);
+                    ImGui::EndChild();
+                    ImGui::EndTooltip();
+                }
+
+                return clicked;
+            }
+#endif // CONTRIB_HAS_ICONS
+
+            bool clicked = ImGui::Button(label.c_str(), size_arg);
             if (ImGui::IsItemHovered()) {
                 ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             }
             
             if (tooltip_allowed && !tooltip_markdown.empty() && ImGui::IsItemHovered()) {
                 ImGui::BeginTooltip();
-                #if IMGUI_VERSION_NUM >= 18989
+#if IMGUI_VERSION_NUM >= 18989
                 ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
 #else
                 ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
@@ -1889,6 +2049,14 @@ namespace ImGui {
             }
             
             return clicked;
+        }
+
+        inline bool ButtonMD(const std::string& label,
+                             const ImVec2& size,
+                             const std::string& tooltip_markdown = "",
+                             float tooltip_wrap_width = 400.0f,
+                             bool tooltip_allowed = true) {
+            return ButtonMD(label, tooltip_markdown, tooltip_wrap_width, tooltip_allowed, size);
         }
 
         inline bool DelayedTooltipMD(const std::string& markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
@@ -2040,6 +2208,41 @@ namespace ImGui {
         return Markdown::TextLink(markdown_text, config_override);
     }
 #endif // !CONTRIB_DISABLE_TEXT_MD
+
+#if !defined(CONTRIB_DISABLE_BUTTON_MD) && !defined(IMGUI_DISABLE_BUTTON_MD) && !defined(CONTRIB_DISABLE_MARKDOWN_ROOT_ALIASES)
+    // Top-level convenience aliases for interactive Markdown buttons:
+    inline bool ButtonMD(const std::string& label,
+                         const std::string& tooltip_markdown = "",
+                         float tooltip_wrap_width = 400.0f,
+                         bool tooltip_allowed = true,
+                         const ImVec2& size_arg = ImVec2(0.0f, 0.0f)) {
+        return Markdown::ButtonMD(label, tooltip_markdown, tooltip_wrap_width, tooltip_allowed, size_arg);
+    }
+
+    inline bool ButtonMD(const std::string& label,
+                         const ImVec2& size,
+                         const std::string& tooltip_markdown = "",
+                         float tooltip_wrap_width = 400.0f,
+                         bool tooltip_allowed = true) {
+        return Markdown::ButtonMD(label, size, tooltip_markdown, tooltip_wrap_width, tooltip_allowed);
+    }
+
+    inline bool ButtonMarkdown(const std::string& label,
+                               const std::string& tooltip_markdown = "",
+                               float tooltip_wrap_width = 400.0f,
+                               bool tooltip_allowed = true,
+                               const ImVec2& size_arg = ImVec2(0.0f, 0.0f)) {
+        return Markdown::ButtonMD(label, tooltip_markdown, tooltip_wrap_width, tooltip_allowed, size_arg);
+    }
+
+    inline bool ButtonMarkdown(const std::string& label,
+                               const ImVec2& size,
+                               const std::string& tooltip_markdown = "",
+                               float tooltip_wrap_width = 400.0f,
+                               bool tooltip_allowed = true) {
+        return Markdown::ButtonMD(label, size, tooltip_markdown, tooltip_wrap_width, tooltip_allowed);
+    }
+#endif // !CONTRIB_DISABLE_BUTTON_MD
 
 } // namespace ImGui
 

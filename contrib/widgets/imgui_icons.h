@@ -423,6 +423,157 @@ namespace ImGui {
         DrawVectorIcon(draw_list, icon_pos, sz, col, name);
     }
 
+    // -------------------------------------------------------------------------
+    // 4. Immediate-Mode Procedural Vector Push-Buttons
+    // -------------------------------------------------------------------------
+
+#if !defined(CONTRIB_DISABLE_ICON_BUTTON) && !defined(IMGUI_DISABLE_ICON_BUTTON)
+
+    /// Renders a push button containing a centered procedural vector icon.
+    /// - If size.x <= 0.0f, defaults to a square button matching ImGui::GetFrameHeight().
+    /// - If size.y <= 0.0f, defaults to ImGui::GetFrameHeight().
+    /// - Automatically sets ImGuiMouseCursor_Hand on hover.
+    /// - Displays tooltip (if provided) when hovered.
+    /// - Returns true on click.
+    inline IMGUI_API bool IconButton(const char* str_id,
+                                     const char* icon_name,
+                                     const ImVec2& size = ImVec2(0.0f, 0.0f),
+                                     const char* tooltip = nullptr,
+                                     const ImVec4* icon_color = nullptr) {
+        if (!str_id || !icon_name) return false;
+
+        ImGuiStyle& style = GetStyle();
+        float frame_h = GetFrameHeight();
+        ImVec2 btn_sz = size;
+        if (btn_sz.x <= 0.0f) btn_sz.x = (btn_sz.y > 0.0f) ? btn_sz.y : frame_h;
+        if (btn_sz.y <= 0.0f) btn_sz.y = frame_h;
+
+        // Build invisible label (starting with ###) so ImGui draws no font text
+        std::string id_str(str_id);
+        std::string invisible_label;
+        size_t id_pos_triple = id_str.find("###");
+        if (id_pos_triple != std::string::npos) {
+            invisible_label = id_str.substr(id_pos_triple);
+        } else {
+            size_t id_pos_double = id_str.find("##");
+            if (id_pos_double != std::string::npos) {
+                invisible_label = "###" + id_str.substr(id_pos_double + 2);
+            } else {
+                invisible_label = "###" + id_str;
+            }
+        }
+
+        bool clicked = Button(invisible_label.c_str(), btn_sz);
+        if (IsItemHovered()) {
+            SetMouseCursor(ImGuiMouseCursor_Hand);
+            if (tooltip && *tooltip) {
+                SetTooltip("%s", tooltip);
+            }
+        }
+
+        ImVec2 p_min = GetItemRectMin();
+        ImVec2 p_max = GetItemRectMax();
+        float font_size = GetFontSize();
+        float min_dim = Detail::IconMin(btn_sz.x, btn_sz.y);
+        float icon_sz = Detail::IconMin(min_dim * 0.60f, font_size * 1.0f);
+        if (icon_sz < 8.0f) icon_sz = Detail::IconMax(min_dim - 4.0f, 6.0f);
+
+        ImVec2 center((p_min.x + p_max.x) * 0.5f, (p_min.y + p_max.y) * 0.5f);
+        ImVec2 icon_pos(std::round(center.x - icon_sz * 0.5f), std::round(center.y - icon_sz * 0.5f));
+
+        ImU32 col = icon_color ? GetColorU32(*icon_color) : GetColorU32(ImGuiCol_Text);
+        ImDrawList* draw_list = GetWindowDrawList();
+        DrawVectorIcon(draw_list, icon_pos, icon_sz, col, icon_name);
+
+        return clicked;
+    }
+
+    /// Renders a push button containing both a procedural vector icon and text.
+    /// - If icon_on_right == false (default): [Icon] [Text]
+    /// - If icon_on_right == true:           [Text] [Icon]
+    /// - If size <= (0, 0), auto-sizes to fit the icon, spacing, text, and frame padding.
+    /// - Automatically sets ImGuiMouseCursor_Hand on hover.
+    /// - Displays tooltip (if provided) when hovered.
+    /// - Returns true on click.
+    inline IMGUI_API bool ButtonIcon(const char* label,
+                                     const char* icon_name,
+                                     const ImVec2& size = ImVec2(0.0f, 0.0f),
+                                     bool icon_on_right = false,
+                                     const char* tooltip = nullptr,
+                                     const ImVec4* icon_color = nullptr) {
+        if (!label) return false;
+        if (!icon_name || !*icon_name) {
+            bool clicked = Button(label, size);
+            if (IsItemHovered()) {
+                SetMouseCursor(ImGuiMouseCursor_Hand);
+                if (tooltip && *tooltip) SetTooltip("%s", tooltip);
+            }
+            return clicked;
+        }
+
+        ImGuiStyle& style = GetStyle();
+        float frame_h = GetFrameHeight();
+        float font_size = GetFontSize();
+
+        // Separate visible text and ID
+        std::string full_str(label);
+        std::string visible_text = full_str;
+        std::string id_part = full_str;
+        size_t id_pos_triple = full_str.find("###");
+        if (id_pos_triple != std::string::npos) {
+            visible_text = full_str.substr(0, id_pos_triple);
+            id_part = full_str.substr(id_pos_triple + 3);
+        } else {
+            size_t id_pos_double = full_str.find("##");
+            if (id_pos_double != std::string::npos) {
+                visible_text = full_str.substr(0, id_pos_double);
+                id_part = full_str.substr(id_pos_double + 2);
+            }
+        }
+
+        float icon_sz = std::round(font_size * 0.90f);
+        ImVec2 text_sz = visible_text.empty() ? ImVec2(0.0f, 0.0f) : CalcTextSize(visible_text.c_str());
+        float spacing = visible_text.empty() ? 0.0f : style.ItemInnerSpacing.x;
+        float content_w = visible_text.empty() ? icon_sz : (icon_sz + spacing + text_sz.x);
+
+        ImVec2 btn_sz = size;
+        if (btn_sz.x <= 0.0f) btn_sz.x = visible_text.empty() ? frame_h : (content_w + style.FramePadding.x * 2.0f);
+        if (btn_sz.y <= 0.0f) btn_sz.y = frame_h;
+
+        std::string invisible_label = "###" + id_part;
+        bool clicked = Button(invisible_label.c_str(), btn_sz);
+        if (IsItemHovered()) {
+            SetMouseCursor(ImGuiMouseCursor_Hand);
+            if (tooltip && *tooltip) SetTooltip("%s", tooltip);
+        }
+
+        ImVec2 p_min = GetItemRectMin();
+        ImVec2 p_max = GetItemRectMax();
+        ImDrawList* draw_list = GetWindowDrawList();
+        ImU32 text_col = GetColorU32(ImGuiCol_Text);
+        ImU32 col = icon_color ? GetColorU32(*icon_color) : text_col;
+
+        float start_x = std::round((p_min.x + p_max.x - content_w) * 0.5f);
+        if (visible_text.empty()) {
+            ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+            DrawVectorIcon(draw_list, icon_pos, icon_sz, col, icon_name);
+        } else if (!icon_on_right) {
+            ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+            DrawVectorIcon(draw_list, icon_pos, icon_sz, col, icon_name);
+            ImVec2 text_pos(start_x + icon_sz + spacing, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
+            draw_list->AddText(text_pos, text_col, visible_text.c_str());
+        } else {
+            ImVec2 text_pos(start_x, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
+            draw_list->AddText(text_pos, text_col, visible_text.c_str());
+            ImVec2 icon_pos(start_x + text_sz.x + spacing, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+            DrawVectorIcon(draw_list, icon_pos, icon_sz, col, icon_name);
+        }
+
+        return clicked;
+    }
+
+#endif // !CONTRIB_DISABLE_ICON_BUTTON
+
 } // namespace ImGui
 
 #endif // !CONTRIB_DISABLE_ICONS
