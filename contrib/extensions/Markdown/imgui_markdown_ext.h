@@ -369,23 +369,55 @@ namespace ImGui {
                 continue;
             }
 
-            // 1. Single-glyph backtick rescue: e.g. `↺`, `▲`, `▼`
-            if (text[i] == '`' && i + 2 < len && text[i + 1] != '`') {
-                size_t k = i + 1;
-                while (k < len && text[k] != '`' && text[k] != '\n' && text[k] != '\r') ++k;
-                if (k < len && text[k] == '`') {
-                    std::string inner(text + i + 1, k - (i + 1));
-                    std::string norm = NormalizeIconName(inner.c_str());
-                    if (IsVectorIcon(norm.c_str())) {
-                        bool is_raw_glyph = (inner.length() >= 3 && (unsigned char)inner[0] == 0xE2);
-                        if (is_raw_glyph || inner == "^" || inner == "v") {
-                            out.append("<icon ");
-                            out.append(norm);
-                            out.append(" />");
-                            any_replaced = true;
-                            i = k + 1;
-                            continue;
+            // 1. Backtick handling:
+            //    - If single-glyph backtick rescue (e.g. `↺`, `▲`, `▼`, `^`, `v`):
+            //      convert to `<icon ... />` (stripping backticks so the user gets their intended icon).
+            //    - Otherwise (inline code span like `:plane:`, `<icon ... />`, `#[^](ICON)`):
+            //      PRESERVE VERBATIM! Do NOT expand shortcodes or macros inside code spans.
+            if (text[i] == '`') {
+                int backtick_count = 0;
+                while (i + backtick_count < len && text[i + backtick_count] == '`') {
+                    ++backtick_count;
+                }
+                if (backtick_count <= 2) {
+                    size_t k = i + backtick_count;
+                    size_t close_pos = std::string::npos;
+                    while (k < len && text[k] != '\n' && text[k] != '\r') {
+                        if (text[k] == '`') {
+                            int match_len = 0;
+                            while (k + match_len < len && text[k + match_len] == '`') ++match_len;
+                            if (match_len == backtick_count) {
+                                close_pos = k;
+                                break;
+                            }
+                            k += match_len;
+                        } else {
+                            ++k;
                         }
+                    }
+
+                    if (close_pos != std::string::npos) {
+                        if (backtick_count == 1) {
+                            std::string inner(text + i + 1, close_pos - (i + 1));
+                            std::string norm = NormalizeIconName(inner.c_str());
+                            if (IsVectorIcon(norm.c_str())) {
+                                bool is_raw_glyph = (inner.length() >= 3 && (unsigned char)inner[0] == 0xE2);
+                                if (is_raw_glyph || inner == "^" || inner == "v") {
+                                    out.append("<icon ");
+                                    out.append(norm);
+                                    out.append(" />");
+                                    any_replaced = true;
+                                    i = close_pos + 1;
+                                    continue;
+                                }
+                            }
+                        }
+
+                        // Preserving inline code verbatim
+                        size_t span_len = (close_pos + backtick_count) - i;
+                        out.append(text + i, span_len);
+                        i += span_len;
+                        continue;
                     }
                 }
             }
@@ -992,6 +1024,7 @@ namespace ImGui {
 
                 ImTextureID icon_tex = (ImTextureID)0;
                 ImVec2 icon_size(0.0f, 0.0f);
+                std::string vec_icon_name;
                 if (!style.icon_name.empty()) {
                     if (Detail::GetNamedTextureResolver()) {
                         icon_tex = Detail::GetNamedTextureResolver()(style.icon_name.c_str(), &icon_size);
@@ -1008,25 +1041,44 @@ namespace ImGui {
                             }
                         }
                     }
+#if defined(CONTRIB_HAS_ICONS)
+                    if (!icon_tex) {
+                        std::string norm = NormalizeIconName(style.icon_name.c_str());
+                        if (IsVectorIcon(norm.c_str())) {
+                            vec_icon_name = norm;
+                        }
+                    }
+#endif
                 }
 
                 const float font_size = ImGui::GetFontSize();
                 const float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+                const bool has_icon = (icon_tex != (ImTextureID)0 || !vec_icon_name.empty());
                 ImVec2 actual_icon_size = icon_size;
-                if (icon_tex) {
-                    float target_h = font_size;
-                    float aspect = (actual_icon_size.x > 0.0f && actual_icon_size.y > 0.0f) ? (actual_icon_size.x / actual_icon_size.y) : 1.0f;
-                    actual_icon_size = ImVec2(target_h * aspect, target_h);
+                if (has_icon) {
+                    if (actual_icon_size.y <= 0.0f) {
+                        float target_h = !vec_icon_name.empty() ? (font_size * 0.90f) : font_size;
+                        float aspect = (actual_icon_size.x > 0.0f && actual_icon_size.y > 0.0f) ? (actual_icon_size.x / actual_icon_size.y) : 1.0f;
+                        actual_icon_size = ImVec2(target_h * aspect, target_h);
+                    } else if (actual_icon_size.x <= 0.0f) {
+                        actual_icon_size = ImVec2(actual_icon_size.y, actual_icon_size.y);
+                    }
                 }
 
                 ImVec2 text_size = !style.clean_text.empty() ? ImGui::CalcTextSize(style.clean_text.c_str()) : ImVec2(0.0f, 0.0f);
                 float pad_x = !style.clean_text.empty() ? ImMax(5.0f * scale, 4.0f) : ImMax(4.0f * scale, 3.0f);
-                float gap_x = (icon_tex && !style.clean_text.empty()) ? ImMax(4.0f * scale, 3.0f) : 0.0f;
-                float required_w = (icon_tex ? actual_icon_size.x : 0.0f) + gap_x + text_size.x + pad_x * 2.0f;
+                float gap_x = (has_icon && !style.clean_text.empty()) ? ImMax(4.0f * scale, 3.0f) : 0.0f;
+                float required_w = (has_icon ? actual_icon_size.x : 0.0f) + gap_x + text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
 #if defined(CONTRIB_HAS_BADGES)
-                ImGui::Badge(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr, -1.0f, icon_tex, actual_icon_size);
+                ImGui::Badge(style.clean_text.empty() ? nullptr : style.clean_text.c_str(),
+                             bg_col,
+                             has_explicit_fg ? &text_col : nullptr,
+                             -1.0f,
+                             icon_tex,
+                             actual_icon_size,
+                             vec_icon_name.empty() ? nullptr : vec_icon_name.c_str());
 #else
                 ImGui::PushStyleColor(ImGuiCol_Text, text_col);
                 ImGui::Text("[%s]", style.clean_text.c_str());
@@ -1070,6 +1122,7 @@ namespace ImGui {
 
                 ImTextureID icon_tex = (ImTextureID)0;
                 ImVec2 icon_size(0.0f, 0.0f);
+                std::string vec_icon_name;
                 if (!style.icon_name.empty()) {
                     if (Detail::GetNamedTextureResolver()) {
                         icon_tex = Detail::GetNamedTextureResolver()(style.icon_name.c_str(), &icon_size);
@@ -1086,25 +1139,43 @@ namespace ImGui {
                             }
                         }
                     }
+#if defined(CONTRIB_HAS_ICONS)
+                    if (!icon_tex) {
+                        std::string norm = NormalizeIconName(style.icon_name.c_str());
+                        if (IsVectorIcon(norm.c_str())) {
+                            vec_icon_name = norm;
+                        }
+                    }
+#endif
                 }
 
                 const float font_size = ImGui::GetFontSize();
                 const float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+                const bool has_icon = (icon_tex != (ImTextureID)0 || !vec_icon_name.empty());
                 ImVec2 actual_icon_size = icon_size;
-                if (icon_tex) {
-                    float target_h = font_size;
-                    float aspect = (actual_icon_size.x > 0.0f && actual_icon_size.y > 0.0f) ? (actual_icon_size.x / actual_icon_size.y) : 1.0f;
-                    actual_icon_size = ImVec2(target_h * aspect, target_h);
+                if (has_icon) {
+                    if (actual_icon_size.y <= 0.0f) {
+                        float target_h = !vec_icon_name.empty() ? (font_size * 0.90f) : font_size;
+                        float aspect = (actual_icon_size.x > 0.0f && actual_icon_size.y > 0.0f) ? (actual_icon_size.x / actual_icon_size.y) : 1.0f;
+                        actual_icon_size = ImVec2(target_h * aspect, target_h);
+                    } else if (actual_icon_size.x <= 0.0f) {
+                        actual_icon_size = ImVec2(actual_icon_size.y, actual_icon_size.y);
+                    }
                 }
 
                 ImVec2 text_size = !style.clean_text.empty() ? ImGui::CalcTextSize(style.clean_text.c_str()) : ImVec2(0.0f, 0.0f);
                 float pad_x = !style.clean_text.empty() ? ImMax(7.0f * scale, 6.0f) : ImMax(5.0f * scale, 4.0f);
-                float gap_x = (icon_tex && !style.clean_text.empty()) ? ImMax(4.0f * scale, 3.0f) : 0.0f;
-                float required_w = (icon_tex ? actual_icon_size.x : 0.0f) + gap_x + text_size.x + pad_x * 2.0f;
+                float gap_x = (has_icon && !style.clean_text.empty()) ? ImMax(4.0f * scale, 3.0f) : 0.0f;
+                float required_w = (has_icon ? actual_icon_size.x : 0.0f) + gap_x + text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
 
 #if defined(CONTRIB_HAS_BADGES)
-                ImGui::Pill(style.clean_text.c_str(), bg_col, has_explicit_fg ? &text_col : nullptr, icon_tex, actual_icon_size);
+                ImGui::Pill(style.clean_text.empty() ? nullptr : style.clean_text.c_str(),
+                            bg_col,
+                            has_explicit_fg ? &text_col : nullptr,
+                            icon_tex,
+                            actual_icon_size,
+                            vec_icon_name.empty() ? nullptr : vec_icon_name.c_str());
 #else
                 ImGui::PushStyleColor(ImGuiCol_Text, text_col);
                 ImGui::Text("(%s)", style.clean_text.c_str());

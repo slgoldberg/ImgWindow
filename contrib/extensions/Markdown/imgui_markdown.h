@@ -4066,7 +4066,7 @@ namespace ImGui
 
                         if( peek >= (int)markdownLength_ || markdown_[peek] == '\n' || markdown_[peek] == '\r' )
                         {
-                            // Tag was at end of line. The tag widget already advanced ImGui to the next line.
+                            // Tag was at end of line. The tag widget normally advances ImGui to the next line.
                             // Consume optional \r and single trailing \n so it doesn't double-advance!
                             if( peek < (int)markdownLength_ && markdown_[peek] == '\r' )
                             {
@@ -4075,6 +4075,12 @@ namespace ImGui
                             if( peek < (int)markdownLength_ && markdown_[peek] == '\n' )
                             {
                                 ++peek;
+                            }
+                            // Safety guard: if the tag did not advance or left IsSameLine set,
+                            // explicitly break to a new line so the next line never renders on top of this line!
+                            if( ImGui::GetCurrentWindow()->DC.IsSameLine )
+                            {
+                                ImGui::NewLine();
                             }
                             textRegion.ResetIndent();
                             line = Line();
