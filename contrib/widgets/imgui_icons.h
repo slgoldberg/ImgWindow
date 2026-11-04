@@ -58,6 +58,13 @@
 
 namespace ImGui {
 
+    namespace Detail {
+        template <typename T>
+        inline T IconMax(T a, T b) { return (a > b) ? a : b; }
+        template <typename T>
+        inline T IconMin(T a, T b) { return (a < b) ? a : b; }
+    }
+
     // -------------------------------------------------------------------------
     // 1. Icon Name Normalization
     // -------------------------------------------------------------------------
@@ -201,7 +208,7 @@ namespace ImGui {
             // Counter-clockwise circular arc + tangent arrowhead
             ImVec2 arc_center(pos.x + size * 0.52f, pos.y + size * 0.52f);
             float radius = size * 0.25f;
-            float thickness = std::max(1.2f, size * 0.095f);
+            float thickness = Detail::IconMax(1.2f, size * 0.095f);
 
             float a_tail = -0.72f * kPI;
             float a_head =  0.62f * kPI;
@@ -233,7 +240,7 @@ namespace ImGui {
             // Clockwise circular arc + tangent arrowhead (horizontal mirror of undo)
             ImVec2 arc_center(pos.x + size * 0.48f, pos.y + size * 0.52f);
             float radius = size * 0.25f;
-            float thickness = std::max(1.2f, size * 0.095f);
+            float thickness = Detail::IconMax(1.2f, size * 0.095f);
 
             float a_tail = 0.28f * kPI;
             float a_head = 1.62f * kPI;
@@ -262,7 +269,7 @@ namespace ImGui {
         }
 
         if (id == "check") {
-            float thickness = std::max(1.5f, size * 0.12f);
+            float thickness = Detail::IconMax(1.5f, size * 0.12f);
             float s = size * 0.70f;
             ImVec2 p0(center.x - s * 0.38f, center.y + s * 0.05f);
             ImVec2 p1(center.x - s * 0.08f, center.y + s * 0.38f);
@@ -273,7 +280,7 @@ namespace ImGui {
         }
 
         if (id == "cross") {
-            float thickness = std::max(1.5f, size * 0.12f);
+            float thickness = Detail::IconMax(1.5f, size * 0.12f);
             float r = size * 0.28f;
             draw_list->AddLine(ImVec2(center.x - r, center.y - r), ImVec2(center.x + r, center.y + r), col, thickness);
             draw_list->AddLine(ImVec2(center.x + r, center.y - r), ImVec2(center.x - r, center.y + r), col, thickness);
@@ -281,7 +288,7 @@ namespace ImGui {
         }
 
         if (id == "plus") {
-            float thickness = std::max(1.5f, size * 0.12f);
+            float thickness = Detail::IconMax(1.5f, size * 0.12f);
             float r = size * 0.32f;
             draw_list->AddLine(ImVec2(center.x - r, center.y), ImVec2(center.x + r, center.y), col, thickness);
             draw_list->AddLine(ImVec2(center.x, center.y - r), ImVec2(center.x, center.y + r), col, thickness);
@@ -289,7 +296,7 @@ namespace ImGui {
         }
 
         if (id == "minus") {
-            float thickness = std::max(1.5f, size * 0.12f);
+            float thickness = Detail::IconMax(1.5f, size * 0.12f);
             float r = size * 0.32f;
             draw_list->AddLine(ImVec2(center.x - r, center.y), ImVec2(center.x + r, center.y), col, thickness);
             return true;
@@ -316,7 +323,7 @@ namespace ImGui {
 
         if (id == "info") {
             float r = size * 0.38f;
-            float thickness = std::max(1.2f, size * 0.09f);
+            float thickness = Detail::IconMax(1.2f, size * 0.09f);
             draw_list->AddCircle(center, r, col, 16, thickness);
             draw_list->AddCircleFilled(ImVec2(center.x, center.y - r * 0.42f), thickness * 0.95f, col, 8);
             draw_list->AddLine(ImVec2(center.x, center.y - r * 0.12f), ImVec2(center.x, center.y + r * 0.50f), col, thickness * 1.3f);
@@ -328,9 +335,9 @@ namespace ImGui {
             ImVec2 a(center.x, center.y - h);
             ImVec2 b(center.x - h * 1.05f, center.y + h * 0.85f);
             ImVec2 c(center.x + h * 1.05f, center.y + h * 0.85f);
-            draw_list->AddTriangle(a, b, c, col, std::max(1.3f, size * 0.09f));
-            draw_list->AddLine(ImVec2(center.x, center.y - h * 0.30f), ImVec2(center.x, center.y + h * 0.25f), col, std::max(1.3f, size * 0.09f));
-            draw_list->AddCircleFilled(ImVec2(center.x, center.y + h * 0.55f), std::max(1.0f, size * 0.065f), col, 6);
+            draw_list->AddTriangle(a, b, c, col, Detail::IconMax(1.3f, size * 0.09f));
+            draw_list->AddLine(ImVec2(center.x, center.y - h * 0.30f), ImVec2(center.x, center.y + h * 0.25f), col, Detail::IconMax(1.3f, size * 0.09f));
+            draw_list->AddCircleFilled(ImVec2(center.x, center.y + h * 0.55f), Detail::IconMax(1.0f, size * 0.065f), col, 6);
             return true;
         }
 
@@ -350,7 +357,7 @@ namespace ImGui {
 
         if (id == "search") {
             float r = size * 0.22f;
-            float thickness = std::max(1.2f, size * 0.09f);
+            float thickness = Detail::IconMax(1.2f, size * 0.09f);
             ImVec2 ring_center(center.x - size * 0.06f, center.y - size * 0.06f);
             draw_list->AddCircle(ring_center, r, col, 16, thickness);
             ImVec2 h_start(ring_center.x + r * 0.707f, ring_center.y + r * 0.707f);
@@ -364,18 +371,18 @@ namespace ImGui {
             float s = size * 0.42f;
             ImVec2 nose(center.x, center.y - s * 0.90f);
             ImVec2 tail(center.x, center.y + s * 0.90f);
-            draw_list->AddLine(nose, tail, col, std::max(1.5f, size * 0.12f));
+            draw_list->AddLine(nose, tail, col, Detail::IconMax(1.5f, size * 0.12f));
             // Main wings
             ImVec2 w_left(center.x - s * 0.95f, center.y + s * 0.10f);
             ImVec2 w_right(center.x + s * 0.95f, center.y + s * 0.10f);
             ImVec2 w_root(center.x, center.y - s * 0.20f);
-            draw_list->AddLine(w_left, w_root, col, std::max(1.3f, size * 0.10f));
-            draw_list->AddLine(w_root, w_right, col, std::max(1.3f, size * 0.10f));
+            draw_list->AddLine(w_left, w_root, col, Detail::IconMax(1.3f, size * 0.10f));
+            draw_list->AddLine(w_root, w_right, col, Detail::IconMax(1.3f, size * 0.10f));
             // Tail stabilizer
             ImVec2 t_left(center.x - s * 0.45f, center.y + s * 0.75f);
             ImVec2 t_right(center.x + s * 0.45f, center.y + s * 0.75f);
-            draw_list->AddLine(t_left, tail, col, std::max(1.1f, size * 0.08f));
-            draw_list->AddLine(tail, t_right, col, std::max(1.1f, size * 0.08f));
+            draw_list->AddLine(t_left, tail, col, Detail::IconMax(1.1f, size * 0.08f));
+            draw_list->AddLine(tail, t_right, col, Detail::IconMax(1.1f, size * 0.08f));
             return true;
         }
 
