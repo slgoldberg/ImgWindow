@@ -53,6 +53,23 @@
 #endif
 #endif
 
+#if !defined(CONTRIB_DISABLE_ICONS) && \
+    !defined(IMGUI_CONTRIB_DISABLE_ICONS) && \
+    !defined(IMGUI_DISABLE_ICONS) && \
+    !defined(IMGUI_DISABLE_CONTRIB_ICONS) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_WIDGETS) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB)
+#if defined(__has_include)
+    #if __has_include("../../widgets/imgui_icons.h")
+        #include "../../widgets/imgui_icons.h"
+        #define CONTRIB_HAS_ICONS 1
+    #endif
+#else
+    #include "../../widgets/imgui_icons.h"
+    #define CONTRIB_HAS_ICONS 1
+#endif
+#endif
+
 namespace ImGui {
 
     // -------------------------------------------------------------------------
@@ -307,11 +324,193 @@ namespace ImGui {
         }
     }
 
+    // Pre-processes Markdown text to convert procedural vector icon shortcuts:
+    // 1. Single-glyph backtick rescue: `↺` -> <icon undo />, `▲` -> <icon caret-up />
+    // 2. Steven's raw-fallback link macro: #[label](ICON_NAME) -> <icon ICON_NAME />
+    // 3. Emoji shortcodes: :icon_name: -> <icon icon_name />
+    // 4. Raw 3-byte Unicode glyphs: ↺ -> <icon undo />, ▲ -> <icon caret-up />, etc.
+    // Preserves fenced code blocks (``` or ~~~).
+    inline bool PreprocessMarkdownIconsAndShortcodes(const char* text, size_t len, std::string& out) {
+        if (!text || len == 0) return false;
+#if !defined(CONTRIB_HAS_ICONS)
+        return false;
+#else
+        out.reserve(len + 128);
+        bool any_replaced = false;
+        bool in_fence = false;
+        char fence_char = '\0';
+        int fence_len = 0;
+
+        size_t i = 0;
+        while (i < len) {
+            // Check for start/end of fenced code blocks (``` or ~~~):
+            if ((i == 0 || text[i-1] == '\n' || text[i-1] == '\r') && (text[i] == '`' || text[i] == '~')) {
+                char fc = text[i];
+                int fl = 0;
+                while (i + fl < len && text[i + fl] == fc) ++fl;
+                if (fl >= 3) {
+                    if (!in_fence) {
+                        in_fence = true;
+                        fence_char = fc;
+                        fence_len = fl;
+                    } else if (fc == fence_char && fl >= fence_len) {
+                        in_fence = false;
+                        fence_char = '\0';
+                        fence_len = 0;
+                    }
+                    for (int k = 0; k < fl; ++k) out.push_back(text[i + k]);
+                    i += fl;
+                    continue;
+                }
+            }
+
+            if (in_fence) {
+                out.push_back(text[i++]);
+                continue;
+            }
+
+            // 1. Single-glyph backtick rescue: e.g. `↺`, `▲`, `▼`
+            if (text[i] == '`' && i + 2 < len && text[i + 1] != '`') {
+                size_t k = i + 1;
+                while (k < len && text[k] != '`' && text[k] != '\n' && text[k] != '\r') ++k;
+                if (k < len && text[k] == '`') {
+                    std::string inner(text + i + 1, k - (i + 1));
+                    std::string norm = NormalizeIconName(inner.c_str());
+                    if (IsVectorIcon(norm.c_str())) {
+                        bool is_raw_glyph = (inner.length() >= 3 && (unsigned char)inner[0] == 0xE2);
+                        if (is_raw_glyph || inner == "^" || inner == "v") {
+                            out.append("<icon ");
+                            out.append(norm);
+                            out.append(" />");
+                            any_replaced = true;
+                            i = k + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // 2. Steven's raw-fallback link macro: #[label](ICON_NAME)
+            //    e.g. #[^](ICON_CARET_UP) or #[↺](ICON_UNDO)
+            if (text[i] == '#' && i + 1 < len && text[i + 1] == '[') {
+                size_t close_bracket = std::string::npos;
+                for (size_t k = i + 2; k < len && text[k] != '\n' && text[k] != '\r'; ++k) {
+                    if (text[k] == ']') { close_bracket = k; break; }
+                }
+                if (close_bracket != std::string::npos && close_bracket + 1 < len && text[close_bracket + 1] == '(') {
+                    size_t close_paren = std::string::npos;
+                    for (size_t k = close_bracket + 2; k < len && text[k] != '\n' && text[k] != '\r'; ++k) {
+                        if (text[k] == ')') { close_paren = k; break; }
+                    }
+                    if (close_paren != std::string::npos) {
+                        std::string target(text + close_bracket + 2, close_paren - (close_bracket + 2));
+                        std::string target_icon = target;
+                        std::string target_extra = "";
+                        size_t sp = target.find(' ');
+                        if (sp != std::string::npos) {
+                            std::string w1 = target.substr(0, sp);
+                            std::string w2 = target.substr(sp + 1);
+                            if (IsVectorIcon(NormalizeIconName(w1.c_str()).c_str())) {
+                                target_icon = NormalizeIconName(w1.c_str());
+                                target_extra = w2;
+                            } else if (IsVectorIcon(NormalizeIconName(w2.c_str()).c_str())) {
+                                target_icon = NormalizeIconName(w2.c_str());
+                                target_extra = w1;
+                            }
+                        } else {
+                            target_icon = NormalizeIconName(target.c_str());
+                        }
+
+                        if (IsVectorIcon(target_icon.c_str())) {
+                            out.append("<icon ");
+                            out.append(target_icon);
+                            if (!target_extra.empty()) {
+                                out.push_back(' ');
+                                out.append(target_extra);
+                            }
+                            out.append(" />");
+                            any_replaced = true;
+                            i = close_paren + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // 3. Emoji shortcodes: :icon_name:
+            //    e.g. :undo:, :reset:, :caret_up:, :gear:, :check:
+            if (text[i] == ':') {
+                bool is_boundary = (i == 0 || text[i-1] == ' ' || text[i-1] == '\t' || text[i-1] == '\n' ||
+                                    text[i-1] == '(' || text[i-1] == '[' || text[i-1] == '`' || text[i-1] == '*');
+                if (is_boundary) {
+                    size_t next_colon = std::string::npos;
+                    for (size_t k = i + 1; k < len && text[k] != '\n' && text[k] != '\r' && text[k] != ' ' && text[k] != '\t' && (k - i) < 32; ++k) {
+                        if (text[k] == ':') { next_colon = k; break; }
+                    }
+                    if (next_colon != std::string::npos && next_colon > i + 1) {
+                        std::string candidate(text + i + 1, next_colon - (i + 1));
+                        std::string norm = NormalizeIconName(candidate.c_str());
+                        if (IsVectorIcon(norm.c_str())) {
+                            out.append("<icon ");
+                            out.append(norm);
+                            out.append(" />");
+                            any_replaced = true;
+                            i = next_colon + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // 4. Raw 3-byte UTF-8 Unicode glyphs outside code blocks:
+            if (i + 2 < len && (unsigned char)text[i] == 0xE2) {
+                unsigned char c1 = (unsigned char)text[i + 1];
+                unsigned char c2 = (unsigned char)text[i + 2];
+                const char* icon_name = nullptr;
+                if (c1 == 0x86 && c2 == 0xBA) icon_name = "undo";
+                else if (c1 == 0x86 && c2 == 0xBB) icon_name = "redo";
+                else if (c1 == 0x96 && c2 == 0xB2) icon_name = "caret-up";
+                else if (c1 == 0x96 && (c2 == 0xBC || c2 == 0xBE)) icon_name = "caret-down";
+                else if (c1 == 0x97 && c2 == 0x80) icon_name = "caret-left";
+                else if (c1 == 0x96 && c2 == 0xB6) icon_name = "caret-right";
+                else if (c1 == 0x9C && (c2 == 0x93 || c2 == 0x94)) icon_name = "check";
+                else if (c1 == 0x9C && (c2 == 0x97 || c2 == 0x98)) icon_name = "cross";
+                else if (c1 == 0x9A && c2 == 0x99) icon_name = "gear";
+                else if (c1 == 0x84 && c2 == 0xB9) icon_name = "info";
+                else if (c1 == 0x9A && c2 == 0xA0) icon_name = "warning";
+                else if (c1 == 0x98 && c2 == 0x85) icon_name = "star";
+                else if (c1 == 0x9C && c2 == 0x88) icon_name = "plane";
+
+                if (icon_name) {
+                    out.append("<icon ");
+                    out.append(icon_name);
+                    out.append(" />");
+                    any_replaced = true;
+                    i += 3;
+                    continue;
+                }
+            }
+
+            out.push_back(text[i++]);
+        }
+
+        return any_replaced;
+#endif
+    }
+
     // Pre-measures the total rendered horizontal advance width of an inline Markdown line,
     // accounting for font headers (#, ##, ###), bold/italic/code spans, and inline capsules (<pill>, <badge>, <kbd>).
     inline float MeasureMarkdownLineWidth(const char* text, size_t len, const MarkdownConfig* config = nullptr) {
         if (!text || len == 0) return 0.0f;
         if (!config) config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+
+#if defined(CONTRIB_HAS_ICONS)
+        std::string processed_icons;
+        if (PreprocessMarkdownIconsAndShortcodes(text, len, processed_icons)) {
+            text = processed_icons.c_str();
+            len = processed_icons.length();
+        }
+#endif
 
         // Check for leading header (#, ##, ###)
         int heading_level = 0;
@@ -443,6 +642,11 @@ namespace ImGui {
 
                     if (close_pos != std::string::npos) {
                         flush_seg(cur_font);
+                        if (tag_name == "icon") {
+                            total_w += font_size * 0.90f + 2.0f * scale;
+                            i = close_pos + close_tag.size();
+                            continue;
+                        }
                         std::string inner(text + tag_close + 1, close_pos - (tag_close + 1));
                         std::string params = (name_end < tag_close) ? std::string(text + name_end, tag_close - name_end) : "";
                         MarkdownTagStyle style = ParseMarkdownTagStyle(inner, params);
@@ -480,10 +684,15 @@ namespace ImGui {
                         i = close_pos + close_tag.size();
                         continue;
                     } else {
-                        // Check if self-closing: e.g. <pill icon=foo /> or <img ... />
+                        // Check if self-closing: e.g. <pill icon=foo /> or <img ... /> or <icon ... />
                         bool is_self_closing = (tag_close > name_start && text[tag_close - 1] == '/');
-                        if (is_self_closing || tag_name == "img") {
+                        if (is_self_closing || tag_name == "img" || tag_name == "icon") {
                             flush_seg(cur_font);
+                            if (tag_name == "icon") {
+                                total_w += font_size * 0.90f + 2.0f * scale;
+                                i = tag_close + 1;
+                                continue;
+                            }
                             size_t p_end = is_self_closing ? (tag_close - 1) : tag_close;
                             std::string params = (name_end < p_end) ? std::string(text + name_end, p_end - name_end) : "";
                             MarkdownTagStyle style = ParseMarkdownTagStyle("", params);
@@ -1194,6 +1403,64 @@ namespace ImGui {
                 }
             };
             s_CustomTags["img"] = imgHandler;
+#if defined(CONTRIB_HAS_ICONS)
+            // Built-in Tag 10: <icon ... /> or <icon>...</icon>
+            // Renders zero-dependency, zero-font procedural vector icons
+            auto iconHandler = [](const std::string& inner_text, const std::string& param) {
+                std::string raw = !inner_text.empty() ? inner_text : param;
+                std::string icon_name = "";
+                std::string col_str = "";
+                float custom_size = 0.0f;
+
+                if (!inner_text.empty() && !param.empty()) {
+                    col_str = param;
+                    icon_name = inner_text;
+                } else {
+                    std::istringstream iss(raw);
+                    std::string token;
+                    while (iss >> token) {
+                        if (token.find("color=") == 0 || token.find("col=") == 0) {
+                            size_t eq = token.find('=');
+                            col_str = token.substr(eq + 1);
+                        } else if (token.find("name=") == 0 || token.find("icon=") == 0) {
+                            size_t eq = token.find('=');
+                            icon_name = token.substr(eq + 1);
+                        } else if (token.find("size=") == 0) {
+                            size_t eq = token.find('=');
+                            custom_size = (float)atof(token.substr(eq + 1).c_str());
+                        } else {
+                            std::string norm = NormalizeIconName(token.c_str());
+                            if (IsVectorIcon(norm.c_str()) && icon_name.empty()) {
+                                icon_name = norm;
+                            } else {
+                                ImVec4 test_c;
+                                if (ParseMarkdownColor(token, test_c) && col_str.empty()) {
+                                    col_str = token;
+                                } else if (icon_name.empty()) {
+                                    icon_name = norm;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (icon_name.empty()) return;
+
+                const float font_size = ImGui::GetFontSize();
+                const float icon_sz = (custom_size > 0.0f) ? custom_size : (font_size * 0.90f);
+
+                EnsureTagFitsOnLine(icon_sz + 2.0f);
+
+                ImVec4 c(1.0f, 1.0f, 1.0f, 1.0f);
+                bool has_col = false;
+                if (!col_str.empty()) {
+                    has_col = ParseMarkdownColor(col_str, c);
+                }
+
+                ImGui::Icon(icon_name.c_str(), icon_sz, has_col ? &c : nullptr);
+            };
+            s_CustomTags["icon"] = iconHandler;
+#endif
 #endif
         }
         return s_CustomTags;
@@ -1227,10 +1494,15 @@ namespace ImGui {
             config = &s_FallbackConfig;
         }
 
-        std::string processed;
-        bool has_blocks = PreprocessMarkdownCenteredBlocks(markdown_text, markdown_len, processed);
-        const char* actual_text = has_blocks ? processed.c_str() : markdown_text;
-        size_t actual_len = has_blocks ? processed.length() : markdown_len;
+        std::string processed_center;
+        bool has_blocks = PreprocessMarkdownCenteredBlocks(markdown_text, markdown_len, processed_center);
+        const char* text_mid = has_blocks ? processed_center.c_str() : markdown_text;
+        size_t len_mid = has_blocks ? processed_center.length() : markdown_len;
+
+        std::string processed_icons;
+        bool has_icons = PreprocessMarkdownIconsAndShortcodes(text_mid, len_mid, processed_icons);
+        const char* actual_text = has_icons ? processed_icons.c_str() : text_mid;
+        size_t actual_len = has_icons ? processed_icons.length() : len_mid;
 
         MarkdownConfig local_config = *config;
         const MarkdownConfig* prev_active = GetActiveMarkdownConfig();

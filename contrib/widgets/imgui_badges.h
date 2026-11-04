@@ -36,6 +36,18 @@
 #include <algorithm>
 #include <cmath>
 
+#if !defined(CONTRIB_DISABLE_ICONS) && !defined(IMGUI_CONTRIB_DISABLE_ICONS)
+#if defined(__has_include)
+    #if __has_include("imgui_icons.h")
+        #include "imgui_icons.h"
+        #define CONTRIB_BADGES_HAS_ICONS 1
+    #endif
+#else
+    #include "imgui_icons.h"
+    #define CONTRIB_BADGES_HAS_ICONS 1
+#endif
+#endif
+
 namespace ImGui {
 
     enum ImGuiBadgeVariant {
@@ -271,8 +283,21 @@ namespace ImGui {
 
         const float font_size = GetFontSize();
         const float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+
+        bool is_icon = false;
+        std::string icon_name;
+#if defined(CONTRIB_BADGES_HAS_ICONS)
+        if (key_label && *key_label) {
+            std::string norm = NormalizeIconName(key_label);
+            if (IsVectorIcon(norm.c_str())) {
+                is_icon = true;
+                icon_name = norm;
+            }
+        }
+#endif
+
         const char* text_end = FindRenderedTextEnd(key_label);
-        const ImVec2 text_size = CalcTextSize(key_label, text_end, true);
+        const ImVec2 text_size = is_icon ? ImVec2(font_size * 0.90f, font_size * 0.90f) : CalcTextSize(key_label, text_end, true);
 
         // Intrinsic keycap padding: matching Badge/Pill inline optical bounds
         const float pad_x = ImMax(5.5f * scale, 5.0f);
@@ -309,7 +334,14 @@ namespace ImGui {
         dl->AddRect(bb.Min, ImVec2(bb.Max.x, bb.Max.y - bevel), border_col, rounding, 0, 1.0f * scale);
 #endif
 
-        dl->AddText(text_pos, GetColorU32(GetStyle().Colors[ImGuiCol_Text]), key_label, text_end);
+#if defined(CONTRIB_BADGES_HAS_ICONS)
+        if (is_icon) {
+            DrawVectorIcon(dl, text_pos, text_size.x, GetColorU32(GetStyle().Colors[ImGuiCol_Text]), icon_name.c_str());
+        } else
+#endif
+        {
+            dl->AddText(text_pos, GetColorU32(GetStyle().Colors[ImGuiCol_Text]), key_label, text_end);
+        }
     }
 
     // Friendly C++ aliases matching Markdown tags (<tag>, <key>, <keycap>):

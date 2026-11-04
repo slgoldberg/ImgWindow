@@ -31,9 +31,8 @@ If your project defines a function with the same name, define any of the followi
 #define CONTRIB_DISABLE_BADGES                // Disables Badge, Pill & Kbd widgets
 #define CONTRIB_DISABLE_SPINNERS              // Disables Spinner, RadialTimer & CountdownTimer
 #define CONTRIB_DISABLE_COPY_BUTTON           // Disables CopyButton, CopyLastItemButton & semantic aliases
-
-// Fine-grained opt-outs & style defaults within imgui_mouse_wheel_controls.h:
 #define CONTRIB_DISABLE_POPUP_MENUS           // Disables SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
+#define CONTRIB_DISABLE_ICONS                 // Disables procedural vector icon engine & ImGui::Icon
 #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Disables GetMouseWheel* primitives
 #define CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL    // Disables AdjustItemOnMouseWheel()
 #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL     // Disables CycleItemOnMouseWheel()
@@ -584,6 +583,48 @@ ImGui::DrawPulldownArrow(ImGui::GetWindowDrawList(), arrow_pos, text_col, ImGuiD
   * **Universal Widget Compatibility:** `OpenPopupAtItem()` anchors cleanly behind any widget: `ImGui::Button`, `ImGui::ButtonLink`, `ImGui::MD::ButtonMD`, `ImGui::Pill`, `ImGui::Badge`, or custom controls.
   * **Exact Headroom Reporting:** `GetLastPopupHeight(str_id)` reports the measured pixel height for dynamic XPLM window expansion.
   * **Scroll Pass-Through:** `SelectPulldown` never captures the mouse-wheel while closed, preventing unwanted dataref changes while scrolling settings.
+
+---
+
+### 10. Procedural Vector Icons Engine (`imgui_icons.h`)
+
+A zero-texture, zero-font, zero-dependency procedural vector icon engine that actively renders crisp antialiased vector geometry directly to Dear ImGui's `ImDrawList`.
+
+Completely eliminates missing-glyph diamond replacement characters (``) when host font atlases only bake standard ASCII/Latin-1 (`0x20..0xFF`) and lack extended Unicode blocks (such as Mathematical arrows `U+2190..U+21FF` or Geometric shapes `U+25A0..U+25FF`).
+
+```cpp
+#include "contrib/widgets/imgui_icons.h"
+
+// 1. Direct Immediate-Mode Widget:
+// Scales automatically with ambient font size (GetFontSize() * 0.90f) and centers on text baseline:
+ImGui::Icon("undo");
+ImGui::Icon("caret-up", 18.0f);
+ImGui::Icon("gear", 16.0f, &ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
+
+// 2. Direct DrawList Procedural Vector Path Rendering:
+ImGui::DrawVectorIcon(ImGui::GetWindowDrawList(), pos, size, col_u32, "search");
+
+// 3. Forgiving Name Normalization:
+// Accepts any format: "undo", ":undo:", "ICON_FA_UNDO", "ICON_UNDO", "reset", or raw UTF-8:
+ImGui::Icon("ICON_FA_UNDO");
+ImGui::Icon(":gear:");
+ImGui::Icon("\xE2\x86\xBA"); // ↺
+```
+
+#### Markdown & Typography Integration
+The icon engine is deeply integrated into `ImGui::MarkdownExt` and `ImGui::TextStyled`, offering 5 authoring modes:
+
+1. **Inline HTML Tag:** `<icon caret-up />`, `<icon orange undo />`, `<icon name=gear size=16 />`
+2. **Emoji Shortcodes:** `:undo:`, `:reset:`, `:caret_up:`, `:caret-down:`, `:gear:`, `:check:`, `:star:`, `:plane:`
+3. **Steven's Raw-Fallback Link Macro:** `#[^](ICON_CARET_UP)` or `#[↺](ICON_UNDO)`
+4. **Automatic Raw Unicode Glyph Rescue:** Raw symbols like `↺`, `↻`, `▲`, `▼`, `✓`, `⚙` outside code blocks are automatically intercepted and rendered as crisp vector icons with zero missing-glyph diamonds!
+5. **Backtick Rescue:** Single symbols wrapped in backticks (`` `↺` ``) are rescued and rendered as vector icons.
+
+#### Universal Icon Catalog
+* **Navigation:** `caret-up` (▲), `caret-down` (▼), `caret-left` (◀), `caret-right` (▶)
+* **History:** `undo` / `reset` (↺), `redo` / `restore` (↻)
+* **Actions & State:** `check` (✓), `cross` (✗), `plus` (+), `minus` (-), `gear` (⚙), `search` (🔍)
+* **Indicators & Badges:** `info` (ℹ), `warning` (⚠), `star` (★), `plane` (✈), `circle` (●), `square` (■)
 
 ---
 

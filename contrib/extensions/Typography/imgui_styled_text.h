@@ -43,6 +43,23 @@
 #endif
 #endif
 
+#if !defined(CONTRIB_DISABLE_ICONS) && \
+    !defined(IMGUI_CONTRIB_DISABLE_ICONS) && \
+    !defined(IMGUI_DISABLE_ICONS) && \
+    !defined(IMGUI_DISABLE_CONTRIB_ICONS) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_WIDGETS) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB)
+#if defined(__has_include)
+    #if __has_include("../../widgets/imgui_icons.h")
+        #include "../../widgets/imgui_icons.h"
+        #define IMGUI_STYLED_TEXT_HAS_ICONS 1
+    #endif
+#else
+    #include "../../widgets/imgui_icons.h"
+    #define IMGUI_STYLED_TEXT_HAS_ICONS 1
+#endif
+#endif
+
 namespace ImGui {
 
 #ifndef IMGUI_IMAGE_NAMED_DECLARED
@@ -516,6 +533,81 @@ namespace ImGui {
                 cur = tag_end;
                 continue;
             }
+
+            // <icon name=...> or <icon caret-up /> or <icon orange undo />
+#if defined(IMGUI_STYLED_TEXT_HAS_ICONS)
+            if (tagName == "icon") {
+                bool isSelfClosing = false;
+                size_t slashPos = tagStr.find_last_not_of(" \t\r\n");
+                if (slashPos != std::string::npos && tagStr[slashPos] == '/') {
+                    isSelfClosing = true;
+                }
+                std::string iconName;
+                if (!Detail::ExtractAttribute(tagStr, "name", iconName)) {
+                    if (!Detail::ExtractAttribute(tagStr, "icon", iconName)) {
+                        std::istringstream iss(tagStr);
+                        std::string token;
+                        iss >> token; // skip "icon"
+                        while (iss >> token) {
+                            if (token == "/" || token.rfind("color=", 0) == 0 || token.rfind("col=", 0) == 0 || token.rfind("size=", 0) == 0) continue;
+                            std::string norm = NormalizeIconName(token.c_str());
+                            if (IsVectorIcon(norm.c_str())) {
+                                iconName = norm;
+                                break;
+                            }
+                        }
+                    }
+                }
+                std::string colVal;
+                ImU32 iconCol = 0;
+                if (Detail::ExtractAttribute(tagStr, "color", colVal) || Detail::ExtractAttribute(tagStr, "col", colVal)) {
+                    Detail::ParseColor(colVal.c_str(), colVal.length(), iconCol);
+                } else {
+                    std::istringstream iss(tagStr);
+                    std::string token;
+                    iss >> token; // skip "icon"
+                    while (iss >> token) {
+                        if (token == "/" || token == iconName) continue;
+                        ImU32 c = 0;
+                        if (Detail::ParseColor(token.c_str(), token.length(), c)) {
+                            iconCol = c;
+                            break;
+                        }
+                    }
+                }
+                std::string szVal;
+                float customSz = 0.0f;
+                if (Detail::ExtractAttribute(tagStr, "size", szVal)) customSz = (float)std::atof(szVal.c_str());
+
+                if (isSelfClosing) {
+                    if (!iconName.empty()) {
+                        if (needSameLine) ImGui::SameLine(0.0f, 0.0f);
+                        ImVec4 c;
+                        if (iconCol != 0) c = ColorConvertU32ToFloat4(iconCol);
+                        ImGui::Icon(iconName.c_str(), customSz, iconCol != 0 ? &c : nullptr);
+                        needSameLine = true;
+                    }
+                    cur = tag_end;
+                    continue;
+                } else {
+                    std::string closeTag = "</icon>";
+                    const char* closePos = std::strstr(tag_end, closeTag.c_str());
+                    if (closePos && closePos < text_end) {
+                        std::string inner(tag_end, closePos - tag_end);
+                        if (iconName.empty()) iconName = NormalizeIconName(inner.c_str());
+                        if (!iconName.empty()) {
+                            if (needSameLine) ImGui::SameLine(0.0f, 0.0f);
+                            ImVec4 c;
+                            if (iconCol != 0) c = ColorConvertU32ToFloat4(iconCol);
+                            ImGui::Icon(iconName.c_str(), customSz, iconCol != 0 ? &c : nullptr);
+                            needSameLine = true;
+                        }
+                        cur = closePos + closeTag.length();
+                        continue;
+                    }
+                }
+            }
+#endif
 
             // Unrecognized tag: output literally
             if (needSameLine) ImGui::SameLine(0.0f, 0.0f);

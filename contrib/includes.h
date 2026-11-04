@@ -53,6 +53,7 @@
 // #define CONTRIB_DISABLE_BADGES                 // Exclude Badge, Pill & Kbd widgets
 // #define CONTRIB_DISABLE_SPINNERS               // Exclude Spinner, RadialTimer & CountdownTimer
 // #define CONTRIB_DISABLE_POPUP_MENUS            // Exclude SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
+// #define CONTRIB_DISABLE_ICONS                  // Exclude procedural vector icon engine & ImGui::Icon
 
 // --- Fine-Grained Mouse-Wheel Control Opt-Outs & Style Defaults ---
 // #define CONTRIB_DISABLE_GET_MOUSE_WHEEL        // Exclude GetMouseWheel* primitives

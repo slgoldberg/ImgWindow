@@ -24,6 +24,7 @@ Look at the spectrum of UI tasks a flight sim plugin author faces, and how `cont
 | **Fearless Settings Tweaking** | No standard "revert to default" pattern; users hesitate to adjust complex tuning parameters. | **`ImGui::AdjustItemOnMouseWheel` & Reset Chasers**<br>Inline 1-click restore-to-default icon chaser with instant undo history. |
 | **One-Click Clipboard Copying** | Requires manual clipboard handling, lacks transient visual feedback, and twitches layout. | **`ImGui::CopyButton` & `CopyLastItemButton`**<br>Procedural vector icons (clipboard & checkmark), 1.5s feedback, anti-twitch sizing, and automatic chaser extraction from InputText. |
 | **Interactive Data Tables** | Tables require dozens of manual `TableSetupColumn` / `TableHeadersRow` lines, manual sort callbacks, and custom sizing persistence. | **`ImGui::MD` CommonMark Tables**<br>Standard GFM table syntax with tristate column sorting, divider drag resizing, right-border width grip, A/B toggle memory, and 2-tier comment persistence (`<!-- table-preset: ... -->` / `<!-- table-state: ... -->`). |
+| **Universal Vector Icons & Glyphs** | Missing glyph diamond boxes (``) when font atlases omit extended Unicode blocks (e.g. `↺`, `▲`, `▼`, `✓`, `⚙`). | **`ImGui::Icon` & Procedural Engine**<br>Zero-texture, zero-font procedural vector icon engine. Markdown `<icon ...>`, emoji shortcodes (`:gear:`), fallback link macros (`#[^](ICON_CARET_UP)`), and automatic raw Unicode glyph rescue. |
 | **External Docs & Web Links** | Raw text URLs or awkward styled buttons with default arrow cursors. | **`ImGui::ButtonLink`, `TextLink`, `MenuItemLink`**<br>Native OS hand cursors (`ImGuiMouseCursor_Hand`), hover underlines, and one-click browser launch via `XPLMOpenURL`. |
 
 
@@ -96,7 +97,8 @@ ImgWindow/
         ├── imgui_copy_button.h            # Standalone & chaser copy buttons with vector icons & feedback
         ├── imgui_knobs.h                  # Avionics rotary knobs, dimmer dials & 2-step OFF detente switches
         ├── imgui_file_dialog.h            # In-sim file open / save dialogs without modal window freezes
-        └── imgui_popup_menus.h            # Directional popups, item anchoring & SelectPulldown widgets
+        ├── imgui_popup_menus.h            # Directional popups, item anchoring & SelectPulldown widgets
+        └── imgui_icons.h                  # Procedural vector icons, ImGui::Icon & shortcodes
 ```
 
 ### 1. Packages & Extensions (`contrib/extensions/`)
@@ -131,6 +133,7 @@ Everything in `contrib/` is **active and ready by default**. If your project hap
 | **`CONTRIB_DISABLE_KNOBS`**          | **Opt-Out** | *Off* | Excludes `Knob`, `DimmerKnob`, and `RotaryDial`. |
 | **`CONTRIB_DISABLE_FILE_DIALOG`**    | **Opt-Out** | *Off* | Excludes `OpenFileDialog`, `SaveFileDialog`, and file pickers. |
 | **`CONTRIB_DISABLE_POPUP_MENUS`**    | **Opt-Out** | *Off* | Excludes `SelectPulldown`, `OpenPopupAtItem`, and `BeginAnchoredPopup`. |
+| **`CONTRIB_DISABLE_ICONS`**          | **Opt-Out** | *Off* | Excludes procedural vector icon engine and `ImGui::Icon`. |
 | **`CONTRIB_DISABLE_PERCENT_SLIDER`** | **Opt-Out** | *Off* | Excludes `PercentSlider` and `SliderPercent`. |
 | **`CONTRIB_DISABLE_MOUSE_WHEEL_COMBO`** | **Opt-Out** | *Off* | Excludes `MouseWheelCombo` and `ComboWithReset`. |
 | **`IMGUI_CONTRIB_DISABLE_RESET_UNDO`** | **Opt-Out** | *Off* | Disables 1-click Reset-with-Undo on reset buttons. |
