@@ -264,6 +264,29 @@ ImGui::StyledText("Transponder: <img name='my_badge' width=24 height=24 /> ACTIV
 * **SelectPulldown**:
   Compact 1-line dataref selectors with closed-state scroll pass-through and open-state wheel cycling.
 
+### 4.4 Procedural Vector Icons & Icon Buttons (`imgui_icons.h`)
+Eliminates missing-glyph diamond replacement boxes (`?`) when font atlases omit extended Unicode blocks (such as arrows, chevrons, or symbols):
+* **Zero Dependencies**: Draws crisp antialiased vector geometry directly to `ImDrawList` without fonts or textures.
+* **Inline Icon Widget**:
+  ```cpp
+  ImGui::Icon("undo");
+  ImGui::Icon("caret-up", 18.0f);
+  ImGui::Icon("gear", 16.0f, &ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
+  ```
+* **Interactive Button Faces (`ButtonMD`, `IconButton`, `ButtonIcon`)**:
+  ```cpp
+  // Pure icon button (defaults to square matching GetFrameHeight()):
+  if (ImGui::ButtonMD("<icon caret-up />##top", "Scroll to top")) { ... }
+
+  // Raw Unicode rescue (▲ -> caret-up):
+  if (ImGui::ButtonMD("▲##zoom_in", "Increase zoom")) { ... }
+
+  // Dual icon + text button:
+  if (ImGui::ButtonIcon("Settings", "gear", ImVec2(0, 0), false, "Open configuration")) { ... }
+  ```
+* **Markdown & StyledText Integration**:
+  Markdown `<icon ...>`, emoji shortcodes (`:gear:`), fallback link macros (`#[^](ICON_CARET_UP)`), and raw Unicode glyph rescue (`↺`, `▲`, `✓`, `⚙`) work out of the box with zero configuration.
+
 ---
 
 ## What's Next?

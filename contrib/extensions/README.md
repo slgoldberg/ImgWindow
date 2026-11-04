@@ -55,8 +55,9 @@ namespace ImGui {
 
 | Extension | Directory | Canonical Namespace | Shorthand Alias | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **Markdown** | [`Markdown/`](Markdown/) | `ImGui::Markdown::` | `ImGui::MD::` | Markdown parser and renderer based on `enkisoftware/imgui_markdown`, enhanced with dynamic font scaling, token lookahead, true hanging indents, and rich parameterized styling tags (`<color>`, `<backdrop>`, `<badge>`). |
+| **Markdown** | [`Markdown/`](Markdown/) | `ImGui::Markdown::` | `ImGui::MD::` | Markdown parser and renderer based on `enkisoftware/imgui_markdown`, enhanced with dynamic font scaling, token lookahead, true hanging indents, rich parameterized styling tags (`<color>`, `<backdrop>`, `<badge>`), procedural vector icons (`<icon ...>`), and native vector button faces (`ButtonMD`). |
 | **TimedTooltip** | [`TimedTooltip/`](TimedTooltip/) | `ImGui::TimedTooltip::` | *(Root & Bridge)* | Advanced stationary and delayed tooltip engine with automatic bounding box pre-calculation, viewport edge-clamping, and support for both plain-text and Markdown tooltips. |
+| **Typography** | [`Typography/`](Typography/) | `ImGui::Typography::` | `ImGui::` *(Root)* | Semantic font role hierarchy (`ImFontRole`), commutative scoped font guards (`ScopedFontRole`), and the inline `StyledText` engine with continuous baseline alignment for badges, pills, and textures. |
 
 ---
 

@@ -123,6 +123,7 @@ Everything in `contrib/` is **active and ready by default**. If your project hap
 | **`CONTRIB_DISABLE_TYPOGRAPHY`** | **Opt-Out** | *Off* | Excludes the `Typography` and `StyledText` extension. |
 | **`CONTRIB_DISABLE_TEXT_MD`** | **Opt-Out** | *Off* | Excludes all root `ImGui::TextMD` / `TextWrappedMD` aliases. |
 | **`CONTRIB_DISABLE_TEXT_WRAPPED_MD`** | **Opt-Out** | *Off* | Excludes ONLY root `ImGui::TextWrappedMD` (retains `TextMD`). |
+| **`CONTRIB_DISABLE_BUTTON_MD`** | **Opt-Out** | *Off* | Excludes root `ImGui::ButtonMD` / `ButtonMarkdown` aliases. |
 | **`CONTRIB_DISABLE_TOGGLE_BUTTONS`** | **Opt-Out** | *Off* | Excludes `ToggleButton` and `ToggleButtons`. |
 | **`CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL`**| **Opt-Out** | *Off* | Excludes mouse-wheel toggling on `ToggleButton`. |
 | **`CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS`**| **Opt-Out** | *Off* | Excludes mouse-wheel sliders, drags, cyclers, and combos. |
@@ -134,6 +135,7 @@ Everything in `contrib/` is **active and ready by default**. If your project hap
 | **`CONTRIB_DISABLE_FILE_DIALOG`**    | **Opt-Out** | *Off* | Excludes `OpenFileDialog`, `SaveFileDialog`, and file pickers. |
 | **`CONTRIB_DISABLE_POPUP_MENUS`**    | **Opt-Out** | *Off* | Excludes `SelectPulldown`, `OpenPopupAtItem`, and `BeginAnchoredPopup`. |
 | **`CONTRIB_DISABLE_ICONS`**          | **Opt-Out** | *Off* | Excludes procedural vector icon engine and `ImGui::Icon`. |
+| **`CONTRIB_DISABLE_ICON_BUTTON`**    | **Opt-Out** | *Off* | Excludes `IconButton` and `ButtonIcon` push-button widgets. |
 | **`CONTRIB_DISABLE_PERCENT_SLIDER`** | **Opt-Out** | *Off* | Excludes `PercentSlider` and `SliderPercent`. |
 | **`CONTRIB_DISABLE_MOUSE_WHEEL_COMBO`** | **Opt-Out** | *Off* | Excludes `MouseWheelCombo` and `ComboWithReset`. |
 | **`IMGUI_CONTRIB_DISABLE_RESET_UNDO`** | **Opt-Out** | *Off* | Disables 1-click Reset-with-Undo on reset buttons. |
