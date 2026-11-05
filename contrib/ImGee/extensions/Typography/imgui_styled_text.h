@@ -168,12 +168,10 @@ namespace ImGui {
 
     } // namespace Detail
 
-    /**
-     * Renders inline styled text supporting HTML-like tags:
-     *   <b>bold</b>, <i>italic</i>, <mono>code</mono>, <h1..h3>headers</h1..h3>,
-     *   <color=#hex>tinted text</color>, <pill color=#hex>capsule</pill>,
-     *   <badge color=#hex>badge</badge>, <kbd>key</kbd>, <img name=logo>
-     */
+    // Renders inline styled text supporting HTML-like tags:
+    //   `<b>bold</b>`, `<i>italic</i>`, `<mono>code</mono>`, `<h1>..<h3>headers</h3>`,
+    //   `<color="#hex">tinted text</color>`, `<pill color="#hex">capsule</pill>`,
+    //   `<badge color="#hex">badge</badge>`, `<kbd>key</kbd>`, `<img name="logo">`
     inline void StyledTextUnformatted(const char* text, const char* text_end = nullptr) {
         if (!text) return;
         if (!text_end) text_end = text + std::strlen(text);

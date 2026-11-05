@@ -54,9 +54,21 @@
 #include <dlfcn.h>
 #endif
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wcomma"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#pragma clang diagnostic ignored "-Wsign-compare"
+#endif
+
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "contrib/stb_image.h"
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #if !defined(CONTRIB_DISABLE_ALL) && \
     !defined(DISABLE_CONTRIB) && \

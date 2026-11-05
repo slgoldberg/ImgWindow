@@ -1,3 +1,11 @@
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wcomma"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#pragma clang diagnostic ignored "-Wsign-compare"
+#endif
+
 /* stb_image - v2.19 - public domain image loader - http://nothings.org/stb
                                   no warranty implied; use at your own risk
 
@@ -7460,3 +7468,7 @@ ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ------------------------------------------------------------------------------
 */
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
