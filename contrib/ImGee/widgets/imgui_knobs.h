@@ -85,12 +85,12 @@ namespace Detail {
 
     // Helper for mouse-wheel query with scroll-defeat fallback
     inline float GetKnobMouseWheel(bool consume = true) {
-        ImGuiContext& g = *GImGui;
-        ImGuiIO& io = g.IO;
 #if defined(IMGUI_MOUSE_WHEEL_CONTROLS_H) && !defined(CONTRIB_DISABLE_GET_MOUSE_WHEEL)
         // Leverage the high-grade scroll-defeat engine in imgui_mouse_wheel_controls.h
         return WheelSliderDetail::GetMouseWheelEither(consume);
 #else
+        ImGuiContext& g = *GImGui;
+        ImGuiIO& io = g.IO;
         float wheel = io.MouseWheel;
         if (consume && wheel != 0.0f) {
             io.MouseWheel = 0.0f;
@@ -195,7 +195,7 @@ namespace Detail {
 
         // Interaction behavior
         bool hovered = false, held = false;
-        bool pressed = ButtonBehavior(bb, id, &hovered, &held, ImGuiButtonFlags_None);
+        ButtonBehavior(bb, id, &hovered, &held, ImGuiButtonFlags_None);
 
         // Center coordinates of the circular knob dial
         ImVec2 center;

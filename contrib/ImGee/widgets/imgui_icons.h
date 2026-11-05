@@ -442,7 +442,6 @@ namespace ImGui {
                                      const ImVec4* icon_color = nullptr) {
         if (!str_id || !icon_name) return false;
 
-        ImGuiStyle& style = GetStyle();
         float frame_h = GetFrameHeight();
         ImVec2 btn_sz = size;
         if (btn_sz.x <= 0.0f) btn_sz.x = (btn_sz.y > 0.0f) ? btn_sz.y : frame_h;

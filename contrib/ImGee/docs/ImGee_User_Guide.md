@@ -20,9 +20,6 @@ ImgWindow/
 └── contrib/
     ├── includes.h                         # Level-1 Container Package Switchboard
     ├── imgee.h                            # Package Forwarding Header (-> ImGee/imgee.h)
-    ├── ImGee.h                            # PascalCase Forwarding Header
-    ├── extensions.h                       # Extensions Forwarding Header (-> ImGee/extensions)
-    ├── widgets.h                          # Widgets Forwarding Header (-> ImGee/widgets)
     │
     ├── ImGee/                             # The ImGee Flight-Deck ImGui Toolkit
     │   ├── imgee.h                        # Canonical ImGee Master Header & Version Contract
@@ -38,8 +35,10 @@ ImgWindow/
     │   ├── extensions/                    # Subsystems (Typography, Markdown, TimedTooltip)
     │   └── widgets/                       # Immediate-mode flight controls & vector icons
     │
-    ├── extensions/                        # Backward-Compatible Forwarding Headers
-    └── widgets/                           # Backward-Compatible Forwarding Headers
+    ├── extensions/                        # Legacy Forwarding Shims (Do Not Use for New Code)
+    ├── widgets/                           # Legacy Forwarding Shims (Do Not Use for New Code)
+    ├── extensions.h                       # Legacy Forwarding Shim (Do Not Use for New Code)
+    └── widgets.h                          # Legacy Forwarding Shim (Do Not Use for New Code)
 ```
 
 ---
@@ -157,16 +156,15 @@ If you wish to include *only* the ImGee suite—bypassing the container switchbo
 ImGee is architecturally decoupled. If your plugin only requires flight-deck widgets (rotary knobs, sliders, toggles) or only requires extensions (Markdown, TimedTooltip, Typography), you can include either half independently:
 
 ```cpp
-// Include only extensions (TimedTooltip, Markdown, Typography):
-#include "ImgWindow/contrib/extensions.h"
-// or directly from ImGee:
+// Option A: Include only extensions (TimedTooltip, Markdown, Typography):
 #include "ImgWindow/contrib/ImGee/extensions.h"
 
-// Include only cockpit widgets (Knobs, Toggles, Wheel Sliders, Badges, Icons):
-#include "ImgWindow/contrib/widgets.h"
-// or directly from ImGee:
+// Option B: Include only cockpit widgets (Knobs, Toggles, Wheel Sliders, Badges, Icons):
 #include "ImgWindow/contrib/ImGee/widgets.h"
 ```
+
+> [!NOTE]
+> **Legacy Backward-Compatibility Shims:** The headers `contrib/extensions.h` and `contrib/widgets.h` exist quietly solely to prevent breaking code written against older experimental builds. They forward into `ImGee/extensions/` and `ImGee/widgets/`, respectively. New code should always use the canonical `ImgWindow/contrib/ImGee/...` paths above.
 
 ### 5.5 Standalone / Independent Submodule Usage
 When ImGee is spun out into its own dedicated open-source Git repository and submoduled directly into a host application:

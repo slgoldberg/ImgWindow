@@ -1,4 +1,6 @@
 #pragma once
+#ifndef IMGUI_MARKDOWN_H
+#define IMGUI_MARKDOWN_H
 
 // License: zlib
 // Copyright (c) 2019 Juliette Foucaut & Doug Binks
@@ -3136,7 +3138,7 @@ namespace ImGui
                 float cw = ImGui::GetStateStorage()->GetFloat( header_hash + 100 + (ImGuiID)c, 0.0f );
                 if( cw <= 0.0f && table && c < (size_t)table->ColumnsCount )
                 {
-                    float w = table->Columns[c].WidthGiven;
+                    float w = table->Columns[(int)c].WidthGiven;
                     cw = ( scale > 0.0f ) ? ( w / scale ) : w;
                 }
                 st.columnWidths[c] = cw;
@@ -3162,9 +3164,9 @@ namespace ImGui
                 {
                     if( c < (size_t)table->ColumnsCount && col_widths[c] > 0.0f )
                     {
-                        table->Columns[c].WidthRequest = col_widths[c];
-                        table->Columns[c].StretchWeight = col_widths[c];
-                        table->Columns[c].AutoFitQueue = 0x00;
+                        table->Columns[(int)c].WidthRequest = col_widths[c];
+                        table->Columns[(int)c].StretchWeight = col_widths[c];
+                        table->Columns[(int)c].AutoFitQueue = 0x00;
                     }
                 }
                 ImGui::TableUpdateColumnsWeightFromWidth( table );
@@ -3178,7 +3180,7 @@ namespace ImGui
             {
                 if( !ImGui::TableSetColumnIndex( (int)col ) ) continue;
 
-                ImGuiTableColumn* column = ( table && (int)col < table->ColumnsCount ) ? &table->Columns[col] : nullptr;
+                ImGuiTableColumn* column = ( table && (int)col < table->ColumnsCount ) ? &table->Columns[(int)col] : nullptr;
                 bool is_sortable = ( ( flags & ImGuiTableFlags_Sortable ) && column && !( column->Flags & ImGuiTableColumnFlags_NoSort ) );
 
                 if( is_sortable && table )
@@ -3320,7 +3322,7 @@ namespace ImGui
                     {
                         if( c < (size_t)table->ColumnsCount )
                         {
-                            float cw = table->Columns[c].WidthGiven;
+                            float cw = table->Columns[(int)c].WidthGiven;
                             float norm_c = ( scale > 0.0f ) ? ( cw / scale ) : cw;
                             ImGui::GetStateStorage()->SetFloat( header_hash + 100 + (ImGuiID)c, norm_c );
                             ImGui::GetStateStorage()->SetFloat( header_hash + 200 + (ImGuiID)c, norm_c );
@@ -3384,7 +3386,7 @@ namespace ImGui
                             float cur_cw = ImGui::GetStateStorage()->GetFloat( header_hash + 100 + (ImGuiID)c, 0.0f );
                             if( cur_cw <= 0.0f && table && c < (size_t)table->ColumnsCount )
                             {
-                                float cw = table->Columns[c].WidthGiven;
+                                float cw = table->Columns[(int)c].WidthGiven;
                                 cur_cw = ( scale > 0.0f ) ? ( cw / scale ) : cw;
                             }
                             ImGui::GetStateStorage()->SetFloat( header_hash + 200 + (ImGuiID)c, cur_cw );
@@ -3397,9 +3399,9 @@ namespace ImGui
                             {
                                 if( pw > 0.0f )
                                 {
-                                    table->Columns[c].WidthRequest = pw * scale;
-                                    table->Columns[c].StretchWeight = pw * scale;
-                                    table->Columns[c].AutoFitQueue = 0x00;
+                                    table->Columns[(int)c].WidthRequest = pw * scale;
+                                    table->Columns[(int)c].StretchWeight = pw * scale;
+                                    table->Columns[(int)c].AutoFitQueue = 0x00;
                                 }
                             }
                         }
@@ -3429,9 +3431,9 @@ namespace ImGui
 
                             if( table && c < (size_t)table->ColumnsCount && saved_cw > 0.0f )
                             {
-                                table->Columns[c].WidthRequest = saved_cw * scale;
-                                table->Columns[c].StretchWeight = saved_cw * scale;
-                                table->Columns[c].AutoFitQueue = 0x00;
+                                table->Columns[(int)c].WidthRequest = saved_cw * scale;
+                                table->Columns[(int)c].StretchWeight = saved_cw * scale;
+                                table->Columns[(int)c].AutoFitQueue = 0x00;
                             }
                         }
 
@@ -4081,10 +4083,12 @@ namespace ImGui
                             }
                             // Safety guard: if the tag did not advance or left IsSameLine set,
                             // explicitly break to a new line so the next line never renders on top of this line!
+#if defined(IMGUI_VERSION_NUM) && IMGUI_VERSION_NUM >= 18900
                             if( ImGui::GetCurrentWindow()->DC.IsSameLine )
                             {
                                 ImGui::NewLine();
                             }
+#endif
                             textRegion.ResetIndent();
                             line = Line();
                             em = Emphasis();
@@ -4941,3 +4945,5 @@ namespace ImGui
     }
 
 }
+
+#endif // IMGUI_MARKDOWN_H

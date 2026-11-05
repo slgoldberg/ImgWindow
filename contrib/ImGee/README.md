@@ -121,16 +121,15 @@ If you wish to include *only* the ImGee suite—bypassing the container switchbo
 ImGee is architecturally decoupled. If your plugin only requires flight-deck widgets or only requires extensions:
 
 ```cpp
-// Include only extensions (TimedTooltip, Markdown, Typography):
-#include "ImgWindow/contrib/extensions.h"
-// or directly from ImGee:
+// Option A: Include only extensions (TimedTooltip, Markdown, Typography):
 #include "ImgWindow/contrib/ImGee/extensions.h"
 
-// Include only cockpit widgets (Knobs, Toggles, Wheel Sliders, Badges, Icons):
-#include "ImgWindow/contrib/widgets.h"
-// or directly from ImGee:
+// Option B: Include only cockpit widgets (Knobs, Toggles, Wheel Sliders, Badges, Icons):
 #include "ImgWindow/contrib/ImGee/widgets.h"
 ```
+
+> [!NOTE]
+> **Legacy Backward-Compatibility Shims:** Legacy headers like `contrib/extensions.h` and `contrib/widgets.h` exist quietly solely to avoid breaking earlier code, forwarding into `ImGee`. New plugins should always use the canonical `ImgWindow/contrib/ImGee/...` paths.
 
 ### 5. Standalone / Independent Submodule Usage
 When ImGee is spun out into its own dedicated open-source Git repository and submoduled directly into a host application:

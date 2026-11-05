@@ -350,7 +350,7 @@ namespace ImGui {
         const float text_y = pos.y + window->DC.CurrLineTextBaseOffset;
         const ImVec2 text_pos(pos.x + pad_x, text_y);
 
-        const ImRect bb(ImVec2(pos.x, text_y - pad_y), ImVec2(pos.x + total_w, text_y + text_size.y + pad_y + bevel));
+        const ImRect bb(ImVec2(pos.x, text_y - pad_y), ImVec2(pos.x + total_w, text_y - pad_y + total_h));
 
         ItemSize(ImVec2(total_w, text_size.y), 0.0f);
         const ImGuiID id = window->GetID(key_label);

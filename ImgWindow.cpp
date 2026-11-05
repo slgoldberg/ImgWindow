@@ -1114,7 +1114,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
                         continue; 
                     }
                     if (!draw_calls.empty()) {
-                        ImgPanelGraphics::DrawCalls(&mesh, draw_calls.size(), draw_calls.data());
+                        ImgPanelGraphics::DrawCalls(&mesh, static_cast<int>(draw_calls.size()), draw_calls.data());
                         draw_calls.clear();
                     }
                     pcmd->UserCallback(cmd_list, pcmd);
@@ -1143,7 +1143,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
             }
             
             if (!draw_calls.empty()) {
-                ImgPanelGraphics::DrawCalls(&mesh, draw_calls.size(), draw_calls.data());
+                ImgPanelGraphics::DrawCalls(&mesh, static_cast<int>(draw_calls.size()), draw_calls.data());
             }
         }
         
