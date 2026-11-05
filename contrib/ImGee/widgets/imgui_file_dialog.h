@@ -314,7 +314,20 @@ namespace ImGui {
             state.was_open = true;
         }
 
-        ImGui::SetNextWindowSize(ImVec2(560.0f, 380.0f), ImGuiCond_FirstUseEver);
+        const ImVec2 disp = ImGui::GetIO().DisplaySize;
+        const float margin = 16.0f;
+        const float max_w = (disp.x > 100.0f) ? (std::max)(100.0f, disp.x - margin) : 560.0f;
+        const float max_h = (disp.y > 100.0f) ? (std::max)(100.0f, disp.y - margin) : 380.0f;
+        const float min_w = (std::min)(320.0f, max_w);
+        const float min_h = (std::min)(220.0f, max_h);
+        const float default_w = (std::max)(min_w, (std::min)(560.0f, max_w));
+        const float default_h = (std::max)(min_h, (std::min)(380.0f, max_h));
+
+        ImGui::SetNextWindowSize(ImVec2(default_w, default_h), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(min_w, min_h), ImVec2(max_w, max_h));
+        if (disp.x > 100.0f && disp.y > 100.0f) {
+            ImGui::SetNextWindowPos(ImVec2(disp.x * 0.5f, disp.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        }
         if (!ImGui::IsPopupOpen(title)) {
             ImGui::OpenPopup(title);
         }
@@ -332,20 +345,49 @@ namespace ImGui {
         }
 
         // --- 1. Navigation & Path Bar ---
-        if (ImGui::Button("< Back") || ImGui::Button("Up")) {
+        if (ImGui::Button("< Back")) {
+            state.current_dir = Detail::GetParentDirectory(state.current_dir);
+            state.needs_scan = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Up")) {
             state.current_dir = Detail::GetParentDirectory(state.current_dir);
             state.needs_scan = true;
         }
         ImGui::SameLine();
         ImGui::TextDisabled("Path:");
         ImGui::SameLine();
-        ImGui::TextUnformatted(state.current_dir.c_str());
+
+        const float win_w = ImGui::GetWindowWidth();
+        const float search_box_w = 180.0f;
+        const float search_reserve = search_box_w + ImGui::GetStyle().ItemSpacing.x * 2.0f;
+        const float cursor_x = ImGui::GetCursorPosX();
+        const float path_text_w = ImGui::CalcTextSize(state.current_dir.c_str()).x;
 
         // --- 2. Live Search Filter ---
-        ImGui::SameLine(ImGui::GetWindowWidth() - 200.0f);
-        ImGui::SetNextItemWidth(180.0f);
-        if (ImGui::InputTextWithHint("##search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
-            // Filter string updated
+        // If window is wide enough and the path text doesn't collide, keep search on the same row.
+        // Otherwise, wrap search to its own full-width row so path and search never collide.
+        const bool can_fit_same_line = (win_w >= 520.0f) && ((cursor_x + path_text_w + search_reserve) < win_w);
+
+        if (can_fit_same_line) {
+            ImGui::TextUnformatted(state.current_dir.c_str());
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", state.current_dir.c_str());
+            }
+            ImGui::SameLine(win_w - search_box_w - ImGui::GetStyle().WindowPadding.x);
+            ImGui::SetNextItemWidth(search_box_w);
+            if (ImGui::InputTextWithHint("##search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
+                // Filter string updated
+            }
+        } else {
+            ImGui::TextUnformatted(state.current_dir.c_str());
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", state.current_dir.c_str());
+            }
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::InputTextWithHint("##search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
+                // Filter string updated
+            }
         }
 
         ImGui::Separator();
@@ -357,7 +399,8 @@ namespace ImGui {
         }
 
         // --- 3. Directory & File List Table ---
-        float table_height = ImGui::GetContentRegionAvail().y - 42.0f;
+        const float footer_h = (std::max)(42.0f, ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y * 2.0f);
+        float table_height = (std::max)(60.0f, ImGui::GetContentRegionAvail().y - footer_h);
         if (ImGui::BeginChild("##file_list", ImVec2(0.0f, table_height), true, ImGuiWindowFlags_HorizontalScrollbar)) {
             for (const auto& item : state.cached_items) {
                 // Filter match
@@ -404,7 +447,7 @@ namespace ImGui {
         // --- 4. Bottom Action Bar ---
         ImGui::TextUnformatted("File:");
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 170.0f);
+        ImGui::SetNextItemWidth((std::max)(60.0f, ImGui::GetContentRegionAvail().x - 170.0f));
         if (ImGui::InputText("##sel_file", state.filename_input, sizeof(state.filename_input), ImGuiInputTextFlags_EnterReturnsTrue)) {
             if (state.filename_input[0] != '\0') {
                 std::string chosen = (state.current_dir == "/") ? ("/" + std::string(state.filename_input)) : (state.current_dir + "/" + state.filename_input);
@@ -464,7 +507,20 @@ namespace ImGui {
             state.was_open = true;
         }
 
-        ImGui::SetNextWindowSize(ImVec2(560.0f, 380.0f), ImGuiCond_FirstUseEver);
+        const ImVec2 disp = ImGui::GetIO().DisplaySize;
+        const float margin = 16.0f;
+        const float max_w = (disp.x > 100.0f) ? (std::max)(100.0f, disp.x - margin) : 560.0f;
+        const float max_h = (disp.y > 100.0f) ? (std::max)(100.0f, disp.y - margin) : 380.0f;
+        const float min_w = (std::min)(320.0f, max_w);
+        const float min_h = (std::min)(220.0f, max_h);
+        const float default_w = (std::max)(min_w, (std::min)(560.0f, max_w));
+        const float default_h = (std::max)(min_h, (std::min)(380.0f, max_h));
+
+        ImGui::SetNextWindowSize(ImVec2(default_w, default_h), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(min_w, min_h), ImVec2(max_w, max_h));
+        if (disp.x > 100.0f && disp.y > 100.0f) {
+            ImGui::SetNextWindowPos(ImVec2(disp.x * 0.5f, disp.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        }
         if (!ImGui::IsPopupOpen(title)) {
             ImGui::OpenPopup(title);
         }
@@ -514,20 +570,49 @@ namespace ImGui {
         };
 
         // --- 1. Navigation & Path Bar ---
-        if (ImGui::Button("< Back") || ImGui::Button("Up")) {
+        if (ImGui::Button("< Back")) {
+            state.current_dir = Detail::GetParentDirectory(state.current_dir);
+            state.needs_scan = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Up")) {
             state.current_dir = Detail::GetParentDirectory(state.current_dir);
             state.needs_scan = true;
         }
         ImGui::SameLine();
         ImGui::TextDisabled("Path:");
         ImGui::SameLine();
-        ImGui::TextUnformatted(state.current_dir.c_str());
+
+        const float win_w = ImGui::GetWindowWidth();
+        const float search_box_w = 180.0f;
+        const float search_reserve = search_box_w + ImGui::GetStyle().ItemSpacing.x * 2.0f;
+        const float cursor_x = ImGui::GetCursorPosX();
+        const float path_text_w = ImGui::CalcTextSize(state.current_dir.c_str()).x;
 
         // --- 2. Live Search Filter ---
-        ImGui::SameLine(ImGui::GetWindowWidth() - 200.0f);
-        ImGui::SetNextItemWidth(180.0f);
-        if (ImGui::InputTextWithHint("##save_search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
-            // Filter updated
+        // If window is wide enough and the path text doesn't collide, keep search on the same row.
+        // Otherwise, wrap search to its own full-width row so path and search never collide.
+        const bool can_fit_same_line = (win_w >= 520.0f) && ((cursor_x + path_text_w + search_reserve) < win_w);
+
+        if (can_fit_same_line) {
+            ImGui::TextUnformatted(state.current_dir.c_str());
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", state.current_dir.c_str());
+            }
+            ImGui::SameLine(win_w - search_box_w - ImGui::GetStyle().WindowPadding.x);
+            ImGui::SetNextItemWidth(search_box_w);
+            if (ImGui::InputTextWithHint("##save_search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
+                // Filter updated
+            }
+        } else {
+            ImGui::TextUnformatted(state.current_dir.c_str());
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", state.current_dir.c_str());
+            }
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::InputTextWithHint("##save_search", "Search...", state.filter_buf, sizeof(state.filter_buf))) {
+                // Filter updated
+            }
         }
 
         ImGui::Separator();
@@ -538,7 +623,8 @@ namespace ImGui {
         }
 
         // --- 3. Directory & File List Table ---
-        float table_height = ImGui::GetContentRegionAvail().y - 42.0f;
+        const float footer_h = (std::max)(42.0f, ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y * 2.0f);
+        float table_height = (std::max)(60.0f, ImGui::GetContentRegionAvail().y - footer_h);
         if (ImGui::BeginChild("##save_file_list", ImVec2(0.0f, table_height), true, ImGuiWindowFlags_HorizontalScrollbar)) {
             for (const auto& item : state.cached_items) {
                 // Filter match
@@ -580,7 +666,7 @@ namespace ImGui {
         // --- 4. Bottom Action Bar ---
         ImGui::TextUnformatted("Save As:");
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 170.0f);
+        ImGui::SetNextItemWidth((std::max)(60.0f, ImGui::GetContentRegionAvail().x - 170.0f));
         if (ImGui::InputText("##save_filename", state.filename_input, sizeof(state.filename_input), ImGuiInputTextFlags_EnterReturnsTrue)) {
             try_save();
         }
