@@ -32,51 +32,56 @@ except ImportError:
 # ------------------------------------------------------------------------------
 # 1. Two-Pass Numbered Canvas (Running Header & "Page X of Y" Footer)
 # ------------------------------------------------------------------------------
-class NumberedCanvas(canvas.Canvas):
+def make_numbered_canvas(header_text: str = "ImGee: Avionics & Flight-Sim UI Toolkit — User Guide",
+                         footer_left: str = "ImGee for Dear ImGui • Author: Steven L. Goldberg (@slgoldberg)"):
     """
-    Two-pass canvas that accumulates total page count before drawing
+    Factory creating a two-pass canvas that accumulates total page count before drawing
     running headers, rules, and dynamic 'Page X of Y' footers.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._saved_page_states = []
+    class DynamicNumberedCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._saved_page_states = []
 
-    def showPage(self):
-        self._saved_page_states.append(dict(self.__dict__))
-        self._startPage()
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
 
-    def save(self):
-        num_pages = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            self.draw_page_decorations(num_pages)
-            canvas.Canvas.showPage(self)
-        canvas.Canvas.save(self)
+        def save(self):
+            num_pages = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                self.draw_page_decorations(num_pages)
+                canvas.Canvas.showPage(self)
+            canvas.Canvas.save(self)
 
-    def draw_page_decorations(self, page_count):
-        if self._pageNumber == 1:
-            # Suppress header and footer on cover / title page
-            return
+        def draw_page_decorations(self, page_count):
+            if self._pageNumber == 1:
+                # Suppress header and footer on cover / title page
+                return
 
-        self.saveState()
-        self.setFont("Helvetica", 8)
-        self.setFillColor(colors.HexColor("#64748B"))
+            self.saveState()
+            self.setFont("Helvetica", 8)
+            self.setFillColor(colors.HexColor("#64748B"))
 
-        # Running Header
-        header_text = "ImgWindow Contrib Library — Developer & User Manual"
-        self.drawString(54, 750, header_text)
-        self.setStrokeColor(colors.HexColor("#CBD5E1"))
-        self.setLineWidth(0.5)
-        self.line(54, 744, 558, 744)
+            # Running Header
+            self.drawString(54, 750, header_text)
+            self.setStrokeColor(colors.HexColor("#CBD5E1"))
+            self.setLineWidth(0.5)
+            self.line(54, 744, 558, 744)
 
-        # Running Footer
-        self.line(54, 48, 558, 48)
-        footer_left = "ImgWindow for X-Plane • Author: Steven L. Goldberg (@slgoldberg)"
-        footer_right = f"Page {self._pageNumber} of {page_count}"
-        self.drawString(54, 36, footer_left)
-        self.drawRightString(558, 36, footer_right)
+            # Running Footer
+            self.line(54, 48, 558, 48)
+            footer_right = f"Page {self._pageNumber} of {page_count}"
+            self.drawString(54, 36, footer_left)
+            self.drawRightString(558, 36, footer_right)
 
-        self.restoreState()
+            self.restoreState()
+
+    return DynamicNumberedCanvas
+
+
+NumberedCanvas = make_numbered_canvas()
 
 
 # ------------------------------------------------------------------------------
@@ -545,15 +550,22 @@ def parse_markdown_to_flowables(md_content: str, styles) -> List:
 # ------------------------------------------------------------------------------
 # 4. Main Document Orchestrator
 # ------------------------------------------------------------------------------
-def generate_pdf(output_path: str, source_files: List[str]):
+def generate_pdf(output_path: str, source_files: List[str],
+                 title: str = None,
+                 subtitle: str = None,
+                 header: str = None,
+                 footer: str = None):
     print(f"[PDF Generator] Preparing manual: {output_path}")
     styles = build_styles()
     story = []
 
     # Title Page Banner
-    story.append(Paragraph("ImgWindow Contrib Library", styles['ManualTitle']))
-    story.append(Paragraph("Modern UI Widgets & Extensions for Dear ImGui in X-Plane Plugins", styles['ManualSubtitle']))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1E3A8A"), spaceAfter=14))
+    if title:
+        story.append(Paragraph(title, styles['ManualTitle']))
+    if subtitle:
+        story.append(Paragraph(subtitle, styles['ManualSubtitle']))
+    if title or subtitle:
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1E3A8A"), spaceAfter=14))
 
     for idx, filepath in enumerate(source_files):
         if not os.path.exists(filepath):
@@ -580,31 +592,102 @@ def generate_pdf(output_path: str, source_files: List[str]):
         bottomMargin=54
     )
 
-    doc.build(story, canvasmaker=NumberedCanvas)
+    canvas_cls = make_numbered_canvas(
+        header_text=header or "ImGee User Guide",
+        footer_left=footer or "ImGee for Dear ImGui • Author: Steven L. Goldberg (@slgoldberg)"
+    )
+    doc.build(story, canvasmaker=canvas_cls)
     file_size_kb = os.path.getsize(output_path) / 1024.0
     print(f"[PDF Generator] Manual created successfully: {output_path} ({file_size_kb:.1f} KB)")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate publication-grade PDF manual from ImgWindow contrib markdown documentation.")
-    parser.add_argument("--output", "-o", default="docs/ImgWindow_Contrib_Manual.pdf", help="Output PDF file path")
-    parser.add_argument("inputs", nargs="*", help="Markdown files to include (defaults to all contrib docs)")
+    import shutil
+    parser = argparse.ArgumentParser(description="Generate publication-grade PDF manual from ImgWindow / ImGee markdown documentation.")
+    parser.add_argument("--output", "-o", default=None, help="Output PDF file path")
+    parser.add_argument("--imgee", action="store_true", help="Generate dedicated ImGee User Guide PDF")
+    parser.add_argument("--contrib", action="store_true", help="Generate full ImgWindow Contrib Library manual")
+    parser.add_argument("--all", action="store_true", help="Generate both ImGee User Guide and Contrib Library manuals")
+    parser.add_argument("--title", default=None, help="Manual title")
+    parser.add_argument("--subtitle", default=None, help="Manual subtitle")
+    parser.add_argument("--header", default=None, help="Running header text")
+    parser.add_argument("--footer", default=None, help="Running footer text")
+    parser.add_argument("inputs", nargs="*", help="Markdown files to include")
 
     args = parser.parse_args()
 
-    if not args.inputs:
-        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        default_docs = [
-            os.path.join(repo_root, "contrib", "README.md"),
-            os.path.join(repo_root, "contrib", "ImGee", "docs", "ImGee_User_Guide.md"),
-            os.path.join(repo_root, "contrib", "ImGee", "widgets", "README.md"),
-            os.path.join(repo_root, "contrib", "ImGee", "extensions", "Markdown", "README.md"),
-            os.path.join(repo_root, "contrib", "ImGee", "extensions", "TimedTooltip", "README.md"),
-            # Fallbacks for legacy layout
-            os.path.join(repo_root, "contrib", "widgets", "README.md"),
-            os.path.join(repo_root, "contrib", "extensions", "Markdown", "README.md"),
-            os.path.join(repo_root, "contrib", "extensions", "TimedTooltip", "README.md"),
-        ]
-        args.inputs = [f for f in default_docs if os.path.exists(f)]
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    generate_pdf(args.output, args.inputs)
+    imgee_docs = [
+        os.path.join(repo_root, "contrib", "ImGee", "docs", "ImGee_User_Guide.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "widgets", "README.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "extensions", "Typography", "README.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "extensions", "Markdown", "README.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "extensions", "TimedTooltip", "README.md"),
+    ]
+    imgee_docs = [f for f in imgee_docs if os.path.exists(f)]
+
+    contrib_docs = [
+        os.path.join(repo_root, "contrib", "README.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "docs", "ImGee_User_Guide.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "widgets", "README.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "extensions", "Typography", "README.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "extensions", "Markdown", "README.md"),
+        os.path.join(repo_root, "contrib", "ImGee", "extensions", "TimedTooltip", "README.md"),
+    ]
+    contrib_docs = [f for f in contrib_docs if os.path.exists(f)]
+
+    # If explicit inputs are provided, generate single target
+    if args.inputs:
+        out_path = args.output or os.path.join(repo_root, "docs", "ImGee_User_Guide.pdf")
+        generate_pdf(
+            out_path,
+            args.inputs,
+            title=args.title or "ImGee: Avionics & Flight-Sim UI Toolkit",
+            subtitle=args.subtitle or "Comprehensive Developer & User Manual • ImgWindow v2.4.0",
+            header=args.header or "ImGee: Avionics & Flight-Sim UI Toolkit — User Guide",
+            footer=args.footer or "ImGee for Dear ImGui • Author: Steven L. Goldberg (@slgoldberg)"
+        )
+        sys.exit(0)
+
+    # Determine what to build:
+    build_imgee = args.imgee or args.all or (not args.contrib and args.output is None)
+    build_contrib = args.contrib or args.all or (not args.imgee and args.output is None)
+
+    if args.output:
+        # User specified an output file
+        is_imgee = "imgee" in args.output.lower()
+        generate_pdf(
+            args.output,
+            imgee_docs if is_imgee else contrib_docs,
+            title=args.title or ("ImGee: Avionics & Flight-Sim UI Toolkit" if is_imgee else "ImgWindow Contrib Library & ImGee Suite"),
+            subtitle=args.subtitle or ("Comprehensive Developer & User Manual • ImgWindow v2.4.0" if is_imgee else "Community Multi-Package Container & Avionics UI System for X-Plane Plugins"),
+            header=args.header or ("ImGee: Avionics & Flight-Sim UI Toolkit — User Guide" if is_imgee else "ImgWindow Contrib Library & ImGee Suite — Developer Manual"),
+            footer=args.footer or ("ImGee for Dear ImGui • Author: Steven L. Goldberg (@slgoldberg)" if is_imgee else "ImgWindow for X-Plane • Author: Steven L. Goldberg (@slgoldberg)")
+        )
+    else:
+        if build_imgee:
+            imgee_out = os.path.join(repo_root, "docs", "ImGee_User_Guide.pdf")
+            generate_pdf(
+                imgee_out,
+                imgee_docs,
+                title=args.title or "ImGee: Avionics & Flight-Sim UI Toolkit",
+                subtitle=args.subtitle or "Comprehensive Developer & User Manual • ImgWindow v2.4.0",
+                header=args.header or "ImGee: Avionics & Flight-Sim UI Toolkit — User Guide",
+                footer=args.footer or "ImGee for Dear ImGui • Author: Steven L. Goldberg (@slgoldberg)"
+            )
+            # Also copy to contrib/ImGee/docs/ImGee_User_Guide.pdf for convenient local access
+            local_imgee_pdf = os.path.join(repo_root, "contrib", "ImGee", "docs", "ImGee_User_Guide.pdf")
+            shutil.copyfile(imgee_out, local_imgee_pdf)
+            print(f"[PDF Generator] Copied to: {local_imgee_pdf}")
+
+        if build_contrib:
+            contrib_out = os.path.join(repo_root, "docs", "ImgWindow_Contrib_Manual.pdf")
+            generate_pdf(
+                contrib_out,
+                contrib_docs,
+                title=args.title or "ImgWindow Contrib Library & ImGee Suite",
+                subtitle=args.subtitle or "Community Multi-Package Container & Avionics UI System for X-Plane Plugins",
+                header=args.header or "ImgWindow Contrib Library & ImGee Suite — Developer Manual",
+                footer=args.footer or "ImgWindow for X-Plane • Author: Steven L. Goldberg (@slgoldberg)"
+            )

@@ -1,46 +1,47 @@
-# ImGui Extra Widgets
+# ImGee Flight-Deck & Avionics Widgets
 
-This directory contains lightweight, reusable, immediate-mode **Widgets** extending Dear ImGui within the **ImgWindow** framework.
+This directory contains lightweight, reusable, immediate-mode **Widgets** extending Dear ImGui within the **ImGee** suite for the **ImgWindow** framework.
 
-Unlike **Extensions** (which manage their own complex background subsystems, registries, and configuration structures), **Widgets** are self-contained immediate-mode controls. They hook directly into Dear ImGui's ambient context (`GImGui`, ID stack, `ImGuiStorage`, and window draw lists) and live directly in the root `ImGui::` namespace to feel completely native.
+Unlike **Extensions** (which manage their own complex background subsystems, registries, and configuration structures), **Widgets** are self-contained immediate-mode flight-deck controls. They hook directly into Dear ImGui's ambient context (`GImGui`, ID stack, `ImGuiStorage`, and window draw lists) and live directly in the root `ImGui::` namespace to feel completely native.
 
 ---
 
 ## Architecture & Inclusion Strategy
 
 ### 1. Root `ImGui::` Namespacing
-All widgets in this directory are injected directly into `namespace ImGui { ... }`. You call `ImGui::ToggleButton(...)`, `ImGui::SliderWithReset(...)`, `ImGui::PercentSlider(...)`, and `ImGui::ButtonLink(...)` just like Dear ImGui's built-in `ImGui::Checkbox` or `ImGui::SliderFloat`.
+All widgets in this directory are injected directly into `namespace ImGui { ... }`. You call `ImGui::Knob(...)`, `ImGui::ToggleButton(...)`, `ImGui::SliderWithReset(...)`, `ImGui::Badge(...)`, `ImGui::Icon(...)`, and `ImGui::SelectPulldown(...)` just like Dear ImGui's built-in `ImGui::Checkbox` or `ImGui::SliderFloat`.
 
-### 2. The 4-Tier Inclusion Model
+### 2. Inclusion Models
 
 | Pattern | Usage | Benefit |
 | :--- | :--- | :--- |
-| **Master Contrib Roll-Up** | `#include "ImgWindow/contrib.h"` *(or `"contrib/includes.h"`)* | Includes **all** extensions (`TimedTooltip`, `Markdown`) and contributed widgets in guaranteed dependency order. |
-| **Widgets Roll-Up** | `#include "ImgWindow/contrib/widgets.h"` *(or `"contrib/widgets/includes.h"`)* | Instant access to the entire widget collection in one line. |
-| **A-la-Carte** | `#include "ImgWindow/contrib/widgets/imgui_mouse_wheel_controls.h"` | Include only the specific control family you need. |
-| **Opt-Out Macros** | `#define CONTRIB_DISABLE_<FEATURE>` | Zero conflict if your project already defines a conflicting identifier. |
+| **Master Contrib Concentrator** | `#include "contrib.h"` | Includes the master switchboard which cascades directly into ImGee. |
+| **Master ImGee Suite** | `#include "contrib/ImGee/imgee.h"` | Includes **all** ImGee extensions (`TimedTooltip`, `Markdown`, `Typography`) and widgets in guaranteed dependency order. |
+| **ImGee Widgets Roll-Up** | `#include "contrib/ImGee/widgets/includes.h"` *(or `"contrib/widgets.h"`)* | Instant access to the entire widget collection in one line. |
+| **A-la-Carte Widget** | `#include "contrib/ImGee/widgets/imgui_knobs.h"` | Include only the specific control family you need. |
 
 #### Opt-Out Configuration Flags
-If your project defines a function with the same name, define any of the following canonical macros *before* including `contrib.h` or `widgets.h` (`IMGUI_CONTRIB_DISABLE_*`, `IMGUI_DISABLE_CONTRIB_*`, and legacy `IMGUI_DISABLE_EXTRA_*` macro names are also honored automatically):
+If your project defines a symbol with the same name, define any of the following canonical `IMGEE_*` macros *before* including `imgee.h` (legacy `CONTRIB_DISABLE_*` and `IMGUI_DISABLE_*` macro names are also honored automatically):
 
 ```cpp
-#define CONTRIB_DISABLE_TOGGLE_BUTTONS        // Disables ToggleButton & ToggleButtons
-#define CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL    // Disables mouse-wheel support on ToggleButton & ToggleButtons
-#define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS  // Disables all wheel sliders, drags, cyclers & combos
-#define CONTRIB_DISABLE_CLICKABLE_LINKS       // Disables ButtonLink, TextLink & AttachItemCursor
-#define CONTRIB_DISABLE_BADGES                // Disables Badge, Pill & Kbd widgets
-#define CONTRIB_DISABLE_SPINNERS              // Disables Spinner, RadialTimer & CountdownTimer
-#define CONTRIB_DISABLE_COPY_BUTTON           // Disables CopyButton, CopyLastItemButton & semantic aliases
-#define CONTRIB_DISABLE_POPUP_MENUS           // Disables SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
-#define CONTRIB_DISABLE_ICONS                 // Disables procedural vector icon engine & ImGui::Icon
-#define CONTRIB_DISABLE_ICON_BUTTON           // Disables IconButton & ButtonIcon push-button widgets
-#define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Disables GetMouseWheel* primitives
-#define CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL    // Disables AdjustItemOnMouseWheel()
-#define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL     // Disables CycleItemOnMouseWheel()
-#define CONTRIB_DISABLE_PERCENT_SLIDER        // Disables PercentSlider() & SliderPercent()
-#define CONTRIB_DISABLE_SLIDER_PERCENT        // Disables only the SliderPercent() alias
-#define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO     // Disables MouseWheelCombo & ComboWithReset
-#define IMGUI_CONTRIB_DISABLE_RESET_UNDO      // Disables 1-click Reset-with-Undo (restore previous value)
+#define IMGEE_DISABLE_WIDGETS                 // Disables all ImGee widgets
+#define IMGEE_DISABLE_KNOBS                   // Disables avionics rotary knobs, dimmer dials & detents
+#define IMGEE_DISABLE_MOUSE_WHEEL_CONTROLS    // Disables all wheel sliders, drags, cyclers & combos
+#define IMGEE_DISABLE_TOGGLE_BUTTONS          // Disables ToggleButton & ToggleButtons
+#define IMGEE_DISABLE_TOGGLE_MOUSE_WHEEL      // Disables mouse-wheel support on ToggleButton
+#define IMGEE_DISABLE_BADGES                  // Disables Badge, Pill, AnnunciatorPill & Kbd widgets
+#define IMGEE_DISABLE_POPUP_MENUS             // Disables SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
+#define IMGEE_DISABLE_ICONS                   // Disables procedural vector icon engine & ImGui::Icon
+#define IMGEE_DISABLE_ICON_BUTTON             // Disables IconButton & ButtonIcon push buttons
+#define IMGEE_DISABLE_CLICKABLE_LINKS         // Disables ButtonLink, TextLink & AttachItemCursor
+#define IMGEE_DISABLE_SPINNERS                // Disables Spinner, RadialTimer & CountdownTimer
+#define IMGEE_DISABLE_COPY_BUTTON             // Disables CopyButton & CopyLastItemButton
+#define IMGEE_DISABLE_GET_MOUSE_WHEEL         // Disables GetMouseWheel* primitives
+#define IMGEE_DISABLE_ADJUST_MOUSE_WHEEL      // Disables AdjustItemOnMouseWheel()
+#define IMGEE_DISABLE_CYCLE_MOUSE_WHEEL       // Disables CycleItemOnMouseWheel()
+#define IMGEE_DISABLE_PERCENT_SLIDER          // Disables PercentSlider() & SliderPercent()
+#define IMGEE_DISABLE_MOUSE_WHEEL_COMBO       // Disables MouseWheelCombo & ComboWithReset
+#define IMGEE_DISABLE_RESET_UNDO              // Disables 1-click Reset-with-Undo (restore previous value)
 
 // Optional compile-time icon & chevron style customization:
 #define IMGUI_CONTRIB_DEFAULT_RESET_LABEL          ICON_FA_UNDO     // Custom primary reset icon (default: vector ↺)

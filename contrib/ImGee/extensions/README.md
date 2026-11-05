@@ -1,12 +1,12 @@
-# ImGui Extensions
+# ImGee Extensions Suite
 
-This directory contains standalone, feature-complete **Extensions** (Packages) for Dear ImGui within ImgWindow.
+This directory contains standalone, feature-complete **Extensions** for Dear ImGui within the **ImGee** suite.
 
 ---
 
 ## What is an Extension?
 
-In ImgWindow, an **Extension** is a self-contained package providing substantial functionality beyond standard UI widgets. Extensions typically:
+In ImGee, an **Extension** is a self-contained subsystem providing substantial functionality beyond standard UI widgets. Extensions typically:
 * Maintain internal or persistent state between frames.
 * Require custom configuration structs or setup steps.
 * Encapsulate complex algorithms (e.g., text parsing, layout pre-calculation, delayed timers).

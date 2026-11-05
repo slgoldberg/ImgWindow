@@ -1,6 +1,6 @@
-# ImGui Contrib Typography & StyledText Extension
+# ImGee Typography & StyledText Extension
 
-The **Typography** extension provides semantic font hierarchy management and a lightweight, inline rich text engine for Dear ImGui within the **ImgWindow** framework.
+The **Typography** extension provides semantic font hierarchy management and a lightweight, inline rich text engine for Dear ImGui within the **ImGee** suite for **ImgWindow**.
 
 Unlike full Markdown documents (which enforce paragraph margins, headers, block indentation, and thematic breaks), the **Inline StyledText Engine** is designed for tight cockpit UI elements: data readouts, status pills, tables, buttons, and mixed-style sentences where continuous baseline alignment is paramount.
 
