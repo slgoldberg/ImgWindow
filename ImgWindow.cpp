@@ -58,7 +58,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "contrib/stb_image.h"
 
-#if !defined(CONTRIB_DISABLE_BADGES) && \
+#if !defined(CONTRIB_DISABLE_ALL) && \
+    !defined(DISABLE_CONTRIB) && \
+    !defined(IMGUI_DISABLE_CONTRIB) && \
+    !defined(CONTRIB_IMGEE_DISABLE_ALL) && \
+    !defined(IMGEE_DISABLE_ALL) && \
+    !defined(IMGEE_DISABLE_WIDGETS) && \
+    !defined(IMGEE_DISABLE_BADGES) && \
+    !defined(CONTRIB_DISABLE_BADGES) && \
     !defined(CONTRIB_DISABLE_BADGE) && \
     !defined(CONTRIB_DISABLE_WIDGETS) && \
     !defined(IMGUI_CONTRIB_DISABLE_BADGES) && \
@@ -66,12 +73,15 @@
     !defined(IMGWINDOW_DISABLE_CONTRIB_WIDGETS) && \
     !defined(IMGWINDOW_DISABLE_CONTRIB)
 #if defined(__has_include)
-    #if __has_include("contrib/widgets/imgui_badges.h")
+    #if __has_include("contrib/ImGee/widgets/imgui_badges.h")
+        #include "contrib/ImGee/widgets/imgui_badges.h"
+        #define IMGWINDOW_HAS_BADGES 1
+    #elif __has_include("contrib/widgets/imgui_badges.h")
         #include "contrib/widgets/imgui_badges.h"
         #define IMGWINDOW_HAS_BADGES 1
     #endif
 #else
-    #include "contrib/widgets/imgui_badges.h"
+    #include "contrib/ImGee/widgets/imgui_badges.h"
     #define IMGWINDOW_HAS_BADGES 1
 #endif
 #endif

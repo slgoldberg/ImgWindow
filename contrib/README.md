@@ -70,77 +70,79 @@ ImGui::TimedTooltip::Text("Hover-delayed stationary tooltip.");
 
 ---
 
-## Ecosystem Organization
+## Ecosystem Organization: Multi-Package Container Architecture
 
-To keep contributions modular and easy to navigate, the library is organized into two primary categories:
+The `contrib/` directory serves as an extensible **community container** for Dear ImGui enhancements. Its flagship suite is **`ImGee`**, an avionics-grade toolkit designed specifically for flight-deck instruments and X-Plane plugin interfaces.
 
 ```
 ImgWindow/
 ├── contrib.h                              # Master concentrator (-> contrib/includes.h)
 └── contrib/
-    ├── includes.h                         # Master roll-up for all extensions & widgets
-    ├── contrib-global.h                   # Opt-in global namespace aliases
-    ├── extensions.h                       # Concentrator for all extensions (-> extensions/includes.h)
-    ├── widgets.h                          # Concentrator for all widgets    (-> widgets/includes.h)
+    ├── includes.h                         # Level-1 Container Switchboard (cascades to packages)
     │
-    ├── extensions/                        # Feature-complete ImGui::<Package>:: subsystems
-    │   ├── TimedTooltip/                  # Stationary & delayed tooltip engine with auto-bounds clamping
-    │   ├── Markdown/                      # Markdown parser & renderer with dynamic font scaling & tags
-    │   └── Typography/                    # Semantic font roles (ImFontRole) & inline StyledText engine
+    ├── ImGee/                             # Package 1: ImGee Avionics & UI Toolkit
+    │   ├── imgee.h                        # Canonical ImGee master header & IMGEE_* switches
+    │   ├── imgee-global.h                 # Opt-in global namespace aliases
+    │   ├── docs/
+    │   │   └── ImGee_User_Guide.md        # Comprehensive User Manual (Publication-ready)
+    │   ├── extensions/                    # Subsystems (Typography, Markdown, TimedTooltip)
+    │   │   ├── TimedTooltip/              # Stationary & delayed tooltip engine
+    │   │   ├── Markdown/                  # GFM table parser, column sorter & text renderer
+    │   │   └── Typography/                # Font roles (ImFontRole) & inline StyledText
+    │   └── widgets/                       # Immediate-mode flight controls & vector icons
+    │       ├── imgui_icons.h              # Zero-texture procedural vector icon engine
+    │       ├── imgui_knobs.h              # Avionics rotary knobs, dimmer dials & detents
+    │       ├── imgui_mouse_wheel_controls.h # Wheel sliders, combos & reset chasers
+    │       ├── imgui_badges.h             # Status badges, pills, annunciators & <kbd>
+    │       ├── imgui_popup_menus.h        # Directional popups (AboveItem) & pulldowns
+    │       ├── imgui_toggle_buttons.h     # Tactile animated rocker/toggle switches
+    │       ├── imgui_spinners.h           # Procedural radar sweeps & radial timers
+    │       ├── imgui_clickable_links.h    # OS hand cursor links (XPLMOpenURL)
+    │       ├── imgui_copy_button.h        # Vector copy buttons with 1.5s visual feedback
+    │       └── imgui_file_dialog.h        # Non-blocking in-sim file dialogs
     │
-    └── widgets/                           # Lightweight, immediate-mode ImGui:: UI controls
-        ├── imgui_toggle_buttons.h         # Animated toggle switches & segmented button pairs
-        ├── imgui_mouse_wheel_controls.h   # Sliders, drags, combos & chasers with mouse-wheel support
-        ├── imgui_clickable_links.h        # ButtonLink, TextLink, MenuItemLink & AttachItemCursor affordances
-        ├── imgui_badges.h                 # Status badges, pills, icon capsules, unary annunciators, and <kbd>
-        ├── imgui_spinners.h               # Procedural activity spinners & radial countdown dials
-        ├── imgui_copy_button.h            # Standalone & chaser copy buttons with vector icons & feedback
-        ├── imgui_knobs.h                  # Avionics rotary knobs, dimmer dials & 2-step OFF detente switches
-        ├── imgui_file_dialog.h            # In-sim file open / save dialogs without modal window freezes
-        ├── imgui_popup_menus.h            # Directional popups, item anchoring & SelectPulldown widgets
-        └── imgui_icons.h                  # Procedural vector icons, ImGui::Icon & shortcodes
+    ├── extensions/                        # Backward-Compatible Forwarding Headers
+    └── widgets/                           # Backward-Compatible Forwarding Headers
 ```
 
-### 1. Packages & Extensions (`contrib/extensions/`)
-Feature-rich additions that manage internal state or background configuration (`ImGui::Markdown::`, `ImGui::TimedTooltip::`). See &rarr; [contrib/extensions/README.md](extensions/README.md).
+### 1. ImGee Suite (`contrib/ImGee/`)
+The complete avionics and flight-sim UI design system. See &rarr; **[ImGee User Guide](ImGee/docs/ImGee_User_Guide.md)** and **[contrib/ImGee/README.md](ImGee/README.md)**.
 
-### 2. Reusable Widgets (`contrib/widgets/`)
-Lightweight, immediate-mode UI controls that live directly in the root `ImGui::` namespace (`ImGui::ToggleButton`, `ImGui::MouseWheelSlider`, `ImGui::ButtonLink`). See &rarr; [contrib/widgets/README.md](widgets/README.md).
+### 2. Zero-Breakage Forwarding Shims (`contrib/extensions/`, `contrib/widgets/`)
+To guarantee 100% backward compatibility for existing code and downstream CI pipelines, thin forwarding headers remain in `contrib/extensions/` and `contrib/widgets/`, routing cleanly to their canonical locations in `contrib/ImGee/`.
 
 ---
 
 ## ⚙️ Configuration Reference: Opt-Out Flags
 
-Everything in `contrib/` is **active and ready by default**. If your project happens to define a conflicting identifier, define any of the following macros *before* including `contrib.h` to selectively disable individual features:
+The library provides a hierarchical two-tier configuration matrix:
 
-| Macro Directive | Type | Default | Description |
-| :--- | :---: | :---: | :--- |
-| **`CONTRIB_ENABLE_GLOBAL_NAMESPACES`** | **Opt-In** | *Off* | Publishes `Markdown::`, `MD::`, and `TimedTooltip::` to global namespace. |
-| **`CONTRIB_DISABLE_EXTENSIONS`** | **Opt-Out** | *Off* | Excludes all extensions (`contrib/extensions/`). |
-| **`CONTRIB_DISABLE_WIDGETS`** | **Opt-Out** | *Off* | Excludes all contributed widgets (`contrib/widgets/`). |
-| **`CONTRIB_DISABLE_TIMED_TOOLTIP`** | **Opt-Out** | *Off* | Excludes the `TimedTooltip` extension. |
-| **`CONTRIB_DISABLE_MARKDOWN`** | **Opt-Out** | *Off* | Excludes the `Markdown` extension. |
-| **`CONTRIB_DISABLE_TYPOGRAPHY`** | **Opt-Out** | *Off* | Excludes the `Typography` and `StyledText` extension. |
-| **`CONTRIB_DISABLE_TEXT_MD`** | **Opt-Out** | *Off* | Excludes all root `ImGui::TextMD` / `TextWrappedMD` aliases. |
-| **`CONTRIB_DISABLE_TEXT_WRAPPED_MD`** | **Opt-Out** | *Off* | Excludes ONLY root `ImGui::TextWrappedMD` (retains `TextMD`). |
-| **`CONTRIB_DISABLE_BUTTON_MD`** | **Opt-Out** | *Off* | Excludes root `ImGui::ButtonMD` / `ButtonMarkdown` aliases. |
-| **`CONTRIB_DISABLE_TOGGLE_BUTTONS`** | **Opt-Out** | *Off* | Excludes `ToggleButton` and `ToggleButtons`. |
-| **`CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL`**| **Opt-Out** | *Off* | Excludes mouse-wheel toggling on `ToggleButton`. |
-| **`CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS`**| **Opt-Out** | *Off* | Excludes mouse-wheel sliders, drags, cyclers, and combos. |
-| **`CONTRIB_DISABLE_CLICKABLE_LINKS`** | **Opt-Out** | *Off* | Excludes `ButtonLink`, `TextLink`, `MenuItemLink`, and `AttachItemCursor`. |
-| **`CONTRIB_DISABLE_BADGES`**          | **Opt-Out** | *Off* | Excludes standalone `Badge`, `Pill`, and `Kbd` widgets. |
-| **`CONTRIB_DISABLE_SPINNERS`**        | **Opt-Out** | *Off* | Excludes `Spinner`, `RadialTimer`, and `CountdownTimer`. |
-| **`CONTRIB_DISABLE_COPY_BUTTON`**    | **Opt-Out** | *Off* | Excludes `CopyButton` and `CopyLastItemButton`. |
-| **`CONTRIB_DISABLE_KNOBS`**          | **Opt-Out** | *Off* | Excludes `Knob`, `DimmerKnob`, and `RotaryDial`. |
-| **`CONTRIB_DISABLE_FILE_DIALOG`**    | **Opt-Out** | *Off* | Excludes `OpenFileDialog`, `SaveFileDialog`, and file pickers. |
-| **`CONTRIB_DISABLE_POPUP_MENUS`**    | **Opt-Out** | *Off* | Excludes `SelectPulldown`, `OpenPopupAtItem`, and `BeginAnchoredPopup`. |
-| **`CONTRIB_DISABLE_ICONS`**          | **Opt-Out** | *Off* | Excludes procedural vector icon engine and `ImGui::Icon`. |
-| **`CONTRIB_DISABLE_ICON_BUTTON`**    | **Opt-Out** | *Off* | Excludes `IconButton` and `ButtonIcon` push-button widgets. |
-| **`CONTRIB_DISABLE_PERCENT_SLIDER`** | **Opt-Out** | *Off* | Excludes `PercentSlider` and `SliderPercent`. |
-| **`CONTRIB_DISABLE_MOUSE_WHEEL_COMBO`** | **Opt-Out** | *Off* | Excludes `MouseWheelCombo` and `ComboWithReset`. |
-| **`IMGUI_CONTRIB_DISABLE_RESET_UNDO`** | **Opt-Out** | *Off* | Disables 1-click Reset-with-Undo on reset buttons. |
+### Tier 1: Master Container & Package Toggles
+* **`CONTRIB_DISABLE_ALL`** (or `DISABLE_CONTRIB`, `IMGWINDOW_DISABLE_CONTRIB`): Completely shuts off the entire `contrib/` ecosystem. Zero contrib code compiled.
+* **`IMGEE_DISABLE_ALL`** (or `CONTRIB_IMGEE_DISABLE_ALL`): Disables the entire ImGee suite while leaving the container active for future packages.
 
-*(Note: Prefixes `IMGUI_CONTRIB_DISABLE_*`, `IMGUI_DISABLE_CONTRIB_*`, and legacy `IMGUI_DISABLE_EXTRA_*` are also honored automatically.)*
+### Tier 2: ImGee Feature & Subsystem Toggles
+Uncomment or pass any of these macros to selectively exclude individual ImGee subsystems or widgets:
+
+| Canonical Macro Directive | Legacy Alias | Description |
+| :--- | :--- | :--- |
+| **`IMGEE_DISABLE_EXTENSIONS`** | `CONTRIB_DISABLE_EXTENSIONS` | Excludes all extensions (`Typography`, `Markdown`, `TimedTooltip`). |
+| **`IMGEE_DISABLE_WIDGETS`** | `CONTRIB_DISABLE_WIDGETS` | Excludes all contributed widgets in `widgets/`. |
+| **`IMGEE_DISABLE_ICONS`** | `CONTRIB_DISABLE_ICONS` | Excludes procedural vector icon engine and `ImGui::Icon`. |
+| **`IMGEE_DISABLE_ICON_BUTTON`** | `CONTRIB_DISABLE_ICON_BUTTON` | Excludes `IconButton` and `ButtonIcon` push buttons. |
+| **`IMGEE_DISABLE_TYPOGRAPHY`** | `CONTRIB_DISABLE_TYPOGRAPHY` | Excludes `ImFontRole` and `ImGui::StyledText`. |
+| **`IMGEE_DISABLE_MARKDOWN`** | `CONTRIB_DISABLE_MARKDOWN` | Excludes Markdown parser, GFM tables, and callouts. |
+| **`IMGEE_DISABLE_TIMED_TOOLTIP`** | `CONTRIB_DISABLE_TIMED_TOOLTIP` | Excludes stationary delayed tooltip engine. |
+| **`IMGEE_DISABLE_KNOBS`** | `CONTRIB_DISABLE_KNOBS` | Excludes avionics rotary knobs, dials, and detents. |
+| **`IMGEE_DISABLE_MOUSE_WHEEL_CONTROLS`** | `CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS` | Excludes mouse-wheel sliders, drags, combos, and reset buttons. |
+| **`IMGEE_DISABLE_BADGES`** | `CONTRIB_DISABLE_BADGES` | Excludes status badges, pills, annunciators, and keycaps. |
+| **`IMGEE_DISABLE_POPUP_MENUS`** | `CONTRIB_DISABLE_POPUP_MENUS` | Excludes directional anchored popups (`AboveItem`) and pulldowns. |
+| **`IMGEE_DISABLE_TOGGLE_BUTTONS`** | `CONTRIB_DISABLE_TOGGLE_BUTTONS` | Excludes animated physical toggle switches. |
+| **`IMGEE_DISABLE_CLICKABLE_LINKS`** | `CONTRIB_DISABLE_CLICKABLE_LINKS` | Excludes OS hand cursor links (`ButtonLink`, `TextLink`). |
+| **`IMGEE_DISABLE_SPINNERS`** | `CONTRIB_DISABLE_SPINNERS` | Excludes activity spinners and countdown timer dials. |
+| **`IMGEE_ENABLE_GLOBAL_NAMESPACES`** | `CONTRIB_ENABLE_GLOBAL_NAMESPACES` | Publishes `Markdown::`, `MD::`, and `TimedTooltip::` to global scope. |
+
+*(Note: Legacy `CONTRIB_DISABLE_*` flags are automatically mapped via an internal alias bridge in `contrib/ImGee/imgee.h` with zero build warnings.)*
 
 ---
 

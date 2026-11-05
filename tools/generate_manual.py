@@ -596,6 +596,11 @@ if __name__ == "__main__":
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         default_docs = [
             os.path.join(repo_root, "contrib", "README.md"),
+            os.path.join(repo_root, "contrib", "ImGee", "docs", "ImGee_User_Guide.md"),
+            os.path.join(repo_root, "contrib", "ImGee", "widgets", "README.md"),
+            os.path.join(repo_root, "contrib", "ImGee", "extensions", "Markdown", "README.md"),
+            os.path.join(repo_root, "contrib", "ImGee", "extensions", "TimedTooltip", "README.md"),
+            # Fallbacks for legacy layout
             os.path.join(repo_root, "contrib", "widgets", "README.md"),
             os.path.join(repo_root, "contrib", "extensions", "Markdown", "README.md"),
             os.path.join(repo_root, "contrib", "extensions", "TimedTooltip", "README.md"),

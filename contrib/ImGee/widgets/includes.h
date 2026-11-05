@@ -1,0 +1,70 @@
+// ============================================================================
+// ImGui Contrib Widgets: Directory Roll-Up Header (contrib/widgets/includes.h)
+// ----------------------------------------------------------------------------
+// Author: Steven L. Goldberg (@slgoldberg)
+// License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
+//
+// Includes all immediate-mode Dear ImGui widgets in contrib/widgets/.
+//
+// Opt-Out Configuration:
+// By default, including this header makes all contributed widgets available in
+// the root ImGui:: namespace with zero friction.
+// If any widget collides with existing identifiers in your project, define any
+// of the following canonical macros BEFORE including this header:
+//
+//   #define CONTRIB_DISABLE_TOGGLE_BUTTONS        // Exclude ToggleButton & ToggleButtons
+//   #define CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL    // Exclude mouse-wheel on ToggleButton(s)
+//   #define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS  // Exclude all wheel sliders, drags, cyclers & combos
+//   #define CONTRIB_DISABLE_CLICKABLE_LINKS       // Exclude ButtonLink, TextLink & AttachItemCursor
+//   #define CONTRIB_DISABLE_BADGES                // Exclude Badge, Pill & Kbd widgets
+//   #define CONTRIB_DISABLE_SPINNERS              // Exclude Spinner, RadialTimer & CountdownTimer
+//   #define CONTRIB_DISABLE_COPY_BUTTON           // Exclude CopyButton & CopyLastItemButton
+//   #define CONTRIB_DISABLE_KNOBS                 // Exclude Knob, DimmerKnob & RotaryDial
+//   #define CONTRIB_DISABLE_FILE_DIALOG           // Exclude FilePickerCombo, OpenFileDialog & SaveFileDialog
+//   #define CONTRIB_DISABLE_POPUP_MENUS           // Exclude SelectPulldown, OpenPopupAtItem & BeginAnchoredPopup
+//   #define CONTRIB_DISABLE_ICONS                 // Exclude procedural vector icon engine & ImGui::Icon
+//   #define CONTRIB_DISABLE_ICON_BUTTON           // Exclude IconButton & ButtonIcon
+//
+// Fine-grained opt-outs within imgui_mouse_wheel_controls.h:
+//   #define CONTRIB_DISABLE_GET_MOUSE_WHEEL       // Exclude GetMouseWheel* primitives
+//   #define CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL    // Exclude AdjustItemOnMouseWheel()
+//   #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL     // Exclude CycleItemOnMouseWheel()
+//   #define CONTRIB_DISABLE_PERCENT_SLIDER        // Exclude PercentSlider() & SliderPercent()
+//   #define CONTRIB_DISABLE_SLIDER_PERCENT        // Exclude only the SliderPercent() alias
+//   #define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO     // Exclude MouseWheelCombo & ResetCombo
+//
+// (Note: IMGUI_CONTRIB_DISABLE_*, IMGUI_DISABLE_CONTRIB_*, and legacy
+//  IMGUI_DISABLE_EXTRA_* macro names are also honored automatically.)
+//
+// Or include individual widget headers directly:
+//   #include "contrib/widgets/imgui_toggle_buttons.h"
+//   #include "contrib/widgets/imgui_mouse_wheel_controls.h"
+//   #include "contrib/widgets/imgui_clickable_links.h"
+// ============================================================================
+
+#pragma once
+
+#ifndef IMGUI_CONTRIB_WIDGETS_INCLUDES_H
+#define IMGUI_CONTRIB_WIDGETS_INCLUDES_H
+
+#if !defined(CONTRIB_DISABLE_WIDGETS) && \
+    !defined(IMGUI_CONTRIB_DISABLE_WIDGETS) && \
+    !defined(IMGUI_DISABLE_CONTRIB_WIDGETS) && \
+    !defined(IMGUI_DISABLE_WIDGETS) && \
+    !defined(IMGUI_DISABLE_EXTRA_WIDGETS) && \
+    !defined(IMGWINDOW_DISABLE_CONTRIB_WIDGETS)
+
+#include "imgui_toggle_buttons.h"
+#include "imgui_mouse_wheel_controls.h"
+#include "imgui_clickable_links.h"
+#include "imgui_badges.h"
+#include "imgui_spinners.h"
+#include "imgui_copy_button.h"
+#include "imgui_knobs.h"
+#include "imgui_file_dialog.h"
+#include "imgui_popup_menus.h"
+#include "imgui_icons.h"
+
+#endif // !CONTRIB_DISABLE_WIDGETS
+
+#endif // IMGUI_CONTRIB_WIDGETS_INCLUDES_H
