@@ -652,7 +652,6 @@ if (ImGui::ButtonMD("<icon undo color=#ff5555 /> Reset All##reset", "**Warning:*
     ResetDefaults();
 }
 ```
-```
 
 ---
 

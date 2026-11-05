@@ -73,27 +73,6 @@ namespace ImGui {
 #endif
 
 namespace ImGui {
-namespace MarkdownDetail {
-    inline void AddRectCompat(ImDrawList* dl, const ImVec2& p_min, const ImVec2& p_max, ImU32 col, float rounding = 0.0f, ImDrawFlags flags = 0, float thickness = 1.0f) {
-#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
-        dl->AddRect(p_min, p_max, col, rounding, thickness, flags);
-#else
-        dl->AddRect(p_min, p_max, col, rounding, flags, thickness);
-#endif
-    }
-
-    inline const char* CalcWordWrapPositionCompat(ImFont* font, float scale, const char* text, const char* text_end, float wrap_width) {
-#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
-        float font_size = (font && font->LegacySize > 0.0f) ? font->LegacySize : ImGui::GetFontSize();
-        return font->CalcWordWrapPosition(font_size * scale, text, text_end, wrap_width);
-#else
-        return font->CalcWordWrapPositionA(scale, text, text_end, wrap_width);
-#endif
-    }
-} // namespace MarkdownDetail
-} // namespace ImGui
-
-namespace ImGui {
 namespace Contrib {
     inline bool& GetMouseWheelAutoDefeatEnabled() {
         static bool s_Enabled = true;
@@ -134,6 +113,30 @@ namespace Contrib {
     }
 } // namespace ImGui
 #endif // IMGUI_CONTRIB_WINDOW_SCROLLABLE_Y_DEFINED
+
+#ifndef IMGUI_MARKDOWN_DETAIL_DEFINED
+#define IMGUI_MARKDOWN_DETAIL_DEFINED
+namespace ImGui {
+namespace MarkdownDetail {
+    inline void AddRectCompat(ImDrawList* dl, const ImVec2& p_min, const ImVec2& p_max, ImU32 col, float rounding = 0.0f, ImDrawFlags flags = 0, float thickness = 1.0f) {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
+        dl->AddRect(p_min, p_max, col, rounding, thickness, flags);
+#else
+        dl->AddRect(p_min, p_max, col, rounding, flags, thickness);
+#endif
+    }
+
+    inline const char* CalcWordWrapPositionCompat(ImFont* font, float scale, const char* text, const char* text_end, float wrap_width) {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+        float font_size = (font && font->LegacySize > 0.0f) ? font->LegacySize : ImGui::GetFontSize();
+        return font->CalcWordWrapPosition(font_size * scale, text, text_end, wrap_width);
+#else
+        return font->CalcWordWrapPositionA(scale, text, text_end, wrap_width);
+#endif
+    }
+} // namespace MarkdownDetail
+} // namespace ImGui
+#endif // IMGUI_MARKDOWN_DETAIL_DEFINED
 
 #ifndef ORIGINAL	/* brat's hack */
 namespace ImGui

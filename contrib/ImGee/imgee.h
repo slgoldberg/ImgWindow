@@ -1,7 +1,7 @@
 // ============================================================================
 // ImGee: Master Suite Roll-Up Header (contrib/ImGee/imgee.h)
 // ----------------------------------------------------------------------------
-// Author: Steven L. Goldberg (@slgoldberg)
+// Author: Steven L. Goldberg (@slgoldberg) and the Rogers
 // License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
 //
 // Master roll-up header for all ImGee Dear ImGui extensions and immediate-mode
@@ -22,6 +22,12 @@
 
 #ifndef IMGEE_H
 #define IMGEE_H
+
+// ============================================================================
+// ImGee Version Specifications
+// ============================================================================
+#define IMGEE_VERSION     "1.0.0"
+#define IMGEE_VERSION_NUM 10000
 
 // ============================================================================
 // Granular Legacy Alias Bridge: CONTRIB_DISABLE_* -> IMGEE_DISABLE_*
