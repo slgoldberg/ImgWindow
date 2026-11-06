@@ -2212,6 +2212,11 @@ namespace ImGui {
             while (!trimmed_display.empty() && (trimmed_display.back() == ' ' || trimmed_display.back() == '\t')) trimmed_display.pop_back();
 
             bool is_standalone_pill = (trimmed_display.rfind("<pill", 0) == 0 || trimmed_display.rfind("<badge", 0) == 0);
+            bool clicked = false;
+            ImGuiID btn_id = 0;
+            bool btn_hovered = false;
+            bool is_handled = false;
+
             if (is_standalone_pill) {
                 ImVec2 orig_screen_pos = ImGui::GetCursorScreenPos();
 
@@ -2226,220 +2231,187 @@ namespace ImGui {
 
                 ImGui::SetCursorScreenPos(orig_screen_pos);
                 std::string inv_id = "##" + (id_part.empty() ? "btn_md_pill" : id_part);
-                bool clicked = ImGui::InvisibleButton(inv_id.c_str(), final_sz);
-                if (ImGui::IsItemHovered()) {
+                clicked = ImGui::InvisibleButton(inv_id.c_str(), final_sz);
+                btn_id = ImGui::GetItemID();
+                btn_hovered = ImGui::IsItemHovered();
+                if (btn_hovered) {
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
                 }
-
-                if (tooltip_allowed && !tooltip_markdown.empty() && ImGui::IsItemHovered()) {
-                    ImGui::BeginTooltip();
-#if IMGUI_VERSION_NUM >= 18989
-                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#else
-                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#endif
-                    TextWrapped(tooltip_markdown);
-                    ImGui::EndChild();
-                    ImGui::EndTooltip();
-                }
-
-                return clicked;
+                is_handled = true;
             }
 
 #if defined(CONTRIB_HAS_ICONS)
-            std::string preprocessed;
-            bool had_preprocessing = PreprocessMarkdownIconsAndShortcodes(display_part.c_str(), display_part.length(), preprocessed);
-            std::string target_display = had_preprocessing ? preprocessed : display_part;
+            if (!is_handled) {
+                std::string preprocessed;
+                bool had_preprocessing = PreprocessMarkdownIconsAndShortcodes(display_part.c_str(), display_part.length(), preprocessed);
+                std::string target_display = had_preprocessing ? preprocessed : display_part;
 
-            bool has_icon = false;
-            std::string icon_name = "";
-            float custom_icon_size = 0.0f;
-            ImVec4 icon_color(0, 0, 0, 0);
-            bool has_custom_color = false;
-            std::string prefix_text = "";
-            std::string suffix_text = "";
+                bool has_icon = false;
+                std::string icon_name = "";
+                float custom_icon_size = 0.0f;
+                ImVec4 icon_color(0, 0, 0, 0);
+                bool has_custom_color = false;
+                std::string prefix_text = "";
+                std::string suffix_text = "";
 
-            size_t tag_start = target_display.find("<icon");
-            if (tag_start != std::string::npos) {
-                size_t tag_end = target_display.find(">", tag_start);
-                if (tag_end != std::string::npos) {
-                    has_icon = true;
-                    prefix_text = target_display.substr(0, tag_start);
-                    suffix_text = target_display.substr(tag_end + 1);
+                size_t tag_start = target_display.find("<icon");
+                if (tag_start != std::string::npos) {
+                    size_t tag_end = target_display.find(">", tag_start);
+                    if (tag_end != std::string::npos) {
+                        has_icon = true;
+                        prefix_text = target_display.substr(0, tag_start);
+                        suffix_text = target_display.substr(tag_end + 1);
 
-                    // Trim whitespace
-                    while (!prefix_text.empty() && (prefix_text.front() == ' ' || prefix_text.front() == '\t')) prefix_text.erase(0, 1);
-                    while (!prefix_text.empty() && (prefix_text.back() == ' ' || prefix_text.back() == '\t')) prefix_text.pop_back();
-                    while (!suffix_text.empty() && (suffix_text.front() == ' ' || suffix_text.front() == '\t')) suffix_text.erase(0, 1);
-                    while (!suffix_text.empty() && (suffix_text.back() == ' ' || suffix_text.back() == '\t')) suffix_text.pop_back();
+                        // Trim whitespace
+                        while (!prefix_text.empty() && (prefix_text.front() == ' ' || prefix_text.front() == '\t')) prefix_text.erase(0, 1);
+                        while (!prefix_text.empty() && (prefix_text.back() == ' ' || prefix_text.back() == '\t')) prefix_text.pop_back();
+                        while (!suffix_text.empty() && (suffix_text.front() == ' ' || suffix_text.front() == '\t')) suffix_text.erase(0, 1);
+                        while (!suffix_text.empty() && (suffix_text.back() == ' ' || suffix_text.back() == '\t')) suffix_text.pop_back();
 
-                    std::string tag_body = target_display.substr(tag_start + 5, tag_end - (tag_start + 5));
-                    if (!tag_body.empty() && tag_body.back() == '/') tag_body.pop_back();
+                        std::string tag_body = target_display.substr(tag_start + 5, tag_end - (tag_start + 5));
+                        if (!tag_body.empty() && tag_body.back() == '/') tag_body.pop_back();
 
-                    std::istringstream iss(tag_body);
-                    std::string token;
-                    while (iss >> token) {
-                        if (token.find("color=") == 0 || token.find("col=") == 0) {
-                            size_t eq = token.find('=');
-                            has_custom_color = ParseMarkdownColor(token.substr(eq + 1), icon_color);
-                        } else if (token.find("name=") == 0 || token.find("icon=") == 0) {
-                            size_t eq = token.find('=');
-                            icon_name = NormalizeIconName(token.substr(eq + 1).c_str());
-                        } else if (token.find("size=") == 0) {
-                            size_t eq = token.find('=');
-                            custom_icon_size = (float)atof(token.substr(eq + 1).c_str());
-                        } else {
-                            std::string norm = NormalizeIconName(token.c_str());
-                            if (IsVectorIcon(norm.c_str()) && icon_name.empty()) {
-                                icon_name = norm;
+                        std::istringstream iss(tag_body);
+                        std::string token;
+                        while (iss >> token) {
+                            if (token.find("color=") == 0 || token.find("col=") == 0) {
+                                size_t eq = token.find('=');
+                                has_custom_color = ParseMarkdownColor(token.substr(eq + 1), icon_color);
+                            } else if (token.find("name=") == 0 || token.find("icon=") == 0) {
+                                size_t eq = token.find('=');
+                                icon_name = NormalizeIconName(token.substr(eq + 1).c_str());
+                            } else if (token.find("size=") == 0) {
+                                size_t eq = token.find('=');
+                                custom_icon_size = (float)atof(token.substr(eq + 1).c_str());
                             } else {
-                                ImVec4 test_c;
-                                if (ParseMarkdownColor(token, test_c) && !has_custom_color) {
-                                    icon_color = test_c;
-                                    has_custom_color = true;
-                                } else if (icon_name.empty()) {
+                                std::string norm = NormalizeIconName(token.c_str());
+                                if (IsVectorIcon(norm.c_str()) && icon_name.empty()) {
                                     icon_name = norm;
+                                } else {
+                                    ImVec4 test_c;
+                                    if (ParseMarkdownColor(token, test_c) && !has_custom_color) {
+                                        icon_color = test_c;
+                                        has_custom_color = true;
+                                    } else if (icon_name.empty()) {
+                                        icon_name = norm;
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            } else {
-                std::string norm = NormalizeIconName(display_part.c_str());
-                if (IsVectorIcon(norm.c_str())) {
-                    has_icon = true;
-                    icon_name = norm;
-                }
-            }
-
-            if (has_icon && !icon_name.empty()) {
-                ImGuiStyle& style = ImGui::GetStyle();
-                float frame_h = ImGui::GetFrameHeight();
-                float font_size = ImGui::GetFontSize();
-                float icon_sz = (custom_icon_size > 0.0f) ? custom_icon_size : std::round(font_size * 0.90f);
-
-                std::string label_text = prefix_text.empty() ? suffix_text : (suffix_text.empty() ? prefix_text : (prefix_text + " " + suffix_text));
-                bool has_text = !label_text.empty();
-                ImVec2 text_sz = has_text ? ImGui::CalcTextSize(label_text.c_str()) : ImVec2(0.0f, 0.0f);
-                float spacing = has_text ? style.ItemInnerSpacing.x : 0.0f;
-                float content_w = has_text ? (icon_sz + spacing + text_sz.x) : icon_sz;
-
-                ImVec2 btn_sz = size_arg;
-                if (btn_sz.x <= 0.0f) {
-                    btn_sz.x = has_text ? (content_w + style.FramePadding.x * 2.0f) : ((btn_sz.y > 0.0f) ? btn_sz.y : frame_h);
-                }
-                if (btn_sz.y <= 0.0f) {
-                    btn_sz.y = frame_h;
-                }
-
-                std::string invisible_label = "###" + id_part;
-                bool clicked = ImGui::Button(invisible_label.c_str(), btn_sz);
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-                }
-
-                ImVec2 p_min = ImGui::GetItemRectMin();
-                ImVec2 p_max = ImGui::GetItemRectMax();
-                ImDrawList* draw_list = ImGui::GetWindowDrawList();
-                ImU32 text_col = ImGui::GetColorU32(ImGuiCol_Text);
-                ImU32 icol = has_custom_color ? ImGui::GetColorU32(icon_color) : text_col;
-
-                float start_x = std::round((p_min.x + p_max.x - content_w) * 0.5f);
-                if (!has_text) {
-                    ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
-                    ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
-                } else if (prefix_text.empty()) {
-                    ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
-                    ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
-                    ImVec2 text_pos(start_x + icon_sz + spacing, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
-                    draw_list->AddText(text_pos, text_col, label_text.c_str());
                 } else {
-                    ImVec2 text_pos(start_x, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
-                    draw_list->AddText(text_pos, text_col, label_text.c_str());
-                    ImVec2 icon_pos(start_x + text_sz.x + spacing, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
-                    ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
+                    std::string norm = NormalizeIconName(display_part.c_str());
+                    if (IsVectorIcon(norm.c_str())) {
+                        has_icon = true;
+                        icon_name = norm;
+                    }
                 }
 
-                if (tooltip_allowed && !tooltip_markdown.empty() && ImGui::IsItemHovered()) {
-                    ImGui::BeginTooltip();
-#if IMGUI_VERSION_NUM >= 18989
-                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#else
-                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#endif
-                    TextWrapped(tooltip_markdown);
-                    ImGui::EndChild();
-                    ImGui::EndTooltip();
-                }
+                if (has_icon && !icon_name.empty()) {
+                    ImGuiStyle& style = ImGui::GetStyle();
+                    float frame_h = ImGui::GetFrameHeight();
+                    float font_size = ImGui::GetFontSize();
+                    float icon_sz = (custom_icon_size > 0.0f) ? custom_icon_size : std::round(font_size * 0.90f);
 
-                return clicked;
+                    std::string label_text = prefix_text.empty() ? suffix_text : (suffix_text.empty() ? prefix_text : (prefix_text + " " + suffix_text));
+                    bool has_text = !label_text.empty();
+                    ImVec2 text_sz = has_text ? ImGui::CalcTextSize(label_text.c_str()) : ImVec2(0.0f, 0.0f);
+                    float spacing = has_text ? style.ItemInnerSpacing.x : 0.0f;
+                    float content_w = has_text ? (icon_sz + spacing + text_sz.x) : icon_sz;
+
+                    ImVec2 btn_sz = size_arg;
+                    if (btn_sz.x <= 0.0f) {
+                        btn_sz.x = has_text ? (content_w + style.FramePadding.x * 2.0f) : ((btn_sz.y > 0.0f) ? btn_sz.y : frame_h);
+                    }
+                    if (btn_sz.y <= 0.0f) {
+                        btn_sz.y = frame_h;
+                    }
+
+                    std::string invisible_label = "###" + id_part;
+                    clicked = ImGui::Button(invisible_label.c_str(), btn_sz);
+                    btn_id = ImGui::GetItemID();
+                    btn_hovered = ImGui::IsItemHovered();
+                    if (btn_hovered) {
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                    }
+
+                    ImVec2 p_min = ImGui::GetItemRectMin();
+                    ImVec2 p_max = ImGui::GetItemRectMax();
+                    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+                    ImU32 text_col = ImGui::GetColorU32(ImGuiCol_Text);
+                    ImU32 icol = has_custom_color ? ImGui::GetColorU32(icon_color) : text_col;
+
+                    float start_x = std::round((p_min.x + p_max.x - content_w) * 0.5f);
+                    if (!has_text) {
+                        ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+                        ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
+                    } else if (prefix_text.empty()) {
+                        ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+                        ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
+                        ImVec2 text_pos(start_x + icon_sz + spacing, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
+                        draw_list->AddText(text_pos, text_col, label_text.c_str());
+                    } else {
+                        ImVec2 text_pos(start_x, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
+                        draw_list->AddText(text_pos, text_col, label_text.c_str());
+                        ImVec2 icon_pos(start_x + text_sz.x + spacing, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
+                        ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
+                    }
+                    is_handled = true;
+                }
             }
 #endif // CONTRIB_HAS_ICONS
 
-            bool has_markdown_formatting = (display_part.find('<') != std::string::npos ||
-                                            display_part.find('*') != std::string::npos ||
-                                            display_part.find('_') != std::string::npos ||
-                                            display_part.find('`') != std::string::npos ||
-                                            display_part.find(':') != std::string::npos);
+            if (!is_handled) {
+                bool has_markdown_formatting = (display_part.find('<') != std::string::npos ||
+                                                display_part.find('*') != std::string::npos ||
+                                                display_part.find('_') != std::string::npos ||
+                                                display_part.find('`') != std::string::npos ||
+                                                display_part.find(':') != std::string::npos);
 
-            if (has_markdown_formatting) {
-                ImGuiStyle& style = ImGui::GetStyle();
-                float frame_h = ImGui::GetFrameHeight();
-                ImVec2 measured = CalcMarkdownSize(0, 0, display_part);
+                if (has_markdown_formatting) {
+                    ImGuiStyle& style = ImGui::GetStyle();
+                    float frame_h = ImGui::GetFrameHeight();
+                    ImVec2 measured = CalcMarkdownSize(0, 0, display_part);
 
-                ImVec2 btn_sz = size_arg;
-                if (btn_sz.x <= 0.0f) {
-                    btn_sz.x = measured.x + style.FramePadding.x * 2.0f;
+                    ImVec2 btn_sz = size_arg;
+                    if (btn_sz.x <= 0.0f) {
+                        btn_sz.x = measured.x + style.FramePadding.x * 2.0f;
+                    }
+                    if (btn_sz.y <= 0.0f) {
+                        btn_sz.y = ImMax(measured.y + style.FramePadding.y * 2.0f, frame_h);
+                    }
+
+                    std::string invisible_label = "###" + (id_part.empty() ? "btn_md" : id_part);
+                    clicked = ImGui::Button(invisible_label.c_str(), btn_sz);
+                    btn_id = ImGui::GetItemID();
+                    btn_hovered = ImGui::IsItemHovered();
+                    if (btn_hovered) {
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                    }
+
+                    ImVec2 next_cursor = ImGui::GetCursorPos();
+                    ImVec2 p_min = ImGui::GetItemRectMin();
+                    float offset_x = ImMax(style.FramePadding.x, (btn_sz.x - measured.x) * 0.5f);
+                    float offset_y = ImMax(style.FramePadding.y, (btn_sz.y - measured.y) * 0.5f);
+
+                    ImGui::SetCursorScreenPos(ImVec2(p_min.x + offset_x, p_min.y + offset_y));
+                    Markdown::TextUnformatted(display_part);
+                    ImGui::SetCursorPos(next_cursor);
+                    is_handled = true;
                 }
-                if (btn_sz.y <= 0.0f) {
-                    btn_sz.y = ImMax(measured.y + style.FramePadding.y * 2.0f, frame_h);
-                }
+            }
 
-                std::string invisible_label = "###" + (id_part.empty() ? "btn_md" : id_part);
-                bool clicked = ImGui::Button(invisible_label.c_str(), btn_sz);
-                if (ImGui::IsItemHovered()) {
+            if (!is_handled) {
+                clicked = ImGui::Button(label.c_str(), size_arg);
+                btn_id = ImGui::GetItemID();
+                btn_hovered = ImGui::IsItemHovered();
+                if (btn_hovered) {
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
                 }
-
-                ImVec2 next_cursor = ImGui::GetCursorPos();
-                ImVec2 p_min = ImGui::GetItemRectMin();
-                float offset_x = ImMax(style.FramePadding.x, (btn_sz.x - measured.x) * 0.5f);
-                float offset_y = ImMax(style.FramePadding.y, (btn_sz.y - measured.y) * 0.5f);
-
-                ImGui::SetCursorScreenPos(ImVec2(p_min.x + offset_x, p_min.y + offset_y));
-                Markdown::TextUnformatted(display_part);
-                ImGui::SetCursorPos(next_cursor);
-
-                if (tooltip_allowed && !tooltip_markdown.empty() && ImGui::IsItemHovered()) {
-                    ImGui::BeginTooltip();
-#if IMGUI_VERSION_NUM >= 18989
-                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#else
-                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#endif
-                    TextWrapped(tooltip_markdown);
-                    ImGui::EndChild();
-                    ImGui::EndTooltip();
-                }
-
-                return clicked;
             }
 
-            bool clicked = ImGui::Button(label.c_str(), size_arg);
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            }
-            
-            if (tooltip_allowed && !tooltip_markdown.empty() && ImGui::IsItemHovered()) {
-                ImGui::BeginTooltip();
-#if IMGUI_VERSION_NUM >= 18989
-                ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#else
-                ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#endif
-                TextWrapped(tooltip_markdown);
-                ImGui::EndChild();
-                ImGui::EndTooltip();
+            if (!tooltip_markdown.empty()) {
+                MarkdownDetail::ShowMarkdownTooltip(btn_id, tooltip_allowed && btn_hovered, tooltip_markdown.c_str(), tooltip_wrap_width, -1, clicked);
             }
             
             return clicked;
@@ -2499,33 +2471,29 @@ namespace ImGui {
         }
 
         inline bool DelayedTooltipMD(const std::string& markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
-            bool showing = false;
-            if (is_allowed && ImGui::IsItemHovered()) {
-                ImGuiID id = ImGui::GetItemID();
-                ImGuiStorage* storage = ImGui::GetStateStorage();
-                
-                int hover_start = storage->GetInt(id, 0);
-                if (hover_start == 0) {
-                    hover_start = ImGui::GetFrameCount();
-                    storage->SetInt(id, hover_start);
-                }
-
-                if (ImGui::GetFrameCount() - hover_start >= delay_frames) {
-                    showing = true;
-                    ImGui::BeginTooltip();
-                    #if IMGUI_VERSION_NUM >= 18989
-                    ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#else
-                    ImGui::BeginChild("##md_delay_tt", ImVec2(wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
-#endif
-                    TextWrapped(markdown_text);
-                    ImGui::EndChild();
-                    ImGui::EndTooltip();
-                }
-            } else {
-                ImGui::GetStateStorage()->SetInt(ImGui::GetItemID(), 0);
+            if (!is_allowed || markdown_text.empty()) {
+                return false;
             }
-            return showing;
+            ImGuiID raw_id = ImGui::GetItemID();
+            bool hovered = ImGui::IsItemHovered();
+            return MarkdownDetail::ShowMarkdownTooltip(raw_id, hovered, markdown_text.c_str(), wrap_width, delay_frames, ImGui::IsItemClicked());
+        }
+
+        inline bool DelayedTooltipMD(const char* markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
+            if (!is_allowed || !markdown_text || markdown_text[0] == '\0') {
+                return false;
+            }
+            ImGuiID raw_id = ImGui::GetItemID();
+            bool hovered = ImGui::IsItemHovered();
+            return MarkdownDetail::ShowMarkdownTooltip(raw_id, hovered, markdown_text, wrap_width, delay_frames, ImGui::IsItemClicked());
+        }
+
+        inline bool DelayedTooltipMD(ImGuiID id, const char* markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
+            if (!is_allowed || !markdown_text || markdown_text[0] == '\0') {
+                return false;
+            }
+            bool hovered = ImGui::IsItemHovered();
+            return MarkdownDetail::ShowMarkdownTooltip(id, hovered, markdown_text, wrap_width, delay_frames, ImGui::IsItemClicked());
         }
 
     } // namespace Markdown
@@ -2648,6 +2616,20 @@ namespace ImGui {
     }
 #endif // !CONTRIB_DISABLE_BUTTON_MD
 
+#if !defined(CONTRIB_DISABLE_DELAYED_TOOLTIP_MD) && !defined(IMGUI_DISABLE_DELAYED_TOOLTIP_MD) && !defined(CONTRIB_DISABLE_MARKDOWN_ROOT_ALIASES)
+    inline bool DelayedTooltipMD(const std::string& markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
+        return Markdown::DelayedTooltipMD(markdown_text, wrap_width, delay_frames, is_allowed);
+    }
+
+    inline bool DelayedTooltipMD(const char* markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
+        return Markdown::DelayedTooltipMD(markdown_text, wrap_width, delay_frames, is_allowed);
+    }
+
+    inline bool DelayedTooltipMD(ImGuiID id, const char* markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true) {
+        return Markdown::DelayedTooltipMD(id, markdown_text, wrap_width, delay_frames, is_allowed);
+    }
+#endif
+
 } // namespace ImGui
 
 #endif // IMGUI_MARKDOWN_EXT_H
@@ -2657,37 +2639,6 @@ namespace ImGui {
 // imgui_markdown_ext.h was #included first!
 #if defined(IMGUI_MARKDOWN_EXT_H) && defined(IMGUI_TOOLTIP_EXT_H) && !defined(IMGUI_TIMED_TOOLTIP_MD_BRIDGE_DEFINED)
 #define IMGUI_TIMED_TOOLTIP_MD_BRIDGE_DEFINED
-
-namespace ImGui {
-namespace MarkdownDetail {
-    inline void InitializeCodeBlockTooltipBridge() {
-        GetCodeBlockTooltipFn() = []( ImGuiID id, bool hovered, const char* text, bool toggle_on_click ) {
-            if (toggle_on_click) {
-                ImGui::Detail::RegisterItemTooltipToggle( true );
-            }
-            ImGui::TimedTooltip::TextProxyToggle( id, hovered, toggle_on_click, "%s", text );
-        };
-        GetClearTooltipFn() = []() {
-            ImGui::TimedTooltip::ClearActiveTooltip();
-        };
-        GetDisabledCopyTooltipFn() = []( ImGuiID id, bool hovered ) {
-#if (defined(APL) && APL) || defined(__APPLE__)
-            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
-#elif (defined(LIN) && LIN) || defined(__linux__)
-            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
-#else
-            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "System clipboard integration is not enabled on this platform build." );
-#endif
-        };
-    }
-    struct CodeBlockTooltipBridgeRunner {
-        CodeBlockTooltipBridgeRunner() {
-            InitializeCodeBlockTooltipBridge();
-        }
-    };
-    static CodeBlockTooltipBridgeRunner s_CodeBlockTooltipBridgeRunner;
-} // namespace MarkdownDetail
-} // namespace ImGui
 
 namespace ImGui {
 namespace TimedTooltip {
@@ -2768,7 +2719,7 @@ namespace TimedTooltip {
             state.last_scale = scale;
         }
 
-        if (state.perfect_size.x == 0.0f) {
+        if (state.perfect_size.x == 0.0f && (is_hovered || state.is_displayed || state.hover_cycles > 0)) {
             // Pass 1: Dry-run unwrapped to measure the natural single-line width
             MarkdownConfig measure_md = local_md;
             measure_md.wrapWidth = -1.0f; // Force unconstrained single-line layout
@@ -2875,6 +2826,14 @@ namespace TimedTooltip {
 
     inline bool TextMDProxy(const char* str_id, bool is_hovered, const std::string& markdown_text, const TooltipConfig* config = nullptr) {
         return TextMDProxy(ImGui::GetID(str_id), is_hovered, config, "%s", markdown_text.c_str());
+    }
+
+    inline bool TextMDProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, bool is_clicked, bool toggle_on_click, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        bool res = TextMDProxyV(id, is_hovered, config, fmt, args, is_clicked, toggle_on_click);
+        va_end(args);
+        return res;
     }
 
     // Markdown-enabled Timed Tooltip with per-call config override
@@ -3104,6 +3063,50 @@ namespace Markdown {
 #pragma pop_macro("TextLink")
     } // namespace TimedTooltip
 } // namespace Markdown
+
+namespace MarkdownDetail {
+    inline void InitializeCodeBlockTooltipBridge() {
+        GetCodeBlockTooltipFn() = []( ImGuiID id, bool hovered, const char* text, bool toggle_on_click ) {
+            if (toggle_on_click) {
+                ImGui::Detail::RegisterItemTooltipToggle( true );
+            }
+            ImGui::TimedTooltip::TextProxyToggle( id, hovered, toggle_on_click, "%s", text );
+        };
+        GetClearTooltipFn() = []() {
+            ImGui::TimedTooltip::ClearActiveTooltip();
+        };
+        GetDisabledCopyTooltipFn() = []( ImGuiID id, bool hovered ) {
+#if (defined(APL) && APL) || defined(__APPLE__)
+            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "macOS system clipboard integration is disabled.\n\nTo enable:\n* Add #define IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS to imconfig.h\n* Link -framework ApplicationServices in your build flags\n* Or provide MarkdownConfig::setClipboardTextFn" );
+#elif (defined(LIN) && LIN) || defined(__linux__)
+            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "Linux system clipboard integration requires a handler.\n\nTo enable:\n* Provide MarkdownConfig::setClipboardTextFn callback\n* Or assign ImGui::GetPlatformIO().Platform_SetClipboardTextFn" );
+#else
+            ImGui::TimedTooltip::TextProxyToggle( id, hovered, false, "System clipboard integration is not enabled on this platform build." );
+#endif
+        };
+        GetMarkdownTooltipFn() = []( ImGuiID id, bool hovered, const char* text, float wrap_width, int delay_frames, bool is_clicked ) -> bool {
+            if (!text || text[0] == '\0') return false;
+            TimedTooltip::TooltipConfig cfg = TimedTooltip::GetCurrentTooltipConfig();
+            if (wrap_width > 0.0f) {
+                cfg.default_wrap_width = wrap_width;
+            } else if (wrap_width < 0.0f) {
+                cfg.default_wrap_width = -1.0f;
+            }
+            if (delay_frames >= 0) {
+                cfg.hover_delay_cycles = delay_frames;
+            }
+            bool toggle = ImGui::Detail::ShouldToggleTooltipOnClick(id, ImGui::IsItemActive());
+            bool resolved_hovered = ImGui::Detail::ResolveItemTooltipHover(id, hovered);
+            return TimedTooltip::TextMDProxy(id, resolved_hovered, &cfg, is_clicked, toggle, "%s", text);
+        };
+    }
+    struct CodeBlockTooltipBridgeRunner {
+        CodeBlockTooltipBridgeRunner() {
+            InitializeCodeBlockTooltipBridge();
+        }
+    };
+    static CodeBlockTooltipBridgeRunner s_CodeBlockTooltipBridgeRunner;
+} // namespace MarkdownDetail
 
 } // namespace ImGui
 #endif // IMGUI_MARKDOWN_EXT_H && IMGUI_TOOLTIP_EXT_H

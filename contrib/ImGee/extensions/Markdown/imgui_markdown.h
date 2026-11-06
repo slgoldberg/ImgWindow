@@ -1157,6 +1157,7 @@ namespace ImGui
         typedef void (*CodeBlockTooltipFn)( ImGuiID id, bool hovered, const char* text, bool toggle_on_click );
         typedef void (*DisabledCopyTooltipFn)( ImGuiID id, bool hovered );
         typedef void (*ClearTooltipFn)();
+        typedef bool (*MarkdownTooltipFn)( ImGuiID id, bool hovered, const char* text, float wrap_width, int delay_frames, bool is_clicked );
 
         inline CodeBlockTooltipFn& GetCodeBlockTooltipFn() {
             static CodeBlockTooltipFn s_Fn = nullptr;
@@ -1173,6 +1174,11 @@ namespace ImGui
             return s_Fn;
         }
 
+        inline MarkdownTooltipFn& GetMarkdownTooltipFn() {
+            static MarkdownTooltipFn s_Fn = nullptr;
+            return s_Fn;
+        }
+
         inline void ShowCodeBlockTooltip( ImGuiID id, bool hovered, const char* text, bool toggle_on_click = false ) {
             if( GetCodeBlockTooltipFn() ) {
                 GetCodeBlockTooltipFn()( id, hovered, text, toggle_on_click );
@@ -1183,6 +1189,19 @@ namespace ImGui
             if( GetClearTooltipFn() ) {
                 GetClearTooltipFn()();
             }
+        }
+
+        inline bool ShowMarkdownTooltip( ImGuiID id, bool hovered, const char* text, float wrap_width = 400.0f, int delay_frames = -1, bool is_clicked = false ) {
+            if( GetMarkdownTooltipFn() ) {
+                return GetMarkdownTooltipFn()( id, hovered, text, wrap_width, delay_frames, is_clicked );
+            }
+            if( hovered && text && text[0] != '\0' ) {
+                ImGui::BeginTooltip();
+                ImGui::TextWrapped( "%s", text );
+                ImGui::EndTooltip();
+                return true;
+            }
+            return false;
         }
     }
 
