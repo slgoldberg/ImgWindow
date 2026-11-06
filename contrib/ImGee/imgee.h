@@ -143,7 +143,13 @@
 #include "widgets/includes.h"
 
 // ============================================================================
-// 3. OPT-IN GLOBAL NAMESPACES (Only active if explicitly requested)
+// 3. THEMES (Curated cockpit & studio style presets)
+// ============================================================================
+
+#include "themes/includes.h"
+
+// ============================================================================
+// 4. OPT-IN GLOBAL NAMESPACES (Only active if explicitly requested)
 // ============================================================================
 
 #if defined(IMGEE_ENABLE_GLOBAL_NAMESPACES)

@@ -1400,7 +1400,7 @@ namespace ImGui {
             s_CustomTags["strike"] = strikeHandler;
 
             // Built-in Tag 8: <center>, <centre>
-            auto centerHandler = [](const std::string& inner_text, const std::string& param) {
+            auto centerHandler = [](const std::string& inner_text, const std::string& /*param*/) {
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
 

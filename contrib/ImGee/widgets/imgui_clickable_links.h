@@ -28,6 +28,16 @@
 
 #include "imgui.h"
 #include <string>
+#include <cstdlib>
+#if defined(_WIN32)
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #include <windows.h>
+    #include <shellapi.h>
+#else
+    #include <sys/stat.h>
+#endif
 
 #ifndef IMGUI_LINK_CLICK_RESULT_DEFINED
 #define IMGUI_LINK_CLICK_RESULT_DEFINED
@@ -451,6 +461,108 @@ namespace ImGui {
 #ifndef MenuItem
 #define MenuItem MenuItemContrib
 #endif
+#endif
+
+    /**
+     * @brief Cross-platform helper to open a web URL, local file, or document in
+     * the operating system's default viewer or browser.
+     *
+     * Handles:
+     * - Web URLs ("https://...", "http://...") -> default system browser
+     * - Standard file URIs ("file://path/to/doc.pdf", "file:///...") -> default registered viewer
+     * - Local prefix ("local:path/to/doc.pdf") -> default registered viewer
+     * - Relative paths ("Resources/plugins/.../manual.pdf") -> resolved relative to current working directory
+     *
+     * @param url_or_path Null-terminated string containing URL, file URI, or relative path.
+     * @return true if successfully dispatched to the OS, false on empty or invalid input.
+     */
+    inline IMGUI_API bool OpenURL(const char* url_or_path)
+    {
+        if (!url_or_path || url_or_path[0] == '\0') {
+            return false;
+        }
+
+        std::string target = url_or_path;
+
+        // Strip "local:" or "file://" scheme prefixes if present
+        if (target.rfind("local:", 0) == 0) {
+            target = target.substr(6);
+        } else if (target.rfind("file://", 0) == 0) {
+            target = target.substr(7);
+#if !defined(_WIN32)
+            // On Unix/Mac, "file:///path" has a 3rd slash denoting the root '/'
+            if (target.size() >= 2 && target[0] == '/' && target[1] == '/') {
+                target = target.substr(1);
+            }
+#endif
+        }
+
+        if (target.empty()) {
+            return false;
+        }
+
+        // Web URLs: dispatch straight to default browser
+        if (target.rfind("http://", 0) == 0 || target.rfind("https://", 0) == 0) {
+#if defined(_WIN32)
+            HINSTANCE res = ShellExecuteA(NULL, "open", target.c_str(), NULL, NULL, SW_SHOWNORMAL);
+            return (reinterpret_cast<INT_PTR>(res) > 32);
+#elif defined(__APPLE__)
+            std::string cmd = "open \"" + target + "\" &";
+            return (system(cmd.c_str()) == 0);
+#else
+            std::string cmd = "xdg-open \"" + target + "\" &";
+            return (system(cmd.c_str()) == 0);
+#endif
+        }
+
+        // Local files / documents
+        std::string resolved = target;
+
+#if defined(_WIN32)
+        HINSTANCE res = ShellExecuteA(NULL, "open", resolved.c_str(), NULL, NULL, SW_SHOWNORMAL);
+        return (reinterpret_cast<INT_PTR>(res) > 32);
+#elif defined(__APPLE__)
+        std::string cmd = "open \"" + resolved + "\" &";
+        return (system(cmd.c_str()) == 0);
+#else
+        std::string cmd = "xdg-open \"" + resolved + "\" &";
+        return (system(cmd.c_str()) == 0);
+#endif
+    }
+
+    inline IMGUI_API bool OpenURL(const std::string& url_or_path)
+    {
+        return OpenURL(url_or_path.c_str());
+    }
+
+    inline IMGUI_API bool OpenDocument(const char* path)
+    {
+        return OpenURL(path);
+    }
+
+    inline IMGUI_API bool OpenDocument(const std::string& path)
+    {
+        return OpenURL(path.c_str());
+    }
+
+#if defined(IMGUI_MARKDOWN_H)
+namespace Detail {
+    inline void AutoMarkdownLinkHandler(MarkdownLinkCallbackData data) {
+        if (!data.isImage && data.link && data.linkLength > 0) {
+            std::string url(data.link, (size_t)data.linkLength);
+            OpenURL(url.c_str());
+        }
+    }
+
+    struct MarkdownAutoLinkInit {
+        MarkdownAutoLinkInit() {
+            if (!GetDefaultMarkdownLinkCallback()) {
+                SetDefaultMarkdownLinkCallback(AutoMarkdownLinkHandler);
+            }
+        }
+    };
+    static MarkdownAutoLinkInit s_MarkdownAutoLinkInit;
+}
 #endif
 
 } // namespace ImGui

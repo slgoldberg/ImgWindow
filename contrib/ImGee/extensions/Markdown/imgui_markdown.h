@@ -264,7 +264,15 @@ namespace ImGui
         }
         else
         {
-            ImGui::SetTooltip( "%s Open in browser\n%.*s", data_.linkIcon, data_.linkData.linkLength, data_.linkData.link );
+            std::string link(data_.linkData.link, (size_t)data_.linkData.linkLength);
+            if (link.rfind("file:", 0) == 0 || link.rfind("local:", 0) == 0 || link.find(".pdf") != std::string::npos)
+            {
+                ImGui::SetTooltip( "Open document\n%.*s", data_.linkData.linkLength, data_.linkData.link );
+            }
+            else
+            {
+                ImGui::SetTooltip( "%s Open in browser\n%.*s", data_.linkIcon ? data_.linkIcon : "", data_.linkData.linkLength, data_.linkData.link );
+            }
         }
     }
 
@@ -277,6 +285,15 @@ namespace ImGui
 
     inline void SetDefaultMarkdownImageCallback(MarkdownImageCallback* callback) {
         GetDefaultMarkdownImageCallback() = callback;
+    }
+
+    inline MarkdownLinkCallback*& GetDefaultMarkdownLinkCallback() {
+        static MarkdownLinkCallback* s_DefaultLinkCallback = nullptr;
+        return s_DefaultLinkCallback;
+    }
+
+    inline void SetDefaultMarkdownLinkCallback(MarkdownLinkCallback* callback) {
+        GetDefaultMarkdownLinkCallback() = callback;
     }
     typedef void                MarkdownFormalCallback( const MarkdownFormatInfo& markdownFormatInfo_, bool start_ );
 
@@ -4289,9 +4306,10 @@ namespace ImGui
                         }
                         if( ImGui::IsItemHovered() )
                         {
-                            if( ImGui::IsMouseReleased( 0 ) && mdConfig_.linkCallback && useLinkCallback )
+                            MarkdownLinkCallback* linkCb = mdConfig_.linkCallback ? mdConfig_.linkCallback : GetDefaultMarkdownLinkCallback();
+                            if( ImGui::IsMouseReleased( 0 ) && linkCb && useLinkCallback )
                             {
-                                mdConfig_.linkCallback( { markdown_ + link.text.start, link.text.size(), markdown_ + link.url.start, link.url.size(), mdConfig_.userData, true } );
+                                linkCb( { markdown_ + link.text.start, link.text.size(), markdown_ + link.url.start, link.url.size(), mdConfig_.userData, true } );
                             }
                             if( link.text.size() > 0 && mdConfig_.tooltipCallback )
                             {
@@ -4503,9 +4521,10 @@ namespace ImGui
 
         if(bHovered)
         {
-            if( ImGui::IsMouseReleased( 0 ) && mdConfig_.linkCallback )
+            MarkdownLinkCallback* linkCb = mdConfig_.linkCallback ? mdConfig_.linkCallback : GetDefaultMarkdownLinkCallback();
+            if( ImGui::IsMouseReleased( 0 ) && linkCb )
             {
-                mdConfig_.linkCallback( { markdown_ + link_.text.start, link_.text.size(), markdown_ + link_.url.start, link_.url.size(), mdConfig_.userData, false } );
+                linkCb( { markdown_ + link_.text.start, link_.text.size(), markdown_ + link_.url.start, link_.url.size(), mdConfig_.userData, false } );
             }
             if( mdConfig_.tooltipCallback )
             {
