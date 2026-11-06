@@ -2297,6 +2297,12 @@ namespace ImGui {
             
             ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
             ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+#if defined(IMGUI_INTERNAL_H) || defined(IMGUI_CONTRIB_INTERNAL_INCLUDED)
+            if (ImGuiWindow* m_win = ImGui::GetCurrentWindow()) {
+                m_win->HiddenFramesCannotSkipItems = 2;
+                m_win->SkipItems = false;
+            }
+#endif
             if (font_scale > 0.0f) {
                 ImGui::SetWindowFontScale(font_scale);
             }
@@ -2314,6 +2320,12 @@ namespace ImGui {
             ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
 #else
             ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
+#endif
+#if defined(IMGUI_INTERNAL_H) || defined(IMGUI_CONTRIB_INTERNAL_INCLUDED)
+            if (ImGuiWindow* m_child = ImGui::GetCurrentWindow()) {
+                m_child->HiddenFramesCannotSkipItems = 2;
+                m_child->SkipItems = false;
+            }
 #endif
             if (font_scale > 0.0f) {
                 ImGui::SetWindowFontScale(font_scale);
@@ -2552,6 +2564,11 @@ namespace TimedTooltip {
             MarkdownConfig measure_md = local_md;
             measure_md.wrapWidth = -1.0f; // Force unconstrained single-line layout
             ImVec2 raw_size = MD::CalcMarkdownSize(id, 1, std::string(buffer), 0.0f, scale, &measure_md);
+            if (raw_size.x <= 0.0f || raw_size.y <= 0.0f) {
+                ImVec2 fb = ImGui::CalcTextSize(buffer);
+                raw_size.x = fb.x * scale;
+                raw_size.y = fb.y * scale;
+            }
             
             if (no_wrap || raw_size.x <= wrap_limit) {
                 // Short or non-wrapping content: Shrink-wrap perfectly with extra clearance so rightmost glyphs never clip!
