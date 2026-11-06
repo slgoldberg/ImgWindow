@@ -358,9 +358,12 @@ namespace TimedTooltip {
 
         // Invalidate cached dimensions if ambient font scale changed across hovers:
         if (std::abs(scale - state.last_scale) > 0.001f) {
-            state.perfect_size = ImVec2(0.0f, 0.0f);
-            state.last_size = ImVec2(0.0f, 0.0f);
             state.last_scale = scale;
+            // Only invalidate if this was cached from an earlier frame, NEVER if perfect_size was calculated this frame!
+            if (state.last_frame_updated < cur_frame) {
+                state.perfect_size = ImVec2(0.0f, 0.0f);
+                state.last_size = ImVec2(0.0f, 0.0f);
+            }
         }
 
         // Trigger Display (With Global Mutex)
@@ -421,8 +424,8 @@ else // only *add* to max timeout if it's not very short per above:
             ImVec2 render_pos = state.locked_pos;
             ImVec2 display_size = ImGui::GetIO().DisplaySize;
             ImVec2 scaled_padding = ImVec2(config->padding.x * scale, config->padding.y * scale);
-            float expected_h = (state.perfect_size.y > 0.0f) ? (state.perfect_size.y + scaled_padding.y * 2.0f) : state.last_size.y;
-            float expected_w = (state.perfect_size.x > 0.0f) ? (state.perfect_size.x + scaled_padding.x * 2.0f) : state.last_size.x;
+            float expected_h = (state.perfect_size.y > 0.0f) ? (state.perfect_size.y + scaled_padding.y * 2.0f) : ((state.last_size.y >= 20.0f) ? state.last_size.y : 0.0f);
+            float expected_w = (state.perfect_size.x > 0.0f) ? (state.perfect_size.x + scaled_padding.x * 2.0f) : ((state.last_size.x >= 35.0f) ? state.last_size.x : 0.0f);
 
             // Ensure expected dimensions don't exceed the active display boundaries
             if (expected_w > display_size.x - 25.0f) expected_w = display_size.x - 25.0f;
@@ -456,8 +459,8 @@ else // only *add* to max timeout if it's not very short per above:
             if (ImGuiWindow* cached_win = ImGui::FindWindowByName(window_name)) {
                 cached_win->FontWindowScale = scale;
             }
-            if (expected_w > 0.0f && expected_h > 0.0f) {
-                ImGui::SetNextWindowSize(ImVec2(expected_w, expected_h), ImGuiCond_Always);
+            if (expected_w >= 35.0f && expected_h >= 20.0f) {
+                ImGui::SetNextWindowSize(ImVec2(expected_w, expected_h), ImGuiCond_Appearing);
             }
             ImGui::PushStyleColor(ImGuiCol_WindowBg, config->bg_color);
             ImGui::PushStyleColor(ImGuiCol_PopupBg, config->bg_color);
@@ -501,8 +504,9 @@ else // only *add* to max timeout if it's not very short per above:
         TooltipState& state = GetTooltipStateMap()[hash_id];
         
         // Capture size mathematically so the next frame can calculate the skew ratio!
+        // Only store realistic sizes to prevent degenerate 0/empty frames from poisoning cache
         ImVec2 cur_size = ImGui::GetWindowSize();
-        if (cur_size.x > 0.0f && cur_size.y > 0.0f) {
+        if (cur_size.x >= 35.0f && cur_size.y >= 20.0f) {
             state.last_size = cur_size;
         }
         if (state.font_pushed) {

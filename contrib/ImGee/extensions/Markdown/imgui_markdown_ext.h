@@ -2061,6 +2061,12 @@ namespace ImGui {
         // WITHOUT rendering it to the screen. Perfect for pre-calculating X-Plane OS window boundaries!
         inline ImVec2 CalcMarkdownSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
             ImVec2 calculated_size(0, 0);
+
+            // Save ambient context font metrics so dry-run measurement cannot leak side effects
+            float saved_font_size = GImGui ? GImGui->FontSize : 14.0f;
+            float saved_drawlist_size = GImGui ? GImGui->DrawListSharedData.FontSize : 14.0f;
+            float saved_win_scale = (GImGui && GImGui->CurrentWindow) ? GImGui->CurrentWindow->FontWindowScale : 1.0f;
+            ImFont* saved_font = GImGui ? GImGui->Font : nullptr;
             
             // Use static measurement window IDs so we NEVER create zombie windows or leak into g.WindowsFocusOrder!
             static const char* s_measure_windows[4] = {
@@ -2120,6 +2126,18 @@ namespace ImGui {
             ImGui::EndChild();
             ImGui::End();
             ImGui::PopStyleVar(3);
+
+            // Restore ambient context font metrics completely
+            if (GImGui) {
+                GImGui->FontSize = saved_font_size;
+                GImGui->DrawListSharedData.FontSize = saved_drawlist_size;
+                if (GImGui->CurrentWindow) {
+                    GImGui->CurrentWindow->FontWindowScale = saved_win_scale;
+                }
+                if (saved_font && saved_font != GImGui->Font) {
+                    GImGui->Font = saved_font;
+                }
+            }
         
             return calculated_size;
         }
@@ -2765,7 +2783,11 @@ namespace TimedTooltip {
                 // Short or non-wrapping content: Shrink-wrap perfectly with extra clearance so rightmost glyphs never clip!
                 state.perfect_size.x = ceilf(raw_size.x) + 4.0f * scale;
                 if (state.perfect_size.x > max_screen_w) state.perfect_size.x = max_screen_w;
-                state.perfect_size.y = raw_size.y + 2.0f * scale; // Symmetric 1px top + 1px bottom headroom
+                float line_h = raw_size.y;
+                if (strstr(buffer, "<pill") || strstr(buffer, "<badge")) {
+                    line_h = ImMax(line_h, (ImGui::GetFontSize() > 0.0f ? ImGui::GetFontSize() : 14.0f) + 4.0f * scale);
+                }
+                state.perfect_size.y = line_h + 2.0f * scale; // Symmetric 1px top + 1px bottom headroom
                 local_md.wrapWidth = no_wrap ? -1.0f : wrap_limit;
             } else {
                 // Content exceeds wrap_limit: Do Pass 2 wrapped at the STRICT wrap_limit!
@@ -2776,7 +2798,6 @@ namespace TimedTooltip {
                     wrapped_size.x = fb.x * scale;
                     wrapped_size.y = fb.y * scale;
                 }
-                // Give child window extra clearance beyond wrap_limit so rightmost glyphs are never clipped:
                 float content_w = ceilf(wrapped_size.x) + 4.0f * scale;
                 if (content_w < wrap_limit + 4.0f * scale) {
                     content_w = wrap_limit + 4.0f * scale;
@@ -2790,28 +2811,16 @@ namespace TimedTooltip {
         }
 
         bool displayed = false;
+        state.last_frame_updated = ImGui::GetFrameCount();
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
             displayed = true;
 
-            char child_name[64];
-            snprintf(child_name, sizeof(child_name), "##TT_%08X/##md_delay_tt", id);
-            if (ImGuiWindow* cached_child = ImGui::FindWindowByName(child_name)) {
-                cached_child->FontWindowScale = scale;
-            }
-
-#if IMGUI_VERSION_NUM >= 18989
-            ImGui::BeginChild("##md_delay_tt", state.perfect_size, ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
-#else
-            ImGui::BeginChild("##md_delay_tt", state.perfect_size, false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs);
-#endif
             ImGui::SetWindowFontScale(scale);
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 1.0f * scale);
             if (no_wrap) {
                 MD::Text(std::string(buffer), &local_md);
             } else {
                 MD::TextWrapped(std::string(buffer), &local_md);
             }
-            ImGui::EndChild();
             EndStationaryTooltip(id);
         }
         
