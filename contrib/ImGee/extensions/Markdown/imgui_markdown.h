@@ -1433,8 +1433,10 @@ namespace ImGui
             ImU32 header_bg = IM_COL32( 32, 33, 40, 240 );
             ImU32 divider_col = IM_COL32( 50, 52, 62, 200 );
             ImVec2 header_max( box_max.x, start_pos.y + header_h );
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM < 18200)
 #ifndef ImDrawFlags_RoundCornersTop
 #define ImDrawFlags_RoundCornersTop ( 1 | 2 ) // ImDrawCornerFlags_Top
+#endif
 #endif
             dl->AddRectFilled( box_min, header_max, header_bg, rounding, ImDrawFlags_RoundCornersTop );
             dl->AddLine( ImVec2( box_min.x, header_max.y ), header_max, divider_col, 1.0f * scale );

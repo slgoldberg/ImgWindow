@@ -57,6 +57,7 @@
   #endif
 #endif
 
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM < 18200)
 #ifndef ImDrawFlags_RoundCornersAll
   #ifdef ImDrawCornerFlags_All
     #define ImDrawFlags_RoundCornersAll ImDrawCornerFlags_All
@@ -67,6 +68,7 @@
     #define ImDrawFlags_RoundCornersRight (2 | 8)
     typedef int ImDrawFlags;
   #endif
+#endif
 #endif
 
 #if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM < 18000)
