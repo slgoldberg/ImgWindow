@@ -2115,22 +2115,47 @@ namespace ImGui {
             MarkdownExt(markdown_text, &measure_cfg);
             ImGui::EndGroup();
         
-        calculated_size = ImGui::GetItemRectSize();
+            calculated_size = ImGui::GetItemRectSize();
         
-        ImGui::EndChild();
-        ImGui::End();
-        ImGui::PopStyleVar(3);
+            ImGui::EndChild();
+            ImGui::End();
+            ImGui::PopStyleVar(3);
         
-        return calculated_size;
-    }
+            return calculated_size;
+        }
 
-    inline ImVec2 CalcSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
-        return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
-    }
+        inline ImVec2 CalcSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
+        }
 
-    inline ImVec2 CalcTextSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
-        return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
-    }
+        inline ImVec2 CalcTextSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
+        }
+
+        // Convenient Dear ImGui-style overloads without internal hash_id / pass arguments:
+        inline ImVec2 CalcMarkdownSize(const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            return CalcMarkdownSize(0, 0, markdown_text, wrap_width, font_scale, md_config);
+        }
+
+        inline ImVec2 CalcMarkdownSize(const char* markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            return CalcMarkdownSize(0, 0, std::string(markdown_text ? markdown_text : ""), wrap_width, font_scale, md_config);
+        }
+
+        inline ImVec2 CalcSize(const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            return CalcMarkdownSize(0, 0, markdown_text, wrap_width, font_scale, md_config);
+        }
+
+        inline ImVec2 CalcSize(const char* markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            return CalcMarkdownSize(0, 0, std::string(markdown_text ? markdown_text : ""), wrap_width, font_scale, md_config);
+        }
+
+        inline ImVec2 CalcTextSize(const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            return CalcMarkdownSize(0, 0, markdown_text, wrap_width, font_scale, md_config);
+        }
+
+        inline ImVec2 CalcTextSize(const char* markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            return CalcMarkdownSize(0, 0, std::string(markdown_text ? markdown_text : ""), wrap_width, font_scale, md_config);
+        }
 
         /// Renders an interactive Dear ImGui push button supporting procedural vector icons,
         /// pills, badges, rich Markdown formatting, Unicode glyphs, hand cursor on hover,
@@ -2485,9 +2510,7 @@ namespace ImGui {
             return showing;
         }
 
-
-
-} // namespace Markdown
+    } // namespace Markdown
 
     // Canonical namespace alias: ImGui::MD is identical to ImGui::Markdown
     namespace MD = Markdown;
@@ -2536,6 +2559,15 @@ namespace ImGui {
 
     inline LinkClickResult TextMarkdownLink(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr) {
         return Markdown::TextLink(markdown_text, config_override);
+    }
+
+    // Top-level convenience aliases for layout calculation:
+    inline ImVec2 CalcMarkdownSize(const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+        return Markdown::CalcMarkdownSize(markdown_text, wrap_width, font_scale, md_config);
+    }
+
+    inline ImVec2 CalcMarkdownSize(const char* markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+        return Markdown::CalcMarkdownSize(markdown_text, wrap_width, font_scale, md_config);
     }
 #endif // !CONTRIB_DISABLE_TEXT_MD
 
