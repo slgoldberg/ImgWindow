@@ -2335,6 +2335,18 @@ namespace ImGui {
             return Button(std::string(label ? label : ""), size);
         }
 
+        inline bool Button(const char* label,
+                           const char* tooltip_markdown,
+                           float tooltip_wrap_width = 400.0f,
+                           bool tooltip_allowed = true,
+                           const ImVec2& size_arg = ImVec2(0.0f, 0.0f)) {
+            return Button(std::string(label ? label : ""),
+                          size_arg,
+                          std::string(tooltip_markdown ? tooltip_markdown : ""),
+                          tooltip_wrap_width,
+                          tooltip_allowed);
+        }
+
         // Backward-compatibility and convenience aliases inside Markdown namespace:
         inline bool ButtonMD(const std::string& label,
                              const ImVec2& size = ImVec2(0.0f, 0.0f),
@@ -2346,6 +2358,14 @@ namespace ImGui {
 
         inline bool ButtonMD(const char* label, const ImVec2& size = ImVec2(0.0f, 0.0f)) {
             return Button(std::string(label ? label : ""), size);
+        }
+
+        inline bool ButtonMD(const char* label,
+                             const char* tooltip_markdown,
+                             float tooltip_wrap_width = 400.0f,
+                             bool tooltip_allowed = true,
+                             const ImVec2& size_arg = ImVec2(0.0f, 0.0f)) {
+            return Button(label, tooltip_markdown, tooltip_wrap_width, tooltip_allowed, size_arg);
         }
 
         inline bool ButtonMD(const std::string& label,
@@ -2524,6 +2544,14 @@ namespace ImGui {
         return Markdown::Button(label, size);
     }
 
+    inline bool ButtonMD(const char* label,
+                         const char* tooltip_markdown,
+                         float tooltip_wrap_width = 400.0f,
+                         bool tooltip_allowed = true,
+                         const ImVec2& size_arg = ImVec2(0.0f, 0.0f)) {
+        return Markdown::Button(label, tooltip_markdown, tooltip_wrap_width, tooltip_allowed, size_arg);
+    }
+
     inline bool ButtonMD(const std::string& label,
                          const ImVec2& size = ImVec2(0.0f, 0.0f),
                          const std::string& tooltip_markdown = "",
@@ -2542,6 +2570,14 @@ namespace ImGui {
 
     inline bool ButtonMarkdown(const char* label, const ImVec2& size = ImVec2(0.0f, 0.0f)) {
         return Markdown::Button(label, size);
+    }
+
+    inline bool ButtonMarkdown(const char* label,
+                               const char* tooltip_markdown,
+                               float tooltip_wrap_width = 400.0f,
+                               bool tooltip_allowed = true,
+                               const ImVec2& size_arg = ImVec2(0.0f, 0.0f)) {
+        return Markdown::Button(label, tooltip_markdown, tooltip_wrap_width, tooltip_allowed, size_arg);
     }
 
     inline bool ButtonMarkdown(const std::string& label,
