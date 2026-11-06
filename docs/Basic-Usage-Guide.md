@@ -273,9 +273,15 @@ Eliminates missing-glyph diamond replacement boxes (`?`) when font atlases omit 
   ImGui::Icon("caret-up", 18.0f);
   ImGui::Icon("gear", 16.0f, &ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
   ```
-* **Interactive Button Faces (`ButtonMD`, `IconButton`, `ButtonIcon`)**:
+* **Interactive Button Faces (`ImGui::Markdown::Button`, `ButtonMD`, `IconButton`, `ButtonIcon`)**:
   ```cpp
-  // Pure icon button (defaults to square matching GetFrameHeight()):
+  // 1:1 Dear ImGui drop-in Markdown button with pill face (no gray background):
+  if (ImGui::Markdown::Button("<pill orange> " ICON_FA_RETWEET " </pill>##retweet", ImVec2(32, 20))) { ... }
+
+  // Rich Markdown text button:
+  if (ImGui::ButtonMD("**Save** Changes", ImVec2(120, 24))) { ... }
+
+  // Pure vector icon button (defaults to square matching GetFrameHeight()):
   if (ImGui::ButtonMD("<icon caret-up />##top", "Scroll to top")) { ... }
 
   // Raw Unicode rescue (▲ -> caret-up):
