@@ -2053,6 +2053,85 @@ namespace ImGui {
         }
 #endif
 
+        // -------------------------------------------------------------------------
+        // Layout Calculation API
+        // -------------------------------------------------------------------------
+
+        // Mathematically calculates the exact ImVec2 dimensions of a parsed markdown string 
+        // WITHOUT rendering it to the screen. Perfect for pre-calculating X-Plane OS window boundaries!
+        inline ImVec2 CalcMarkdownSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            ImVec2 calculated_size(0, 0);
+            
+            // Use static measurement window IDs so we NEVER create zombie windows or leak into g.WindowsFocusOrder!
+            static const char* s_measure_windows[4] = {
+                "##md_measure_0", "##md_measure_1", "##md_measure_2", "##md_measure_3"
+            };
+            const char* measure_name = s_measure_windows[pass & 3];
+            
+            float s = (font_scale > 0.0f) ? font_scale : 1.0f;
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * s, 0.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f * s, 1.0f * s));
+            ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 20.0f * s);
+            
+            ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
+            ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+#if defined(IMGUI_INTERNAL_H) || defined(IMGUI_CONTRIB_INTERNAL_INCLUDED)
+            if (ImGuiWindow* m_win = ImGui::GetCurrentWindow()) {
+                m_win->HiddenFramesCannotSkipItems = 2;
+                m_win->SkipItems = false;
+            }
+#endif
+            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
+            if (font_scale > 0.0f) {
+                ImGui::SetWindowFontScale(font_scale);
+            }
+        
+            MarkdownConfig measure_cfg;
+            if (md_config) measure_cfg = *md_config;
+            if (wrap_width > 0.0f) measure_cfg.wrapWidth = wrap_width;
+
+            // Feed it a massive constraint if 0.0f so it doesn't word-wrap infinitely to 1 char.
+            // For wrap_width > 0, make child_width generous so the measurement harness never clips text!
+            float child_width = (wrap_width > 0.0f) ? (wrap_width + 100.0f * s) : 99999.0f;
+            // Pass 10000.0f Y to ensure we never clip vertically during the dry run.
+            // We MUST NOT pass AlwaysAutoResize, or it will infinitely expand X and never word-wrap!
+#if IMGUI_VERSION_NUM >= 18989
+            ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
+#else
+            ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
+#endif
+#if defined(IMGUI_INTERNAL_H) || defined(IMGUI_CONTRIB_INTERNAL_INCLUDED)
+            if (ImGuiWindow* m_child = ImGui::GetCurrentWindow()) {
+                m_child->HiddenFramesCannotSkipItems = 2;
+                m_child->SkipItems = false;
+            }
+#endif
+            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
+            if (font_scale > 0.0f) {
+                ImGui::SetWindowFontScale(font_scale);
+            }
+            
+            ImGui::BeginGroup();
+            MarkdownExt(markdown_text, &measure_cfg);
+            ImGui::EndGroup();
+        
+        calculated_size = ImGui::GetItemRectSize();
+        
+        ImGui::EndChild();
+        ImGui::End();
+        ImGui::PopStyleVar(3);
+        
+        return calculated_size;
+    }
+
+    inline ImVec2 CalcSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+        return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
+    }
+
+    inline ImVec2 CalcTextSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+        return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
+    }
+
         /// Renders an interactive Dear ImGui push button supporting procedural vector icons,
         /// pills, badges, rich Markdown formatting, Unicode glyphs, hand cursor on hover,
         /// and optional rich Markdown tooltips.
@@ -2407,84 +2486,6 @@ namespace ImGui {
         }
 
 
-        // -------------------------------------------------------------------------
-        // Layout Calculation API
-        // -------------------------------------------------------------------------
-
-        // Mathematically calculates the exact ImVec2 dimensions of a parsed markdown string 
-        // WITHOUT rendering it to the screen. Perfect for pre-calculating X-Plane OS window boundaries!
-        inline ImVec2 CalcMarkdownSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
-            ImVec2 calculated_size(0, 0);
-            
-            // Use static measurement window IDs so we NEVER create zombie windows or leak into g.WindowsFocusOrder!
-            static const char* s_measure_windows[4] = {
-                "##md_measure_0", "##md_measure_1", "##md_measure_2", "##md_measure_3"
-            };
-            const char* measure_name = s_measure_windows[pass & 3];
-            
-            float s = (font_scale > 0.0f) ? font_scale : 1.0f;
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * s, 0.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f * s, 1.0f * s));
-            ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 20.0f * s);
-            
-            ImGui::SetNextWindowPos(ImVec2(-10000.0f, -10000.0f));
-            ImGui::Begin(measure_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
-#if defined(IMGUI_INTERNAL_H) || defined(IMGUI_CONTRIB_INTERNAL_INCLUDED)
-            if (ImGuiWindow* m_win = ImGui::GetCurrentWindow()) {
-                m_win->HiddenFramesCannotSkipItems = 2;
-                m_win->SkipItems = false;
-            }
-#endif
-            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
-            if (font_scale > 0.0f) {
-                ImGui::SetWindowFontScale(font_scale);
-            }
-        
-            MarkdownConfig measure_cfg;
-            if (md_config) measure_cfg = *md_config;
-            if (wrap_width > 0.0f) measure_cfg.wrapWidth = wrap_width;
-
-            // Feed it a massive constraint if 0.0f so it doesn't word-wrap infinitely to 1 char.
-            // For wrap_width > 0, make child_width generous so the measurement harness never clips text!
-            float child_width = (wrap_width > 0.0f) ? (wrap_width + 100.0f * s) : 99999.0f;
-            // Pass 10000.0f Y to ensure we never clip vertically during the dry run.
-            // We MUST NOT pass AlwaysAutoResize, or it will infinitely expand X and never word-wrap!
-#if IMGUI_VERSION_NUM >= 18989
-            ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
-#else
-            ImGui::BeginChild("##md_measure_child", ImVec2(child_width, 10000.0f), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
-#endif
-#if defined(IMGUI_INTERNAL_H) || defined(IMGUI_CONTRIB_INTERNAL_INCLUDED)
-            if (ImGuiWindow* m_child = ImGui::GetCurrentWindow()) {
-                m_child->HiddenFramesCannotSkipItems = 2;
-                m_child->SkipItems = false;
-            }
-#endif
-            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
-            if (font_scale > 0.0f) {
-                ImGui::SetWindowFontScale(font_scale);
-            }
-            
-            ImGui::BeginGroup();
-            MarkdownExt(markdown_text, &measure_cfg);
-            ImGui::EndGroup();
-        
-        calculated_size = ImGui::GetItemRectSize();
-        
-        ImGui::EndChild();
-        ImGui::End();
-        ImGui::PopStyleVar(3);
-        
-        return calculated_size;
-    }
-
-    inline ImVec2 CalcSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
-        return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
-    }
-
-    inline ImVec2 CalcTextSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
-        return CalcMarkdownSize(hash_id, pass, markdown_text, wrap_width, font_scale, md_config);
-    }
 
 } // namespace Markdown
 
