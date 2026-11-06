@@ -3918,8 +3918,15 @@ namespace ImGui
                 continue;
             }
 
+            // Transition from Emphasis::LEFT to Emphasis::MIDDLE if we hit a tag immediately after opening delimiter (e.g. **<icon...>)
+            if( em.state == Emphasis::LEFT && c == '<' )
+            {
+                em.text.start = i;
+                em.state = Emphasis::MIDDLE;
+            }
+
             // Test to see if we have a custom styling tag <tag=param>...</tag> or self-closing/void tag <img ... />
-            if( c == '<' && link.state == Link::NO_LINK && em.state == Emphasis::NONE &&
+            if( c == '<' && link.state == Link::NO_LINK && !( em.state != Emphasis::NONE && em.sym == '`' ) &&
                 ( mdConfig_.tagCallback != NULL || mdConfig_.imageCallback != NULL || GetDefaultMarkdownImageCallback() != NULL ) )
             {
                 int openClose = -1;
@@ -3998,27 +4005,73 @@ namespace ImGui
 
                     if( closeStart != -1 )
                     {
-                        line.lineEnd = i;
-                        if( line.lineEnd > line.lineStart && line.lineEnd > line.lastRenderPosition + 1 )
+                        if( em.state == Emphasis::MIDDLE )
                         {
-                            RenderLine( markdown_, line, textRegion, mdConfig_ );
-                            line.isUnorderedListStart = false;
-                            line.isOrderedListStart = false;
-                            ImGui::SameLine( 0.0f, 0.0f );
+                            // 1. Render any plain text that preceded the opening emphasis delimiter:
+                            int preEmphasisEnd = em.text.start - line.emphasisCount;
+                            if( preEmphasisEnd > line.lineStart && preEmphasisEnd > line.lastRenderPosition + 1 )
+                            {
+                                line.lineEnd = preEmphasisEnd;
+                                RenderLine( markdown_, line, textRegion, mdConfig_ );
+                                line.isUnorderedListStart = false;
+                                line.isOrderedListStart = false;
+                                ImGui::SameLine( 0.0f, 0.0f );
+                                line.lastRenderPosition = preEmphasisEnd - 1;
+                                line.lineStart = preEmphasisEnd;
+                            }
+                            else if( line.isUnorderedListStart )
+                            {
+                                int numLeadIndents = line.leadSpaceCount / 2;
+                                textRegion.ApplyLeadIndent( numLeadIndents );
+                                textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                                line.isUnorderedListStart = false;
+                            }
+                            else if( line.isOrderedListStart )
+                            {
+                                int numLeadIndents = line.leadSpaceCount / 2;
+                                textRegion.ApplyLeadIndent( numLeadIndents );
+                                textRegion.ApplyOrderedNumber( markdown_ + line.orderedListNumStart, markdown_ + line.orderedListNumEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                                line.isOrderedListStart = false;
+                            }
+
+                            // 2. Render any emphasized text that preceded this tag (from em.text.start to i):
+                            if( i > em.text.start && i > line.lastRenderPosition + 1 )
+                            {
+                                line.isEmphasis = true;
+                                line.lastRenderPosition = em.text.start - 1;
+                                line.lineStart = em.text.start;
+                                line.lineEnd = i;
+                                RenderLine( markdown_, line, textRegion, mdConfig_ );
+                                line.isEmphasis = false;
+                                ImGui::SameLine( 0.0f, 0.0f );
+                                line.lastRenderPosition = i - 1;
+                                line.lineStart = i;
+                            }
                         }
-                        else if( line.isUnorderedListStart )
+                        else
                         {
-                            int numLeadIndents = line.leadSpaceCount / 2;
-                            textRegion.ApplyLeadIndent( numLeadIndents );
-                            textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
-                            line.isUnorderedListStart = false;
-                        }
-                        else if( line.isOrderedListStart )
-                        {
-                            int numLeadIndents = line.leadSpaceCount / 2;
-                            textRegion.ApplyLeadIndent( numLeadIndents );
-                            textRegion.ApplyOrderedNumber( markdown_ + line.orderedListNumStart, markdown_ + line.orderedListNumEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
-                            line.isOrderedListStart = false;
+                            line.lineEnd = i;
+                            if( line.lineEnd > line.lineStart && line.lineEnd > line.lastRenderPosition + 1 )
+                            {
+                                RenderLine( markdown_, line, textRegion, mdConfig_ );
+                                line.isUnorderedListStart = false;
+                                line.isOrderedListStart = false;
+                                ImGui::SameLine( 0.0f, 0.0f );
+                            }
+                            else if( line.isUnorderedListStart )
+                            {
+                                int numLeadIndents = line.leadSpaceCount / 2;
+                                textRegion.ApplyLeadIndent( numLeadIndents );
+                                textRegion.ApplyBullet( mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                                line.isUnorderedListStart = false;
+                            }
+                            else if( line.isOrderedListStart )
+                            {
+                                int numLeadIndents = line.leadSpaceCount / 2;
+                                textRegion.ApplyLeadIndent( numLeadIndents );
+                                textRegion.ApplyOrderedNumber( markdown_ + line.orderedListNumStart, markdown_ + line.orderedListNumEnd, mdConfig_.bulletSpacing > 0.0f ? mdConfig_.bulletSpacing : -1.0f );
+                                line.isOrderedListStart = false;
+                            }
                         }
 
                         MarkdownTagData tagData;
@@ -4121,6 +4174,10 @@ namespace ImGui
                             i = closeEnd - 1;
                             line.lastRenderPosition = closeEnd - 1;
                             line.lineStart = closeEnd;
+                            if( em.state == Emphasis::MIDDLE )
+                            {
+                                em.text.start = closeEnd;
+                            }
                             ImGui::SameLine( 0.0f, 0.0f );
                             continue;
                         }
@@ -4415,8 +4472,11 @@ namespace ImGui
 						line.lastRenderPosition = em.text.start - 1;
                         line.lineStart = em.text.start;
 					    line.lineEnd = em.text.stop;
-					    RenderLine( markdown_, line, textRegion, mdConfig_ );
-					    ImGui::SameLine( 0.0f, 0.0f );
+                        if( line.lineEnd > line.lineStart && line.lineEnd > line.lastRenderPosition + 1 )
+                        {
+					        RenderLine( markdown_, line, textRegion, mdConfig_ );
+					        ImGui::SameLine( 0.0f, 0.0f );
+                        }
 					    line.isEmphasis = false;
 					    line.lastRenderPosition = i;
 					    em = Emphasis();
