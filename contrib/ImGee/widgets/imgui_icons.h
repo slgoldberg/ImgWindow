@@ -205,14 +205,19 @@ namespace ImGui {
         }
 
         if (id == "undo") {
-            // Counter-clockwise circular arc + tangent arrowhead
+            // Counter-clockwise circular arc + tangent arrowhead (matching ICON_FA_UNDO / U+21BA):
+            // In ImGui screen coordinates (+Y down):
+            //   -0.62*PI is ~10:45 (top-left arrowhead), -0.50*PI is 12:00 (top),
+            //    0.00*PI is  3:00 (right),              +0.50*PI is  6:00 (bottom),
+            //   +0.72*PI is ~7:30 (bottom-left tail).
+            // Sweeps counter-clockwise from bottom-left around the right to top-left!
             ImVec2 arc_center(pos.x + size * 0.52f, pos.y + size * 0.52f);
             float radius = size * 0.25f;
             float thickness = Detail::IconMax(1.2f, size * 0.095f);
 
-            float a_tail = -0.72f * kPI;
-            float a_head =  0.62f * kPI;
-            draw_list->PathArcTo(arc_center, radius, a_tail, a_head, 16);
+            float a_head = -0.62f * kPI;
+            float a_tail =  0.72f * kPI;
+            draw_list->PathArcTo(arc_center, radius, a_head, a_tail, 16);
 #if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19280)
             draw_list->PathStroke(col, thickness, 0);
 #else
