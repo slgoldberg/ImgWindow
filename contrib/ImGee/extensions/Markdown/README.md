@@ -617,9 +617,13 @@ namespace ImGui {
         bool Button(const char* label, const char* tooltip_md, float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true, const ImVec2& size = ImVec2(0, 0));
         bool Button(const std::string& label, const std::string& tooltip_md, float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true, const ImVec2& size = ImVec2(0, 0));
 
-        // Backward-Compatibility Aliases:
+        // Backward-Compatibility & Delayed Tooltip Aliases:
         bool ButtonMD(const char* label, const ImVec2& size = ImVec2(0, 0));
         bool ButtonMD(const std::string& label, const ImVec2& size = ImVec2(0, 0));
+        bool ButtonMD(const char* label, const char* tooltip_md, float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true, const ImVec2& size = ImVec2(0, 0));
+        bool ButtonMD(const std::string& label, const std::string& tooltip_md, float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true, const ImVec2& size = ImVec2(0, 0));
+        bool DelayedTooltipMD(const char* markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true);
+        bool DelayedTooltipMD(const std::string& markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true);
     }
 }
 
@@ -628,6 +632,8 @@ bool ImGui::ButtonMD(const char* label, const ImVec2& size = ImVec2(0, 0));
 bool ImGui::ButtonMD(const std::string& label, const ImVec2& size = ImVec2(0, 0));
 bool ImGui::ButtonMD(const char* label, const char* tooltip_md, float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true, const ImVec2& size = ImVec2(0, 0));
 bool ImGui::ButtonMD(const std::string& label, const std::string& tooltip_md, float tooltip_wrap_width = 400.0f, bool tooltip_allowed = true, const ImVec2& size = ImVec2(0, 0));
+bool ImGui::DelayedTooltipMD(const char* markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true);
+bool ImGui::DelayedTooltipMD(const std::string& markdown_text, float wrap_width = 400.0f, int delay_frames = 30, bool is_allowed = true);
 ```
 
 ### Interactive Buttons (`ImGui::Markdown::Button` / `ImGui::ButtonMD`)
@@ -643,8 +649,8 @@ bool ImGui::ButtonMD(const std::string& label, const std::string& tooltip_md, fl
   * **Pure icon buttons** (e.g. `Button("<icon caret-up />##up")`) default to square geometry matching `ImGui::GetFrameHeight()`.
   * **Icon + Text buttons** (e.g. `Button(":gear: Settings")` or `Button("<icon undo color=#ff5555 /> Revert")`) auto-size to fit both the icon and text with standard inner item spacing.
   * **No font dependencies:** Never displays missing-glyph diamond boxes (`?`).
-* **Optional Markdown Tooltips:**
-  An overload accepts an optional `tooltip_md` string wrapped to `tooltip_wrap_width` (default 400px).
+* **Integrated Timed Tooltip Engine:**
+  The `tooltip_md` overloads in `Button(...)` / `ButtonMD(...)` and the companion `DelayedTooltipMD(...)` function automatically route through the stationary `TimedTooltip` engine (when available), rendering rich markdown sticky notes with dwell delays, anti-jitter positioning, and screen boundary clamping rather than popping unformatted legacy tooltips.
 * **Hand Cursor:**
   Automatically activates `ImGuiMouseCursor_Hand` when hovered.
 
