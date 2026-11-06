@@ -2331,6 +2331,10 @@ namespace ImGui {
             return Button(label, size_arg, tooltip_markdown, tooltip_wrap_width, tooltip_allowed);
         }
 
+        inline bool Button(const char* label, const ImVec2& size = ImVec2(0.0f, 0.0f)) {
+            return Button(std::string(label ? label : ""), size);
+        }
+
         // Backward-compatibility and convenience aliases inside Markdown namespace:
         inline bool ButtonMD(const std::string& label,
                              const ImVec2& size = ImVec2(0.0f, 0.0f),
@@ -2338,6 +2342,10 @@ namespace ImGui {
                              float tooltip_wrap_width = 400.0f,
                              bool tooltip_allowed = true) {
             return Button(label, size, tooltip_markdown, tooltip_wrap_width, tooltip_allowed);
+        }
+
+        inline bool ButtonMD(const char* label, const ImVec2& size = ImVec2(0.0f, 0.0f)) {
+            return Button(std::string(label ? label : ""), size);
         }
 
         inline bool ButtonMD(const std::string& label,
@@ -2512,6 +2520,10 @@ namespace ImGui {
 
 #if !defined(CONTRIB_DISABLE_BUTTON_MD) && !defined(IMGUI_DISABLE_BUTTON_MD) && !defined(CONTRIB_DISABLE_MARKDOWN_ROOT_ALIASES)
     // Top-level convenience aliases for interactive Markdown buttons:
+    inline bool ButtonMD(const char* label, const ImVec2& size = ImVec2(0.0f, 0.0f)) {
+        return Markdown::Button(label, size);
+    }
+
     inline bool ButtonMD(const std::string& label,
                          const ImVec2& size = ImVec2(0.0f, 0.0f),
                          const std::string& tooltip_markdown = "",
@@ -2526,6 +2538,10 @@ namespace ImGui {
                          bool tooltip_allowed = true,
                          const ImVec2& size_arg = ImVec2(0.0f, 0.0f)) {
         return Markdown::Button(label, size_arg, tooltip_markdown, tooltip_wrap_width, tooltip_allowed);
+    }
+
+    inline bool ButtonMarkdown(const char* label, const ImVec2& size = ImVec2(0.0f, 0.0f)) {
+        return Markdown::Button(label, size);
     }
 
     inline bool ButtonMarkdown(const std::string& label,
