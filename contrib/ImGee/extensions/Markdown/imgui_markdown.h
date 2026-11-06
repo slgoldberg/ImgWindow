@@ -40,12 +40,14 @@
   #define IMGUI_CONTRIB_INTERNAL_INCLUDED 1
 #endif
 
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM < 18900)
 #ifndef ImGuiButtonFlags_AllowOverlap
   #ifdef ImGuiButtonFlags_AllowItemOverlap
     #define ImGuiButtonFlags_AllowOverlap ImGuiButtonFlags_AllowItemOverlap
   #else
     #define ImGuiButtonFlags_AllowOverlap (1 << 12)
   #endif
+#endif
 #endif
 
 #ifndef ImTrunc
