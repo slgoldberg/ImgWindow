@@ -2282,13 +2282,11 @@ namespace ImGui {
         inline ImVec2 CalcMarkdownSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
             ImVec2 calculated_size(0, 0);
             
-            // Generate a perfectly unique window name for this specific tooltip and pass.
-            // This mathematically guarantees ImGui can NEVER cache the window's position across frames,
-            // which completely defeats ImGui's Viewport Culling optimization and prevents the 2-pixel tall bug!
-            char measure_name[64];
-            // By appending ImGui::GetFrameCount(), we guarantee the window name is unique for every single hover lifecycle!
-            // This prevents ImGui from caching the -10000 position from a previous hover and culling it on subsequent hovers!
-            snprintf(measure_name, sizeof(measure_name), "##md_measure_%08X_%d_%d", hash_id, pass, ImGui::GetFrameCount());
+            // Use static measurement window IDs so we NEVER create zombie windows or leak into g.WindowsFocusOrder!
+            static const char* s_measure_windows[4] = {
+                "##md_measure_0", "##md_measure_1", "##md_measure_2", "##md_measure_3"
+            };
+            const char* measure_name = s_measure_windows[pass & 3];
             
             float s = (font_scale > 0.0f) ? font_scale : 1.0f;
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * s, 0.0f));
@@ -2303,6 +2301,7 @@ namespace ImGui {
                 m_win->SkipItems = false;
             }
 #endif
+            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
             if (font_scale > 0.0f) {
                 ImGui::SetWindowFontScale(font_scale);
             }
@@ -2327,6 +2326,7 @@ namespace ImGui {
                 m_child->SkipItems = false;
             }
 #endif
+            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
             if (font_scale > 0.0f) {
                 ImGui::SetWindowFontScale(font_scale);
             }
@@ -2580,6 +2580,11 @@ namespace TimedTooltip {
                 // Content exceeds wrap_limit: Do Pass 2 wrapped at the STRICT wrap_limit!
                 local_md.wrapWidth = wrap_limit;
                 ImVec2 wrapped_size = MD::CalcMarkdownSize(id, 2, std::string(buffer), wrap_limit, scale, &local_md);
+                if (wrapped_size.y <= 0.0f) {
+                    ImVec2 fb = ImGui::CalcTextSize(buffer, nullptr, false, wrap_limit);
+                    wrapped_size.x = fb.x * scale;
+                    wrapped_size.y = fb.y * scale;
+                }
                 // Give child window extra clearance beyond wrap_limit so rightmost glyphs are never clipped:
                 float content_w = ceilf(wrapped_size.x) + 4.0f * scale;
                 if (content_w < wrap_limit + 4.0f * scale) {
