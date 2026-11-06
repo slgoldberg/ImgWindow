@@ -4785,9 +4785,20 @@ namespace ImGui
             break;
         }
         case MarkdownFormatType::LINK:
+        {
+            // Resolve link color: prefer ImGuiCol_TextLink if available and non-zero,
+            // otherwise use a crisp, high-contrast sky blue accent (0.45f, 0.75f, 1.0f).
+            ImVec4 linkCol = ImVec4(0.45f, 0.75f, 1.00f, 1.00f);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19100)
+            if (ImGui::GetStyle().Colors[ImGuiCol_TextLink].w > 0.0f) {
+                linkCol = ImGui::GetStyle().Colors[ImGuiCol_TextLink];
+            }
+#endif
+            ImVec4 linkHoverCol = ImVec4((std::min)(1.0f, linkCol.x * 1.25f), (std::min)(1.0f, linkCol.y * 1.25f), (std::min)(1.0f, linkCol.z * 1.25f), 1.0f);
+
             if( start_ )
             {
-                ImGui::PushStyleColor( ImGuiCol_Text, ImGui::GetStyle().Colors[ ImGuiCol_ButtonHovered ] );
+                ImGui::PushStyleColor( ImGuiCol_Text, markdownFormatInfo_.itemHovered ? linkHoverCol : linkCol );
             }
             else
             {
@@ -4795,14 +4806,15 @@ namespace ImGui
                 if( markdownFormatInfo_.itemHovered )
                 {
                     ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
-                    ImGui::UnderLine( ImGui::GetStyle().Colors[ ImGuiCol_ButtonHovered ] );
+                    ImGui::UnderLine( linkHoverCol );
                 }
                 else
                 {
-                    ImGui::UnderLine( ImGui::GetStyle().Colors[ ImGuiCol_Button ] );
+                    ImGui::UnderLine( ImVec4(linkCol.x, linkCol.y, linkCol.z, 0.60f) );
                 }
             }
             break;
+        }
         case MarkdownFormatType::CODE_BLOCK:
             break;
         }
