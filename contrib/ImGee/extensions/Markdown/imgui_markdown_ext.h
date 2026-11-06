@@ -231,6 +231,23 @@ namespace ImGui {
             }
         }
 
+        // 2b. Extract embedded vector icon tag if inner_text contains an injected <icon ... /> tag:
+        size_t icon_tag = style.clean_text.find("<icon ");
+        if (icon_tag != std::string::npos) {
+            size_t tag_end = style.clean_text.find(">", icon_tag);
+            if (tag_end != std::string::npos) {
+                std::string inside = style.clean_text.substr(icon_tag + 6, tag_end - (icon_tag + 6));
+                while (!inside.empty() && (inside.back() == '/' || inside.back() == ' ' || inside.back() == '\t')) inside.pop_back();
+                while (!inside.empty() && (inside.front() == ' ' || inside.front() == '\t')) inside.erase(0, 1);
+                if (style.icon_name.empty() && !inside.empty()) {
+                    style.icon_name = NormalizeIconName(inside.c_str());
+                }
+                style.clean_text.erase(icon_tag, tag_end - icon_tag + 1);
+                while (!style.clean_text.empty() && (style.clean_text.front() == ' ' || style.clean_text.front() == '\t')) style.clean_text.erase(0, 1);
+                while (!style.clean_text.empty() && (style.clean_text.back() == ' ' || style.clean_text.back() == '\t')) style.clean_text.pop_back();
+            }
+        }
+
         // 3. Locate non-whitespace core to check for markdown bold/italic/code syntax
         // (**text**, __text__, *text*, _text_, `text`) WITHOUT discarding intentional
         // leading/trailing padding spaces (e.g., "<pill> " ICON_FA_RETWEET " </pill>"):
@@ -1280,41 +1297,62 @@ namespace ImGui {
                 float pad_y = 1.0f * scale;
                 float rounding = 3.0f * scale;
 
-                EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
+                ImVec4 fg_col = ImGui::GetStyle().Colors[ImGuiCol_Text];
+                bool has_explicit_fg = false;
+                if (!style.fg_color.empty()) {
+                    has_explicit_fg = ParseMarkdownColor(style.fg_color, fg_col);
+                } else if (!bg_str.empty()) {
+                    float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
+                    if (lum < 0.35f) {
+                        fg_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                        has_explicit_fg = true;
+                    } else if (lum > 0.75f) {
+                        fg_col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+                        has_explicit_fg = true;
+                    }
+                }
+
+                bool has_icon = (!style.icon_name.empty() && IsVectorIcon(style.icon_name.c_str()));
+                float font_size = ImGui::GetFontSize();
+                float icon_sz = font_size * 0.90f;
+                bool has_text = !style.clean_text.empty();
+                float gap = (has_icon && has_text) ? (4.0f * scale) : 0.0f;
+                float content_w = (has_icon ? icon_sz : 0.0f) + gap + text_size.x;
+
+                EnsureTagFitsOnLine(content_w + pad_x * 2.0f);
 
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
                 ImU32 col_u32 = ImGui::GetColorU32(bg_col);
+                ImU32 fg_u32 = ImGui::GetColorU32(fg_col);
+
                 draw_list->AddRectFilled(
                     ImVec2(pos.x - pad_x, pos.y - pad_y),
-                    ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
+                    ImVec2(pos.x + content_w + pad_x, pos.y + font_size + pad_y),
                     col_u32, rounding
                 );
 
-                if (!style.fg_color.empty()) {
-                    ImVec4 fg_col;
-                    if (ParseMarkdownColor(style.fg_color, fg_col)) {
+                float cur_x = pos.x;
+                if (has_icon) {
+                    ImVec2 icon_pos(cur_x, pos.y + (font_size - icon_sz) * 0.5f);
+                    ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, fg_u32, style.icon_name.c_str());
+                    cur_x += icon_sz + gap;
+                }
+
+                if (has_text) {
+                    ImGui::SetCursorScreenPos(ImVec2(cur_x, pos.y));
+                    if (has_explicit_fg) {
                         ImGui::PushStyleColor(ImGuiCol_Text, fg_col);
                         ImGui::TextUnformatted(style.clean_text.c_str());
                         ImGui::PopStyleColor();
                     } else {
                         ImGui::TextUnformatted(style.clean_text.c_str());
                     }
-                } else if (!bg_str.empty()) {
-                    float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
-                    if (lum < 0.35f) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-                        ImGui::TextUnformatted(style.clean_text.c_str());
-                        ImGui::PopStyleColor();
-                    } else if (lum > 0.75f) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
-                        ImGui::TextUnformatted(style.clean_text.c_str());
-                        ImGui::PopStyleColor();
-                    } else {
-                        ImGui::TextUnformatted(style.clean_text.c_str());
+                    if (has_icon) {
+                        ImGui::SetCursorScreenPos(ImVec2(pos.x + content_w, pos.y));
                     }
-                } else {
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                } else if (has_icon) {
+                    ImGui::Dummy(ImVec2(content_w, font_size));
                 }
 
                 if (mono_font) {
