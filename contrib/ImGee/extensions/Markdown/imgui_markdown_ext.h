@@ -2084,6 +2084,45 @@ namespace ImGui {
                 }
             }
 
+            std::string trimmed_display = display_part;
+            while (!trimmed_display.empty() && (trimmed_display.front() == ' ' || trimmed_display.front() == '\t')) trimmed_display.erase(0, 1);
+            while (!trimmed_display.empty() && (trimmed_display.back() == ' ' || trimmed_display.back() == '\t')) trimmed_display.pop_back();
+
+            bool is_standalone_pill = (trimmed_display.rfind("<pill", 0) == 0 || trimmed_display.rfind("<badge", 0) == 0);
+            if (is_standalone_pill) {
+                ImVec2 orig_screen_pos = ImGui::GetCursorScreenPos();
+
+                ImGui::BeginGroup();
+                Markdown::TextUnformatted(display_part);
+                ImGui::EndGroup();
+
+                ImVec2 item_sz = ImGui::GetItemRectSize();
+                ImVec2 final_sz = size_arg;
+                if (final_sz.x <= 0.0f) final_sz.x = item_sz.x;
+                if (final_sz.y <= 0.0f) final_sz.y = item_sz.y;
+
+                ImGui::SetCursorScreenPos(orig_screen_pos);
+                std::string inv_id = "##" + (id_part.empty() ? "btn_md_pill" : id_part);
+                bool clicked = ImGui::InvisibleButton(inv_id.c_str(), final_sz);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                }
+
+                if (tooltip_allowed && !tooltip_markdown.empty() && ImGui::IsItemHovered()) {
+                    ImGui::BeginTooltip();
+#if IMGUI_VERSION_NUM >= 18989
+                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+#else
+                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+#endif
+                    TextWrapped(tooltip_markdown);
+                    ImGui::EndChild();
+                    ImGui::EndTooltip();
+                }
+
+                return clicked;
+            }
+
 #if defined(CONTRIB_HAS_ICONS)
             std::string preprocessed;
             bool had_preprocessing = PreprocessMarkdownIconsAndShortcodes(display_part.c_str(), display_part.length(), preprocessed);
@@ -2213,6 +2252,55 @@ namespace ImGui {
                 return clicked;
             }
 #endif // CONTRIB_HAS_ICONS
+
+            bool has_markdown_formatting = (display_part.find('<') != std::string::npos ||
+                                            display_part.find('*') != std::string::npos ||
+                                            display_part.find('_') != std::string::npos ||
+                                            display_part.find('`') != std::string::npos ||
+                                            display_part.find(':') != std::string::npos);
+
+            if (has_markdown_formatting) {
+                ImGuiStyle& style = ImGui::GetStyle();
+                float frame_h = ImGui::GetFrameHeight();
+                ImVec2 measured = CalcMarkdownSize(0, 0, display_part);
+
+                ImVec2 btn_sz = size_arg;
+                if (btn_sz.x <= 0.0f) {
+                    btn_sz.x = measured.x + style.FramePadding.x * 2.0f;
+                }
+                if (btn_sz.y <= 0.0f) {
+                    btn_sz.y = ImMax(measured.y + style.FramePadding.y * 2.0f, frame_h);
+                }
+
+                std::string invisible_label = "###" + (id_part.empty() ? "btn_md" : id_part);
+                bool clicked = ImGui::Button(invisible_label.c_str(), btn_sz);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                }
+
+                ImVec2 next_cursor = ImGui::GetCursorPos();
+                ImVec2 p_min = ImGui::GetItemRectMin();
+                float offset_x = ImMax(style.FramePadding.x, (btn_sz.x - measured.x) * 0.5f);
+                float offset_y = ImMax(style.FramePadding.y, (btn_sz.y - measured.y) * 0.5f);
+
+                ImGui::SetCursorScreenPos(ImVec2(p_min.x + offset_x, p_min.y + offset_y));
+                Markdown::TextUnformatted(display_part);
+                ImGui::SetCursorPos(next_cursor);
+
+                if (tooltip_allowed && !tooltip_markdown.empty() && ImGui::IsItemHovered()) {
+                    ImGui::BeginTooltip();
+#if IMGUI_VERSION_NUM >= 18989
+                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+#else
+                    ImGui::BeginChild("##md_tt", ImVec2(tooltip_wrap_width, 0.0f), false, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+#endif
+                    TextWrapped(tooltip_markdown);
+                    ImGui::EndChild();
+                    ImGui::EndTooltip();
+                }
+
+                return clicked;
+            }
 
             bool clicked = ImGui::Button(label.c_str(), size_arg);
             if (ImGui::IsItemHovered()) {
