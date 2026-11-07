@@ -254,7 +254,7 @@ namespace ImGui {
                         ImGui::PopFontRole();
                         fontStack.pop_back();
                     }
-                } else if (closeName == "color") {
+                } else if (closeName == "color" || closeName == "col" || closeName == "style") {
                     if (!colorStack.empty()) {
                         ImGui::PopStyleColor();
                         colorStack.pop_back();
@@ -400,13 +400,22 @@ namespace ImGui {
                 continue;
             }
 
-            // <color=#hex> or <color=name>
-            if (tagName == "color") {
+            // <color=#hex>, <color=name>, <col ...>, <style ...>
+            if (tagName == "color" || tagName == "col" || tagName == "style") {
                 std::string colVal;
-                if (!Detail::ExtractAttribute(tagStr, "color", colVal)) {
-                    // Try parsing content right after "color="
+                if (!Detail::ExtractAttribute(tagStr, "color", colVal) &&
+                    !Detail::ExtractAttribute(tagStr, "col", colVal) &&
+                    !Detail::ExtractAttribute(tagStr, "style", colVal)) {
+                    // Try parsing content right after "=" or space-separated token
                     size_t eq = tagStr.find('=');
-                    if (eq != std::string::npos) colVal = tagStr.substr(eq + 1);
+                    if (eq != std::string::npos) {
+                        colVal = tagStr.substr(eq + 1);
+                    } else {
+                        size_t sp = tagStr.find_first_of(" \t");
+                        if (sp != std::string::npos) colVal = tagStr.substr(sp + 1);
+                    }
+                    while (!colVal.empty() && (colVal.back() == ' ' || colVal.back() == '\t' || colVal.back() == '/' || colVal.back() == '>')) colVal.pop_back();
+                    while (!colVal.empty() && (colVal.front() == ' ' || colVal.front() == '\t')) colVal.erase(0, 1);
                 }
                 ImU32 ucol = 0;
                 if (!colVal.empty() && Detail::ParseColor(colVal.c_str(), colVal.length(), ucol)) {

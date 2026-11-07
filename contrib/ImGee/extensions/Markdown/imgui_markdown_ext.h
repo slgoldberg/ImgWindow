@@ -151,7 +151,11 @@ namespace ImGui {
             std::string token = p.substr(pos, end - pos);
             std::string t = token;
             for (char& c : t) c = (char)tolower((unsigned char)c);
-            if (t == "bold" || t == "b" || t == "font=bold" || t == "style=bold") {
+            if (t == "bolditalic" || t == "bi" || t == "bold-italic" || t == "style=bolditalic" || t == "font=bolditalic") {
+                style.is_bold = true;
+                style.is_italic = true;
+                found_explicit_style = true;
+            } else if (t == "bold" || t == "b" || t == "font=bold" || t == "style=bold") {
                 style.is_bold = true;
                 found_explicit_style = true;
             } else if (t == "italic" || t == "italics" || t == "i" || t == "font=italic" || t == "style=italic") {
@@ -260,7 +264,14 @@ namespace ImGui {
         std::string core = style.clean_text.substr(start_idx, end_idx - start_idx);
         std::string trail_spaces = style.clean_text.substr(end_idx);
 
-        if ((core.length() >= 4 && core.rfind("**", 0) == 0 && core.compare(core.length() - 2, 2, "**") == 0) ||
+        if ((core.length() >= 6 && core.rfind("***", 0) == 0 && core.compare(core.length() - 3, 3, "***") == 0) ||
+            (core.length() >= 6 && core.rfind("___", 0) == 0 && core.compare(core.length() - 3, 3, "___") == 0))
+        {
+            style.is_bold = true;
+            style.is_italic = true;
+            core = core.substr(3, core.length() - 6);
+        }
+        else if ((core.length() >= 4 && core.rfind("**", 0) == 0 && core.compare(core.length() - 2, 2, "**") == 0) ||
             (core.length() >= 4 && core.rfind("__", 0) == 0 && core.compare(core.length() - 2, 2, "__") == 0))
         {
             style.is_bold = true;
@@ -304,8 +315,23 @@ namespace ImGui {
             ImGui::PushFont(config->monoFont);
             return;
         }
-        if (!config || !config->formatCallback) return;
-        if (style.is_bold) {
+        if (!config || !config->formatCallback) {
+            if (style.is_bold && style.is_italic && config && config->boldItalicFont) {
+                ImGui::PushFont(config->boldItalicFont);
+            } else if (style.is_bold && config && config->boldFont) {
+                ImGui::PushFont(config->boldFont);
+            } else if (style.is_italic && config && config->italicFont) {
+                ImGui::PushFont(config->italicFont);
+            }
+            return;
+        }
+        if (style.is_bold && style.is_italic) {
+            MarkdownFormatInfo info;
+            info.config = config;
+            info.type = MarkdownFormatType::EMPHASIS;
+            info.level = 3; // Bold-Italic
+            config->formatCallback(info, true);
+        } else if (style.is_bold) {
             MarkdownFormatInfo info;
             info.config = config;
             info.type = MarkdownFormatType::EMPHASIS;
@@ -327,8 +353,21 @@ namespace ImGui {
             ImGui::PopFont();
             return;
         }
-        if (!config || !config->formatCallback) return;
-        if (style.is_bold) {
+        if (!config || !config->formatCallback) {
+            if ((style.is_bold && style.is_italic && config && config->boldItalicFont) ||
+                (style.is_bold && config && config->boldFont) ||
+                (style.is_italic && config && config->italicFont)) {
+                ImGui::PopFont();
+            }
+            return;
+        }
+        if (style.is_bold && style.is_italic) {
+            MarkdownFormatInfo info;
+            info.config = config;
+            info.type = MarkdownFormatType::EMPHASIS;
+            info.level = 3; // Bold-Italic
+            config->formatCallback(info, false);
+        } else if (style.is_bold) {
             MarkdownFormatInfo info;
             info.config = config;
             info.type = MarkdownFormatType::EMPHASIS;
@@ -974,6 +1013,7 @@ namespace ImGui {
             };
             s_CustomTags["color"] = colorHandler;
             s_CustomTags["col"]   = colorHandler;
+            s_CustomTags["style"] = colorHandler;
 
             // Built-in Tag 2: <backdrop=...>, <bg=...>, <highlight=...>
             // Draws an exact filled rectangular pill behind the text bounding box with rounded corners
