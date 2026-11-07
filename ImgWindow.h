@@ -177,15 +177,21 @@ public:
         return sTopMenuBarMargin + (hasSysDec ? sSystemTitleBarHeight : 0);
     }
 
+    /** Returns the font adjust scale factor for this window (e.g. _fontAdjust).
+     * Defaults to 1.0f. Subclasses can override this or GetExtensionScaleFactor(). */
+    virtual float getFontAdjust() const { return 1.0f; }
+
     /** Returns the custom layout scale factor for this window. Subclasses
-     * should override this to return their combined text zoom multiplier 
-     * (e.g., _fontAdjust * gSeniorCitizenRatio) so extensions can scale 
+     * should override this or getFontAdjust() to return their combined text zoom 
+     * multiplier (e.g., _fontAdjust * gSeniorCitizenRatio) so extensions can scale 
      * geometry proportionally to match the text.
      * Defaults to (ImGui::GetFontSize() / 14.0f) if not explicitly set,
      * dynamically tracking the ambient font size and Senior Citizen mode.
      */
     virtual float GetExtensionScaleFactor() const {
         if (mCustomExtensionScale > 0.0f) return mCustomExtensionScale;
+        float adj = getFontAdjust();
+        if (adj != 1.0f) return adj;
         float fontSize = ImGui::GetCurrentContext() ? ImGui::GetFontSize() : 14.0f;
         return (fontSize > 0.0f) ? (fontSize / 14.0f) : 1.0f;
     }
