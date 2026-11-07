@@ -81,6 +81,7 @@ constexpr int SYSTEM_FONT_SIZE = 14;     // roughly equivalent size for Roboto
 // #define IM_MONO_NORMAL_FONT   IM_FONT_SLOT(5)
 // #define IM_ITALIC_FONT        IM_FONT_SLOT(6)
 // #define IM_MONO_MEDIUM_FONT   IM_FONT_SLOT(7)
+// #define IM_BOLD_ITALIC_FONT   IM_FONT_SLOT(8)
 
 // Load fonts from files generated via ImGui utility which converts TTF to
 // compressed C++ arrays, included in the "fonts" directory as .inc files:
@@ -91,6 +92,7 @@ constexpr int SYSTEM_FONT_SIZE = 14;     // roughly equivalent size for Roboto
 #include "fonts/gf-robotomono-regular-400.inc"
 #include "fonts/gf-roboto-italic-400.inc"
 #include "fonts/gf-robotomono-regular.inc"                    /* 500 medium */
+#include "fonts/gf-roboto-bold-italic.inc"
 
 bool InitializeImGui ()
 {
@@ -398,12 +400,28 @@ bool InitializeImGui ()
     (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
      FA_FONT_SIZE(mediumMonoFontSize), &mergeConfig, icon_ranges.Data);
 
+// -------------- Fonts[8 = IM_BOLD_ITALIC_FONT]: -----------------------------
+
+    int boldItalicFontSize = BASELINE_FONT_SIZE;
+    strncpy(mainConfig.Name, "Roboto-BoldItalic-700-14px*", 40);
+    mainConfig.GlyphOffset = { 0.f, 0.f };
+    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+                                  (gf_roboto_bold_italic_compressed_data,
+                                   gf_roboto_bold_italic_compressed_size,
+                                   boldItalicFontSize, &mainConfig);
+
+    // Merge in Font Awesome icons at same font size:
+    strncpy(mergeConfig.Name, mainConfig.Name, 40);
+    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
+         FA_FONT_SIZE(boldItalicFontSize), &mergeConfig, icon_ranges.Data);
+
 // ----------------------------------------------------------------------------
 
-    // Callers can now use ImGui::PushFont() with the 8 loaded fonts above.
+    // Callers can now use ImGui::PushFont() with the 9 loaded fonts above.
     // If you defined the IM_FONT_SLOT macros in a global .h file as shown
     // at the top of this file, your UI code simply looks like this:
-    // ImGui::PushFont(IM_ITALIC_FONT);
+    // ImGui::PushFont(IM_BOLD_ITALIC_FONT);
 
     return true;
 }

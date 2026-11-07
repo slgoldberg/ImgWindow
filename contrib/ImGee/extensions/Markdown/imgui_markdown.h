@@ -489,6 +489,7 @@ namespace ImGui
         ImFont*                 headingItalicFont = nullptr;        // Fallback italic font for all headings
         ImFont*                 boldFont = nullptr;                 // If nullptr, falls back to headingFormats[3].font
         ImFont*                 italicFont = nullptr;               // If nullptr, falls back to ImGuiCol_TextDisabled
+        ImFont*                 boldItalicFont = nullptr;           // If nullptr, falls back to boldFont or italicFont
         ImFont*                 monoFont = nullptr;                 // If nullptr, falls back to ambient window font
         ImFont*                 regularFont = nullptr;              // If nullptr, falls back to ambient window font
     };
@@ -4419,8 +4420,11 @@ namespace ImGui
 					// Check if the character is in the user's registered emphasisChars string
 					if( mdConfig_.emphasisChars && strchr(mdConfig_.emphasisChars, c) != NULL
                         // For markers that strictly require at least 2 characters (CriticMarkup '++' underline,
-                        // GFM '~~' strikethrough, and ABC legacy '$$' strikethrough), do not trigger on single chars:
-                        && ( ( c != '+' && c != '~' && c != '$' ) || ( (int)markdownLength_ > next && markdown_[ next ] == c ) )
+                        // GFM '~~' strikethrough, and ABC legacy '$$' strikethrough), do not trigger on single chars
+                        // unless a custom formatCallback is registered:
+                        && ( mdConfig_.formatCallback != defaultMarkdownFormatCallback
+                             || ( c != '+' && c != '~' && c != '$' )
+                             || ( (int)markdownLength_ > next && markdown_[ next ] == c ) )
                         && ( i == line.lineStart
                             || isspace((unsigned char)markdown_[ prev ])
                             || ( ispunct((unsigned char)markdown_[ prev ]) && markdown_[ prev ] != c ) )
@@ -4466,7 +4470,7 @@ namespace ImGui
 			case Emphasis::RIGHT:
 				if( em.sym == c )
                 {
-					if( line.emphasisCount < 3 && ( i - em.text.stop + 1 == line.emphasisCount ) )
+					if( line.emphasisCount <= 3 && ( i - em.text.stop + 1 == line.emphasisCount ) )
                     {
                         int lineEnd = em.text.start - line.emphasisCount;
                         if( lineEnd > line.lineStart && lineEnd > line.lastRenderPosition + 1 )
@@ -4783,6 +4787,33 @@ namespace ImGui
                 {
                     if( start_ ) ImGui::PushStyleColor( ImGuiCol_Text, ImGui::GetStyle().Colors[ ImGuiCol_TextDisabled ] );
                     else         ImGui::PopStyleColor();
+                }
+            }
+            else if( markdownFormatInfo_.level >= 3 )
+            {
+                // Level 3: Bold-Italic (***bold-italic*** or ___bold-italic___)
+                ImFont* bi_font = markdownFormatInfo_.config ? markdownFormatInfo_.config->boldItalicFont : nullptr;
+                if( !bi_font && markdownFormatInfo_.config )
+                {
+                    bi_font = markdownFormatInfo_.config->boldFont;
+                    if( !bi_font )
+                    {
+                        bi_font = markdownFormatInfo_.config->headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font;
+                    }
+                }
+                if( start_ )
+                {
+                    if( bi_font )
+                    {
+                        ImGui::PushFont( bi_font );
+                    }
+                }
+                else
+                {
+                    if( bi_font )
+                    {
+                        ImGui::PopFont();
+                    }
                 }
             }
             else

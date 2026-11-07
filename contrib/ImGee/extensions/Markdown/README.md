@@ -124,6 +124,8 @@ As demonstrated in [`sample-code/InitializeImGui.cpp`](../../../sample-code/Init
 #define IM_BOLD_LARGER_FONT   IM_FONT_SLOT(4) // Bold title font
 #define IM_MONO_NORMAL_FONT   IM_FONT_SLOT(5) // Monospace code font
 #define IM_ITALIC_FONT        IM_FONT_SLOT(6) // Italic font
+#define IM_MONO_MEDIUM_FONT   IM_FONT_SLOT(7) // Monospace medium font
+#define IM_BOLD_ITALIC_FONT   IM_FONT_SLOT(8) // Bold-italic font
 ```
 
 During plugin startup, configure your Markdown appearance globally using `ImGui::MD::Config`:
@@ -132,12 +134,13 @@ During plugin startup, configure your Markdown appearance globally using `ImGui:
 ImGui::MD::Config mdConfig;
 
 // Configure semantic fonts directly (no cryptic array indices!):
-mdConfig.h1Font     = IM_BOLD_LARGER_FONT; // # H1
-mdConfig.h2Font     = IMG_TITLE_FONT;      // ## H2
-mdConfig.h3Font     = IM_BOLD_FONT;        // ### H3
-mdConfig.boldFont   = IM_BOLD_FONT;        // **Bold** / __Bold__
-mdConfig.italicFont = IM_ITALIC_FONT;      // *Italic* / _Italic_
-mdConfig.monoFont   = IM_MONO_NORMAL_FONT; // `code` / <code> / <mono>
+mdConfig.h1Font         = IM_BOLD_LARGER_FONT; // # H1
+mdConfig.h2Font         = IMG_TITLE_FONT;      // ## H2
+mdConfig.h3Font         = IM_BOLD_FONT;        // ### H3
+mdConfig.boldFont       = IM_BOLD_FONT;        // **Bold** / __Bold__
+mdConfig.italicFont     = IM_ITALIC_FONT;      // *Italic* / _Italic_
+mdConfig.boldItalicFont = IM_BOLD_ITALIC_FONT; // ***Bold-Italic*** / ___Bold-Italic___
+mdConfig.monoFont       = IM_MONO_NORMAL_FONT; // `code` / <code> / <mono>
 
 // Configure tight, clean bullet spacing:
 mdConfig.bulletSpacing = 4.0f;

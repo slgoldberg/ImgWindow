@@ -31,6 +31,7 @@ namespace ImGui {
         Monospace,          // Slot 5: Code, callsigns, datarefs, frequencies (e.g. RobotoMono Regular 14px)
         Italic,             // Slot 6: Soft emphasis, citations, hints (e.g. Roboto Italic 14px)
         MonospaceMedium,    // Slot 7: Numeric avionics readouts, dials (e.g. RobotoMono Medium 15px)
+        BoldItalic,         // Slot 8: Strong soft emphasis (e.g. Roboto Bold-Italic 14px)
         Heading1,           // Markdown H1 banner title
         Heading2,           // Markdown H2 section header
         Heading3,           // Markdown H3 subsection header
@@ -65,8 +66,8 @@ namespace ImGui {
         ImFont* f = Detail::GetFontRoleSlot(role);
         if (f) return f;
 
-        // Tier 2: Automatic canonical 8-slot font atlas mapping (Slots 0..7)
-        if ((size_t)role < 8) {
+        // Tier 2: Automatic canonical 9-slot font atlas mapping (Slots 0..8)
+        if ((size_t)role < 9) {
             if (ImGui::GetCurrentContext()) {
                 ImGuiIO& io = ImGui::GetIO();
                 if (io.Fonts && (int)role < io.Fonts->Fonts.Size) {
@@ -78,6 +79,12 @@ namespace ImGui {
 
         // Tier 3: Hierarchical semantic fallbacks
         switch (role) {
+            case ImFontRole::BoldItalic:
+                f = GetFont(ImFontRole::Bold);
+                if (f) return f;
+                f = GetFont(ImFontRole::Italic);
+                if (f) return f;
+                break;
             case ImFontRole::Heading1:
                 f = GetFont(ImFontRole::BoldLarge);
                 if (f) return f;
@@ -216,6 +223,24 @@ namespace ImGui {
         va_list args;
         va_start(args, fmt);
         PushFontRole(ImFontRole::Monospace);
+        ImGui::TextV(fmt, args);
+        PopFontRole();
+        va_end(args);
+    }
+
+    /** Renders unformatted text using ImFontRole::BoldItalic (Slot 8, strong soft emphasis) */
+    inline void BoldItalicTextUnformatted(const char* text, const char* text_end = nullptr) {
+        PushFontRole(ImFontRole::BoldItalic);
+        ImGui::TextUnformatted(text, text_end);
+        PopFontRole();
+    }
+
+    /** Renders formatted text using ImFontRole::BoldItalic (Slot 8, strong soft emphasis) */
+    inline void BoldItalicText(const char* fmt, ...) IM_FMTARGS(1);
+    inline void BoldItalicText(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        PushFontRole(ImFontRole::BoldItalic);
         ImGui::TextV(fmt, args);
         PopFontRole();
         va_end(args);
