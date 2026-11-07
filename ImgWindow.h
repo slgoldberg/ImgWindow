@@ -177,23 +177,29 @@ public:
         return sTopMenuBarMargin + (hasSysDec ? sSystemTitleBarHeight : 0);
     }
 
+    static constexpr float kDefaultBaselineFontSize = 14.0f;
+
+    /** Returns the baseline font size in pixels (e.g. 14.0f for Roboto 14px).
+     * Subclasses can override this if their base typography uses a different pixel size. */
+    virtual float getBaselineFontSize() const { return kDefaultBaselineFontSize; }
+
     /** Returns the font adjust scale factor for this window (e.g. _fontAdjust).
-     * Defaults to 1.0f. Subclasses can override this or GetExtensionScaleFactor(). */
+     * Defaults to 1.0f. Subclasses can override this to report their text zoom multiplier. */
     virtual float getFontAdjust() const { return 1.0f; }
 
-    /** Returns the custom layout scale factor for this window. Subclasses
-     * should override this or getFontAdjust() to return their combined text zoom 
-     * multiplier (e.g., _fontAdjust * gSeniorCitizenRatio) so extensions can scale 
-     * geometry proportionally to match the text.
-     * Defaults to (ImGui::GetFontSize() / 14.0f) if not explicitly set,
-     * dynamically tracking the ambient font size and Senior Citizen mode.
+    /** Returns the custom layout scale factor for this window.
+     * Computes the scale from explicit overrides, getFontAdjust(), or the active
+     * ImGui font size relative to getBaselineFontSize(). Non-virtual so the formula
+     * remains canonical and protected across all derived window classes.
      */
-    virtual float GetExtensionScaleFactor() const {
+    float GetExtensionScaleFactor() const {
         if (mCustomExtensionScale > 0.0f) return mCustomExtensionScale;
         float adj = getFontAdjust();
         if (adj != 1.0f) return adj;
-        float fontSize = ImGui::GetCurrentContext() ? ImGui::GetFontSize() : 14.0f;
-        return (fontSize > 0.0f) ? (fontSize / 14.0f) : 1.0f;
+        float base = getBaselineFontSize();
+        if (base <= 0.0f) base = kDefaultBaselineFontSize;
+        float fontSize = ImGui::GetCurrentContext() ? ImGui::GetFontSize() : base;
+        return (fontSize > 0.0f) ? (fontSize / base) : 1.0f;
     }
     void SetExtensionScaleFactor(float factor) { mCustomExtensionScale = factor; }
 
