@@ -1751,8 +1751,8 @@ namespace ImGui {
         return s_CustomTags;
     }
 
-    /// Transforms inline markdown emphasis (*, **, ***, _, __, ___, ~~, ++, `)
-    /// outside of XML tags into corresponding tags (<i>, <b>, <bi>, <s>, <u>, <code>).
+    // Transforms inline markdown emphasis (*, **, ***, _, __, ___, ~~, ++, `)
+    // outside of XML tags into corresponding tags (`<i>`, `<b>`, `<bi>`, `<s>`, `<u>`, `<code>`).
     inline std::string ExpandInlineMarkdownEmphasisToTags(const std::string& input) {
         if (input.empty()) return "";
 
