@@ -132,7 +132,7 @@ namespace ImGui {
         if (s == "remove") return "minus";
         if (s == "settings" || s == "cog") return "gear";
         if (s == "info-circle" || s == "information") return "info";
-        if (s == "alert" || s == "exclamation-triangle") return "warning";
+        if (s == "alert" || s == "exclamation-triangle" || s == "exclamation" || s == "exclamation-circle" || s == "warn") return "warning";
         if (s == "favorite") return "star";
         if (s == "magnifier" || s == "find") return "search";
         if (s == "aircraft" || s == "airplane") return "plane";

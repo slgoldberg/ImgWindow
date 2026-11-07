@@ -428,7 +428,38 @@ namespace ImGui
         }
 
         std::string hex = str.substr( start );
-        if( hex.length() == 6 )
+        if( hex.length() == 3 )
+        {
+            unsigned int val = 0;
+            if( sscanf( hex.c_str(), "%x", &val ) == 1 )
+            {
+                unsigned int r = ( val >> 8 ) & 0xF;
+                unsigned int g = ( val >> 4 ) & 0xF;
+                unsigned int b = val & 0xF;
+                out_col.x = ( ( r << 4 ) | r ) / 255.0f;
+                out_col.y = ( ( g << 4 ) | g ) / 255.0f;
+                out_col.z = ( ( b << 4 ) | b ) / 255.0f;
+                out_col.w = 1.0f;
+                return true;
+            }
+        }
+        else if( hex.length() == 4 )
+        {
+            unsigned int val = 0;
+            if( sscanf( hex.c_str(), "%x", &val ) == 1 )
+            {
+                unsigned int r = ( val >> 12 ) & 0xF;
+                unsigned int g = ( val >> 8 ) & 0xF;
+                unsigned int b = ( val >> 4 ) & 0xF;
+                unsigned int a = val & 0xF;
+                out_col.x = ( ( r << 4 ) | r ) / 255.0f;
+                out_col.y = ( ( g << 4 ) | g ) / 255.0f;
+                out_col.z = ( ( b << 4 ) | b ) / 255.0f;
+                out_col.w = ( ( a << 4 ) | a ) / 255.0f;
+                return true;
+            }
+        }
+        else if( hex.length() == 6 )
         {
             unsigned int val = 0;
             if( sscanf( hex.c_str(), "%x", &val ) == 1 )

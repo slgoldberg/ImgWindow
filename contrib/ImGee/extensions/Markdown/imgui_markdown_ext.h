@@ -125,7 +125,7 @@ namespace ImGui {
         bool is_underline = false;
     };
 
-    inline MarkdownTagStyle ParseMarkdownTagStyle(const std::string& inner_text, const std::string& param) {
+    inline MarkdownTagStyle ParseMarkdownTagStyle(const std::string& inner_text, const std::string& param, bool extract_icon_tag = false) {
         MarkdownTagStyle style;
         style.clean_text = inner_text;
 
@@ -235,20 +235,22 @@ namespace ImGui {
             }
         }
 
-        // 2b. Extract embedded vector icon tag if inner_text contains an injected <icon ... /> tag:
-        size_t icon_tag = style.clean_text.find("<icon ");
-        if (icon_tag != std::string::npos) {
-            size_t tag_end = style.clean_text.find(">", icon_tag);
-            if (tag_end != std::string::npos) {
-                std::string inside = style.clean_text.substr(icon_tag + 6, tag_end - (icon_tag + 6));
-                while (!inside.empty() && (inside.back() == '/' || inside.back() == ' ' || inside.back() == '\t')) inside.pop_back();
-                while (!inside.empty() && (inside.front() == ' ' || inside.front() == '\t')) inside.erase(0, 1);
-                if (style.icon_name.empty() && !inside.empty()) {
-                    style.icon_name = NormalizeIconName(inside.c_str());
+        // 2b. Extract embedded vector icon tag if inner_text contains an injected <icon ... /> tag (only for dedicated capsule widgets like pill/badge/btn):
+        if (extract_icon_tag) {
+            size_t icon_tag = style.clean_text.find("<icon ");
+            if (icon_tag != std::string::npos) {
+                size_t tag_end = style.clean_text.find(">", icon_tag);
+                if (tag_end != std::string::npos) {
+                    std::string inside = style.clean_text.substr(icon_tag + 6, tag_end - (icon_tag + 6));
+                    while (!inside.empty() && (inside.back() == '/' || inside.back() == ' ' || inside.back() == '\t')) inside.pop_back();
+                    while (!inside.empty() && (inside.front() == ' ' || inside.front() == '\t')) inside.erase(0, 1);
+                    if (style.icon_name.empty() && !inside.empty()) {
+                        style.icon_name = NormalizeIconName(inside.c_str());
+                    }
+                    style.clean_text.erase(icon_tag, tag_end - icon_tag + 1);
+                    while (!style.clean_text.empty() && (style.clean_text.front() == ' ' || style.clean_text.front() == '\t')) style.clean_text.erase(0, 1);
+                    while (!style.clean_text.empty() && (style.clean_text.back() == ' ' || style.clean_text.back() == '\t')) style.clean_text.pop_back();
                 }
-                style.clean_text.erase(icon_tag, tag_end - icon_tag + 1);
-                while (!style.clean_text.empty() && (style.clean_text.front() == ' ' || style.clean_text.front() == '\t')) style.clean_text.erase(0, 1);
-                while (!style.clean_text.empty() && (style.clean_text.back() == ' ' || style.clean_text.back() == '\t')) style.clean_text.pop_back();
             }
         }
 
@@ -545,8 +547,7 @@ namespace ImGui {
             // 3. Emoji shortcodes: :icon_name:
             //    e.g. :undo:, :reset:, :caret_up:, :gear:, :check:
             if (text[i] == ':') {
-                bool is_boundary = (i == 0 || text[i-1] == ' ' || text[i-1] == '\t' || text[i-1] == '\n' ||
-                                    text[i-1] == '(' || text[i-1] == '[' || text[i-1] == '`' || text[i-1] == '*');
+                bool is_boundary = (i == 0 || (!isalnum((unsigned char)text[i-1]) && text[i-1] != ':' && text[i-1] != '\\'));
                 if (is_boundary) {
                     size_t next_colon = std::string::npos;
                     for (size_t k = i + 1; k < len && text[k] != '\n' && text[k] != '\r' && text[k] != ' ' && text[k] != '\t' && (k - i) < 32; ++k) {
@@ -1027,8 +1028,10 @@ namespace ImGui {
                 std::string bg_str = !style.bg_color.empty() ? style.bg_color : style.color_param;
                 ParseMarkdownColor(bg_str, bg_col);
 
-                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float rendered_w = MeasureMarkdownLineWidth(style.clean_text.c_str(), style.clean_text.length(), config);
+                float font_size = ImGui::GetFontSize();
+                ImVec2 text_size(rendered_w, font_size);
+                float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
                 float pad_x = 3.0f * scale;
                 float pad_y = 1.0f * scale;
                 float rounding = 3.0f * scale;
@@ -1075,7 +1078,7 @@ namespace ImGui {
             // Built-in Tag 3: <badge=...>, <tag=...>
             // Delegates directly to ImGui::Badge standalone C++ widget
             auto badgeHandler = [](const std::string& inner_text, const std::string& param) {
-                auto style = ParseMarkdownTagStyle(inner_text, param);
+                auto style = ParseMarkdownTagStyle(inner_text, param, true);
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
 
@@ -1173,7 +1176,7 @@ namespace ImGui {
             // Built-in Tag 3b: <pill=...>
             // Delegates directly to ImGui::Pill standalone C++ widget
             auto pillHandler = [](const std::string& inner_text, const std::string& param) {
-                auto style = ParseMarkdownTagStyle(inner_text, param);
+                auto style = ParseMarkdownTagStyle(inner_text, param, true);
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
 
@@ -1274,8 +1277,10 @@ namespace ImGui {
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
 
-                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float rendered_w = MeasureMarkdownLineWidth(style.clean_text.c_str(), style.clean_text.length(), config);
+                float font_size = ImGui::GetFontSize();
+                ImVec2 text_size(rendered_w, font_size);
+                float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
                 float pad_x = ImMax(5.5f * scale, 5.0f);
                 float required_w = text_size.x + pad_x * 2.0f;
                 EnsureTagFitsOnLine(required_w);
@@ -1298,11 +1303,13 @@ namespace ImGui {
 
             // Built-in Tag 4: <btn=...>
             s_CustomTags["btn"] = [](const std::string& inner_text, const std::string& param) {
-                auto style = ParseMarkdownTagStyle(inner_text, param);
+                auto style = ParseMarkdownTagStyle(inner_text, param, true);
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
-                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float rendered_w = MeasureMarkdownLineWidth(style.clean_text.c_str(), style.clean_text.length(), config);
+                float font_size = ImGui::GetFontSize();
+                ImVec2 text_size(rendered_w, font_size);
+                float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
                 float pad_x = ImMax(ImGui::GetStyle().FramePadding.x, 8.0f * scale);
                 float pad_y = ImMax(ImGui::GetStyle().FramePadding.y, 2.0f * scale);
                 EnsureTagFitsOnLine(text_size.x + pad_x * 2.0f);
@@ -1332,8 +1339,10 @@ namespace ImGui {
                     ParseMarkdownColor(bg_str, bg_col);
                 }
 
-                ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                float scale = (ImGui::GetFontSize() > 0.0f) ? (ImGui::GetFontSize() / 14.0f) : 1.0f;
+                float rendered_w = MeasureMarkdownLineWidth(style.clean_text.c_str(), style.clean_text.length(), config);
+                float font_size = ImGui::GetFontSize();
+                ImVec2 text_size(rendered_w, font_size);
+                float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
                 float pad_x = 3.0f * scale;
                 float pad_y = 1.0f * scale;
                 float rounding = 3.0f * scale;
@@ -1354,7 +1363,6 @@ namespace ImGui {
                 }
 
                 bool has_icon = (!style.icon_name.empty() && IsVectorIcon(style.icon_name.c_str()));
-                float font_size = ImGui::GetFontSize();
                 float icon_sz = font_size * 0.90f;
                 bool has_text = !style.clean_text.empty();
                 float gap = (has_icon && has_text) ? (4.0f * scale) : 0.0f;
@@ -1743,8 +1751,123 @@ namespace ImGui {
         return s_CustomTags;
     }
 
+    /// Transforms inline markdown emphasis (*, **, ***, _, __, ___, ~~, ++, `)
+    /// outside of XML tags into corresponding tags (<i>, <b>, <bi>, <s>, <u>, <code>).
+    inline std::string ExpandInlineMarkdownEmphasisToTags(const std::string& input) {
+        if (input.empty()) return "";
+
+        std::string out;
+        out.reserve(input.length() + 32);
+
+        size_t i = 0;
+        size_t len = input.length();
+
+        while (i < len) {
+            // Skip existing XML tags verbatim:
+            if (input[i] == '<') {
+                size_t tag_end = input.find('>', i);
+                if (tag_end != std::string::npos) {
+                    out.append(input, i, tag_end - i + 1);
+                    i = tag_end + 1;
+                    continue;
+                }
+            }
+
+            // Inline code span `...`
+            if (input[i] == '`') {
+                size_t close_pos = input.find('`', i + 1);
+                if (close_pos != std::string::npos && close_pos > i + 1) {
+                    out.append("<code>");
+                    out.append(input, i + 1, close_pos - (i + 1));
+                    out.append("</code>");
+                    i = close_pos + 1;
+                    continue;
+                }
+            }
+
+            // Strikethrough ~~...~~
+            if (input[i] == '~' && i + 1 < len && input[i + 1] == '~') {
+                size_t close_pos = input.find("~~", i + 2);
+                if (close_pos != std::string::npos && close_pos > i + 2) {
+                    out.append("<s>");
+                    out.append(input, i + 2, close_pos - (i + 2));
+                    out.append("</s>");
+                    i = close_pos + 2;
+                    continue;
+                }
+            }
+
+            // Underline ++...++
+            if (input[i] == '+' && i + 1 < len && input[i + 1] == '+') {
+                size_t close_pos = input.find("++", i + 2);
+                if (close_pos != std::string::npos && close_pos > i + 2) {
+                    out.append("<u>");
+                    out.append(input, i + 2, close_pos - (i + 2));
+                    out.append("</u>");
+                    i = close_pos + 2;
+                    continue;
+                }
+            }
+
+            // Triple delimiter: ***...*** or ___...___ (Bold-Italic)
+            if ((input[i] == '*' && i + 2 < len && input[i + 1] == '*' && input[i + 2] == '*') ||
+                (input[i] == '_' && i + 2 < len && input[i + 1] == '_' && input[i + 2] == '_')) {
+                std::string delim(3, input[i]);
+                size_t close_pos = input.find(delim, i + 3);
+                if (close_pos != std::string::npos && close_pos > i + 3) {
+                    out.append("<bi>");
+                    out.append(input, i + 3, close_pos - (i + 3));
+                    out.append("</bi>");
+                    i = close_pos + 3;
+                    continue;
+                }
+            }
+
+            // Double delimiter: **...** or __...__ (Bold)
+            if ((input[i] == '*' && i + 1 < len && input[i + 1] == '*') ||
+                (input[i] == '_' && i + 1 < len && input[i + 1] == '_')) {
+                std::string delim(2, input[i]);
+                size_t close_pos = input.find(delim, i + 2);
+                if (close_pos != std::string::npos && close_pos > i + 2) {
+                    out.append("<b>");
+                    out.append(input, i + 2, close_pos - (i + 2));
+                    out.append("</b>");
+                    i = close_pos + 2;
+                    continue;
+                }
+            }
+
+            // Single delimiter: *...* or _..._ (Italic)
+            if (input[i] == '*' || input[i] == '_') {
+                char delim = input[i];
+                size_t close_pos = input.find(delim, i + 1);
+                if (close_pos != std::string::npos && close_pos > i + 1) {
+                    bool valid = true;
+                    if (close_pos + 1 < len && input[close_pos + 1] == delim) valid = false;
+                    if (valid) {
+                        out.append("<i>");
+                        out.append(input, i + 1, close_pos - (i + 1));
+                        out.append("</i>");
+                        i = close_pos + 1;
+                        continue;
+                    }
+                }
+            }
+
+            out.push_back(input[i++]);
+        }
+
+        return out;
+    }
+
     /** Recursively renders text containing embedded inline XML/HTML tags with full nested styling */
-    inline void RenderInlineTaggedText(const std::string& text, const MarkdownConfig* config) {
+    inline void RenderInlineTaggedText(const std::string& input_text, const MarkdownConfig* config) {
+        std::string text = (input_text.find('*') != std::string::npos || input_text.find('_') != std::string::npos ||
+                            input_text.find('~') != std::string::npos || input_text.find('+') != std::string::npos ||
+                            input_text.find('`') != std::string::npos)
+                           ? ExpandInlineMarkdownEmphasisToTags(input_text)
+                           : input_text;
+
         if (text.find('<') == std::string::npos) {
             ImGui::TextUnformatted(text.c_str());
             return;
