@@ -824,6 +824,20 @@ ImgWindow::ConvertSizeForScale (int cur_w, int cur_h, float from_scale, float to
     out_h = chrome_h + (int)std::round((float)scalable_h * ratio);
 }
 
+bool
+ImgWindow::IsSimulatorFullScreen()
+{
+#if defined(XPLM300)
+    int fullScreenMonitors = 0;
+    XPLMGetAllMonitorBoundsGlobal([](int /*inMonitorIndex*/, int /*inLeftBx*/, int /*inTopBx*/, int /*inRightBx*/, int /*inBottomBx*/, void* inRefcon) {
+        if (inRefcon) (*static_cast<int*>(inRefcon))++;
+    }, &fullScreenMonitors);
+    return fullScreenMonitors > 0;
+#else
+    return true;
+#endif
+}
+
 void
 ImgWindow::ClampGeometryToScreen(
     int& in_out_l, int& in_out_t, int& in_out_r, int& in_out_b,

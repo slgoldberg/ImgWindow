@@ -311,6 +311,10 @@ public:
     /** Is Window inside the sim? */
     bool IsInsideSim () const { return !IsPoppedOut() && !IsInVR(); }
 
+    /** Returns true if the simulator itself is running in full-screen mode on any monitor.
+     *  In windowed desktop mode, in-sim top menu bar conflicts do not exist. */
+    static bool IsSimulatorFullScreen();
+
     /** Gets the decoration style specified at creation */
     XPLMWindowDecoration GetWindowDecoration() const { return mDecoration; }
 
@@ -327,8 +331,11 @@ public:
     }
 
     /** Calculates the effective top clearance margin for this window instance,
-     *  accounting for both the system menu bar trigger zone and any native window title bar. */
+     *  accounting for both the system menu bar trigger zone and any native window title bar.
+     *  Returns 0 if the window is popped out, in VR, or if the simulator is running in windowed mode. */
     int GetEffectiveTopMargin() const {
+        if (!IsInsideSim() || !IsSimulatorFullScreen())
+            return 0;
         return GetTopMargin(mDecoration);
     }
     
