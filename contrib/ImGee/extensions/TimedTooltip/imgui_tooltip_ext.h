@@ -100,11 +100,11 @@ namespace TimedTooltip {
             case TooltipFontScale_Damped:
             default:
                 if (window_scale <= 1.0f) {
-                    // Gentle downscale ease (slope 0.30) down to a humane 0.85x floor:
-                    base_scale = ImClamp(1.0f + 0.30f * (window_scale - 1.0f), 0.85f, 1.0f);
+                    // Gentle downscale ease (slope 0.18) with a protective 0.90x floor so small text never becomes microprint:
+                    base_scale = ImClamp(1.0f + 0.18f * (window_scale - 1.0f), 0.90f, 1.0f);
                 } else {
-                    // Upper dampening curve (slope 0.28) up to 1.30x ceiling:
-                    base_scale = ImClamp(1.0f + 0.28f * (window_scale - 1.0f), 1.0f, 1.30f);
+                    // Sub-linear upper ramp (slope 0.55) with responsive mid-range punch and extended 1.65x ceiling:
+                    base_scale = ImClamp(1.0f + 0.55f * (window_scale - 1.0f), 1.0f, 1.65f);
                 }
                 break;
         }

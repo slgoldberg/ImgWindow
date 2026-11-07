@@ -272,12 +272,14 @@ public:
 
     /** Proportionally scales current window dimensions from from_scale to to_scale,
      *  anchoring the top-left corner and clamping to min/max window limits and screen bounds.
-     *  Mode-aware: handles in-sim 2D, OS popped-out, and VR windows seamlessly. */
-    bool ScaleWindowGeometry (float from_scale, float to_scale);
+     *  Mode-aware: handles in-sim 2D, OS popped-out, and VR windows seamlessly.
+     *  @param avoidMenuBarConflict If true (default), prevents window top from colliding with system menu bar. */
+    bool ScaleWindowGeometry (float from_scale, float to_scale, bool avoidMenuBarConflict = true);
 
     /** Resizes window proportionally to target_scale based on 1.0x baseline reference dimensions.
-     *  If baseline_scale != 1.0f, scales relative to baseline_scale instead. */
-    bool ResizeToScale (float target_scale, float baseline_scale = 1.0f);
+     *  If baseline_scale != 1.0f, scales relative to baseline_scale instead.
+     *  @param avoidMenuBarConflict If true (default), prevents window top from colliding with system menu bar. */
+    bool ResizeToScale (float target_scale, float baseline_scale = 1.0f, bool avoidMenuBarConflict = true);
 
     /** Clamps window geometry (l, t, r, b) to stay completely within legal screen boundaries,
      *  honoring top menu bar safety margins and min/max limits without mutating aspect ratio.

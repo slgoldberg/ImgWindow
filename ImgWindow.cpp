@@ -894,7 +894,7 @@ ImgWindow::ClampGeometryToScreen(
 }
 
 bool
-ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale)
+ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale, bool avoidMenuBarConflict)
 {
     if (from_scale <= 0.001f || to_scale <= 0.001f || !mWindowID)
         return false;
@@ -962,14 +962,15 @@ ImgWindow::ScaleWindowGeometry (float from_scale, float to_scale)
     int new_r = new_l + new_w;
     int new_b = new_t - new_h;
 
-    ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight, GetEffectiveTopMargin());
+    int top_margin = avoidMenuBarConflict ? GetEffectiveTopMargin() : 0;
+    ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight, top_margin);
 
     SetWindowGeometry(new_l, new_t, new_r, new_b);
     return true;
 }
 
 bool
-ImgWindow::ResizeToScale (float target_scale, float baseline_scale)
+ImgWindow::ResizeToScale (float target_scale, float baseline_scale, bool avoidMenuBarConflict)
 {
     if (target_scale <= 0.001f || baseline_scale <= 0.001f || !mWindowID)
         return false;
@@ -1006,13 +1007,14 @@ ImgWindow::ResizeToScale (float target_scale, float baseline_scale)
         int new_r = new_l + target_w;
         int new_b = new_t - target_h;
 
-        ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight, GetEffectiveTopMargin());
+        int top_margin = avoidMenuBarConflict ? GetEffectiveTopMargin() : 0;
+        ClampGeometryToScreen(new_l, new_t, new_r, new_b, minWidth, minHeight, maxWidth, maxHeight, top_margin);
 
         SetWindowGeometry(new_l, new_t, new_r, new_b);
         return true;
     }
 
-    return ScaleWindowGeometry(baseline_scale, target_scale);
+    return ScaleWindowGeometry(baseline_scale, target_scale, avoidMenuBarConflict);
 }
 
 void
@@ -1546,16 +1548,6 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                     mRight  += dx;
                     mTop    += dy;
                     mBottom += dy;
-
-                    // Guard: keep top edge below X-Plane menu bar so title bar drag is never trapped!
-                    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
-                    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
-                    const int effective_sTop = sTop - GetEffectiveTopMargin();
-                    if (mTop > effective_sTop) {
-                        int diff = mTop - effective_sTop;
-                        mTop -= diff;
-                        mBottom -= diff;
-                    }
                 } else {
                     // do we need to handle window resize?
                     if (dragWhat.left)   mLeft   += dx;
@@ -1581,13 +1573,6 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                     if (mTop-mBottom > maxHeight) {
                         if (dragWhat.top) mTop = mBottom + maxHeight;
                         else mBottom = mTop - maxHeight;
-                    }
-                    // Prevent top edge from being resized into the menu bar:
-                    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
-                    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
-                    const int effective_sTop = sTop - GetEffectiveTopMargin();
-                    if (mTop > effective_sTop) {
-                        mTop = effective_sTop;
                     }
                     // FIXME: If we had to apply resizing restricitons, then mouse and window frame will now be out of synch
                 }
