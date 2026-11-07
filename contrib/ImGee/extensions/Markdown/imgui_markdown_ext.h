@@ -968,6 +968,7 @@ namespace ImGui {
     // Forward declarations
     inline void MarkdownExt(const char* markdown_text, size_t markdown_len, const MarkdownConfig* config_override = nullptr);
     inline void MarkdownExt(const std::string& markdown_text, const MarkdownConfig* config_override = nullptr);
+    inline void RenderInlineTaggedText(const std::string& text, const MarkdownConfig* config);
 
     inline std::unordered_map<std::string, CustomTagCallback>& GetCustomMarkdownTags() {
         static std::unordered_map<std::string, CustomTagCallback> s_CustomTags;
@@ -992,11 +993,11 @@ namespace ImGui {
                 bool no_wrap = (config && config->wrapWidth < 0.0f);
                 float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
                 if (no_wrap || text_size.x <= avail_w) {
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    RenderInlineTaggedText(style.clean_text, config);
                 } else {
                     float wrap_pos = (config && config->wrapWidth > 0.0f) ? (ImGui::GetCursorPos().x + config->wrapWidth) : 0.0f;
                     ImGui::PushTextWrapPos(wrap_pos);
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    RenderInlineTaggedText(style.clean_text, config);
                     ImGui::PopTextWrapPos();
                 }
 
@@ -1048,20 +1049,20 @@ namespace ImGui {
                     ImVec4 fg_col;
                     if (ParseMarkdownColor(style.fg_color, fg_col)) {
                         ImGui::PushStyleColor(ImGuiCol_Text, fg_col);
-                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        RenderInlineTaggedText(style.clean_text, config);
                         ImGui::PopStyleColor();
                     } else {
-                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        RenderInlineTaggedText(style.clean_text, config);
                     }
                 } else {
                     // Auto-contrast text color if background is dark
                     float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
                     if (lum < 0.35f) {
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        RenderInlineTaggedText(style.clean_text, config);
                         ImGui::PopStyleColor();
                     } else {
-                        ImGui::TextUnformatted(style.clean_text.c_str());
+                        RenderInlineTaggedText(style.clean_text, config);
                     }
                 }
 
@@ -1424,11 +1425,11 @@ namespace ImGui {
                 bool no_wrap = (config && config->wrapWidth < 0.0f);
                 float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
                 if (no_wrap || text_size.x <= avail_w) {
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    RenderInlineTaggedText(style.clean_text, config);
                 } else {
                     float wrap_pos = (config && config->wrapWidth > 0.0f) ? (ImGui::GetCursorPos().x + config->wrapWidth) : 0.0f;
                     ImGui::PushTextWrapPos(wrap_pos);
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    RenderInlineTaggedText(style.clean_text, config);
                     ImGui::PopTextWrapPos();
                 }
 
@@ -1460,11 +1461,11 @@ namespace ImGui {
                 bool no_wrap = (config && config->wrapWidth < 0.0f);
                 float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
                 if (no_wrap || text_size.x <= avail_w) {
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    RenderInlineTaggedText(style.clean_text, config);
                 } else {
                     float wrap_pos = (config && config->wrapWidth > 0.0f) ? (ImGui::GetCursorPos().x + config->wrapWidth) : 0.0f;
                     ImGui::PushTextWrapPos(wrap_pos);
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    RenderInlineTaggedText(style.clean_text, config);
                     ImGui::PopTextWrapPos();
                 }
 
@@ -1657,11 +1658,11 @@ namespace ImGui {
                 bool no_wrap = (config && config->wrapWidth < 0.0f);
                 float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
                 if (no_wrap || text_size.x <= avail_w) {
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    RenderInlineTaggedText(style.clean_text, config);
                 } else {
                     float wrap_pos = (config && config->wrapWidth > 0.0f) ? (ImGui::GetCursorPos().x + config->wrapWidth) : 0.0f;
                     ImGui::PushTextWrapPos(wrap_pos);
-                    ImGui::TextUnformatted(style.clean_text.c_str());
+                    RenderInlineTaggedText(style.clean_text, config);
                     ImGui::PopTextWrapPos();
                 }
 
@@ -1685,8 +1686,166 @@ namespace ImGui {
             s_CustomTags["prop"]    = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Regular); };
             s_CustomTags["sans"]    = [sizedTextHandler](const std::string& inner, const std::string& param) { sizedTextHandler(inner, param, ImFontRole::Regular); };
 #endif
+
+            // Inline formatting tags: <b>, <strong>, <i>, <em>, <bi>, <u>, <ins>, <s>, <strike>, <del>
+            auto bHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                style.is_bold = true;
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+                RenderInlineTaggedText(style.clean_text, config);
+                PopMarkdownTagFont(config, style);
+            };
+            s_CustomTags["b"]      = bHandler;
+            s_CustomTags["strong"] = bHandler;
+
+            auto iHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                style.is_italic = true;
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+                RenderInlineTaggedText(style.clean_text, config);
+                PopMarkdownTagFont(config, style);
+            };
+            s_CustomTags["i"]  = iHandler;
+            s_CustomTags["em"] = iHandler;
+
+            auto biHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                style.is_bold = true;
+                style.is_italic = true;
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                PushMarkdownTagFont(config, style);
+                RenderInlineTaggedText(style.clean_text, config);
+                PopMarkdownTagFont(config, style);
+            };
+            s_CustomTags["bi"] = biHandler;
+
+            auto uHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                RenderInlineTaggedText(style.clean_text, config);
+                DrawTextDecorationLine(ImGui::GetColorU32(ImGuiCol_Text), false);
+            };
+            s_CustomTags["u"]   = uHandler;
+            s_CustomTags["ins"] = uHandler;
+
+            auto sHandler = [](const std::string& inner_text, const std::string& param) {
+                auto style = ParseMarkdownTagStyle(inner_text, param);
+                const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+                RenderInlineTaggedText(style.clean_text, config);
+                DrawTextDecorationLine(ImGui::GetColorU32(ImGuiCol_Text), true);
+            };
+            s_CustomTags["s"]      = sHandler;
+            s_CustomTags["strike"] = sHandler;
+            s_CustomTags["del"]    = sHandler;
         }
         return s_CustomTags;
+    }
+
+    /** Recursively renders text containing embedded inline XML/HTML tags with full nested styling */
+    inline void RenderInlineTaggedText(const std::string& text, const MarkdownConfig* config) {
+        if (text.find('<') == std::string::npos) {
+            ImGui::TextUnformatted(text.c_str());
+            return;
+        }
+
+        size_t pos = 0;
+        size_t len = text.length();
+        auto& tags = GetCustomMarkdownTags();
+        bool first = true;
+
+        while (pos < len) {
+            size_t open = text.find('<', pos);
+            if (open == std::string::npos) {
+                std::string rem = text.substr(pos);
+                if (!rem.empty()) {
+                    if (!first) ImGui::SameLine(0.0f, 0.0f);
+                    ImGui::TextUnformatted(rem.c_str());
+                }
+                break;
+            }
+
+            if (open > pos) {
+                std::string pre = text.substr(pos, open - pos);
+                if (!pre.empty()) {
+                    if (!first) ImGui::SameLine(0.0f, 0.0f);
+                    ImGui::TextUnformatted(pre.c_str());
+                    first = false;
+                }
+            }
+
+            size_t close_header = text.find('>', open + 1);
+            if (close_header == std::string::npos) {
+                std::string rem = text.substr(open);
+                if (!first) ImGui::SameLine(0.0f, 0.0f);
+                ImGui::TextUnformatted(rem.c_str());
+                break;
+            }
+
+            std::string header = text.substr(open + 1, close_header - (open + 1));
+            bool isSelfClosing = (!header.empty() && header.back() == '/');
+            if (isSelfClosing) {
+                header.pop_back();
+                while (!header.empty() && (header.back() == ' ' || header.back() == '\t')) header.pop_back();
+            }
+
+            size_t sp = header.find_first_of(" \t=");
+            std::string tag_name = (sp != std::string::npos) ? header.substr(0, sp) : header;
+            std::string tag_param = (sp != std::string::npos) ? header.substr(sp + 1) : "";
+            for (char& c : tag_name) c = (char)tolower((unsigned char)c);
+
+            if (isSelfClosing) {
+                auto it = tags.find(tag_name);
+                if (it != tags.end()) {
+                    if (!first) ImGui::SameLine(0.0f, 0.0f);
+                    it->second("", tag_param);
+                    first = false;
+                }
+                pos = close_header + 1;
+                continue;
+            }
+
+            std::string close_tag = "</" + tag_name + ">";
+            size_t close_pos = std::string::npos;
+            for (size_t k = close_header + 1; k + close_tag.length() <= len; ++k) {
+                if (text[k] == '<' && text[k + 1] == '/') {
+                    bool match = true;
+                    for (size_t m = 0; m < tag_name.length(); ++m) {
+                        if (tolower((unsigned char)text[k + 2 + m]) != tag_name[m]) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match && text[k + 2 + tag_name.length()] == '>') {
+                        close_pos = k;
+                        break;
+                    }
+                }
+            }
+
+            if (close_pos == std::string::npos) {
+                std::string chunk = text.substr(open, close_header + 1 - open);
+                if (!first) ImGui::SameLine(0.0f, 0.0f);
+                ImGui::TextUnformatted(chunk.c_str());
+                first = false;
+                pos = close_header + 1;
+                continue;
+            }
+
+            std::string inner = text.substr(close_header + 1, close_pos - (close_header + 1));
+            auto it = tags.find(tag_name);
+            if (it != tags.end()) {
+                if (!first) ImGui::SameLine(0.0f, 0.0f);
+                it->second(inner, tag_param);
+                first = false;
+            } else {
+                if (!first) ImGui::SameLine(0.0f, 0.0f);
+                ImGui::TextUnformatted(inner.c_str());
+                first = false;
+            }
+            pos = close_pos + tag_name.length() + 3;
+        }
     }
 
     // Registration APIs (supporting both 2-arg parameterized and 1-arg simple callbacks):
