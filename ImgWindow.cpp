@@ -530,9 +530,13 @@ ImgWindow::ImgWindow(
                 io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
                 if (pixels && width > 0 && height > 0) {
                     std::vector<unsigned char> lin_pixels(pixels, pixels + (width * height * 4));
+                    // Force RGB to pure white (255) so the texture acts strictly as a pure opacity mask,
+                    // preventing black edge bleeding, and preserve linear alpha coverage without crushing:
                     for (int i = 0; i < width * height; i++) {
                         unsigned char* p = &lin_pixels[i * 4];
-                        p[3] = (unsigned char)(powf(p[3] / 255.0f, 2.2f) * 255.0f + 0.5f);
+                        p[0] = 255;
+                        p[1] = 255;
+                        p[2] = 255;
                     }
                     mFontTexture = (ImTextureID)(intptr_t)ImgPanelGraphics::CreateTexture(lin_pixels.data(), width, height);
                     io.Fonts->SetTexID(mFontTexture);
