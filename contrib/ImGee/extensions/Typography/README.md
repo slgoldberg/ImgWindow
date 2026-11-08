@@ -91,6 +91,16 @@ Use RAII guards to push and pop font roles safely:
 
 `ImGui::StyledText` parses lightweight XML-style tags and renders continuous text flows across lines.
 
+### Function Signatures
+
+Like standard `ImGui::Text()`, `StyledText` uses `printf`-style variadic format strings:
+
+```cpp
+void ImGui::StyledText(const char* fmt, ...);
+void ImGui::StyledTextWrapped(const char* fmt, ...);
+void ImGui::StyledTextUnformatted(const char* text, const char* text_end = nullptr);
+```
+
 ### Basic Usage
 
 ```cpp
@@ -99,8 +109,11 @@ Use RAII guards to push and pop font roles safely:
 // Inline bold, italic, and color:
 ImGui::StyledText("Transponder is <color=green>ACTIVE</color> on <b>XPDR1</b>.");
 
+// Variadic formatted output:
+ImGui::StyledText("Altitude: <huge>%.0f</huge> <small>FT</small> | Status: <color=green>%s</color>", alt, status);
+
 // Wrapped text:
-ImGui::StyledTextWrapped("Notice: Route clearance is <i>pending</i> from <color=#3498db>ATC Control</color>.");
+ImGui::StyledTextWrapped("Notice: Route clearance is <i>pending</i> from <color=#3498db>%s</color>.", facility);
 ```
 
 ### Supported Tag Catalog
