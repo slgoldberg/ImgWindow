@@ -537,9 +537,58 @@ It's helpful to distinguish how formatting reaches your tags:
 
 ---
 
-### 5. Custom Tag Registration (`ImGui::MD::RegisterTag`)
+### 5. Custom Tag Registration
 
-You can register your own custom styling tags or widgets using `ImGui::MD::RegisterTag` (or `ImGui::RegisterMarkdownTag`) with either 1-argument or 2-argument (parameterized) callbacks:
+You can register custom semantic tags using three different approaches depending on how much declarative convenience or low-level programmatic control you need:
+
+#### 5.1 Declarative Style Tags (`ImGui::RegisterMarkdownStyleTag` / `ImGui::MD::RegisterStyleTag`)
+
+Quickly bundle colors, fonts, emphasis, and backgrounds into a reusable semantic tag without writing any callbacks or boilerplate:
+
+```cpp
+// Green bold text for camera parameters:
+ImGui::RegisterMarkdownStyleTag("cam", "green bold");
+
+// Monospace on a 25% translucent gray backdrop (exact match for subtle pill look):
+ImGui::RegisterMarkdownStyleTag("viewmode", "mono bg=#88888840");
+
+// Gold monospace on dark-amber highlight:
+ImGui::RegisterMarkdownStyleTag("opt", "gold mono bg=#332a00");
+```
+
+In your Markdown text:
+```markdown
+Adjust camera <cam>pitch</cam> and <cam>yaw</cam> before entering <viewmode>Circle view</viewmode>.
+```
+
+Attributes passed at the call-site merge with the default style:
+```markdown
+Alert: <cam red>heading</cam> misalignment!
+```
+
+#### 5.2 Declarative Template / Alias Tags (`ImGui::RegisterMarkdownTagAlias` / `ImGui::MD::RegisterTagAlias`)
+
+Expands any arbitrary Markdown or XML template. The `%s` token is replaced with the inner text anywhere in the template (and can appear multiple times). Standard Markdown formatting (`**bold**`, `*italic*`, `` `code` ``) inside the template is parsed and rendered automatically!
+
+```cpp
+// Wrap inner text with tags and icons:
+ImGui::RegisterMarkdownTagAlias("tip", "<style yellow><b>Tip:</b></style> %s");
+
+// Use standard Markdown syntax directly:
+ImGui::RegisterMarkdownTagAlias("hotkey", "**[<style #40c0ff mono>%s</style>]**");
+
+// Expand into a styled status pill:
+ImGui::RegisterMarkdownTagAlias("axis", "<pill color=#2a6f97>Axis: %s</pill>");
+```
+
+In your Markdown text:
+```markdown
+<tip>Press <hotkey>Shift+C</hotkey> to reset <axis>Roll</axis>.</tip>
+```
+
+#### 5.3 Programmatic Callback Tags (`ImGui::MD::RegisterTag` / `ImGui::RegisterMarkdownTag`)
+
+When you need complete low-level control to invoke arbitrary ImGui widgets, custom drawlist primitives, or dynamic logic:
 
 ```cpp
 // 1. Parameterized tag: <status=critical>Engine 1</status> or <status ok>Engine 2</status>
@@ -574,6 +623,8 @@ namespace ImGui {
     const MarkdownConfig*& GetDefaultMarkdownConfig();
     void RegisterMarkdownTag(const std::string& tag_name, TagCallback callback);
     void RegisterMarkdownWidget(const std::string& tag_name, CustomTagCallback callback);
+    void RegisterMarkdownStyleTag(const std::string& tag_name, const std::string& default_style_params);
+    void RegisterMarkdownTagAlias(const std::string& tag_name, const std::string& format_template);
 
     namespace MD {
         // Configuration Alias:
@@ -582,6 +633,8 @@ namespace ImGui {
         // Custom Tag Registration (Convenience Aliases):
         void RegisterTag(const std::string& tag_name, std::function<void(const std::string& text, const std::string& param)> callback);
         void RegisterTag(const std::string& tag_name, std::function<void(const std::string& text)> callback);
+        void RegisterStyleTag(const std::string& tag_name, const std::string& default_style_params);
+        void RegisterTagAlias(const std::string& tag_name, const std::string& format_template);
 
         // Standard Text Rendering (Mirroring standard ImGui vocabulary):
         // - TextUnformatted / Text: Do not wrap by default (unless wrap_width / wrap_size or PushTextWrapPos is supplied)

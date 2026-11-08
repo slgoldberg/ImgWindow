@@ -2081,17 +2081,21 @@ namespace ImGui {
         });
     }
 
-    // Declarative markdown template/alias tag registration: expands any arbitrary markdown string.
-    // Example:
+    // Declarative markdown template/alias tag registration: expands any arbitrary markdown or XML string template.
+    // %s is replaced by the inner text anywhere in the template (can appear multiple times).
+    // Examples:
     //   RegisterMarkdownTagAlias("cam", "<style green bold mono>%s</style>");
+    //   RegisterMarkdownTagAlias("axis", "**Axis: <style green bold>%s</style>**");
     inline void RegisterMarkdownTagAlias(const std::string& tag_name, const std::string& format_template) {
         RegisterMarkdownTag(tag_name, [format_template](const std::string& inner_text, const std::string& /*param*/) {
-            char buf[2048];
-            int len = std::snprintf(buf, sizeof(buf), format_template.c_str(), inner_text.c_str());
-            const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
-            if (len > 0) {
-                RenderInlineTaggedText(std::string(buf, len), config);
+            std::string expanded = format_template;
+            size_t pos = 0;
+            while ((pos = expanded.find("%s", pos)) != std::string::npos) {
+                expanded.replace(pos, 2, inner_text);
+                pos += inner_text.length();
             }
+            const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+            RenderInlineTaggedText(expanded, config);
         });
     }
 
@@ -2318,6 +2322,12 @@ namespace ImGui {
         }
         inline void RegisterTag(const std::string& tag_name, std::function<void(const std::string& inner_text)> callback) {
             RegisterMarkdownTag(tag_name, callback);
+        }
+        inline void RegisterStyleTag(const std::string& tag_name, const std::string& default_style_params) {
+            RegisterMarkdownStyleTag(tag_name, default_style_params);
+        }
+        inline void RegisterTagAlias(const std::string& tag_name, const std::string& format_template) {
+            RegisterMarkdownTagAlias(tag_name, format_template);
         }
 
         namespace Detail {
