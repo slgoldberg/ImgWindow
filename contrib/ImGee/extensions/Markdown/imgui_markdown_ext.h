@@ -435,10 +435,6 @@ namespace ImGui {
             config->formatCallback(info, false);
         }
     }
-            info.level = 1; // Italic
-            config->formatCallback(info, false);
-        }
-    }
 
     using CustomTagCallback = std::function<void(const std::string& inner_text, const std::string& param)>;
 
