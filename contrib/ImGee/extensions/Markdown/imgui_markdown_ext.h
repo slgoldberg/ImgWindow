@@ -125,7 +125,7 @@ namespace ImGui {
         bool is_underline = false;
     };
 
-    inline MarkdownTagStyle ParseMarkdownTagStyle(const std::string& inner_text, const std::string& param, bool extract_icon_tag = false) {
+    inline MarkdownTagStyle ParseMarkdownTagStyle(const std::string& inner_text, const std::string& param, bool is_capsule_tag = false) {
         MarkdownTagStyle style;
         style.clean_text = inner_text;
 
@@ -199,29 +199,53 @@ namespace ImGui {
                 } else if (t.rfind("color=", 0) == 0 || t.rfind("col=", 0) == 0) {
                     size_t eq = token.find('=');
                     std::string val = strip_quotes(token.substr(eq + 1));
-                    if (style.bg_color.empty()) style.bg_color = val;
-                    else style.fg_color = val;
+                    if (is_capsule_tag) {
+                        if (style.bg_color.empty()) style.bg_color = val;
+                        else style.fg_color = val;
+                    } else {
+                        if (style.fg_color.empty()) style.fg_color = val;
+                        else style.bg_color = val;
+                    }
                 } else {
                     // Bare token (e.g. "green", "#ff0000", "danger")
                     std::string val = strip_quotes(token);
                     if (!val.empty()) {
-                        if (style.bg_color.empty()) {
-                            style.bg_color = val;
-                        } else if (style.fg_color.empty()) {
-                            style.fg_color = val;
+                        if (is_capsule_tag) {
+                            if (style.bg_color.empty()) {
+                                style.bg_color = val;
+                            } else if (style.fg_color.empty()) {
+                                style.fg_color = val;
+                            }
+                        } else {
+                            if (style.fg_color.empty()) {
+                                style.fg_color = val;
+                            } else if (style.bg_color.empty()) {
+                                style.bg_color = val;
+                            }
                         }
                     }
                 }
             }
             pos = end;
         }
-        if (!style.bg_color.empty()) {
-            style.color_param = style.bg_color;
-        } else if (!style.fg_color.empty()) {
-            style.color_param = style.fg_color;
-        } else if (!found_explicit_style && !param.empty()) {
-            style.color_param = strip_quotes(param);
-            style.bg_color = style.color_param;
+        if (is_capsule_tag) {
+            if (!style.bg_color.empty()) {
+                style.color_param = style.bg_color;
+            } else if (!style.fg_color.empty()) {
+                style.color_param = style.fg_color;
+            } else if (!found_explicit_style && !param.empty()) {
+                style.color_param = strip_quotes(param);
+                style.bg_color = style.color_param;
+            }
+        } else {
+            if (!style.fg_color.empty()) {
+                style.color_param = style.fg_color;
+            } else if (!style.bg_color.empty()) {
+                style.color_param = style.bg_color;
+            } else if (!found_explicit_style && !param.empty()) {
+                style.color_param = strip_quotes(param);
+                style.fg_color = style.color_param;
+            }
         }
 
         // 2. Normalize any UTF-8 non-breaking spaces (\xC2\xA0, e.g. macOS Option+Space)
@@ -235,7 +259,7 @@ namespace ImGui {
         }
 
         // 2b. Extract embedded vector icon tag if inner_text contains an injected <icon ... /> tag (only for dedicated capsule widgets like pill/badge/btn):
-        if (extract_icon_tag) {
+        if (is_capsule_tag) {
             size_t icon_tag = style.clean_text.find("<icon ");
             if (icon_tag != std::string::npos) {
                 size_t tag_end = style.clean_text.find(">", icon_tag);
@@ -1028,30 +1052,25 @@ namespace ImGui {
         if (!s_InitializedDefaults) {
             s_InitializedDefaults = true;
 #ifndef IMGUI_DISABLE_MARKDOWN_DEFAULT_TAGS
-            // Built-in Tag 1: <color=...>, <col=...>
+            // Built-in Tag 1: <color=...>, <col=...>, <style=...>
             auto colorHandler = [](const std::string& inner_text, const std::string& param) {
-                auto style = ParseMarkdownTagStyle(inner_text, param);
+                auto style = ParseMarkdownTagStyle(inner_text, param, false);
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
 
                 ImVec2 text_size = ImGui::CalcTextSize(style.clean_text.c_str());
-                EnsureTagFitsOnLine(text_size.x);
-
-                ImVec4 col(1.0f, 1.0f, 1.0f, 1.0f);
-                std::string col_str = !style.fg_color.empty() ? style.fg_color : (!style.color_param.empty() ? style.color_param : style.bg_color);
-                bool has_col = ParseMarkdownColor(col_str, col);
-                if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
 
                 bool has_bg = false;
+                ImVec4 bg_col(0.0f, 0.0f, 0.0f, 1.0f);
+                float pad_x = 0.0f;
                 if (!style.bg_color.empty()) {
-                    ImVec4 bg_col(0.0f, 0.0f, 0.0f, 1.0f);
                     if (ParseMarkdownColor(style.bg_color, bg_col)) {
                         has_bg = true;
                         float rendered_w = MeasureMarkdownLineWidth(style.clean_text.c_str(), style.clean_text.length(), config);
                         float font_size = ImGui::GetFontSize();
                         ImVec2 text_pos = ImGui::GetCursorScreenPos();
                         float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
-                        float pad_x = 3.0f * scale;
+                        pad_x = 3.0f * scale;
                         float pad_y = 1.0f * scale;
                         float rounding = 3.0f * scale;
                         ImU32 u_bg = ImGui::GetColorU32(bg_col);
@@ -1062,6 +1081,28 @@ namespace ImGui {
                             u_bg, rounding);
                     }
                 }
+
+                EnsureTagFitsOnLine(text_size.x + (has_bg ? pad_x * 2.0f : 0.0f));
+
+                ImVec4 col(1.0f, 1.0f, 1.0f, 1.0f);
+                bool has_col = false;
+                if (!style.fg_color.empty()) {
+                    has_col = ParseMarkdownColor(style.fg_color, col);
+                } else if (!has_bg && !style.color_param.empty()) {
+                    has_col = ParseMarkdownColor(style.color_param, col);
+                } else if (has_bg) {
+                    // When a background is explicitly drawn but no foreground is specified,
+                    // calculate auto-contrast text so text is always clearly legible!
+                    float lum = bg_col.x * 0.299f + bg_col.y * 0.587f + bg_col.z * 0.114f;
+                    if (lum > 0.65f) {
+                        col = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); // Dark text on bright background
+                        has_col = true;
+                    } else if (lum < 0.35f) {
+                        col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // White text on dark background
+                        has_col = true;
+                    }
+                }
+                if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
 
                 bool no_wrap = (config && config->wrapWidth < 0.0f);
                 float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
@@ -1092,7 +1133,7 @@ namespace ImGui {
             // Built-in Tag 2: <backdrop=...>, <bg=...>, <highlight=...>
             // Draws an exact filled rectangular pill behind the text bounding box with rounded corners
             auto backdropHandler = [](const std::string& inner_text, const std::string& param) {
-                auto style = ParseMarkdownTagStyle(inner_text, param);
+                auto style = ParseMarkdownTagStyle(inner_text, param, true);
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
                 PushMarkdownTagFont(config, style);
 

@@ -435,6 +435,9 @@ namespace ImGui {
         ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
         std::string btn_id = std::string(preview_text) + "##" + popup_id;
         bool clicked = ImGui::Button(btn_id.c_str(), ImVec2(btn_w, btn_h));
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_None)) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        }
         ImGui::PopStyleVar();
 
         if (is_open) {
@@ -467,6 +470,10 @@ namespace ImGui {
 
         // Render options inside open popup
         if (BeginAnchoredPopup(popup_id)) {
+            if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) || ImGui::IsAnyItemHovered()) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+            }
+
             for (int i = 0; i < items_count; i++) {
                 bool is_selected = (i == *current_item);
                 if (ImGui::Selectable(items[i], is_selected)) {
@@ -477,7 +484,11 @@ namespace ImGui {
                 }
                 if (tooltips && tooltips[i] && *tooltips[i]) {
 #if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && defined(IMGUI_TOOLTIP_EXT_H)
+    #if !defined(CONTRIB_DISABLE_MARKDOWN) && !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && defined(IMGUI_MARKDOWN_EXT_H)
+                    ImGui::TimedTooltip::MD::Text("%s", tooltips[i]);
+    #else
                     ImGui::TimedTooltip::Text("%s", tooltips[i]);
+    #endif
 #else
                     if (ImGui::IsItemHovered()) {
                         ImGui::SetTooltip("%s", tooltips[i]);
