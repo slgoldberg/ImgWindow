@@ -542,6 +542,63 @@ namespace ImGui {
                               tip_ptrs.empty() ? nullptr : tip_ptrs.data(), width, anchor, align);
     }
 
+    // ========================================================================
+    // Explicit Markdown Shorthands & Sub-Namespace Aliases
+    // ========================================================================
+
+    /// Explicit Markdown alias: ImGui::SelectPulldownMD(...)
+    inline IMGUI_API bool SelectPulldownMD(const char* label,
+                                           int* current_item,
+                                           const char* const items[],
+                                           int items_count,
+                                           const char* const tooltips[] = nullptr,
+                                           float width = 0.0f,
+                                           ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
+                                           ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+    {
+        return SelectPulldown(label, current_item, items, items_count, tooltips, width, anchor, align);
+    }
+
+    /// Explicit Markdown alias (std::vector overload): ImGui::SelectPulldownMD(...)
+    inline IMGUI_API bool SelectPulldownMD(const char* label,
+                                           int* current_item,
+                                           const std::vector<std::string>& items,
+                                           const std::vector<std::string>* tooltips = nullptr,
+                                           float width = 0.0f,
+                                           ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
+                                           ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+    {
+        return SelectPulldown(label, current_item, items, tooltips, width, anchor, align);
+    }
+
+    namespace Markdown {
+        /// Sub-namespace alias: ImGui::Markdown::SelectPulldown(...) / ImGui::MD::SelectPulldown(...)
+        inline bool SelectPulldown(const char* label,
+                                   int* current_item,
+                                   const char* const items[],
+                                   int items_count,
+                                   const char* const tooltips[] = nullptr,
+                                   float width = 0.0f,
+                                   ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
+                                   ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+        {
+            return ImGui::SelectPulldown(label, current_item, items, items_count, tooltips, width, anchor, align);
+        }
+
+        inline bool SelectPulldown(const char* label,
+                                   int* current_item,
+                                   const std::vector<std::string>& items,
+                                   const std::vector<std::string>* tooltips = nullptr,
+                                   float width = 0.0f,
+                                   ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
+                                   ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+        {
+            return ImGui::SelectPulldown(label, current_item, items, tooltips, width, anchor, align);
+        }
+    } // namespace Markdown
+
+    namespace MD = Markdown;
+
 } // namespace ImGui
 
 #endif // !CONTRIB_DISABLE_POPUP_MENUS
