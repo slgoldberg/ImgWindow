@@ -188,41 +188,40 @@ namespace ImGui {
                     style.fg_color = strip_quotes(token.substr(3));
                 } else if (t.rfind("text=", 0) == 0) {
                     style.fg_color = strip_quotes(token.substr(5));
-                } else if (t.rfind("bgcolor=", 0) == 0) {
-                    style.bg_color = strip_quotes(token.substr(8));
-                } else if (t.rfind("bgcol=", 0) == 0) {
-                    style.bg_color = strip_quotes(token.substr(6));
-                } else if (t.rfind("bg=", 0) == 0) {
-                    style.bg_color = strip_quotes(token.substr(3));
-                } else if (t.rfind("color=", 0) == 0) {
-                    std::string val = strip_quotes(token.substr(6));
-                    if (style.bg_color.empty()) style.bg_color = val;
-                    else style.fg_color = val;
-                } else if (t.rfind("col=", 0) == 0) {
-                    std::string val = strip_quotes(token.substr(4));
+                } else if (t.rfind("bgcolor=", 0) == 0 || t.rfind("bgcol=", 0) == 0 || t.rfind("bg=", 0) == 0) {
+                    size_t eq = token.find('=');
+                    std::string val = strip_quotes(token.substr(eq + 1));
+                    if (!style.bg_color.empty() && style.fg_color.empty()) {
+                        // Shift previously assigned bare color to foreground text
+                        style.fg_color = style.bg_color;
+                    }
+                    style.bg_color = val;
+                } else if (t.rfind("color=", 0) == 0 || t.rfind("col=", 0) == 0) {
+                    size_t eq = token.find('=');
+                    std::string val = strip_quotes(token.substr(eq + 1));
                     if (style.bg_color.empty()) style.bg_color = val;
                     else style.fg_color = val;
                 } else {
                     // Bare token (e.g. "green", "#ff0000", "danger")
                     std::string val = strip_quotes(token);
                     if (!val.empty()) {
-                        if (style.fg_color.empty()) {
-                            style.fg_color = val;
-                        } else if (style.bg_color.empty()) {
+                        if (style.bg_color.empty()) {
                             style.bg_color = val;
+                        } else if (style.fg_color.empty()) {
+                            style.fg_color = val;
                         }
                     }
                 }
             }
             pos = end;
         }
-        if (!style.fg_color.empty()) {
-            style.color_param = style.fg_color;
-        } else if (!style.bg_color.empty()) {
+        if (!style.bg_color.empty()) {
             style.color_param = style.bg_color;
+        } else if (!style.fg_color.empty()) {
+            style.color_param = style.fg_color;
         } else if (!found_explicit_style && !param.empty()) {
             style.color_param = strip_quotes(param);
-            style.fg_color = style.color_param;
+            style.bg_color = style.color_param;
         }
 
         // 2. Normalize any UTF-8 non-breaking spaces (\xC2\xA0, e.g. macOS Option+Space)
