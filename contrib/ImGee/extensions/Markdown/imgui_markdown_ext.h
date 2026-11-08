@@ -206,23 +206,23 @@ namespace ImGui {
                     // Bare token (e.g. "green", "#ff0000", "danger")
                     std::string val = strip_quotes(token);
                     if (!val.empty()) {
-                        if (style.bg_color.empty()) {
-                            style.bg_color = val;
-                        } else if (style.fg_color.empty()) {
+                        if (style.fg_color.empty()) {
                             style.fg_color = val;
+                        } else if (style.bg_color.empty()) {
+                            style.bg_color = val;
                         }
                     }
                 }
             }
             pos = end;
         }
-        if (!style.bg_color.empty()) {
-            style.color_param = style.bg_color;
-        } else if (!style.fg_color.empty()) {
+        if (!style.fg_color.empty()) {
             style.color_param = style.fg_color;
+        } else if (!style.bg_color.empty()) {
+            style.color_param = style.bg_color;
         } else if (!found_explicit_style && !param.empty()) {
             style.color_param = strip_quotes(param);
-            style.bg_color = style.color_param;
+            style.fg_color = style.color_param;
         }
 
         // 2. Normalize any UTF-8 non-breaking spaces (\xC2\xA0, e.g. macOS Option+Space)
@@ -313,18 +313,43 @@ namespace ImGui {
     inline void PushMarkdownTagFont(const MarkdownConfig* config, const MarkdownTagStyle& style) {
         if (!config) config = GetActiveMarkdownConfig();
         if (!config) config = GetDefaultMarkdownConfig();
-        if (style.is_mono && config && config->monoFont) {
-            ImGui::PushFont(config->monoFont);
+        if (style.is_mono) {
+            ImFont* mono = (config && config->monoFont) ? config->monoFont : nullptr;
+#ifndef CONTRIB_DISABLE_TYPOGRAPHY
+            if (!mono) {
+                if (style.is_bold) mono = ImGui::GetFont(ImFontRole::MonospaceMedium);
+                if (!mono) mono = ImGui::GetFont(ImFontRole::Monospace);
+            }
+#endif
+            if (mono) {
+                ImGui::PushFont(mono);
+                return;
+            }
+        }
+
+        ImFont* fontToPush = nullptr;
+        if (style.is_bold && style.is_italic) {
+            fontToPush = (config && config->boldItalicFont) ? config->boldItalicFont : nullptr;
+#ifndef CONTRIB_DISABLE_TYPOGRAPHY
+            if (!fontToPush) fontToPush = ImGui::GetFont(ImFontRole::BoldItalic);
+#endif
+        } else if (style.is_bold) {
+            fontToPush = (config && config->boldFont) ? config->boldFont : nullptr;
+#ifndef CONTRIB_DISABLE_TYPOGRAPHY
+            if (!fontToPush) fontToPush = ImGui::GetFont(ImFontRole::Bold);
+#endif
+        } else if (style.is_italic) {
+            fontToPush = (config && config->italicFont) ? config->italicFont : nullptr;
+#ifndef CONTRIB_DISABLE_TYPOGRAPHY
+            if (!fontToPush) fontToPush = ImGui::GetFont(ImFontRole::Italic);
+#endif
+        }
+        if (fontToPush) {
+            ImGui::PushFont(fontToPush);
             return;
         }
+
         if (!config || !config->formatCallback) {
-            if (style.is_bold && style.is_italic && config && config->boldItalicFont) {
-                ImGui::PushFont(config->boldItalicFont);
-            } else if (style.is_bold && config && config->boldFont) {
-                ImGui::PushFont(config->boldFont);
-            } else if (style.is_italic && config && config->italicFont) {
-                ImGui::PushFont(config->italicFont);
-            }
             return;
         }
         if (style.is_bold && style.is_italic) {
@@ -351,16 +376,43 @@ namespace ImGui {
     inline void PopMarkdownTagFont(const MarkdownConfig* config, const MarkdownTagStyle& style) {
         if (!config) config = GetActiveMarkdownConfig();
         if (!config) config = GetDefaultMarkdownConfig();
-        if (style.is_mono && config && config->monoFont) {
+        if (style.is_mono) {
+            ImFont* mono = (config && config->monoFont) ? config->monoFont : nullptr;
+#ifndef CONTRIB_DISABLE_TYPOGRAPHY
+            if (!mono) {
+                if (style.is_bold) mono = ImGui::GetFont(ImFontRole::MonospaceMedium);
+                if (!mono) mono = ImGui::GetFont(ImFontRole::Monospace);
+            }
+#endif
+            if (mono) {
+                ImGui::PopFont();
+                return;
+            }
+        }
+
+        ImFont* fontToPop = nullptr;
+        if (style.is_bold && style.is_italic) {
+            fontToPop = (config && config->boldItalicFont) ? config->boldItalicFont : nullptr;
+#ifndef CONTRIB_DISABLE_TYPOGRAPHY
+            if (!fontToPop) fontToPop = ImGui::GetFont(ImFontRole::BoldItalic);
+#endif
+        } else if (style.is_bold) {
+            fontToPop = (config && config->boldFont) ? config->boldFont : nullptr;
+#ifndef CONTRIB_DISABLE_TYPOGRAPHY
+            if (!fontToPop) fontToPop = ImGui::GetFont(ImFontRole::Bold);
+#endif
+        } else if (style.is_italic) {
+            fontToPop = (config && config->italicFont) ? config->italicFont : nullptr;
+#ifndef CONTRIB_DISABLE_TYPOGRAPHY
+            if (!fontToPop) fontToPop = ImGui::GetFont(ImFontRole::Italic);
+#endif
+        }
+        if (fontToPop) {
             ImGui::PopFont();
             return;
         }
+
         if (!config || !config->formatCallback) {
-            if ((style.is_bold && style.is_italic && config && config->boldItalicFont) ||
-                (style.is_bold && config && config->boldFont) ||
-                (style.is_italic && config && config->italicFont)) {
-                ImGui::PopFont();
-            }
             return;
         }
         if (style.is_bold && style.is_italic) {
@@ -379,6 +431,10 @@ namespace ImGui {
             MarkdownFormatInfo info;
             info.config = config;
             info.type = MarkdownFormatType::EMPHASIS;
+            info.level = 1; // Italic
+            config->formatCallback(info, false);
+        }
+    }
             info.level = 1; // Italic
             config->formatCallback(info, false);
         }
@@ -990,6 +1046,27 @@ namespace ImGui {
                 std::string col_str = !style.fg_color.empty() ? style.fg_color : (!style.color_param.empty() ? style.color_param : style.bg_color);
                 bool has_col = ParseMarkdownColor(col_str, col);
                 if (has_col) ImGui::PushStyleColor(ImGuiCol_Text, col);
+
+                bool has_bg = false;
+                if (!style.bg_color.empty()) {
+                    ImVec4 bg_col(0.0f, 0.0f, 0.0f, 1.0f);
+                    if (ParseMarkdownColor(style.bg_color, bg_col)) {
+                        has_bg = true;
+                        float rendered_w = MeasureMarkdownLineWidth(style.clean_text.c_str(), style.clean_text.length(), config);
+                        float font_size = ImGui::GetFontSize();
+                        ImVec2 text_pos = ImGui::GetCursorScreenPos();
+                        float scale = (font_size > 0.0f) ? (font_size / 14.0f) : 1.0f;
+                        float pad_x = 3.0f * scale;
+                        float pad_y = 1.0f * scale;
+                        float rounding = 3.0f * scale;
+                        ImU32 u_bg = ImGui::GetColorU32(bg_col);
+                        ImDrawList* dl = ImGui::GetWindowDrawList();
+                        dl->AddRectFilled(
+                            ImVec2(text_pos.x - pad_x, text_pos.y - pad_y),
+                            ImVec2(text_pos.x + rendered_w + pad_x, text_pos.y + font_size + pad_y),
+                            u_bg, rounding);
+                    }
+                }
 
                 bool no_wrap = (config && config->wrapWidth < 0.0f);
                 float avail_w = (config && config->wrapWidth > 0.0f) ? config->wrapWidth : ImGui::GetContentRegionAvail().x;
@@ -1988,6 +2065,38 @@ namespace ImGui {
     }
     inline void RegisterMarkdownWidget(const std::string& tag_name, std::function<void(const std::string& inner_text)> callback) {
         RegisterMarkdownTag(tag_name, callback);
+    }
+
+    // Declarative style tag registration: combines colors, fonts, emphasis, and backgrounds into a reusable semantic tag.
+    // Examples:
+    //   RegisterMarkdownStyleTag("cam", "green bold mono");
+    //   RegisterMarkdownStyleTag("opt", "gold mono bg=#332a00");
+    inline void RegisterMarkdownStyleTag(const std::string& tag_name, const std::string& default_style_params) {
+        RegisterMarkdownTag(tag_name, [default_style_params](const std::string& inner_text, const std::string& param) {
+            std::string combined = default_style_params;
+            if (!param.empty()) {
+                combined += " " + param;
+            }
+            auto& tags = GetCustomMarkdownTags();
+            auto it = tags.find("style");
+            if (it != tags.end()) {
+                it->second(inner_text, combined);
+            }
+        });
+    }
+
+    // Declarative markdown template/alias tag registration: expands any arbitrary markdown string.
+    // Example:
+    //   RegisterMarkdownTagAlias("cam", "<style green bold mono>%s</style>");
+    inline void RegisterMarkdownTagAlias(const std::string& tag_name, const std::string& format_template) {
+        RegisterMarkdownTag(tag_name, [format_template](const std::string& inner_text, const std::string& /*param*/) {
+            char buf[2048];
+            int len = std::snprintf(buf, sizeof(buf), format_template.c_str(), inner_text.c_str());
+            const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
+            if (len > 0) {
+                RenderInlineTaggedText(std::string(buf, len), config);
+            }
+        });
     }
 
     // 4. Core Markdown Extension Engine (Unified Single-Pass Pipeline)
