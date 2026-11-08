@@ -21,7 +21,7 @@ flowchart TD
 
     Stop1 --> Stop2 --> Stop3 --> Stop4 --> Fork
     Fork -->|"Yes (Uses ImGui::Image)"| Stop5["🖼️ Continue to TripTik 3\n(Render-Custom-Textures.md)"]
-    Fork -->|"No (Standard ImGui UI)"| Stop6["🎉 You're Done!\n(Explore contrib/ for enhanced UI)"]
+    Fork -->|"No (Standard ImGui UI)"| Stop6["🎉 You're Done!\n(Explore ImGee for enhanced UI)"]
 ```
 
 ---
@@ -141,4 +141,4 @@ If you see this log entry, your plugin is officially running on the modern Panel
 * 🖼️ **Does your plugin draw `.png` / `.jpg` images with `ImGui::Image()`?**
   Continue to **[TripTik 3: Render Custom Textures (`Render-Custom-Textures.md`)](Render-Custom-Textures.md)** to eliminate raw `glTexImage2D` calls and migrate to `ImgWindow::CreateTexture()`.
 * 🎨 **Want to elevate your UI beyond default game-dev debug menus?**
-  Explore the **[`contrib/` UX Suite](../../contrib/README.md)** for animated physical switches, mouse-wheel stepped dials and sliders, 1-click resets with undo, stationary tooltips, and Markdown rendering.
+  Explore the **[ImGee UX Suite](../../contrib/ImGee/README.md)** for animated physical switches, mouse-wheel stepped dials and sliders, 1-click resets with undo, stationary tooltips, and Markdown rendering.

@@ -18,7 +18,7 @@ flowchart TD
     Stop3["🎨 Step 3: Subclass ImgWindow & Commands\n(Minimal window & XPLMAppendMenuItemWithCommand)"]
     Stop4["🛠️ Step 4: Spiraling into the Meat\n(Custom chrome, pop-outs, onShow & SafeDelete)"]
     Stop5["⚙️ Step 5: Choose Your Build Mode\n(Universal Dynamic Bridge vs Strict Modern)"]
-    Stop6["🛩️ Step 6: Ready for Takeoff!\n(Run in X-Plane & explore contrib/)"]
+    Stop6["🛩️ Step 6: Ready for Takeoff!\n(Run in X-Plane & explore ImGee!)"]
 
     Stop1 --> Stop2 --> Stop3 --> Stop4 --> Stop5 --> Stop6
 ```
@@ -70,11 +70,11 @@ Because `ImgWindow` is tracked as a git submodule in `imgui4xp`, it already live
 ```text
 my-xplane-plugin/
 ├── src/
-│   ├── ImgWindow/                <-- Complete ImgWindow module (Core + contrib/)
+│   ├── ImgWindow/                <-- Complete ImgWindow module (Core + ImGee)
 │   │   ├── ImgWindow.h / .cpp    <-- Core window wrapper & dynamic bridge
 │   │   ├── ImgFontAtlas.h / .cpp <-- Font management & glyph ranges
-│   │   ├── contrib.h             <-- Master header for the contrib UX suite
-│   │   └── contrib/              <-- Animated switches, wheel dials, tooltips, markdown
+│   │   ├── contrib.h             <-- Master header for the ImGee UX suite (bundled in contrib/)
+│   │   └── contrib/              <-- ImGee suite: switches, wheel dials, tooltips, markdown
 │   ├── imgui/                    <-- Dear ImGui core library
 │   ├── imgui_starter_window.cpp  <-- Reference starter window (customize or replace)
 │   ├── imgui_starter_window.h
@@ -102,7 +102,7 @@ You develop your plugin directly inside this project tree:
 
 > [!WARNING]
 > **Never Rip Out Loose Files!**
-> Do **not** cherry-pick loose `.h` and `.cpp` files from `ImgWindow` and scatter them into your root `src/` folder. `ImgWindow` is an integrated package: keeping the `ImgWindow/` folder intact allows you to update cleanly via `git submodule update`, and gives your plugin instant access to the entire **[`contrib/` UX Suite](../../contrib/README.md)** (`#include "contrib.h"`).
+> Do **not** cherry-pick loose `.h` and `.cpp` files from `ImgWindow` and scatter them into your root `src/` folder. `ImgWindow` is an integrated package: keeping the `ImgWindow/` folder intact allows you to update cleanly via `git submodule update`, and gives your plugin instant access to the entire **[ImGee UX Suite](../../contrib/ImGee/README.md)** (`#include "contrib.h"` or `#include "contrib/imgee.h"`).
 
 > [!NOTE]
 > **Adding to an Existing Plugin (Not Seeded from `imgui4xp`):**
@@ -303,7 +303,7 @@ Here is a complete, real-world window demonstrating custom title bar chrome (dra
 
 ```cpp
 #include "ImgWindow.h"
-#include "contrib.h" // Turnkey access to Markdown, TimedTooltip, and MouseWheel controls
+#include "contrib.h" // Turnkey access to ImGee Markdown, TimedTooltip, and MouseWheel controls
 
 class PluginSettingsWindow : public ImgWindow {
 public:
@@ -358,7 +358,7 @@ protected:
         // Step 1: Draw custom window chrome at the top:
         drawCustomTitleBar();
 
-        // Step 2: Main UI content using contrib/ widgets:
+        // Step 2: Main UI content using ImGee widgets:
         ImGui::MD::Text("# Plugin Quick Settings\nPlugin services and background telemetry are **active**.");
         ImGui::Separator();
 
@@ -480,7 +480,7 @@ In the example above, you might notice a few widgets that don't exist in vanilla
 * **`ImGui::TimedTooltip::Text(...)`**: Classic desktop-style tooltips that behave politely. Unlike default ImGui tooltips (which pop up instantly on first contact and follow your cursor around like an annoying swarm of gnats), `TimedTooltip` waits for an intentional hover pause before appearing, locks into a stationary position so it is easy to read, and automatically dismisses after reading so it never stays permanently stuck on screen obstructing your view.
 * **`ImGui::MouseWheelSlider(...)`**: Sliders and dials that respond naturally to mouse-wheel scrolling without awkward click-dragging.
 
-These widgets are part of `ImgWindow`'s bundled **[`contrib/` UX Suite](../../contrib/README.md)**. If you want to use them in your window, simply include `#include "contrib.h"`. (If you prefer 100% vanilla Dear ImGui, standard `ImGui::Text()`, `ImGui::SliderFloat()`, and `ImGui::SetItemTooltip()` work identically.)
+These widgets are part of `ImgWindow`'s bundled **[ImGee UX Suite](../../contrib/ImGee/README.md)**. If you want to use them in your window, simply include `#include "contrib.h"` (or `#include "contrib/imgee.h"`). (If you prefer 100% vanilla Dear ImGui, standard `ImGui::Text()`, `ImGui::SliderFloat()`, and `ImGui::SetItemTooltip()` work identically.)
 
 ---
 
@@ -544,8 +544,8 @@ Trigger your command (or click your menu item), and your Dear ImGui window will 
 
 Now that your window infrastructure is rock-solid, where should you go next?
 
-### 1. Elevate Your UI with `contrib/` (Enhanced UI Ergonomics)
-Vanilla Dear ImGui was built for video game debug menus. To turn your window into a polished, desktop-grade interface—with animated toggle switches, mouse-wheel dials and sliders, 1-click resets with undo, and stationary Markdown tooltips—check out the **[`contrib/` UX Suite](../../contrib/README.md)**. You can activate the entire suite in one line:
+### 1. Elevate Your UI with ImGee (Enhanced UI Ergonomics)
+Vanilla Dear ImGui was built for video game debug menus. To turn your window into a polished, desktop-grade interface—with animated toggle switches, mouse-wheel dials and sliders, 1-click resets with undo, and stationary Markdown tooltips—check out the **[ImGee UX Suite](../../contrib/ImGee/README.md)** (detailed in the [**ImGee User Guide**](../ImGee_User_Guide.md)). You can activate the entire suite in one line:
 
 ```cpp
 #include "contrib.h" // Turnkey access to all widgets and extensions

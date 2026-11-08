@@ -1,10 +1,10 @@
-# ImGui Contributions in ImgWindow (`contrib/`)
+# ImGui Contributions in ImgWindow (`contrib/` & `ImGee`)
 
-Welcome to the `contrib/` directory of **ImgWindow**. This directory houses ImgWindow's bundled library of community-contributed **Dear ImGui (`ImGui::`) extensions and immediate-mode widgets** for X-Plane plugins.
+Welcome to the `contrib/` directory of **ImgWindow**. This directory houses **ImGee**, ImgWindow's premier bundled suite of **Dear ImGui (`ImGui::`) extensions and immediate-mode avionics widgets** for X-Plane plugins.
 
 ---
 
-## 🎯 Why `contrib/`? (From Debug Menus to Cockpit Instruments)
+## 🎯 Why ImGee? (From Debug Menus to Cockpit Instruments)
 
 Pure Dear ImGui is fundamentally an engine designed for game-dev debug menus and developer panels. When flight sim plugin authors try to build user-facing products with it, they immediately hit friction:
 
@@ -14,9 +14,9 @@ Pure Dear ImGui is fundamentally an engine designed for game-dev debug menus and
 * **Sliders and combos don't respond naturally to the mouse scroll-wheel**, making fine tuning feel clumsy compared to real avionics knobs.
 * **There is no standard "revert to default" pattern**, so users fear tweaking settings lest they lose their calibrated values.
 
-Look at the spectrum of UI tasks a flight sim plugin author faces, and how `contrib/` covers them today:
+Look at the spectrum of UI tasks a flight sim plugin author faces, and how **ImGee** covers them today:
 
-| Common Cockpit UI Task | Vanilla Dear ImGui Friction | `contrib/` Solution |
+| Common Cockpit UI Task | Vanilla Dear ImGui Friction | ImGee Solution |
 | :--- | :--- | :--- |
 | **Interactive Help & Manuals** | `SetTooltip()` follows the mouse cursor, flickers, and clips outside simulator window boundaries. Limited to plain ASCII strings. | **`ImGui::TimedTooltip` & `ImGui::MD`**<br>Stationary anchor after initial delay, low-water wheel reset, smart cursor-avoidance and screen-edge clamping, and full Markdown rendering. |
 | **Two-Position Switches** | Clunky `[x]` checkboxes with no visual state distinction or dual-label tooltips. | **`ImGui::ToggleButton`**<br>Animated physical rocker/toggle switches with font-relative scaling, custom palettes, and automatic dual-state tooltips (`"Off Hint", "On Hint"`). |
@@ -30,7 +30,7 @@ Look at the spectrum of UI tasks a flight sim plugin author faces, and how `cont
 
 ---
 
-## 🚀 Quick Start: Just `#include "contrib.h"`
+## 🚀 Quick Start: Just `#include "contrib.h"` (or `#include "contrib/imgee.h"`)
 
 Using `contrib/` requires zero setup or boilerplate. Simply include the master header:
 

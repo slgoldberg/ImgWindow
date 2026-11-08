@@ -231,6 +231,7 @@ ImGui::TimedTooltip::TextMD(
 * **Stationary Anchor:** Freezes in position once visible, allowing effortless, relaxed reading.
 * **Smart Screen Clamping:** Automatically nudges inside the simulator or host window boundaries.
 * **Wheel-Defeat Dismissal:** Rolling the mouse wheel immediately closes the tooltip so it never blocks scrolling views.
+* **Font Scaling & Damped Compression:** Automatically dampens font zoom (using a non-linear curve with a 0.90f floor and 1.65f ceiling) so tooltips stay readable without ballooning into unwieldy screen-filling rectangles on ultra-wide or 4K monitors.
 
 ![Stationary Timed Tooltip: Anti-jitter hover tooltip with dwell timeout and embedded status pills](images/fig_timed_tooltips.png)
 
@@ -269,6 +270,45 @@ ImGui::Markdown::Text(doc);
 
 ![Fenced Code Containers: Shaded charcoal blocks with language chips and 1-click clipboard copy](images/fig_code_blocks.png)
 
+### 8.1 Declarative Semantic Style Tags & Macro Aliases
+
+Rather than writing verbose C++ code or nesting raw push/pop color commands, developers can define custom semantic Markdown tags dynamically during plugin startup:
+
+#### 1. Semantic Style Tags (`RegisterMarkdownStyleTag`)
+Map custom tags to composite typography styles combining colors, weights, fonts, and background capsules:
+
+```cpp
+// Register declarative styles during plugin initialization:
+ImGui::RegisterMarkdownStyleTag("cam", "green bold mono");
+ImGui::RegisterMarkdownStyleTag("viewmode", "mono bg=#88888840");
+ImGui::RegisterMarkdownStyleTag("alert", "bg=#ff4444 fg=#ffffff bold");
+```
+
+Use them seamlessly inside any Markdown text:
+```cpp
+ImGui::MD::Text("Set camera to <cam>Heading</cam> mode or switch to <viewmode>Circle view</viewmode>.");
+```
+
+#### 2. Macro Template Tag Aliases (`RegisterMarkdownTagAlias`)
+Register reusable tag macros that expand into arbitrary Markdown syntax with `%s` placeholder substitution:
+
+```cpp
+// Register tag templates:
+ImGui::RegisterMarkdownTagAlias("opt", "<pill #444444 fg=#ffffff>%s</pill>");
+ImGui::RegisterMarkdownTagAlias("callsign", "**`%s`**");
+ImGui::RegisterMarkdownTagAlias("hotkey", "<kbd>%s</kbd>");
+```
+
+When evaluated, `<opt>Circle view</opt>` expands into `<pill #444444 fg=#ffffff>Circle view</pill>`, complete with background capsule geometry and baseline alignment.
+
+#### 3. Hex Alpha Transparency & Auto-Contrast
+* **Alpha Channels:** Color specifications support 4-digit (`#RGBA`) and 8-digit (`#RRGGBBAA`) hex codes (e.g. `bg=#88888840` or `bg=#8884` for a 25% translucent charcoal pill).
+* **Auto-Contrast:** In capsule tags (`<badge>`, `<pill>`), bare color tokens default to the background color (`bg_color`), and the text foreground color is automatically chosen based on perceived luminance (white text on dark capsules, dark text on bright capsules). Explicit `fg=` or `text=` overrides this auto-calculation when desired.
+* **Font Role Integration:** Style tags automatically pull loaded fonts from the `ImFontRole` registry:
+  * `mono` / `monospace` $\rightarrow$ Slot 5 (`Monospace`) with fallback to Slot 7 (`MonospaceMedium`)
+  * `bold` $\rightarrow$ Slot 3 (`Bold`) with fallback to Slot 4 (`BoldLarge`)
+  * `italic` $\rightarrow$ Slot 6 (`Italic`) with fallback to Slot 8 (`BoldItalic`)
+
 ---
 
 ## 9. Foundation Extension: Semantic Typography & Font Roles (`imgui_typography_ext.h`)
@@ -276,8 +316,8 @@ ImGui::Markdown::Text(doc);
 Cockpit user interfaces require strict typographic hierarchy: primary instruments need large, legible digits; captions and annunciator legends require micro-typography; and datarefs require clear monospaced alignment.
 
 ImGee provides two complementary typography systems:
-1. **Semantic Font Roles (`ImFontRole`):** An 8-slot registry linking logical design roles to loaded rasterized fonts with automatic hierarchical fallbacks.
-2. **Inline Styled Text Engine (`ImGui::StyledText`):** Lightweight XML-style tag parsing with baseline alignment and zero Markdown document overhead.
+1. **Semantic Font Roles (`ImFontRole`):** A 9-slot registry (Slots 0..8) linking logical design roles to loaded rasterized fonts with automatic hierarchical fallbacks.
+2. **Inline Styled Text Engine (`ImGui::StyledText`):** Lightweight XML-style tag parsing with baseline alignment, formatted variadic `printf` support, and zero Markdown document overhead.
 
 ### 9.1 The `ImFontRole` Registry
 
@@ -290,7 +330,8 @@ enum class ImFontRole {
     BoldLarge,          // Slot 4: Hero banners, major readouts (e.g. Bold 16px)
     Monospace,          // Slot 5: Datarefs, callsigns, frequencies (e.g. Mono 14px)
     Italic,             // Slot 6: Citations, hints, metadata (e.g. Italic 14px)
-    MonospaceMedium,    // Slot 7: Numeric avionics readouts (e.g. Mono Medium 15px)
+    MonospaceMedium,    // Slot 7: Numeric avionics readouts, dials (e.g. Mono Medium 15px)
+    BoldItalic,         // Slot 8: Strong soft emphasis (e.g. Bold-Italic 14px)
 };
 ```
 
@@ -301,10 +342,21 @@ ImgFontAtlas::SetFontForRole(ImFontRole::MonospaceMedium, avionicsMonoFont);
 ```
 
 ### 9.2 Inline Styled Text (`ImGui::StyledText`)
-When you want rich typography without building a full CommonMark AST:
+When you want rich typography without building a full CommonMark AST, `ImGui::StyledText` parses XML-style tags (`<b>`, `<i>`, `<mono>`, `<huge>`, `<small>`, `<color>`, `<badge>`, `<pill>`) inline with continuous baseline alignment.
+
+It supports full `printf`-style formatted variadic arguments out of the box with zero runtime boilerplate:
 
 ```cpp
-ImGui::StyledText("ALT: <huge>34,000</huge> <small>FT</small> | SPD: <mono>310</mono> <small>KTS</small>");
+// 1. Variadic formatted text:
+ImGui::StyledText("ALT: <huge>%d</huge> <small>%s</small> | SPD: <mono>%.1f</mono> <small>KTS</small>",
+                  altitude, altUnits, airspeed);
+
+// 2. Dynamic status pills with computed values:
+ImGui::StyledText("Status: <pill #2ecc71>%s</pill> | VOR: <mono>%s</mono>",
+                  statusName, identStr);
+
+// 3. Unformatted pointer pairs:
+ImGui::StyledTextUnformatted(bufStart, bufEnd);
 ```
 
 ---

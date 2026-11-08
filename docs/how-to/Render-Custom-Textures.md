@@ -316,4 +316,4 @@ ImgWindow::UnregisterMemoryImage("avionics_beacon");
 * 🚀 **Migrating an existing plugin framework?**
   Review **[TripTik 2: Support Panel Graphics (`Support-Panel-Graphics.md`)](Support-Panel-Graphics.md)** for build configuration and shutdown rules.
 * 🎨 **Ready to enhance your UI controls?**
-  Check out the **[`contrib/` UX Suite](../../contrib/README.md)** for toggle buttons, mouse-wheel dials, 1-click resets with undo, and rich Markdown tooltips.
+  Check out the **[ImGee UX Suite](../../contrib/ImGee/README.md)** for toggle buttons, mouse-wheel dials, 1-click resets with undo, and rich Markdown tooltips.

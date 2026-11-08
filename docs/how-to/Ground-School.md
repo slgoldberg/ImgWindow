@@ -80,7 +80,7 @@ In `XPWidgets` or raw XPLM windows, intercepting user input required registering
 In `ImgWindow`, you **never write input callbacks**. `ImgWindow` intercepts X-Plane’s low-level window event hooks (`handleMouseClickFunc`, `handleKeyFunc`, `handleMouseWheelFunc`, and `handleCursorFunc`) and continuously translates simulator events directly into `ImGui::GetIO()`:
 
 * **Instant Hover & Click Detection:** Inside `buildInterface()`, `ImGui::IsItemHovered()` and `ImGui::IsItemClicked()` work immediately. Buttons and controls return `true` on the exact frame clicked.
-* **Mouse-Wheel Scrolling:** ImGui’s native scrolling and `contrib/` mouse-wheel adjustments work instantly across sliders, combos, and custom widgets.
+* **Mouse-Wheel Scrolling:** ImGui’s native scrolling and ImGee mouse-wheel adjustments work instantly across sliders, combos, and custom widgets.
 * **Native-Grade Text Editing (`ImGui::InputText`):**
   * `ImgWindow` intercepts X-Plane keystrokes and maps OS-level modifier keys seamlessly across platforms. You get standard desktop editing shortcuts out of the box:
     * **Copy / Cut / Paste:** `Ctrl+C` / `Ctrl+X` / `Ctrl+V` on Windows & Linux, `Cmd+C` / `Cmd+X` / `Cmd+V` on macOS.
@@ -145,7 +145,7 @@ For years, the original `ImgWindow` (created by Christopher Collins / `@kuroneko
 | **1. Community Roll-Up** | Incorporates years of community fixes and enhancements across known `ImgWindow` forks (VR window attach/detach handling, boxel/HiDPI scaling, window positioning/gravity helpers, safe popup closure, and universal Dear ImGui v1.78 WIP through v1.92+ compatibility). |
 | **2. Native Panel Graphics + Backward Compatibility** | Automatically renders via X-Plane 12.4.4+'s native **Panel Graphics (`XPLMPanelGraphics`)** pipeline across **all** Dear ImGui versions (v1.78 WIP through v1.92+) when available, while falling back to OpenGL at runtime on X-Plane 11.10–12.4.3—**from a single compiled `.xpl` binary**. |
 | **3. Zero-OpenGL Texture Management** | Built-in `ImgWindow::CreateTexture()` and `ImgWindow::DeleteTexture()` APIs let you render `.png`/`.jpg` images via `ImGui::Image()` without writing a single line of OpenGL code. |
-| **4. Optional `contrib/` Suite** | A header-only collection (`#include "contrib/includes.h"`) of X-Plane-ready ImGui widgets and extensions: mouse-wheel sliders/combos with 1-click Reset/Undo, Markdown rendering (`ImGui::MD`), clickable links, stationary sticky-note `TimedTooltip`s, and toggle buttons. |
+| **4. Optional ImGee UX Suite (`contrib/ImGee`)** | A header-only collection (`#include "contrib.h"` or `#include "contrib/imgee.h"`) of X-Plane-ready avionics ImGui widgets and extensions: mouse-wheel sliders/combos with 1-click Reset/Undo, Markdown rendering (`ImGui::MD`), clickable links, stationary sticky-note `TimedTooltip`s, procedural vector icons, and toggle buttons. |
 
 ---
 
@@ -221,7 +221,7 @@ Now that you have the lay of the land, choose the turn-by-turn TripTik that matc
 
 | Your Starting Point | Which TripTik to Follow |
 | :--- | :--- |
-| **1. Building a New Plugin UI (or Migrating from `XPWidgets` / `FlyWithLua` / `SASL` / `XLua` / `XPPython3`)**<br>*No OpenGL or Panel Graphics knowledge needed. Shows how to use `imgui4xp` + `ImgWindow v2` + `contrib/` to build a future-proof C++ UI from scratch.* | 👉 **[Get-Started-With-ImgWindow.md](Get-Started-With-ImgWindow.md)** |
+| **1. Building a New Plugin UI (or Migrating from `XPWidgets` / `FlyWithLua` / `SASL` / `XLua` / `XPPython3`)**<br>*No OpenGL or Panel Graphics knowledge needed. Shows how to use `imgui4xp` + `ImgWindow v2` + `ImGee` to build a future-proof C++ UI from scratch.* | 👉 **[Get-Started-With-ImgWindow.md](Get-Started-With-ImgWindow.md)** |
 | **2. Upgrading an Existing `ImgWindow` Plugin to `ImgWindow v2`**<br>*You already use `ImgWindow` and just want the drop-in upgrade for native X-Plane 12.4.4+ Panel Graphics with full backward compatibility.* | 👉 **[Support-Panel-Graphics.md](Support-Panel-Graphics.md)** |
 | **3. Removing Custom OpenGL Texture Code (`glTexImage2D` / `SystemGL.h`)**<br>*Your plugin renders `.png`/`.jpg` images via `ImGui::Image()`, and you want to replace your custom OpenGL texture code with `ImgWindow::CreateTexture()`.* | 👉 **[Render-Custom-Textures.md](Render-Custom-Textures.md)** |
 
