@@ -520,6 +520,37 @@ ImGui::RadialTimer("Approach Leg", s_LegFraction, 14.0f, 3.0f, IM_COL32(234, 179
 
 ![Procedural Activity Spinners: Radar spinners, fuel burn gauges, and approach countdown timers](images/fig_spinners_and_dials.png)
 
+### 10.7 Directional Popups, Item Anchoring & SelectPulldown (`imgui_popup_menus.h`)
+
+Provides precision item-anchored popup placement, upward blossoming for bottom-docked status bars, and compact 1-line dataref selectors with Lens UI mouse-wheel interaction:
+
+* **Item-Anchored Popups (`OpenPopupAtItem` & `BeginAnchoredPopup`)**:
+  Positions dropdowns relative to the preceding item's bounding box (`GetItemRectMin`/`Max`). Supports `ImGuiPopupAnchor_BelowItem` (standard dropdown) or `ImGuiPopupAnchor_AboveItem` (blossoms upward for bottom bars and docks) with font-scale invariance and muscle-memory toggle protection.
+* **1-Line Dataref Selector (`SelectPulldown` / `SelectPulldownMD`)**:
+  - **Scroll Pass-Through When Closed**: Ignores mouse-wheel events while closed so parent scrollable windows never accidentally change settings during scroll navigation.
+  - **"Lens UI" Selection-Latched Tooltips**: When spinning the mouse wheel inside an open pulldown menu, per-item tooltips dynamically latch onto the newly selected item (`*current_item`) instead of remaining frozen over whichever row the stationary cursor rests on. Deliberate mouse movement (`> 6 px`) cleanly breaks the latch and reverts to standard spatial hover.
+  - **Predictable Wheel Stepping & Circular Wrapping**: Supports optional `bool wrap = false` and `bool natural_list_order = true` parameters. When `wrap = true`, spinning past boundaries wraps smoothly; `natural_list_order = true` increments down the list on downward wheel rotation (`clicks < 0.0f`).
+  - **Automatic Focus & Scroll-Into-View**: Navigated items receive `SetItemDefaultFocus()` and scroll into view (`SetScrollHereY()`) in tall menus.
+  - **Dynamic Cursor Cues**: Hand cursor (`ImGuiMouseCursor_Hand`) on trigger button, resize cursor (`ImGuiMouseCursor_ResizeNS`) over open options.
+  - **Rich Markdown Tooltip Aliases**: Call `ImGui::SelectPulldownMD(...)` or `ImGui::MD::SelectPulldown(...)` with rich Markdown tooltips (`TimedTooltip::MD::TextProxy`).
+
+```cpp
+// 1. Standard Downward Pulldown with Lens UI tooltips and circular wrap:
+static int s_SelectedCam = 1;
+const char* const kCamModes[] = { "Circle", "Spot", "Tower", "Cockpit" };
+const char* const kCamTips[]  = { "**Circle**\nFollow aircraft", "**Spot**\nFixed distance chase", "**Tower**\nAirport tower view", "**Cockpit**\nPilot 3D cockpit" };
+if (ImGui::SelectPulldownMD("##CameraMode", &s_SelectedCam, kCamModes, 4, kCamTips, 130.0f, ImGuiPopupAnchor_BelowItem, ImGuiPopupAlign_Left, true /* wrap */)) {
+    UpdateCamera(s_SelectedCam);
+}
+
+// 2. Upward Blossoming Pulldown (Status Bars & Bottom Docks):
+static int s_PowerMode = 0;
+const char* const kPowerModes[] = { "Battery", "APU", "External Power" };
+if (ImGui::SelectPulldown("##PowerMode", &s_PowerMode, kPowerModes, 3, nullptr, 140.0f, ImGuiPopupAnchor_AboveItem)) {
+    UpdatePowerSource(s_PowerMode);
+}
+```
+
 ---
 
 ## Appendix A: Preprocessor Opt-Out Configuration & Build Matrix

@@ -225,10 +225,13 @@ namespace TimedTooltip {
         ImGuiContext* last_context_updated = nullptr;
     };
 
-        inline ImGuiID& GetActiveTooltipID() {
+    inline ImGuiID& GetActiveTooltipID() {
         // Use ImGui's global state storage to guarantee a single mutex across all Translation Units!
         // We use a hardcoded integer key (0x71701337) because ImGui::GetID() hashes based on the UI stack!
         // If we used GetID(), tooltips inside groups would generate different Mutex keys!
+        static ImGuiID s_FallbackID = 0;
+        ImGuiContext* ctx = ImGui::GetCurrentContext();
+        if (!ctx || !ctx->CurrentWindow) return s_FallbackID;
         return *(ImGuiID*)ImGui::GetStateStorage()->GetIntRef(0x71701337, 0);
     }
 

@@ -552,10 +552,11 @@ float headroom = ImGui::GetLastPopupHeight("##ViewModeMenu");
 // Closed: ignores mouse-wheel (smooth parent list scrolling without accidental edits).
 // Open: mouse-wheel cycles active selection dynamically without closing menu!
 // Caret: automatically renders crisp procedural vector arrows (▼ / ▲) without requiring Unicode font glyphs!
+// Lens UI: stationary wheel spinning latches rich tooltips directly to active selection!
 static int s_SelectedCam = 1;
 const char* const kCamModes[] = { "Circle", "Spot", "Tower", "Cockpit" };
-const char* const kCamTips[]  = { "Follow aircraft", "Fixed distance", "Tower view", "Pilot eye" };
-if (ImGui::SelectPulldown("##CameraMode", &s_SelectedCam, kCamModes, 4, kCamTips)) {
+const char* const kCamTips[]  = { "**Circle**\nFollow aircraft", "**Spot**\nFixed distance", "**Tower**\nTower view", "**Cockpit**\nPilot eye" };
+if (ImGui::SelectPulldownMD("##CameraMode", &s_SelectedCam, kCamModes, 4, kCamTips, 0.0f, ImGuiPopupAnchor_BelowItem, ImGuiPopupAlign_Left, true /* wrap */)) {
     UpdateCamera(s_SelectedCam);
 }
 
@@ -575,6 +576,11 @@ ImGui::DrawPulldownArrow(ImGui::GetWindowDrawList(), arrow_pos, text_col, ImGuiD
 ```
 
 * **Features:**
+  * **"Lens UI" Selection-Latched Tooltips:** When spinning the mouse wheel inside an open pulldown menu, per-item tooltips dynamically latch onto the newly selected item (`*current_item`) instead of remaining frozen over whichever row the stationary cursor rests on. Deliberate mouse movement (`> 6 px`) cleanly breaks the latch and reverts to standard spatial hover.
+  * **Predictable Wheel Stepping & Circular Wrapping:** Supports optional `bool wrap = false` and `bool natural_list_order = true` parameters. When `wrap = true`, spinning past the ends wraps around smoothly; `natural_list_order = true` advances down the list on downward scroll (`clicks < 0.0f`).
+  * **Automatic Focus & Scroll-Into-View:** Wheel-selected items receive `SetItemDefaultFocus()` and automatically scroll into view (`SetScrollHereY()`) in long scrollable pulldowns.
+  * **Dynamic Cursor Cues:** Opener button displays `ImGuiMouseCursor_Hand` on hover; open menu options and background display `ImGuiMouseCursor_ResizeNS` to visually signal mouse-wheel responsiveness.
+  * **Rich Markdown Tooltip Aliases (`SelectPulldownMD` / `ImGui::MD::SelectPulldown`):** Full support for rich Markdown tooltips (`TimedTooltip::MD::TextProxy`), available via root and sub-namespace aliases.
   * **Procedural Vector Caret Fallback:** Eliminates unmapped Unicode Geometric Shapes (`U+25BE`) missing-glyph issues. Defaults to crisp, antialiased procedural vector triangles rendered directly to `ImDrawList`, matching `ResetButton` vector rendering.
   * **Configurable Font Carets & Runtime Setters:** Host apps with FontAwesome can define `#define IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_DOWN` or call `ImGui::SetDefaultPulldownCaret(...)` to use native icon-font glyphs.
   * **Directional Blossoming (`ImGuiPopupAnchor`):** Supports `ImGuiPopupAnchor_AboveItem` for bottom status bars and docks, dynamically flipping caret directions between open and closed states.

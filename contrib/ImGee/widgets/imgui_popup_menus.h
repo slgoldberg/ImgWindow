@@ -27,7 +27,12 @@
 //        allowing parent scrolling lists to scroll smoothly without mutating settings.
 //      - Mouse-wheel cycling when open: spinning the wheel inside the open popup
 //        cycles active options dynamically without closing the menu.
-//      - Optional per-item tooltips and custom widths.
+//      - "Lens UI" open-menu tooltip latching: per-item tooltips dynamically target
+//        the newly selected item during wheel navigation until mouse moves deliberately (> 6 px).
+//      - Predictable step direction and circular wrapping: configurable via 'wrap'
+//        and 'natural_list_order' parameters.
+//      - Automatic focus tracking and scroll-into-view (SetItemDefaultFocus / SetScrollHereY).
+//      - Optional rich Markdown per-item tooltips and custom widths.
 // ============================================================================
 
 #pragma once
@@ -127,6 +132,75 @@ namespace ImGui {
         inline const char*& GetDefaultPulldownCaretUpStorage() {
             static const char* s_Up = IMGUI_CONTRIB_DEFAULT_PULLDOWN_CARET_UP;
             return s_Up;
+        }
+
+        inline float GetPopupMouseWheel(bool consume = true) {
+#if defined(IMGUI_MOUSE_WHEEL_CONTROLS_H) && !defined(CONTRIB_DISABLE_GET_MOUSE_WHEEL)
+            return WheelSliderDetail::GetMouseWheelEither(consume);
+#else
+            ImGuiIO& io = ImGui::GetIO();
+            float wheel = io.MouseWheel;
+            if (wheel == 0.0f) {
+                wheel = io.MouseWheelH;
+                if (consume && wheel != 0.0f) {
+                    io.MouseWheelH = 0.0f;
+                }
+            } else if (consume) {
+                io.MouseWheel = 0.0f;
+            }
+            return wheel;
+#endif
+        }
+
+        inline bool CycleIndex(int* current_idx,
+                               int min_idx,
+                               int max_idx,
+                               float clicks,
+                               bool wrap = false,
+                               bool natural_list_order = true)
+        {
+            if (!current_idx || max_idx <= min_idx || clicks == 0.0f)
+                return false;
+
+#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && defined(IMGUI_TOOLTIP_EXT_H)
+            TimedTooltip::ClearActiveTooltip();
+#endif
+
+            int dir = (clicks < 0.0f) ? (natural_list_order ? 1 : -1)
+                                      : (natural_list_order ? -1 : 1);
+
+            int prev = *current_idx;
+            int count = (max_idx - min_idx) + 1;
+
+            if (wrap) {
+                int offset = (*current_idx - min_idx + dir) % count;
+                if (offset < 0) offset += count;
+                *current_idx = min_idx + offset;
+            } else {
+                int next = *current_idx + dir;
+                if (next < min_idx) next = min_idx;
+                if (next > max_idx) next = max_idx;
+                *current_idx = next;
+            }
+
+            return (*current_idx != prev);
+        }
+
+        inline void AttachTooltipProxy(ImGuiID id, const char* text, bool is_hovered)
+        {
+            if (!text || text[0] == '\0') return;
+#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && defined(IMGUI_TOOLTIP_EXT_H)
+    #if !defined(CONTRIB_DISABLE_MARKDOWN) && !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && defined(IMGUI_MARKDOWN_EXT_H)
+            TimedTooltip::TextMDProxy(id, is_hovered, "%s", text);
+    #else
+            TimedTooltip::TextProxy(id, is_hovered, "%s", text);
+    #endif
+#else
+            (void)id;
+            if (is_hovered) {
+                SetTooltip("%s", text);
+            }
+#endif
         }
     } // namespace Detail
 
@@ -372,8 +446,11 @@ namespace ImGui {
     /// - When closed: Renders active item with caret (vector arrow or custom icon font).
     ///   Mouse-wheel events are NOT captured, allowing parent container scrolling without accidental edits.
     /// - When open: Mouse-wheel cycles active selection dynamically without closing popup.
+    /// - "Lens UI" tooltip latching: When wheel is spun inside popup, per-item tooltips target
+    ///   the newly selected item (*current_item) until mouse moves deliberately (> 6 px).
     /// - Supports directional anchoring (ImGuiPopupAnchor_BelowItem or ImGuiPopupAnchor_AboveItem).
-    /// - Optional per-item tooltips displayed on option hover (using TimedTooltip if available).
+    /// - Optional per-item tooltips displayed on option hover (using TimedTooltip and Markdown if available).
+    /// - Supports circular wrapping (wrap = true) and natural list ordering (natural_list_order).
     inline IMGUI_API bool SelectPulldown(const char* label,
                                          int* current_item,
                                          const char* const items[],
@@ -381,7 +458,9 @@ namespace ImGui {
                                          const char* const tooltips[] = nullptr,
                                          float width = 0.0f,
                                          ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
-                                         ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+                                         ImGuiPopupAlign align = ImGuiPopupAlign_Left,
+                                         bool wrap = false,
+                                         bool natural_list_order = true)
     {
         if (!current_item || !items || items_count <= 0) return false;
         ImGuiIO& io = ImGui::GetIO();
@@ -394,6 +473,9 @@ namespace ImGui {
         char popup_id[64];
         std::snprintf(popup_id, sizeof(popup_id), "##SelectPulldown_%08X", (unsigned int)id);
 
+        static ImGuiID s_WheelLatchPulldownID = 0;
+        static ImVec2  s_WheelLatchMousePos = ImVec2(-1.0f, -1.0f);
+
         int cur_idx = *current_item;
         if (cur_idx < 0) cur_idx = 0;
         if (cur_idx >= items_count) cur_idx = items_count - 1;
@@ -402,6 +484,11 @@ namespace ImGui {
         if (!preview_text) preview_text = "";
 
         bool is_open = ImGui::IsPopupOpen(popup_id);
+
+        // Reset wheel latch if popup closed
+        if (!is_open && s_WheelLatchPulldownID == id) {
+            s_WheelLatchPulldownID = 0;
+        }
 
         // Determine caret direction & custom icon string:
         // Anchored above (e.g. status bar): closed points UP (▲), open points DOWN (▼).
@@ -470,46 +557,69 @@ namespace ImGui {
 
         // Render options inside open popup
         if (BeginAnchoredPopup(popup_id)) {
-            if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) || ImGui::IsAnyItemHovered()) {
+            // Break the wheel-selection tooltip latch only when the mouse moves deliberately (> 6 px),
+            // ignoring tiny 1-2 px physical mouse jiggles while spinning a notched scroll wheel:
+            if (s_WheelLatchPulldownID == id) {
+                if (std::abs(io.MousePos.x - s_WheelLatchMousePos.x) > 6.0f ||
+                    std::abs(io.MousePos.y - s_WheelLatchMousePos.y) > 6.0f) {
+                    s_WheelLatchPulldownID = 0;
+#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && defined(IMGUI_TOOLTIP_EXT_H)
+                    TimedTooltip::ClearActiveTooltip();
+#endif
+                }
+            }
+
+            bool popup_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) ||
+                                 ImGui::IsWindowHovered() ||
+                                 ImGui::IsAnyItemHovered();
+            bool wheel_stepped = false;
+
+            // In-menu wheel cycling: process BEFORE rendering options so *current_item is updated
+            // in time for rendering focus, scroll positioning, and Lens UI tooltip targeting:
+            if (popup_hovered) {
                 ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+                float clicks = Detail::GetPopupMouseWheel(true);
+                if (clicks != 0.0f) {
+                    s_WheelLatchPulldownID = id;
+                    s_WheelLatchMousePos = io.MousePos;
+#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && defined(IMGUI_TOOLTIP_EXT_H)
+                    TimedTooltip::ClearActiveTooltip();
+#endif
+                    if (Detail::CycleIndex(current_item, 0, items_count - 1, clicks, wrap, natural_list_order)) {
+                        value_changed = true;
+                        wheel_stepped = true;
+                    }
+                }
             }
 
             for (int i = 0; i < items_count; i++) {
+                ImGui::PushID(i);
+                const char* item_text = items[i] ? items[i] : "*Unknown item*";
                 bool is_selected = (i == *current_item);
-                if (ImGui::Selectable(items[i], is_selected)) {
+                if (ImGui::Selectable(item_text, is_selected)) {
+                    s_WheelLatchPulldownID = 0;
                     if (*current_item != i) {
                         *current_item = i;
                         value_changed = true;
                     }
                 }
-                if (tooltips && tooltips[i] && *tooltips[i]) {
-#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && defined(IMGUI_TOOLTIP_EXT_H)
-    #if !defined(CONTRIB_DISABLE_MARKDOWN) && !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && defined(IMGUI_MARKDOWN_EXT_H)
-                    ImGui::TimedTooltip::MD::Text("%s", tooltips[i]);
-    #else
-                    ImGui::TimedTooltip::Text("%s", tooltips[i]);
-    #endif
-#else
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::SetTooltip("%s", tooltips[i]);
-                    }
-#endif
+                bool item_hovered = ImGui::IsItemHovered();
+                if (item_hovered) {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
                 }
-            }
-
-            // In-menu wheel cycling without closing the popup
-            if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) || ImGui::IsWindowHovered() || ImGui::IsAnyItemHovered()) {
-                float wheel = io.MouseWheel;
-                if (wheel != 0.0f) {
-                    int dir = (wheel > 0.0f) ? -1 : 1;
-                    int next_idx = *current_item + dir;
-                    if (next_idx < 0) next_idx = 0;
-                    if (next_idx >= items_count) next_idx = items_count - 1;
-                    if (next_idx != *current_item) {
-                        *current_item = next_idx;
-                        value_changed = true;
+                if (tooltips && tooltips[i] && tooltips[i][0] != '\0') {
+                    bool tooltip_target = (s_WheelLatchPulldownID == id)
+                                          ? ((i == *current_item) && !wheel_stepped)
+                                          : item_hovered;
+                    Detail::AttachTooltipProxy(ImGui::GetItemID(), tooltips[i], tooltip_target);
+                }
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                    if (wheel_stepped) {
+                        ImGui::SetScrollHereY();
                     }
                 }
+                ImGui::PopID();
             }
 
             ImGui::EndPopup();
@@ -525,7 +635,9 @@ namespace ImGui {
                                          const std::vector<std::string>* tooltips = nullptr,
                                          float width = 0.0f,
                                          ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
-                                         ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+                                         ImGuiPopupAlign align = ImGuiPopupAlign_Left,
+                                         bool wrap = false,
+                                         bool natural_list_order = true)
     {
         if (!current_item || items.empty()) return false;
         std::vector<const char*> item_ptrs;
@@ -539,7 +651,8 @@ namespace ImGui {
         }
 
         return SelectPulldown(label, current_item, item_ptrs.data(), (int)item_ptrs.size(),
-                              tip_ptrs.empty() ? nullptr : tip_ptrs.data(), width, anchor, align);
+                              tip_ptrs.empty() ? nullptr : tip_ptrs.data(), width, anchor, align,
+                              wrap, natural_list_order);
     }
 
     // ========================================================================
@@ -554,9 +667,11 @@ namespace ImGui {
                                            const char* const tooltips[] = nullptr,
                                            float width = 0.0f,
                                            ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
-                                           ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+                                           ImGuiPopupAlign align = ImGuiPopupAlign_Left,
+                                           bool wrap = false,
+                                           bool natural_list_order = true)
     {
-        return SelectPulldown(label, current_item, items, items_count, tooltips, width, anchor, align);
+        return SelectPulldown(label, current_item, items, items_count, tooltips, width, anchor, align, wrap, natural_list_order);
     }
 
     /// Explicit Markdown alias (std::vector overload): ImGui::SelectPulldownMD(...)
@@ -566,9 +681,11 @@ namespace ImGui {
                                            const std::vector<std::string>* tooltips = nullptr,
                                            float width = 0.0f,
                                            ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
-                                           ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+                                           ImGuiPopupAlign align = ImGuiPopupAlign_Left,
+                                           bool wrap = false,
+                                           bool natural_list_order = true)
     {
-        return SelectPulldown(label, current_item, items, tooltips, width, anchor, align);
+        return SelectPulldown(label, current_item, items, tooltips, width, anchor, align, wrap, natural_list_order);
     }
 
     namespace Markdown {
@@ -580,9 +697,11 @@ namespace ImGui {
                                    const char* const tooltips[] = nullptr,
                                    float width = 0.0f,
                                    ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
-                                   ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+                                   ImGuiPopupAlign align = ImGuiPopupAlign_Left,
+                                   bool wrap = false,
+                                   bool natural_list_order = true)
         {
-            return ImGui::SelectPulldown(label, current_item, items, items_count, tooltips, width, anchor, align);
+            return ImGui::SelectPulldown(label, current_item, items, items_count, tooltips, width, anchor, align, wrap, natural_list_order);
         }
 
         inline bool SelectPulldown(const char* label,
@@ -591,9 +710,11 @@ namespace ImGui {
                                    const std::vector<std::string>* tooltips = nullptr,
                                    float width = 0.0f,
                                    ImGuiPopupAnchor anchor = ImGuiPopupAnchor_BelowItem,
-                                   ImGuiPopupAlign align = ImGuiPopupAlign_Left)
+                                   ImGuiPopupAlign align = ImGuiPopupAlign_Left,
+                                   bool wrap = false,
+                                   bool natural_list_order = true)
         {
-            return ImGui::SelectPulldown(label, current_item, items, tooltips, width, anchor, align);
+            return ImGui::SelectPulldown(label, current_item, items, tooltips, width, anchor, align, wrap, natural_list_order);
         }
     } // namespace Markdown
 
