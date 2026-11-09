@@ -115,7 +115,7 @@ For the full architectural philosophy, ergonomics theory, and interaction rules 
     * **Reversibility & Non-Destructive Defaults:** 1-click restore (`↺`) with instant undo history.
   * **Part II: The Developer's Covenant (Promises to the End User):**
     * The Seven Sacred Promises: Banish legacy tooltips, match data physics, honor natural list order, eliminate ambiguous cursor pixels, prevent scroll traps, offer 1-click restore, and prioritize semantic scanning hierarchy.
-  * **Part III: Canonical Verification Checklists:** Turnkey checklists for framework architects and downstream plugin developers.
+  * **Appendix A: Canonical Verification Checklists:** Turnkey compliance checklists for framework architects and downstream plugin developers.
 
 ---
 

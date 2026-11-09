@@ -2,11 +2,38 @@
 ## Ergonomics, Cognitive Affordances, and Human Factors for Simulation User Interfaces
 
 **Authors & Architecture:** Steven L. Goldberg (@slgoldberg) & the Antigravity Engineering Team  
-**Custodian:** Managed for the ImGee platform (ImgWindow / ImGee / LuiGee / PyGee)  
-**Status:** Canonical Platform Standard  
-**Last Updated:** November 2026  
+**Custodian:** ImGee Platform (ImgWindow / LuiGee / PyGee) • **Status:** Canonical Standard (Nov 2026)
 
 ---
+
+# Abstract
+
+**ImGee** (pronounced *"im-jee"*, phonetic: `/ɪmˈdʒiː/`) is an opinionated, tactile C++ user-interface framework comprised of a self-consistent collection of standard Dear ImGui extensions, widgets, and layout primitives. It provides a modern, highly ergonomic foundation for building world-class 2-D user interfaces across a wide array of desktop applications.
+
+Originally conceived and engineered for the flight simulation development community, ImGee was shaped by the unforgiving demands of high-cognitive-load, safety-critical cockpit environments. In simulated flight, pilots split attention between stick, throttle, instruments, and ATC. Clumsy interactions, vibrating tooltips, and ambiguous cursor affordances are fatal distractions that pull the user out of *Expert Mode* and force them into *Thinking Mode*.
+
+While battle-tested in flight simulation, **ImGee is 100% generic Dear ImGui and is absolutely not restricted to X-Plane**. It contains zero hard dependencies on simulation SDKs or proprietary runtimes. Any desktop application, game-engine editor, digital audio workstation (DAW), robotics console, or scientific tool running Dear ImGui can consume ImGee directly.
+
+### Multi-Language Delivery & Ecosystem Topology
+
+ImGee is delivered as an integral component of the **ImgWindow** suite, providing a unified interaction vocabulary across multiple programming languages and runtime contexts:
+* **C++ Native (`ImGee`):** Direct, zero-overhead immediate-mode C++11/C++17 integration for any Dear ImGui project.
+* **Lua Scripting (`LuiGee`):** Turnkey Lua bindings for FlyWithLua (supporting X-Plane 11.20 through latest 12+ and beyond), bringing toggles, knobs, dials, and timed tooltips to script authors.
+* **Python Scripting (`PyGee`):** Planned bindings designed for rapid Python prototyping and integration with environments like XPPython3.
+
+### Reverence for Dear ImGui & The Extensibility Model
+
+ImGee was architected with profound respect for **Omar Cornut's** foundational vision for Dear ImGui.
+
+Stock Dear ImGui deliberately remains a minimalist, unopinionated canvas—primarily optimized for in-engine developer debuggers. ImGee honors this architecture by refusing to fork or mutate Dear ImGui internals, strictly following its official extensibility model (custom widgets, `ImDrawList`, layout stacks, font roles, ambient styles) to deliver:
+1. **Active Cursor Affordances:** Banishing dead `Arrow` cursors in favor of explicit functional cues (`Hand`, `ResizeNS`, `ResizeEW`, `TextInput`).
+2. **Stationary, Polite Assistance:** Replacing mouse-bound tooltip jitter with dwell-verified, stationary `TimedTooltips`.
+3. **Physical vs. Categorical Consistency:** Enforcing boundary clamping for monotonic scalar values and circular wrapping for qualitative carousels.
+4. **Natural Directional Geometry:** Guaranteeing that wheeling downward always advances downward (+1 index).
+5. **Reversibility & Non-Destructive Defaults:** Equipping tunable controls with 1-click restore (`↺`) and instant undo.
+
+---
+<!-- pagebreak -->
 
 # Part I: The Architectural Foundation
 ### The Framework's Promise to Developers & Users
@@ -216,6 +243,7 @@ Color and formatting are not decorative; in aviation interfaces, they are semant
 * **Font-Scale Invariance:** Window chrome, status bars, and title bars must maintain a stable 1.0x baseline scale (`SetUnscaledChrome`), ensuring operational controls and indicators remain rock-solid regardless of internal document zoom.
 
 ---
+<!-- pagebreak -->
 
 # Part II: The Developer's Covenant
 ### Architectural Promises to End Users
@@ -305,10 +333,14 @@ Here are the **Seven Promises** every developer must uphold:
   In a high-workload environment, pilots do not read sentences; they scan visual anchors. Structured formatting, distinct color-coded pills, and clean typographical weight allow the flight crew to comprehend system status in a 200 ms glance.
 
 ---
+<!-- pagebreak -->
 
-# Part III: Canonical Verification Checklists
+# Appendix A: Canonical Verification Checklists
+### Quality Assurance & Compliance Standards
 
-Before releasing any UI update, run through these two canonical checklists:
+Before releasing any UI update or downstream plugin, verify the implementation against these two canonical quality standards:
+
+---
 
 ### Checklist A: Framework Verification (Holding ImGee Accountable)
 - [ ] **Cursor State:** Does the widget display the mandatory non-arrow cursor when hovered?
@@ -319,6 +351,8 @@ Before releasing any UI update, run through these two canonical checklists:
 - [ ] **Container Pass-Through:** When closed, does the pulldown allow wheel events to scroll the parent container?
 - [ ] **TimedTooltip Integration:** Are all tooltips stationary, dwell-verified, and Markdown-capable?
 - [ ] **Contrast Verification:** Does the styling engine guarantee legible text across light and dark backgrounds?
+
+---
 
 ### Checklist B: Developer Compliance (Holding Your Plugin Accountable)
 - [ ] **Zero Legacy Tooltips:** Are all `ImGui::SetTooltip()` calls eliminated in favor of `TimedTooltip`?
