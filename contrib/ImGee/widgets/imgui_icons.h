@@ -17,7 +17,7 @@
 //      - Default: Procedural Vector Paths (100% batched into ImDrawList)
 //   2. Extensive Icon Catalog:
 //      - undo / reset (↺), redo / restore (↻)
-//      - caret_up (▲), caret_down (▼), caret_left (◀), caret_right (▶)
+//      - external-link (↗), caret_up (▲), caret_down (▼), caret_left (◀), caret_right (▶)
 //      - check (✓), cross / times (✗), plus (+), minus (-)
 //      - gear / settings (⚙), info (ℹ), warning (⚠), star (★)
 //      - search (🔍), plane / aircraft (✈), circle (●), square (■)
@@ -79,6 +79,10 @@ namespace ImGui {
         // Check for raw UTF-8 Unicode glyphs:
         if (s == "\xE2\x86\xBA") return "undo";        // ↺ U+21BA
         if (s == "\xE2\x86\xBB") return "redo";        // ↻ U+21BB
+        if (s == "\xE2\x86\x97") return "external-link";    // ↗ U+2197
+        if (s == "\xE2\x86\x98") return "arrow-down-right"; // ↘ U+2198
+        if (s == "\xE2\x86\x96") return "arrow-up-left";   // ↖ U+2196
+        if (s == "\xE2\x86\x99") return "arrow-down-left"; // ↙ U+2199
         if (s == "\xE2\x96\xB2") return "caret-up";    // ▲ U+25B2
         if (s == "\xE2\x96\xBE") return "caret-down";  // ▾ U+25BE
         if (s == "\xE2\x96\xBC") return "caret-down";  // ▼ U+25BC
@@ -120,8 +124,11 @@ namespace ImGui {
         else if (s.rfind("fa-", 0) == 0)     s = s.substr(3);
 
         // Canonical aliases
-        if (s == "reset" || s == "undo-alt" || s == "rotate-left") return "undo";
+        if (s == "reset" || s == "undo-alt" || s == "rotate-left" || s == "refresh" || s == "reload" || s == "sync") return "undo";
         if (s == "restore" || s == "redo-alt" || s == "rotate-right") return "redo";
+        if (s == "external" || s == "open-in-new" || s == "link-external" || s == "external-link-alt" || s == "arrow-up-right") return "external-link";
+        if (s == "folder-open" || s == "directory") return "folder";
+        if (s == "lock-open" || s == "unlocked") return "unlock";
         if (s == "chevron-up" || s == "arrow-up" || s == "triangle-up" || s == "^") return "caret-up";
         if (s == "chevron-down" || s == "arrow-down" || s == "triangle-down" || s == "v") return "caret-down";
         if (s == "chevron-left" || s == "arrow-left" || s == "triangle-left" || s == "<") return "caret-left";
@@ -145,7 +152,7 @@ namespace ImGui {
     inline bool IsVectorIcon(const char* name) {
         if (!name || !*name) return false;
         std::string n = NormalizeIconName(name);
-        return (n == "undo" || n == "redo" ||
+        return (n == "undo" || n == "redo" || n == "external-link" ||
                 n == "caret-up" || n == "caret-down" || n == "caret-left" || n == "caret-right" ||
                 n == "check" || n == "cross" || n == "plus" || n == "minus" ||
                 n == "gear" || n == "info" || n == "warning" || n == "star" ||
@@ -399,6 +406,31 @@ namespace ImGui {
         if (id == "square") {
             float r = size * 0.30f;
             draw_list->AddRectFilled(ImVec2(center.x - r, center.y - r), ImVec2(center.x + r, center.y + r), col, size * 0.08f);
+            return true;
+        }
+
+        if (id == "external-link") {
+            float thickness = Detail::IconMax(1.2f, size * 0.095f);
+            // Box with open top-right corner
+            ImVec2 b_tl(pos.x + size * 0.12f, pos.y + size * 0.32f);
+            ImVec2 b_bl(pos.x + size * 0.12f, pos.y + size * 0.88f);
+            ImVec2 b_br(pos.x + size * 0.68f, pos.y + size * 0.88f);
+            ImVec2 b_tr(pos.x + size * 0.68f, pos.y + size * 0.52f);
+            ImVec2 b_top_left(pos.x + size * 0.40f, pos.y + size * 0.32f);
+
+            draw_list->AddLine(b_top_left, b_tl, col, thickness);
+            draw_list->AddLine(b_tl, b_bl, col, thickness);
+            draw_list->AddLine(b_bl, b_br, col, thickness);
+            draw_list->AddLine(b_br, b_tr, col, thickness);
+
+            // 45-degree breakout arrow
+            ImVec2 a_tail(pos.x + size * 0.42f, pos.y + size * 0.58f);
+            ImVec2 a_tip(pos.x + size * 0.88f, pos.y + size * 0.12f);
+            draw_list->AddLine(a_tail, a_tip, col, thickness);
+
+            float fin = size * 0.28f;
+            draw_list->AddLine(a_tip, ImVec2(a_tip.x - fin, a_tip.y), col, thickness);
+            draw_list->AddLine(a_tip, ImVec2(a_tip.x, a_tip.y + fin), col, thickness);
             return true;
         }
 

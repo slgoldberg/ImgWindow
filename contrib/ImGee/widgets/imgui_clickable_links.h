@@ -29,6 +29,7 @@
 #include "imgui.h"
 #include <string>
 #include <cstdlib>
+#include <cmath>
 #if defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
@@ -37,6 +38,16 @@
     #include <shellapi.h>
 #else
     #include <sys/stat.h>
+#endif
+
+#if defined(__has_include)
+    #if __has_include("imgui_icons.h")
+        #include "imgui_icons.h"
+    #elif __has_include("widgets/imgui_icons.h")
+        #include "widgets/imgui_icons.h"
+    #endif
+#else
+    #include "imgui_icons.h"
 #endif
 
 #ifndef IMGUI_LINK_CLICK_RESULT_DEFINED
@@ -543,6 +554,63 @@ namespace ImGui {
     inline IMGUI_API bool OpenDocument(const std::string& path)
     {
         return OpenURL(path.c_str());
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. External Hyperlinks with Procedural Vector Breakout Icon
+    // -------------------------------------------------------------------------
+    // Renders an external hyperlink in ImGuiCol_TextLink with an inline procedural
+    // breakout icon (↗) requiring zero font-glyph or texture dependencies.
+    // If 'url' is provided, clicking the link or the breakout icon automatically
+    // launches the destination in the default browser. Returns true on click.
+
+    inline IMGUI_API bool ExternalTextLink(const char* label, const char* url = nullptr)
+    {
+        bool clicked = NativeTextLink(label);
+        SameLine(0.0f, GetStyle().ItemInnerSpacing.x * 0.5f);
+
+        float font_size = GetFontSize();
+        float icon_sz = std::round(font_size * 0.75f);
+        ImVec2 pos = GetCursorScreenPos();
+        float offset_y = std::round((font_size - icon_sz) * 0.5f);
+
+        ImU32 col = GetColorU32(ImGuiCol_Text);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19100)
+        if (GetStyle().Colors[ImGuiCol_TextLink].w > 0.0f) {
+            col = GetColorU32(ImGuiCol_TextLink);
+        }
+#else
+        col = GetColorU32(ImVec4(0.45f, 0.75f, 1.00f, 1.00f));
+#endif
+
+        Dummy(ImVec2(icon_sz, font_size));
+        if (IsItemHovered()) {
+            SetMouseCursor(ImGuiMouseCursor_Hand);
+        }
+        if (IsItemClicked()) {
+            clicked = true;
+        }
+        DrawVectorIcon(GetWindowDrawList(), ImVec2(pos.x, pos.y + offset_y), icon_sz, col, "external-link");
+
+        if (clicked && url && *url) {
+            OpenURL(url);
+        }
+        return clicked;
+    }
+
+    inline IMGUI_API bool ExternalTextLink(const std::string& label, const char* url = nullptr)
+    {
+        return ExternalTextLink(label.c_str(), url);
+    }
+
+    inline IMGUI_API bool ExternalTextLink(const std::string& label, const std::string& url)
+    {
+        return ExternalTextLink(label.c_str(), url.c_str());
+    }
+
+    inline IMGUI_API bool ExternalTextLink(const char* label, const std::string& url)
+    {
+        return ExternalTextLink(label, url.c_str());
     }
 
 #if defined(IMGUI_MARKDOWN_H)

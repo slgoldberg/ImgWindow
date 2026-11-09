@@ -522,7 +522,9 @@ namespace ImGui {
         ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
         std::string btn_id = std::string(preview_text) + "##" + popup_id;
         bool clicked = ImGui::Button(btn_id.c_str(), ImVec2(btn_w, btn_h));
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_None)) {
+        ImGuiHoveredFlags hover_flags = is_open ? ImGuiHoveredFlags_AllowWhenBlockedByPopup : ImGuiHoveredFlags_None;
+        bool btn_hovered = ImGui::IsItemHovered(hover_flags);
+        if (btn_hovered) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         }
         ImGui::PopStyleVar();
@@ -574,10 +576,11 @@ namespace ImGui {
                                  ImGui::IsAnyItemHovered();
             bool wheel_stepped = false;
 
-            // In-menu wheel cycling: process BEFORE rendering options so *current_item is updated
-            // in time for rendering focus, scroll positioning, and Lens UI tooltip targeting:
-            if (popup_hovered) {
-                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+            // In-menu wheel cycling: allow spinning while hovering popup items OR the opener button!
+            if (popup_hovered || btn_hovered) {
+                if (popup_hovered) {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+                }
                 float clicks = Detail::GetPopupMouseWheel(true);
                 if (clicks != 0.0f) {
                     s_WheelLatchPulldownID = id;

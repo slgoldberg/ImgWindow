@@ -54,6 +54,7 @@
     !defined(IMGUI_DISABLE_EXTRA_WIDGETS) && \
     !defined(IMGWINDOW_DISABLE_CONTRIB_WIDGETS)
 
+#include "imgui_icons.h"
 #include "imgui_toggle_buttons.h"
 #include "imgui_mouse_wheel_controls.h"
 #include "imgui_clickable_links.h"
@@ -63,7 +64,6 @@
 #include "imgui_knobs.h"
 #include "imgui_file_dialog.h"
 #include "imgui_popup_menus.h"
-#include "imgui_icons.h"
 
 #endif // !CONTRIB_DISABLE_WIDGETS
 
