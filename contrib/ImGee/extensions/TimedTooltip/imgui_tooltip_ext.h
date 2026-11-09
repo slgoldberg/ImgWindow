@@ -32,6 +32,14 @@
 #include <cmath>
 #include <algorithm>
 
+#ifndef IMGUI_PRINTFARGS
+#if defined(__clang__) || defined(__GNUC__)
+#define IMGUI_PRINTFARGS(FMT, X) __attribute__((format(printf, FMT, X)))
+#else
+#define IMGUI_PRINTFARGS(FMT, X)
+#endif
+#endif
+
 #if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) && defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
 #ifndef IMGUI_OBSOLETE_SHIMS_DEFINED
 #define IMGUI_OBSOLETE_SHIMS_DEFINED
@@ -857,6 +865,7 @@ namespace TimedTooltip {
     }
 
     // Proxy Timed Tooltips (accept explicit ID and explicit is_hovered state):
+    inline bool TextProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(4, 5);
     inline bool TextProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -865,6 +874,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TextProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) IMGUI_PRINTFARGS(3, 4);
     inline bool TextProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -873,6 +883,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TextProxyToggle(ImGuiID id, bool is_hovered, bool toggle_on_click, const char* fmt, ...) IMGUI_PRINTFARGS(4, 5);
     inline bool TextProxyToggle(ImGuiID id, bool is_hovered, bool toggle_on_click, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -881,6 +892,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TextProxy(const char* str_id, bool is_hovered, const char* fmt, ...) IMGUI_PRINTFARGS(3, 4);
     inline bool TextProxy(const char* str_id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -898,6 +910,7 @@ namespace TimedTooltip {
     }
 
     // Plain-text Timed Tooltip with per-call config override
+    inline bool Text(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
     inline bool Text(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -907,6 +920,7 @@ namespace TimedTooltip {
     }
 
     // Plain-text Timed Tooltip: mirrors standard ImGui vocabulary (ImGui::TimedTooltip::Text)
+    inline bool Text(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
     inline bool Text(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -934,6 +948,7 @@ namespace TimedTooltip {
     // Explicit click-to-toggle Timed Tooltip chasers (ImGui::TimedTooltip::TextLink):
 #pragma push_macro("TextLink")
 #undef TextLink
+    inline bool TextLink(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
     inline bool TextLink(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -942,6 +957,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TextLink(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
     inline bool TextLink(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -954,6 +970,7 @@ namespace TimedTooltip {
         return TextLink(config, "%s", text.c_str());
     }
 
+    inline bool TextLinkContrib(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
     inline bool TextLinkContrib(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -962,6 +979,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TextLinkContrib(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
     inline bool TextLinkContrib(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);

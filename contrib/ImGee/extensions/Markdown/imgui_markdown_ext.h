@@ -34,6 +34,14 @@
 #include <cstdio>
 #include <cstring>
 #include <sstream>
+
+#ifndef IMGUI_PRINTFARGS
+#if defined(__clang__) || defined(__GNUC__)
+#define IMGUI_PRINTFARGS(FMT, X) __attribute__((format(printf, FMT, X)))
+#else
+#define IMGUI_PRINTFARGS(FMT, X)
+#endif
+#endif
 #include "imgui_markdown.h"
 #if !defined(CONTRIB_DISABLE_BADGES) && \
     !defined(CONTRIB_DISABLE_BADGE) && \
@@ -3273,6 +3281,7 @@ namespace TimedTooltip {
     }
 
     // Proxy Timed Tooltips with Markdown (accept explicit ID and explicit is_hovered state):
+    inline bool TextMDProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(4, 5);
     inline bool TextMDProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3281,6 +3290,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TextMDProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) IMGUI_PRINTFARGS(3, 4);
     inline bool TextMDProxy(ImGuiID id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3289,6 +3299,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TextMDProxy(const char* str_id, bool is_hovered, const char* fmt, ...) IMGUI_PRINTFARGS(3, 4);
     inline bool TextMDProxy(const char* str_id, bool is_hovered, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3305,6 +3316,7 @@ namespace TimedTooltip {
         return TextMDProxy(ImGui::GetID(str_id), is_hovered, config, "%s", markdown_text.c_str());
     }
 
+    inline bool TextMDProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, bool is_clicked, bool toggle_on_click, const char* fmt, ...) IMGUI_PRINTFARGS(6, 7);
     inline bool TextMDProxy(ImGuiID id, bool is_hovered, const TooltipConfig* config, bool is_clicked, bool toggle_on_click, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3314,6 +3326,7 @@ namespace TimedTooltip {
     }
 
     // Markdown-enabled Timed Tooltip with per-call config override
+    inline bool TextMD(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
     inline bool TextMD(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3325,6 +3338,7 @@ namespace TimedTooltip {
     // Markdown-enabled Timed Tooltip: mirrors standard ImGui vocabulary (ImGui::TimedTooltip::TextMD)
     // Automatically binds to the last drawn widget using ImGui::GetItemID()
     // Defers string formatting until the tooltip actually appears to save CPU!
+    inline bool TextMD(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
     inline bool TextMD(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3350,6 +3364,7 @@ namespace TimedTooltip {
     }
 
     // Explicit click-to-toggle Markdown Timed Tooltip chasers (ImGui::TimedTooltip::TextMDLink):
+    inline bool TextMDLink(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
     inline bool TextMDLink(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3358,6 +3373,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TextMDLink(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
     inline bool TextMDLink(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3371,6 +3387,7 @@ namespace TimedTooltip {
     }
 
     // Direct aliases for backward-compatibility
+    inline bool TimedTooltipMD(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
     inline bool TimedTooltipMD(const TooltipConfig* config, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3379,6 +3396,7 @@ namespace TimedTooltip {
         return res;
     }
 
+    inline bool TimedTooltipMD(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
     inline bool TimedTooltipMD(const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
@@ -3389,6 +3407,7 @@ namespace TimedTooltip {
 
     // Bidirectional Channel A: ImGui::TimedTooltip::Markdown:: & ImGui::TimedTooltip::MD::
     namespace Markdown {
+        inline bool Text(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
         inline bool Text(const TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3397,6 +3416,7 @@ namespace TimedTooltip {
             return res;
         }
 
+        inline bool Text(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
         inline bool Text(const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3419,6 +3439,7 @@ namespace TimedTooltip {
 
 #pragma push_macro("TextLink")
 #undef TextLink
+        inline bool TextLink(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
         inline bool TextLink(const TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3427,6 +3448,7 @@ namespace TimedTooltip {
             return res;
         }
 
+        inline bool TextLink(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
         inline bool TextLink(const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3439,6 +3461,7 @@ namespace TimedTooltip {
             return TextMDLink(config, "%s", markdown_text.c_str());
         }
 
+        inline bool TextLinkContrib(const TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
         inline bool TextLinkContrib(const TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3447,6 +3470,7 @@ namespace TimedTooltip {
             return res;
         }
 
+        inline bool TextLinkContrib(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
         inline bool TextLinkContrib(const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3468,6 +3492,7 @@ namespace TimedTooltip {
 namespace Markdown {
     // Bidirectional Channel B: ImGui::Markdown::TimedTooltip:: & ImGui::MD::TimedTooltip::
     namespace TimedTooltip {
+        inline bool Text(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
         inline bool Text(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3476,6 +3501,7 @@ namespace Markdown {
             return res;
         }
 
+        inline bool Text(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
         inline bool Text(const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3498,6 +3524,7 @@ namespace Markdown {
 
 #pragma push_macro("TextLink")
 #undef TextLink
+        inline bool TextLink(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
         inline bool TextLink(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3506,6 +3533,7 @@ namespace Markdown {
             return res;
         }
 
+        inline bool TextLink(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
         inline bool TextLink(const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3518,6 +3546,7 @@ namespace Markdown {
             return ImGui::TimedTooltip::TextMDLink(config, "%s", markdown_text.c_str());
         }
 
+        inline bool TextLinkContrib(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) IMGUI_PRINTFARGS(2, 3);
         inline bool TextLinkContrib(const ImGui::TimedTooltip::TooltipConfig* config, const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
@@ -3526,6 +3555,7 @@ namespace Markdown {
             return res;
         }
 
+        inline bool TextLinkContrib(const char* fmt, ...) IMGUI_PRINTFARGS(1, 2);
         inline bool TextLinkContrib(const char* fmt, ...) {
             va_list args;
             va_start(args, fmt);
