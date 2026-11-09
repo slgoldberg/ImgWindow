@@ -302,7 +302,20 @@ Here are the **Seven Promises** every developer must uphold:
 * **Why It Matters to the User:**  
   The mouse cursor is the pilot's fingertip. Leaving an active control on `Arrow` makes it look like inert background decoration. Distinct cursor cues confirm at a glance what motor action is required before the user even clicks.
 
----
+### Host Integration & User Sovereignty (The Cursor Implementation Reality)
+
+While the Zero-Inert Law is an absolute standard for widget design, the underlying Dear ImGui host architecture introduces real-world platform nuances that developers must actively navigate:
+
+1. **Host-Level Cursor Support Varies:**  
+   Not all Dear ImGui installations natively implement dynamic OS cursor changes. In some raw desktop backends or custom game-engine viewports, cursor routing is either unmapped or requires explicit host configuration (`io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange` overrides).
+2. **Turnkey Support in ImgWindow v2:**  
+   In the X-Plane ecosystem, ImGee is delivered alongside **`ImgWindow v2`**, which natively features a complete hardware and software cursor management subsystem. Custom cursors are supported out of the box—both on a granular per-window basis (`SetUseCustomCursors(true)`) and globally across the plugin. Well-behaved plugins should ensure custom cursors are enabled by default so users immediately enjoy active visual feedback.
+3. **User Sovereignty (The 1-Click Toggle):**  
+   Users must always get the final say. Some simulation pilots perceive minor latency with software-rendered cursor overlays under heavy GPU loads, or simply prefer their OS pointer. Well-engineered plugins should provide an accessible preference toggle in their settings menu allowing users to disable custom cursor rendering (and re-enable it at will).
+4. **Developer Responsibility: "Eat Your Own Dogfood":**  
+   Developers should make every effort to keep custom cursors **enabled in their own development environments**. If you disable cursors while designing panels, you become blind to what end users experience by default. Keeping cursors active guarantees you will immediately catch regressions—such as buttons erroneously hovering on inert `Arrow` or dropdown lists failing to switch to `ResizeNS`.
+
+<!-- pagebreak -->
 
 ## 5. The Container Respect Covenant: Never Create Scroll Traps
 > *"I promise that closed dropdowns and pulldowns will never hijack parent window scrolling."*
