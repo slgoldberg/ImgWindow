@@ -1,7 +1,7 @@
 # The ImGee UX Design Manifesto
 ## Ergonomics, Cognitive Affordances, and Human Factors for Simulation User Interfaces
 
-**Authors & Architecture:** Steve Goldberg & the Antigravity Engineering Team  
+**Authors & Architecture:** Steven L. Goldberg (@slgoldberg) & the Antigravity Engineering Team  
 **Custodian:** Managed for the ImGee platform (ImgWindow / ImGee / LuiGee / PyGee)  
 **Status:** Canonical Platform Standard  
 **Last Updated:** November 2026  
