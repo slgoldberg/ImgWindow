@@ -10,7 +10,7 @@ This folder contains example implementations and resources to help developers se
 
 ## Contents
 
-1. `InitializeImGui.cpp`: A sample global initialization file demonstrating how to set up a shared font atlas for all `ImgWindow` instances, including loading multiple font weights (Roboto Regular, Bold, Italic, Mono) and merging custom glyph subsets of FontAwesome icons with tailored baseline offsets.
+1. `InitializeImGui.cpp`: A sample global initialization file demonstrating how to set up a shared font atlas for all `ImgWindow` instances, including loading multiple font weights (Roboto Regular, Bold, Italic, Mono) and merging custom glyph subsets of FontAwesome icons with tailored baseline offsets. Supports both the traditional manual `ImFontConfig` merge pattern and the modern turnkey `ImgFontAtlas::MergeFontAwesome` method (via `-DIMGWINDOW_ENABLE_FONTAWESOME`).
    - **When to run this:** Usually during your `XPluginStart` or `XPluginEnable` lifecycle events.
 
 2. `TeardownImGui.cpp`: A critical teardown function showing how to safely clean down and reset the shared atlas for dynamic resolution/scaling changes or plugin reloading. It demonstrates how to reset the `ImgWindow::sFontAtlas` shared pointer (to prevent Linux heap corruption on reload) and enforce `ImgWindow::Shutdown()` (to flush deferred Panel Graphics Vulkan textures and prevent VRAM leaks).

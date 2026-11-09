@@ -150,9 +150,23 @@ myAtlas->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 16.0f);
 // 4. Load the icon font second, passing your built ranges pointer
 myAtlas->AddFontFromFileTTF("fonts/fa-solid-900.ttf", 16.0f, &config, icon_ranges.Data);
 
-
 // Now you can freely mix text and icons seamlessly:
 // ImGui::Button(ICON_FA_UNDO " Reset View");
+```
+
+#### 💡 The Turnkey Helper: `ImgFontAtlas::MergeFontAwesome`
+
+If you pass `-DIMGWINDOW_ENABLE_FONTAWESOME` in your compiler or CMake build flags, `ImgFontAtlas` bundles FontAwesome 5 Solid internally. You can completely skip loading `fa-solid-900.ttf` / `.inc` files and manual `ImFontConfig` setup, collapsing the merge step into a single call:
+
+```cpp
+// 1. Load your base font:
+ImFont* myFont = myAtlas->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 16.0f);
+
+// 2. Turnkey merge! (Automatically applies -2px optical sizing to align with Latin baselines):
+myAtlas->MergeFontAwesome(myFont, 0.0f, icon_ranges.Data);
+
+// Or merge the entire FontAwesome catalog with zero boilerplate:
+myAtlas->MergeFontAwesome(myFont);
 ```
 
 ---
