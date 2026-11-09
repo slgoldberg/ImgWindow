@@ -101,6 +101,17 @@ Developers consuming ImGee widgets should expect standard Dear ImGui immediate-m
 * **Ambient Context:** Functions implicitly draw into the currently active `ImGuiWindow` and utilize Dear ImGui's ambient style and font stacks.
 * **ID Stack Safety:** Push and Pop IDs (`ImGui::PushID` / `ImGui::PopID`) apply seamlessly across all ImGee controls, rotary knobs, and reset buttons.
 
+### 3.5 The ImGee UX Design Manifesto (Human Factors Standard)
+For the full architectural philosophy, ergonomics theory, and interaction rules governing ImGee, see the companion document:
+* **[The ImGee UX Design Manifesto](ImGee_UX_Design_Manifesto.md)** (`ImGee_UX_Design_Manifesto.pdf`):
+  * **Flight Deck Cognitive Reality:** Protecting Expert Mode (muscle memory & peripheral vision); eliminating Thinking Mode interruptions.
+  * **The Zero-Inert Law:** Mandatory active cursor affordances (`Hand`, `ResizeNS`, `ResizeEW`) for all interactive elements.
+  * **First-Gesture Discoverability:** Natural list ordering (+1 on scroll down) and eliminating initial-gesture false negatives.
+  * **Monotonic vs. Categorical Dialectic:** Strict rules for clamping (`wrap = false`) vs. circular wrapping (`wrap = true`).
+  * **The Lens UI Principle:** Modal focus latching with > 6 px hysteresis during open-menu wheel navigation.
+  * **Container Pass-Through:** Closed pulldowns pass scroll events through to parent scrollable containers.
+  * **Reversibility & Non-Destructive Defaults:** 1-click restore (`↺`) with instant undo history.
+
 ---
 
 ## 4. Generic Dear ImGui Core & Multi-Language Bindings
@@ -203,8 +214,10 @@ To guide developers through the suite, this manual is structured into dedicated,
   * **[Status Badges & Pills](#104-badges-pills--annunciators-imgui_badgesh)**: Badges, pills, annunciators, and `<kbd>` keycaps.
   * **[Tactile Animated Toggles](#105-tactile-animated-toggle-switches-imgui_toggle_buttonsh)**: Cockpit rocker switches with dual-state tooltips.
   * **[Radar Spinners & Countdown Dials](#106-procedural-activity-spinners--countdown-dials-imgui_spinnersh)**: Activity spinners and approach countdown timers.
-* **Part III: Reference & Build Matrix**
+  * **[Directional Popups & SelectPulldown](#107-directional-popups-item-anchoring--selectpulldown-imgui_popup_menush)**: Directional blossoming popups, headroom queries, and 1-line dataref selectors with Lens UI.
+* **Part III: Reference & Standards**
   * **[Appendix A: Preprocessor Opt-Out Configuration](#appendix-a-preprocessor-opt-out-configuration--build-matrix)**: Granular switches for binary size and symbol isolation.
+  * **Companion Standard: [The ImGee UX Design Manifesto](ImGee_UX_Design_Manifesto.md)** (`ImGee_UX_Design_Manifesto.pdf`): Canonical human factors and interaction engineering tenets.
 
 ---
 
