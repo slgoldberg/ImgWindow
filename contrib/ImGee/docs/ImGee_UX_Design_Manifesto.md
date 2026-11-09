@@ -2,7 +2,7 @@
 ## Ergonomics, Cognitive Affordances, and Human Factors for Simulation User Interfaces
 
 **Authors & Architecture:** Steven L. Goldberg (@slgoldberg) & the Antigravity Engineering Team  
-**Custodian:** ImGee Platform (ImgWindow / LuiGee / PyGee) • **Status:** Canonical Standard (Nov 2026)
+**Custodian:** ImGee Platform (ImgWindow / LuiGee / PyGee) • **Version:** v0.9.x (Living Draft • Nov 2026)
 
 ---
 
@@ -38,7 +38,11 @@ Stock Dear ImGui deliberately remains a minimalist, unopinionated canvas—prima
 # Part I: The Architectural Foundation
 ### The Framework's Promise to Developers & Users
 
-Part I establishes the core human-factors principles, cognitive load theory, and structural interaction laws built directly into the ImGee framework engine. These rules hold the platform architects accountable: every widget bearing the ImGee seal must intrinsically satisfy these standards.
+Part I establishes the core human-factors principles, cognitive load theory, and structural interaction laws built directly into the ImGee framework engine.
+
+> [!NOTE]
+> **Living Document & Design Intentionality (v0.9.x Work in Progress):**
+> This manifesto is not a static academic treatise or an immutable finished decree. It is an evolving architectural contract—a compass designed to help developers and pilots understand where we are coming from, intuit how to use our work in the best possible way, and hold the ImGee framework accountable as our collective simulation experiences expand.
 
 ---
 
