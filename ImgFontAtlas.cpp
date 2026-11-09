@@ -248,3 +248,56 @@ void ImgFontAtlas::updateTextureTracking(ImTextureID textureID)
     mTextureBound = (textureID != (ImTextureID)0);
 }
 #endif /* IMGUI_V192_REFACTOR */
+
+#if defined(IMGWINDOW_ENABLE_FONTAWESOME)
+#if defined(__has_include)
+    #if __has_include("sample-code/fonts/fa-solid-900.inc")
+        #include "sample-code/fonts/fa-solid-900.inc"
+        #include "sample-code/fonts/IconsFontAwesome5.h"
+    #elif __has_include("fonts/fa-solid-900.inc")
+        #include "fonts/fa-solid-900.inc"
+        #include "fonts/IconsFontAwesome5.h"
+    #endif
+#else
+    #include "sample-code/fonts/fa-solid-900.inc"
+    #include "sample-code/fonts/IconsFontAwesome5.h"
+#endif
+
+ImFont* ImgFontAtlas::MergeFontAwesome(ImFont* base_font,
+                                       float size_pixels,
+                                       const ImWchar* custom_ranges,
+                                       float size_offset)
+{
+    if (!mOurAtlas) return nullptr;
+
+    if (!base_font && !mOurAtlas->Fonts.empty()) {
+        base_font = mOurAtlas->Fonts.back();
+    }
+
+    float font_size = size_pixels;
+    if (font_size <= 0.0f) {
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+        float base_sz = base_font ? base_font->LegacySize : 14.0f;
+#else
+        float base_sz = base_font ? base_font->FontSize : 14.0f;
+#endif
+        font_size = std::max(8.0f, base_sz + size_offset);
+    }
+
+    ImFontConfig config;
+    config.MergeMode = true;
+    config.PixelSnapH = true;
+    config.GlyphMinAdvanceX = font_size;
+
+    static const ImWchar default_fa_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+    const ImWchar* ranges = custom_ranges ? custom_ranges : default_fa_ranges;
+
+    return mOurAtlas->AddFontFromMemoryCompressedTTF(
+        (void*)fa_solid_900_compressed_data,
+        fa_solid_900_compressed_size,
+        font_size,
+        &config,
+        ranges
+    );
+}
+#endif // IMGWINDOW_ENABLE_FONTAWESOME

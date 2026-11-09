@@ -86,13 +86,44 @@ constexpr int SYSTEM_FONT_SIZE = 14;     // roughly equivalent size for Roboto
 // Load fonts from files generated via ImGui utility which converts TTF to
 // compressed C++ arrays, included in the "fonts" directory as .inc files:
 // (NOTE: all these fonts are explicitly loaded into the font atlas, below.)
-#include "fonts/fa-solid-900.inc"                      /* FontAwesome icons */
+#include "fonts/IconsFontAwesome5.h"                  /* FontAwesome icon macros */
+#if !defined(IMGWINDOW_ENABLE_FONTAWESOME)
+#include "fonts/fa-solid-900.inc"                      /* FontAwesome icons byte data */
+#endif
 #include "fonts/gf-roboto-regular-400.inc"
 #include "fonts/gf-roboto-bold.inc"
 #include "fonts/gf-robotomono-regular-400.inc"
 #include "fonts/gf-roboto-italic-400.inc"
 #include "fonts/gf-robotomono-regular.inc"                    /* 500 medium */
 #include "fonts/gf-roboto-bold-italic.inc"
+
+#define FA_FONT_SIZE(x)    (x - 2) /* load FontAwesome at 2 px smaller size */
+
+// Static helper function to merge FontAwesome icons into a base font.
+// Demonstrates both the modern turnkey ImgWindow v2 helper (-DIMGWINDOW_ENABLE_FONTAWESOME)
+// and the traditional manual ImGui merge pattern (default):
+static void MergeFontAwesomeIcons(ImFont* baseFont, float fontSize, const ImWchar* ranges = nullptr)
+{
+#if defined(IMGWINDOW_ENABLE_FONTAWESOME)
+    // --- Modern Turnkey Route (-DIMGWINDOW_ENABLE_FONTAWESOME) ---
+    // The framework encapsulates fa-solid-900.inc internally and automatically
+    // configures MergeMode, PixelSnapH, and optical baseline sizing:
+    ImgWindow::sFontAtlas->MergeFontAwesome(baseFont, FA_FONT_SIZE(fontSize), ranges);
+#else
+    // --- Traditional Manual Route (Default Sample Code Pattern) ---
+    // Manually configure ImFontConfig with MergeMode = true:
+    ImFontConfig mergeConfig;
+    mergeConfig.MergeMode = true;
+    mergeConfig.GlyphOffset = { 0.f, 0.f };
+    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF(
+        (void*)fa_solid_900_compressed_data,
+        fa_solid_900_compressed_size,
+        FA_FONT_SIZE(fontSize),
+        &mergeConfig,
+        ranges
+    );
+#endif
+}
 
 bool InitializeImGui ()
 {
@@ -111,18 +142,10 @@ bool InitializeImGui ()
     // From Google Fonts as "gf_roboto_regular_400_compressed_{size,data}":
     strncpy(mainConfig.Name, "Roboto-Regular-400-14px", 40);
     mainConfig.GlyphOffset = { 0.f, 0.f };   // keep descenders above baseline
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-        (gf_roboto_regular_400_compressed_data,
+    ImFont* regularFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_roboto_regular_400_compressed_data,
          gf_roboto_regular_400_compressed_size,
          BASELINE_FONT_SIZE, &mainConfig);
-    
-#define FA_FONT_SIZE(x)    (x - 2) /* load FontAwesome at 2 px smaller size */
-    
-    // Now we merge some icons from the OpenFontsIcons font into the above
-    // font (see `imgui/docs/FONTS.txt` for details about setting these up):
-    ImFontConfig mergeConfig; // reused as overlay within each Font slot below
-    mergeConfig.MergeMode = true;  // (NOTE: GlyphOffset is relative to above)
-//  mergeConfig.GlyphOffset = { 0.f, 0.25f };  // tweak baseline to match text
     
     // We only read very selectively the individual glyphs we are actually
     // using to save on texture RAM impact:
@@ -265,9 +288,7 @@ bool InitializeImGui ()
     builder.BuildRanges(&icon_ranges);
     
     // Merge the icon font with the text font:
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-        (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
-         FA_FONT_SIZE(BASELINE_FONT_SIZE), &mergeConfig, icon_ranges.Data);
+    MergeFontAwesomeIcons(regularFont, BASELINE_FONT_SIZE, icon_ranges.Data);
     
 // -------------- Fonts[1 = IMG_TITLE_FONT]: ------------------------------
 
@@ -277,18 +298,11 @@ bool InitializeImGui ()
     int titleFontSize = BASELINE_FONT_SIZE + 3;    // titles are <default>+3px
     strncpy(mainConfig.Name, "Roboto-Regular-400-17px*", 40);
 //  mainConfig.GlyphOffset = { 0.f, -0.5f };   // hand-tweaked vertical offset
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-        (gf_roboto_regular_400_compressed_data,
+    ImFont* titleFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_roboto_regular_400_compressed_data,
          gf_roboto_regular_400_compressed_size,
          titleFontSize, &mainConfig);
-    
-    mergeConfig.GlyphOffset = { 0.f, 0.f };
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-                                          (fa_solid_900_compressed_data,
-                                           fa_solid_900_compressed_size,
-                                           FA_FONT_SIZE(titleFontSize),
-                                           &mergeConfig,
-                                           icon_ranges.Data);
+    MergeFontAwesomeIcons(titleFont, titleFontSize, icon_ranges.Data);
     
 // -------------- Fonts[2 = IM_SMALLER_FONT]: ---------------------------------
     
@@ -298,17 +312,11 @@ bool InitializeImGui ()
     int smallerFontSize = BASELINE_FONT_SIZE - 2;  // <small> = <default> - 2px
     strncpy(mainConfig.Name, "Roboto-Regular-400-12px*", 40);
 //  mainConfig.GlyphOffset = { 0.f, 0.75f };    // hand-tweaked relative offset
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-        (gf_roboto_regular_400_compressed_data,
+    ImFont* smallerFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_roboto_regular_400_compressed_data,
          gf_roboto_regular_400_compressed_size,
          smallerFontSize, &mainConfig);
-    
-//  mergeConfig.GlyphOffset = { 0.f, 1.25f };  // needed due to different sizes
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-                                          (fa_solid_900_compressed_data,
-                                           fa_solid_900_compressed_size,
-                                           FA_FONT_SIZE(smallerFontSize),
-                                           &mergeConfig, icon_ranges.Data);
+    MergeFontAwesomeIcons(smallerFont, smallerFontSize, icon_ranges.Data);
     
 // -------------- Fonts[3 = IM_BOLD_FONT]: ------------------------------------
 
@@ -316,105 +324,69 @@ bool InitializeImGui ()
     int boldFontSize = BASELINE_FONT_SIZE;                 // <default> px size
     strncpy(mainConfig.Name, "Roboto-Bold-700-14px*", 40);
     mainConfig.GlyphOffset = { 0.f, 0.f };
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-                                          (gf_roboto_bold_compressed_data,
-                                           gf_roboto_bold_compressed_size,
-                                           boldFontSize, &mainConfig);
-    
-    // Merge in Font Awesome icons at same font size:
-    strncpy(mergeConfig.Name, mainConfig.Name, 40);
-//  mergeConfig.GlyphOffset = { 0.f, 0.5f };// manually tweaked vertical offset
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-        (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
-         FA_FONT_SIZE(boldFontSize), &mergeConfig, icon_ranges.Data);
+    ImFont* boldFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_roboto_bold_compressed_data,
+         gf_roboto_bold_compressed_size,
+         boldFontSize, &mainConfig);
+    MergeFontAwesomeIcons(boldFont, boldFontSize, icon_ranges.Data);
     
 // -------------- Fonts[4 = IM_BOLD_LARGER_FONT]: -----------------------------
     
     int boldLargeFontSize = BASELINE_FONT_SIZE + 2;               // just +2 px
     strncpy(mainConfig.Name, "Roboto-Bold-700-16px*", 40);
 //  mainConfig.GlyphOffset = { 0.f, -1.5f };
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-                                          (gf_roboto_bold_compressed_data,
-                                           gf_roboto_bold_compressed_size,
-                                           boldLargeFontSize, &mainConfig);
-        
-    // Merge in Font Awesome icons at same font size:
-    strncpy(mergeConfig.Name, mainConfig.Name, 40);
-//  mergeConfig.GlyphOffset = { 0.f, -1.f };    // needs a lot of tweaking now!
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-        (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
-         FA_FONT_SIZE(boldLargeFontSize), &mergeConfig, icon_ranges.Data);
+    ImFont* boldLargeFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_roboto_bold_compressed_data,
+         gf_roboto_bold_compressed_size,
+         boldLargeFontSize, &mainConfig);
+    MergeFontAwesomeIcons(boldLargeFont, boldLargeFontSize, icon_ranges.Data);
     
 // -------------- Fonts[5 = IM_MONO_NORMAL_FONT]: -----------------------------
     
     int monoFontSize = BASELINE_FONT_SIZE;
     strncpy(mainConfig.Name, "RobotoMono-Regular-400-15px", 40);
     mainConfig.GlyphOffset = { 0.f, 0.f };
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-                                    (gf_robotomono_regular_400_compressed_data,
-                                     gf_robotomono_regular_400_compressed_size,
-                                     monoFontSize,
-                                     &mainConfig);
-    
-    // Merge in Font Awesome glyphs with whichever size to this one as well:
-    strncpy(mergeConfig.Name, mainConfig.Name, 40);
-//  mergeConfig.GlyphOffset = { 0.f, 2.75f };   // (this one does seem extreme)
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-        (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
-         FA_FONT_SIZE(monoFontSize), &mergeConfig, icon_ranges.Data);
+    ImFont* monoFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_robotomono_regular_400_compressed_data,
+         gf_robotomono_regular_400_compressed_size,
+         monoFontSize,
+         &mainConfig);
+    MergeFontAwesomeIcons(monoFont, monoFontSize, icon_ranges.Data);
     
 // -------------- Fonts[6 = IM_ITALIC_FONT]: ----------------------------------
 
     int italicFontSize = BASELINE_FONT_SIZE;
     strncpy(mainConfig.Name, "Roboto-Italic-400-14px", 40);
     mainConfig.GlyphOffset = { 0.f, 0.f };
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF(
-                                          gf_roboto_italic_400_compressed_data,
-                                          gf_roboto_italic_400_compressed_size,
-                                                          italicFontSize,
-                                                          &mainConfig);
-    
-    // Merge in Font Awesome icons at same font size:
-    // FIXME: Find and download FontAwesome *italics* 900, so they mesh better!
-    strncpy(mergeConfig.Name, mainConfig.Name, 40);
-//  mergeConfig.GlyphOffset = { 0.f, 0.5f };           // tweak vertical offset
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-    (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
-     FA_FONT_SIZE(italicFontSize), &mergeConfig, icon_ranges.Data);
+    ImFont* italicFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_roboto_italic_400_compressed_data,
+         gf_roboto_italic_400_compressed_size,
+         italicFontSize,
+         &mainConfig);
+    MergeFontAwesomeIcons(italicFont, italicFontSize, icon_ranges.Data);
     
 // -------------- Fonts[7 = IM_MONO_MEDIUM_FONT]: -----------------------------
     
     int mediumMonoFontSize = BASELINE_FONT_SIZE + 1;  // (runs a little small!)
     strncpy(mainConfig.Name, "RobotoMono-500-14px", 40);
 //  mainConfig.GlyphOffset = { 0.f, -0.5f };           // tweak vertical offset
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-                                        (gf_robotomono_regular_compressed_data,
-                                         gf_robotomono_regular_compressed_size,
-                                         mediumMonoFontSize,
-                                         &mainConfig);
-    
-    // Merge in Font Awesome icons at an extra reduced font size (relatively):
-    strncpy(mergeConfig.Name, mainConfig.Name, 40);
-    mergeConfig.GlyphOffset = { 0.f, 0.f };
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-    (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
-     FA_FONT_SIZE(mediumMonoFontSize), &mergeConfig, icon_ranges.Data);
+    ImFont* mediumMonoFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_robotomono_regular_compressed_data,
+         gf_robotomono_regular_compressed_size,
+         mediumMonoFontSize,
+         &mainConfig);
+    MergeFontAwesomeIcons(mediumMonoFont, mediumMonoFontSize, icon_ranges.Data);
 
 // -------------- Fonts[8 = IM_BOLD_ITALIC_FONT]: -----------------------------
 
     int boldItalicFontSize = BASELINE_FONT_SIZE;
     strncpy(mainConfig.Name, "Roboto-BoldItalic-700-14px*", 40);
     mainConfig.GlyphOffset = { 0.f, 0.f };
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-                                  (gf_roboto_bold_italic_compressed_data,
-                                   gf_roboto_bold_italic_compressed_size,
-                                   boldItalicFontSize, &mainConfig);
-
-    // Merge in Font Awesome icons at same font size:
-    strncpy(mergeConfig.Name, mainConfig.Name, 40);
-    ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
-        (fa_solid_900_compressed_data, fa_solid_900_compressed_size,
-         FA_FONT_SIZE(boldItalicFontSize), &mergeConfig, icon_ranges.Data);
+    ImFont* boldItalicFont = ImgWindow::sFontAtlas->AddFontFromMemoryCompressedTTF
+        ((void*)gf_roboto_bold_italic_compressed_data,
+         gf_roboto_bold_italic_compressed_size,
+         boldItalicFontSize, &mainConfig);
+    MergeFontAwesomeIcons(boldItalicFont, boldItalicFontSize, icon_ranges.Data);
 
 // ----------------------------------------------------------------------------
 

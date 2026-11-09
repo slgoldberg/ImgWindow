@@ -92,6 +92,17 @@ public:
                                                  const ImFontConfig *font_cfg = NULL,
                                                  const unsigned short *glyph_ranges = NULL);              // 'compressed_font_data_base85' still owned by caller. Compress with binary_to_compressed_c.cpp with -base85 parameter.
 
+#if defined(IMGWINDOW_ENABLE_FONTAWESOME)
+    // Optional turnkey FontAwesome 5 Solid merge helper.
+    // Merges icons into base_font (or the last loaded font if base_font is NULL).
+    // If size_pixels <= 0.0f, defaults to base_font->FontSize + size_offset (default -2px optical balance).
+    // If custom_ranges is NULL, merges the complete FontAwesome catalog (ICON_MIN_FA .. ICON_MAX_FA).
+    ImFont* MergeFontAwesome(ImFont* base_font = nullptr,
+                             float size_pixels = 0.0f,
+                             const ImWchar* custom_ranges = nullptr,
+                             float size_offset = -2.0f);
+#endif
+
     ImFontAtlas *getAtlas();
 
 #ifdef IMGUI_V192_REFACTOR
