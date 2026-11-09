@@ -8,6 +8,13 @@
 
 ---
 
+# Part I: The Architectural Foundation
+### The Framework's Promise to Developers & Users
+
+Part I establishes the core human-factors principles, cognitive load theory, and structural interaction laws built directly into the ImGee framework engine. These rules hold the platform architects accountable: every widget bearing the ImGee seal must intrinsically satisfy these standards.
+
+---
+
 ## 1. The Founding Premise: Cockpit Cognitive Reality
 
 Flight simulation tools, glass-cockpit avionics, and mission utilities operate in a fundamentally different cognitive domain than web applications or office productivity software:
@@ -29,7 +36,7 @@ A mouse pointer is not merely an indicator of (X, Y) screen coordinates; it is t
 
 ```
        [ Clickable Action ]           [ Wheel Scrollable ]           [ Continuous Range ]
-    ImGuiMouseCursor_Hand (👆)     ImGuiMouseCursor_ResizeNS (↕)   ImGuiMouseCursor_ResizeEW (↔)
+    ImGuiMouseCursor_Hand          ImGuiMouseCursor_ResizeNS       ImGuiMouseCursor_ResizeEW
     • Buttons, Links, Carats        • Combos, Pulldowns, Menus      • Sliders, Draggers, Zooms
 ```
 
@@ -149,7 +156,42 @@ In dense configuration windows, dataref inspectors, and checklists, multiple pul
 
 ---
 
-## 7. Tactile Feedback, Reversibility, and Non-Destructive Defaults
+## 7. The Law of Stationary, Polite Assistance: Why Stock Tooltips Fail and TimedTooltips Prevail
+
+In a desktop simulator cockpit, tooltips should act like a calm, polite flight instructor: speaking only when asked, remaining completely composed, and stepping out of the way when work begins. Stock Dear ImGui tooltips (`ImGui::SetTooltip`, `ImGui::SetItemTooltip`) behave like the exact opposite: an agitated passenger waving papers directly across the pilot's scan.
+
+```
+      Stock Dear ImGui Tooltips                     ImGee TimedTooltips
+   ─────────────────────────────────           ─────────────────────────────────
+   • Fires instantly on 1-pixel brush          • Dwell timeout (500 ms) verifies intent
+   • Bounces dynamically with mouse            • Anchored statically to widget bounds
+   • Occludes adjacent controls & targets      • Floats clearly beside the active item
+   • Forces user to swat mouse away            • Auto-dismisses on timeout or clean exit
+   • Raw unformatted single strings            • Full CommonMark Markdown & status tags
+```
+
+### The Three Deadly Defects of Legacy Tooltips
+
+1. **The Instant-Flash Boundary Hazard (Zero-Dwell Strobing):**  
+   Stock Dear ImGui displays tooltips on instantaneous hover. As a pilot swiftly traverses the screen to reach an autopilot disconnect button, the cursor sweeps across several intermediate knobs and checkboxes. Each brushed boundary instantly pops an opaque black window onto the screen for a few milliseconds, creating a strobe-like visual flicker. In a flight cockpit, peripheral visual flashes simulate emergency warning lights, triggering an involuntary reflex and disrupting the pilot's scan.
+2. **The Mouse-Trailing Jitter Trap (Pointer Vibration):**  
+   Stock tooltips are pinned to `io.MousePos`. As the user holds the mouse, subtle hand tremors, breathing, or micro-movements cause the tooltip window to vibrate and chase the cursor across the screen. Reading a multi-line explanation while the text is vibrating is frustrating and visually exhausting.
+3. **Target Occlusion:**  
+   Because legacy tooltips cling directly to the mouse cursor, they invariably expand over the exact screen region the user is trying to inspect or click next, obscuring adjacent dials, switches, and readouts.
+
+### The ImGee TimedTooltip Standard
+
+To resolve these defects, ImGee mandates the **Stationary TimedTooltip Architecture**:
+
+* **Deliberate Dwell Verification:** Assistance is presented only after the cursor rests motionless over an element for a deliberate dwell threshold (default 500 ms). Rapid traversals across the cockpit produce complete visual tranquility.
+* **Stationary Anchor Placement:** Tooltips are anchored solidly to the widget's physical bounding box (`ItemRectMin` / `ItemRectMax`). The text stays completely still, allowing the eye to read without chasing a moving target.
+* **Polite Auto-Dismissal:** After an ergonomic reading duration (e.g. 8–10 seconds), the tooltip cleanly dismisses itself. The pilot does not need to swat the mouse away to clear the panel.
+* **Rich Markdown Formatting (`TimedTooltip::MD::Text`):** Tooltips are not restricted to plain text; they support formatted headers, bold labels, colorized status pills (`<pill>`), code blocks, and keyboard shortcut tags (`<kbd>`).
+* **Non-Modal Interactive Chasers (`TextMDLink`):** Allows inline documentation links and expandable detail views that remain accessible without vanishing beneath the user's cursor.
+
+---
+
+## 8. Tactile Feedback, Reversibility, and Non-Destructive Defaults
 
 Exploration encourages mastery. If users fear that adjusting a setting will permanently corrupt their configuration, they hesitate to interact.
 
@@ -162,7 +204,7 @@ Exploration encourages mastery. If users fear that adjusting a setting will perm
 
 ---
 
-## 8. Typography, Markdown, and Visual Signaling
+## 9. Typography, Markdown, and Visual Signaling
 
 Color and formatting are not decorative; in aviation interfaces, they are semantic status indicators.
 
@@ -175,15 +217,113 @@ Color and formatting are not decorative; in aviation interfaces, they are semant
 
 ---
 
-## 9. Summary: The ImGee Checklist for Every Widget
+# Part II: The Developer's Covenant
+### Architectural Promises to End Users
 
-Before any widget is approved for release into ImGee, LuiGee, or PyGee, verify the following:
+The ImGee engine provides the physical affordances, but great user experience requires a partnership between the framework and the application developer. When you build avionics, tools, or plugins using ImGee, LuiGee, or PyGee, you make a sacred compact with your users to honor their cognitive airspace.
 
-- [ ] Does hovering the closed control display the appropriate non-arrow cursor (`Hand` for triggers, `ResizeNS` for combos)?
-- [ ] Does mouse-wheel navigation advance down the list (+1) on scroll down (`natural_list_order = true`)?
-- [ ] Is boundary clamping vs. circular wrapping explicitly chosen and exposed via a `wrap` parameter?
-- [ ] Does the open dropdown support "Lens UI" tooltip latching during wheel navigation?
-- [ ] Does the tooltip latch maintain a > 6 px hysteresis threshold against physical mouse wheel jiggle?
-- [ ] Does the closed control pass wheel events through to parent scrollable containers?
-- [ ] Do tooltips support full Markdown formatting without raw markdown character leaks?
-- [ ] Does the widget provide 1-click restore or undo history if it controls tuning parameters?
+Here are the **Seven Promises** every developer must uphold:
+
+---
+
+## 1. The Tooltip Covenant: Banish Jitter and Flash
+> *"I promise that I will never use legacy `ImGui::SetTooltip()` in my codebase again."*
+
+* **The Commitment:**  
+  I will use `ImGui::TimedTooltip::*` exclusively for all contextual guidance, or pass structured tooltip arrays directly into ImGee's turnkey controls (`SelectPulldown`, `MouseWheelCombo`, `ButtonTooltip`, `ToolbarToggleButton`).
+* **Why It Matters to the User:**  
+  Pilots sweep their mouse across your windows dozens of times per flight. By banishing instantaneous zero-dwell popups, you ensure your plugin never flickers in their peripheral vision or induces false warning reflexes. By anchoring tooltips statically, you ensure they can read your documentation with zero eye strain.
+
+---
+
+## 2. The Modality Covenant: Match Physics to the Data Variable
+> *"I promise to never wrap monotonic physical values, and never dead-end categorical carousels."*
+
+* **The Commitment:**  
+  For every dropdown, combo, and stepped adjuster, I will conscientiously examine the data model:
+  * **Physical & Scalar Data (`wrap = false`):** Altimeter settings, radio frequencies, throttle steps, audio volumes, and sensitivity percentages will always clamp firmly at their endpoints.
+  * **Categorical & Cyclic Presets (`wrap = true`):** Themes, camera perspectives, visual modes, and liveries will wrap seamlessly into an infinite carousel.
+* **Why It Matters to the User:**  
+  Wrapping an altimeter or radio frequency from maximum back to zero in the middle of an approach is hazardous and jarring. Conversely, forcing a pilot to reverse wheel direction when browsing camera angles or color palettes adds pointless friction.
+
+---
+
+## 3. The First-Gesture Covenant: Honor Natural Reading Order
+> *"I promise that scrolling DOWN will always advance +1 down the visual list."*
+
+* **The Commitment:**  
+  I will never invert mouse-wheel direction. I will verify that spinning the wheel downward advances downward through lists, menus, and selectable items in accordance with standard reading geometry.
+* **Why It Matters to the User:**  
+  When a user tests an unfamiliar control, their very first gesture is a single notch of the wheel downward. If the control decrements instead of incrementing, it immediately clamps against index 0. Nothing moves, and the user falsely concludes the widget is broken or unresponsive. Natural list order guarantees instant discoverability.
+
+---
+
+## 4. The Cursor Affordance Covenant: No Ambiguous Pixels
+> *"I promise that no interactive element in my UI will ever leave the cursor on stock `Arrow`."*
+
+* **The Commitment:**  
+  Every clickable button, toggle, link, or stepped adjuster in my plugin will expose an active OS cursor affordance:
+  * Clickable actions & buttons: `ImGuiMouseCursor_Hand`
+  * Wheel-stepped lists & dropdowns: `ImGuiMouseCursor_ResizeNS`
+  * Continuous sliders & zoom thumbs: `ImGuiMouseCursor_ResizeEW`
+  * Text fields & editors: `ImGuiMouseCursor_TextInput`
+* **Why It Matters to the User:**  
+  The mouse cursor is the pilot's fingertip. Leaving an active control on `Arrow` makes it look like inert background decoration. Distinct cursor cues confirm at a glance what motor action is required before the user even clicks.
+
+---
+
+## 5. The Container Respect Covenant: Never Create Scroll Traps
+> *"I promise that closed dropdowns and pulldowns will never hijack parent window scrolling."*
+
+* **The Commitment:**  
+  When using compact 1-line pulldowns (`SelectPulldown`) inside long scrollable settings dialogs or checklist windows, I will ensure wheel events pass cleanly through to the parent container when the control is closed.
+* **Why It Matters to the User:**  
+  Nothing is more aggravating than scrolling through a 40-item checklist only to have the scroll freeze because the mouse crossed a closed selector that silently swallowed the wheel gesture and changed an autopilot source. Closed controls must yield to the container; only open, focused menus capture modal input.
+
+---
+
+## 6. The Reversibility Covenant: Safe Defaults and 1-Click Restore
+> *"I promise to never trap the user in a misconfigured state without an instant way home."*
+
+* **The Commitment:**  
+  For every tunable slider, audio control, or complex configuration parameter, I will provide a 1-click restore button (`↺`) that returns the value to its factory default, and supports immediate 1-click undo.
+* **Why It Matters to the User:**  
+  Simulation enthusiasts love to optimize and experiment, but fear of breaking a finely tuned setup inhibits exploration. A visible, reliable reset button invites confident experimentation, knowing perfection is always one click away.
+
+---
+
+## 7. The Information Hierarchy Covenant: Design for Peripheral Scanning
+> *"I promise to design for rapid cockpit scanning, not dense walls of text."*
+
+* **The Commitment:**  
+  I will structure diagnostic data, checklists, and status indicators using ImGee's semantic typography:
+  * Use status pills (`<pill color=#2ecc71>ACTIVE</pill>`) for operational annunciators.
+  * Use keycaps (`<kbd>Ctrl+Shift+F12</kbd>`) for hotkey instructions.
+  * Use template aliases (`<tip>`, `<hotkey>`) for standard visual cues.
+  * Use Markdown tables (`ImGui::TextMD`) with column alignment for tabular flight parameters.
+* **Why It Matters to the User:**  
+  In a high-workload environment, pilots do not read sentences; they scan visual anchors. Structured formatting, distinct color-coded pills, and clean typographical weight allow the flight crew to comprehend system status in a 200 ms glance.
+
+---
+
+# Part III: Canonical Verification Checklists
+
+Before releasing any UI update, run through these two canonical checklists:
+
+### Checklist A: Framework Verification (Holding ImGee Accountable)
+- [ ] **Cursor State:** Does the widget display the mandatory non-arrow cursor when hovered?
+- [ ] **Wheel Direction:** Does spinning the mouse wheel down advance +1 down the list (`natural_list_order = true`)?
+- [ ] **Boundary Semantics:** Is `wrap = false` enforced for scalar ranges, and `wrap = true` supported for cyclic carousels?
+- [ ] **Lens UI Latching:** While the dropdown is open, does spinning the wheel lock tooltip focus to `*current_item`?
+- [ ] **Hysteresis Guard:** Does the tooltip latch resist mouse vibrations below the 6.0 px threshold?
+- [ ] **Container Pass-Through:** When closed, does the pulldown allow wheel events to scroll the parent container?
+- [ ] **TimedTooltip Integration:** Are all tooltips stationary, dwell-verified, and Markdown-capable?
+- [ ] **Contrast Verification:** Does the styling engine guarantee legible text across light and dark backgrounds?
+
+### Checklist B: Developer Compliance (Holding Your Plugin Accountable)
+- [ ] **Zero Legacy Tooltips:** Are all `ImGui::SetTooltip()` calls eliminated in favor of `TimedTooltip`?
+- [ ] **Physical Value Clamping:** Are all physical parameters (altitude, frequency, volume) clamped at boundaries?
+- [ ] **1-Click Restore Available:** Do tuning sliders and custom adjusters provide inline reset/undo buttons?
+- [ ] **No Scroll Traps:** Can users scroll through dense configuration panels without tripping closed selectors?
+- [ ] **Rapid Scanability:** Are critical status indicators rendered with semantic pills and badges rather than plain strings?
+- [ ] **Scale Stability:** Are window chrome, buttons, and status bars anchored to unscaled baseline proportions?

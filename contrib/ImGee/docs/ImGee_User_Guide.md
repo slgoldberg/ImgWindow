@@ -104,13 +104,18 @@ Developers consuming ImGee widgets should expect standard Dear ImGui immediate-m
 ### 3.5 The ImGee UX Design Manifesto (Human Factors Standard)
 For the full architectural philosophy, ergonomics theory, and interaction rules governing ImGee, see the companion document:
 * **[The ImGee UX Design Manifesto](ImGee_UX_Design_Manifesto.md)** (`ImGee_UX_Design_Manifesto.pdf`):
-  * **Flight Deck Cognitive Reality:** Protecting Expert Mode (muscle memory & peripheral vision); eliminating Thinking Mode interruptions.
-  * **The Zero-Inert Law:** Mandatory active cursor affordances (`Hand`, `ResizeNS`, `ResizeEW`) for all interactive elements.
-  * **First-Gesture Discoverability:** Natural list ordering (+1 on scroll down) and eliminating initial-gesture false negatives.
-  * **Monotonic vs. Categorical Dialectic:** Strict rules for clamping (`wrap = false`) vs. circular wrapping (`wrap = true`).
-  * **The Lens UI Principle:** Modal focus latching with > 6 px hysteresis during open-menu wheel navigation.
-  * **Container Pass-Through:** Closed pulldowns pass scroll events through to parent scrollable containers.
-  * **Reversibility & Non-Destructive Defaults:** 1-click restore (`↺`) with instant undo history.
+  * **Part I: The Architectural Foundation (The Framework's Promise):**
+    * **Flight Deck Cognitive Reality:** Protecting Expert Mode (muscle memory & peripheral vision); eliminating Thinking Mode interruptions.
+    * **The Zero-Inert Law:** Mandatory active cursor affordances (`Hand`, `ResizeNS`, `ResizeEW`, `TextInput`) for all interactive elements.
+    * **First-Gesture Discoverability:** Natural list ordering (+1 on scroll down) and eliminating initial-gesture false negatives.
+    * **Monotonic vs. Categorical Dialectic:** Strict rules for clamping (`wrap = false`) vs. circular wrapping (`wrap = true`).
+    * **The Lens UI Principle:** Modal focus latching with > 6 px hysteresis during open-menu wheel navigation.
+    * **Container Pass-Through:** Closed pulldowns pass scroll events through to parent scrollable containers.
+    * **Stationary, Polite Assistance (TimedTooltips):** Why stock Dear ImGui tooltips fail (instant-flash strobing, mouse-bound jitter, target occlusion) and why stationary, dwell-verified TimedTooltips prevail.
+    * **Reversibility & Non-Destructive Defaults:** 1-click restore (`↺`) with instant undo history.
+  * **Part II: The Developer's Covenant (Promises to the End User):**
+    * The Seven Sacred Promises: Banish legacy tooltips, match data physics, honor natural list order, eliminate ambiguous cursor pixels, prevent scroll traps, offer 1-click restore, and prioritize semantic scanning hierarchy.
+  * **Part III: Canonical Verification Checklists:** Turnkey checklists for framework architects and downstream plugin developers.
 
 ---
 
