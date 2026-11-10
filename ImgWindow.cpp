@@ -1927,6 +1927,7 @@ ImgWindow::SetVisible(bool inIsVisible)
         }
     } else {
         // Invalidate mouse cursor and position when hiding window
+        ImGuiContext* prevContext = ImGui::GetCurrentContext();
         ImGui::SetCurrentContext(mImGuiContext);
         ImGuiIO& io = ImGui::GetIO();
         if (bUseImgCursors) {
@@ -1936,6 +1937,9 @@ ImgWindow::SetVisible(bool inIsVisible)
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
 #endif
         io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+        if (prevContext && prevContext != mImGuiContext) {
+            ImGui::SetCurrentContext(prevContext);
+        }
     }
     XPLMSetWindowIsVisible(mWindowID, inIsVisible);
 }
