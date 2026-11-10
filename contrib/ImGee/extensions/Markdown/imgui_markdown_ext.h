@@ -1443,7 +1443,7 @@ namespace ImGui {
             // Built-in Tag 5: <mono>, <code>
             // Renders monospace code span with subtle rounded background pill
             auto monoCodeHandler = [](const std::string& inner_text, const std::string& param) {
-                auto style = ParseMarkdownTagStyle(inner_text, param);
+                auto style = ParseMarkdownTagStyle(inner_text, param, true);
                 const MarkdownConfig* config = GetActiveMarkdownConfig() ? GetActiveMarkdownConfig() : GetDefaultMarkdownConfig();
 
                 ImFont* mono_font = (config && config->monoFont) ? config->monoFont : nullptr;
