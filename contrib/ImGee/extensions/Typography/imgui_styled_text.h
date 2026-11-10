@@ -721,6 +721,24 @@ namespace ImGui {
         }
     }
 
+    /** Unformatted inline styled text wrapped to current window/column width */
+    inline void StyledTextWrappedUnformatted(const char* text, const char* text_end = nullptr) {
+        if (!text) return;
+        size_t len = text_end ? (size_t)(text_end - text) : strlen(text);
+        if (len == 0) return;
+#if !defined(CONTRIB_DISABLE_MARKDOWN) && \
+    !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && \
+    !defined(IMGUI_DISABLE_MARKDOWN) && \
+    !defined(IMGEE_DISABLE_MARKDOWN) && \
+    defined(IMGUI_MARKDOWN_EXT_H)
+        ImGui::MarkdownExt(text, len, nullptr);
+#else
+        ImGui::PushTextWrapPos(0.0f);
+        StyledTextUnformatted(text, text_end);
+        ImGui::PopTextWrapPos();
+#endif
+    }
+
     /** Formatted inline styled text wrapped to current window/column width */
     inline void StyledTextWrapped(const char* fmt, ...) IM_FMTARGS(1);
     inline void StyledTextWrapped(const char* fmt, ...) {
@@ -731,9 +749,7 @@ namespace ImGui {
         va_end(args);
 
         if (len > 0) {
-            ImGui::PushTextWrapPos(0.0f);
-            StyledTextUnformatted(buf, buf + len);
-            ImGui::PopTextWrapPos();
+            StyledTextWrappedUnformatted(buf, buf + len);
         }
     }
 
