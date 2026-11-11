@@ -61,7 +61,7 @@ If your project defines a symbol with the same name, define any of the following
 A modern, iOS / Material-design rounded pill switch with a smoothly sliding circular thumb. Accepts both `bool*` and `int*` state variables.
 
 ```cpp
-#include "contrib/widgets/imgui_toggle_buttons.h"
+#include "contrib/ImGee/widgets/imgui_toggle_buttons.h"
 
 static bool s_ExpertMode = false;
 static int  s_SmoothTransitions = 1;
@@ -140,7 +140,7 @@ Attaches to **any** preceding continuous range item (`SliderFloat`, `SliderInt`,
 * **Track-Only Cursor Precision:** Switches the cursor to East-West resize arrows (`ImGuiMouseCursor_ResizeEW` by default) strictly when hovering over the physical control track/box, preserving standard arrow cursors over text labels.
 
 ```cpp
-#include "contrib/widgets/imgui_mouse_wheel_controls.h"
+#include "contrib/ImGee/widgets/imgui_mouse_wheel_controls.h"
 
 // Attach mouse-wheel adjustment to any standard ImGui slider or drag box:
 ImGui::SliderFloat("Text Zoom", &fontZoom, 0.75f, 1.75f);
@@ -312,7 +312,7 @@ In standard Dear ImGui, buttons, menu items, and clickable text keep the default
   * **Standalone Statement (Info / Help Link):** Calling `ImGui::TextLink("(i) Help");` without testing its return value leaves the click unconsumed, so clicking the widget immediately toggles a trailing `ImGui::TimedTooltip::Text` / `TextMD` ON and OFF (without closing any enclosing `BeginPopup`!).
 
 ```cpp
-#include "contrib/widgets/imgui_clickable_links.h"
+#include "contrib/ImGee/widgets/imgui_clickable_links.h"
 
 // 1. Action button (tested in `if` -> executes action & dismisses tooltip on click):
 if (ImGui::ButtonLink("Save Flight Plan")) {
@@ -383,7 +383,7 @@ ImGui::AttachItemCursor(ImGuiMouseCursor_ResizeEW);
 Sleek, standalone C++ UI indicators designed for status tags, version numbers, notification counters, and keyboard shortcut chips without requiring any Markdown parsing.
 
 ```cpp
-#include "contrib/widgets/imgui_badges.h"
+#include "contrib/ImGee/widgets/imgui_badges.h"
 
 // 1. Semantic Status Badges (Default, Primary, Success, Warning, Danger, Info):
 ImGui::Badge("ONLINE", ImGui::ImGuiBadgeVariant_Success);
@@ -421,7 +421,7 @@ ImGui::Text("to open Command Palette.");
 Smooth, procedural immediate-mode activity indicators and radial timers rendered directly via `ImDrawList` antialiased paths. No texture assets, no font hacks, and zero memory allocations.
 
 ```cpp
-#include "contrib/widgets/imgui_spinners.h"
+#include "contrib/ImGee/widgets/imgui_spinners.h"
 
 // 1. Organic Activity Spinner (loading / busy state):
 ImGui::Spinner("##loading"); // Auto-scales to font size
@@ -454,7 +454,7 @@ ImGui::CountdownTimer("Alert Timeout", alertTimeLeft, alertMaxTime);
 Tactile, immediate-mode copy buttons featuring procedural vector icons, transient "Copied!" feedback, anti-twitch fixed width layouts, and seamless integration with `TimedTooltip` and `InputText`.
 
 ```cpp
-#include "contrib/widgets/imgui_copy_button.h"
+#include "contrib/ImGee/widgets/imgui_copy_button.h"
 
 // 1. Standalone Proxy Form (CopyButton / CopyBufferButton):
 // Takes an explicit string, buffer, or std::string to copy to the clipboard:
@@ -491,7 +491,7 @@ if (ImGui::CopyButtonEx("##custom_copy", "Payload", 2.0f /* duration */, ImVec2(
 Turnkey immediate-mode cockpit potentiometers, rotary dials, and lighting dimmer controls featuring an unmistakable $270^\circ$ "Omega" arc, tactile two-step `OFF` detente switches, perimeter graduation ticks, and full mouse-wheel integration.
 
 ```cpp
-#include "contrib/widgets/imgui_knobs.h"
+#include "contrib/ImGee/widgets/imgui_knobs.h"
 
 // 1. Avionics Potentiometer Dimmer with 2-Step OFF Detente:
 // Turning CCW dims smoothly from 100% down to 5% (minimum active floor).
@@ -528,7 +528,7 @@ ImGui::Knob("XPNDR", &s_TransponderGain, 0.0f, 1.0f, "%.2f", 20.0f, 0.01f, ImGui
 First-class popup anchoring and selection widgets solving directional placement, muscle-memory toggle protection, font-scale invariant alignment, and closed-state wheel pass-through:
 
 ```cpp
-#include "contrib/widgets/imgui_popup_menus.h"
+#include "contrib/ImGee/widgets/imgui_popup_menus.h"
 
 // 1. Directional Item Anchoring (Status Bars & HUDs):
 // Blossoms UP above the button with sub-pixel precision:
@@ -601,7 +601,7 @@ A zero-texture, zero-font, zero-dependency procedural vector icon engine that ac
 Completely eliminates missing-glyph diamond replacement characters (``) when host font atlases only bake standard ASCII/Latin-1 (`0x20..0xFF`) and lack extended Unicode blocks (such as Mathematical arrows `U+2190..U+21FF` or Geometric shapes `U+25A0..U+25FF`).
 
 ```cpp
-#include "contrib/widgets/imgui_icons.h"
+#include "contrib/ImGee/widgets/imgui_icons.h"
 
 // 1. Direct Immediate-Mode Widget:
 // Scales automatically with ambient font size (GetFontSize() * 0.90f) and centers on text baseline:

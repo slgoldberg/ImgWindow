@@ -96,7 +96,7 @@ The Markdown system is structured as a clean two-layer architecture:
 
 ### 1. Include the Header
 ```cpp
-#include "contrib/extensions/Markdown/imgui_markdown_ext.h"
+#include "contrib/ImGee/extensions/Markdown/imgui_markdown_ext.h"
 // (Or simply: #include "contrib.h")
 ```
 
@@ -104,15 +104,15 @@ The Markdown system is structured as a clean two-layer architecture:
 > **Migrating from Upstream `imgui_markdown`: Remove Old Includes!**
 > If your plugin previously included upstream `imgui_markdown.h` directly:
 > 1. **Remove your old `#include "imgui_markdown.h"`** lines and delete any loose copies of `imgui_markdown.h` from your project's header search paths.
-> 2. **Include `#include "contrib.h"` (or `#include "contrib/extensions/Markdown/imgui_markdown_ext.h"`) instead.**
+> 2. **Include `#include "contrib.h"` (or `#include "contrib/ImGee/extensions/Markdown/imgui_markdown_ext.h"`) instead.**
 >
-> `imgui_markdown_ext.h` automatically includes our modernized, patched engine (`contrib/extensions/Markdown/imgui_markdown.h`) under the hood. Keeping an older upstream copy in your project tree risks compiling against the unpatched upstream engine, which lacks our typographic lookahead, mathematical hanging indents, and `ImGui::MD::` widget suite!
+> `imgui_markdown_ext.h` automatically includes our modernized, patched engine (`contrib/ImGee/extensions/Markdown/imgui_markdown.h`) under the hood. Keeping an older upstream copy in your project tree risks compiling against the unpatched upstream engine, which lacks our typographic lookahead, mathematical hanging indents, and `ImGui::MD::` widget suite!
 
 ### 2. Configure Default Styles & Fonts (Optional)
 
 You are responsible for loading your own fonts into your `ImgFontAtlas` during plugin startup (e.g., in `InitializeImGui()`). There is no runtime font synthesization in Dear ImGui—if you want Markdown to render distinct headers, bold text, or italics, you must load those fonts into your atlas.
 
-As demonstrated in [`sample-code/InitializeImGui.cpp`](../../../sample-code/InitializeImGui.cpp), each sequential, non-merged font added increments an index in `ImGui::GetIO().Fonts->Fonts[i]`. We recommend defining macro aliases for these slots:
+As demonstrated in [`sample-code/InitializeImGui.cpp`](../../../../sample-code/InitializeImGui.cpp), each sequential, non-merged font added increments an index in `ImGui::GetIO().Fonts->Fonts[i]`. We recommend defining macro aliases for these slots:
 
 ```cpp
 // Example font slot definitions (from sample-code/InitializeImGui.cpp):
@@ -845,8 +845,8 @@ void RenderSettingsPanelVanilla()
 // The engine automatically handles dynamic font scaling, lookahead word wrapping,
 // hanging bullet indents, draw-list pills, delay timers, and screen docking!
 // -----------------------------------------------------------------------------
-#include "contrib/extensions/Markdown/imgui_markdown_ext.h"
-#include "contrib/extensions/TimedTooltip/imgui_tooltip_ext.h"
+#include "contrib/ImGee/extensions/Markdown/imgui_markdown_ext.h"
+#include "contrib/ImGee/extensions/TimedTooltip/imgui_tooltip_ext.h"
 
 void RenderSettingsPanelExtensions()
 {

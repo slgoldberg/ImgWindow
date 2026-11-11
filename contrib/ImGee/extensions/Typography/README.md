@@ -32,7 +32,7 @@ Traditional Dear ImGui plugins pass raw `ImFont*` pointers across classes or que
 Font roles decouple your layout code from font assets:
 
 ```cpp
-#include "contrib/extensions/Typography/imgui_font_roles.h"
+#include "contrib/ImGee/extensions/Typography/imgui_font_roles.h"
 
 // Available Roles:
 enum class ImFontRole {
@@ -104,7 +104,7 @@ void ImGui::StyledTextUnformatted(const char* text, const char* text_end = nullp
 ### Basic Usage
 
 ```cpp
-#include "contrib/extensions/Typography/imgui_styled_text.h"
+#include "contrib/ImGee/extensions/Typography/imgui_styled_text.h"
 
 // Inline bold, italic, and color:
 ImGui::StyledText("Transponder is <color=green>ACTIVE</color> on <b>XPDR1</b>.");
@@ -143,7 +143,7 @@ ImGui::StyledTextWrapped("Notice: Route clearance is <i>pending</i> from <color=
 For standard Dear ImGui UI layouts where XML tags are not needed, direct wrapper functions render text immediately with semantic font roles:
 
 ```cpp
-#include "contrib/extensions/Typography/imgui_font_roles.h"
+#include "contrib/ImGee/extensions/Typography/imgui_font_roles.h"
 
 // Formatted and unformatted small text (Slot 2, 12px):
 ImGui::SmallText("Altitude: %.0f ft", altitude);

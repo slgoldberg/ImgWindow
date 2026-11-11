@@ -40,7 +40,7 @@ Unlike standard Dear ImGui tooltips which move with the mouse and can flicker, o
 
 ### 1. Include the Header
 ```cpp
-#include "contrib/extensions/TimedTooltip/imgui_tooltip_ext.h"
+#include "contrib/ImGee/extensions/TimedTooltip/imgui_tooltip_ext.h"
 ```
 
 ### 2. Basic Usage (Plain Text)

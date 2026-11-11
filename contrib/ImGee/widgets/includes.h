@@ -1,10 +1,10 @@
 // ============================================================================
-// ImGui Contrib Widgets: Directory Roll-Up Header (contrib/widgets/includes.h)
+// ImGui Contrib Widgets: Directory Roll-Up Header (contrib/ImGee/widgets/includes.h)
 // ----------------------------------------------------------------------------
 // Author: Steven L. Goldberg (@slgoldberg)
 // License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
 //
-// Includes all immediate-mode Dear ImGui widgets in contrib/widgets/.
+// Includes all immediate-mode Dear ImGui widgets in contrib/ImGee/widgets/.
 //
 // Opt-Out Configuration:
 // By default, including this header makes all contributed widgets available in
@@ -37,9 +37,9 @@
 //  IMGUI_DISABLE_EXTRA_* macro names are also honored automatically.)
 //
 // Or include individual widget headers directly:
-//   #include "contrib/widgets/imgui_toggle_buttons.h"
-//   #include "contrib/widgets/imgui_mouse_wheel_controls.h"
-//   #include "contrib/widgets/imgui_clickable_links.h"
+//   #include "contrib/ImGee/widgets/imgui_toggle_buttons.h"
+//   #include "contrib/ImGee/widgets/imgui_mouse_wheel_controls.h"
+//   #include "contrib/ImGee/widgets/imgui_clickable_links.h"
 // ============================================================================
 
 #pragma once

@@ -65,7 +65,7 @@ namespace ImGui {
 
 When creating or porting a new extension:
 
-1. **Self-Contained Folder:** Place all headers, implementation files, and assets in a dedicated folder under `contrib/extensions/<ExtensionName>/`.
+1. **Self-Contained Folder:** Place all headers, implementation files, and assets in a dedicated folder under `contrib/ImGee/extensions/<ExtensionName>/`.
 2. **Single Header Entrypoint:** Provide a primary header (e.g. `<extension_name>_ext.h` or `<extension_name>.h`) that consumers can include with one `#include` directive.
 3. **No Mandatory Global State:** Avoid requiring global mutable state where possible. If state is needed, manage it within an explicit context struct or provide clean default fallbacks.
 4. **ImGui Version Compatibility:** Gate version-specific ImGui calls using `#if IMGUI_VERSION_NUM >= ...` so the extension builds cleanly across supported Dear ImGui versions.
