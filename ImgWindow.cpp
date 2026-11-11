@@ -656,7 +656,7 @@ ImgWindow::ImgWindow(
     }
 #endif
 
-#if !defined(CONTRIB_DISABLE_ALL) && !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     EnableDefaultMarkdownImageService(true);
 #endif
 }
