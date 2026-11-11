@@ -56,7 +56,7 @@
 
 #include "ImgFontAtlas.h"
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
 #include "contrib/extensions/Markdown/imgui_markdown.h"
 #endif
 
@@ -400,6 +400,7 @@ public:
     static ImTextureID CreateTexture(const unsigned char* pixels, int width, int height);
     static void DeleteTexture(ImTextureID textureID);
 
+#if !defined(CONTRIB_DISABLE_ALL)
     /** In-Memory Image Service:
      *  Registers an in-memory compressed image (PNG, JPG, BMP, TGA, etc. from compiled byte arrays or memory buffers)
      *  by name. Automatically decodes to RGBA8 via stb_image, uploads to GPU via CreateTexture(),
@@ -412,6 +413,7 @@ public:
      *  @param outHeight Optional pointer to receive the decoded image height in pixels
      *  @return The created ImTextureID, or (ImTextureID)0 if decoding or GPU texture creation failed. */
     static ImTextureID RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth = nullptr, int* outHeight = nullptr);
+#endif
 
     /** Unregisters a named in-memory image and frees its GPU texture resource. */
     static void UnregisterMemoryImage(const std::string& name);
@@ -450,7 +452,7 @@ public:
      *  Must be called during XPluginStop/XPluginDisable to prevent VRAM leaks. */
     static void Shutdown();
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     // ------------------------------------------------------------------------
     // Markdown Image Services & Texture Registry (Tiers 1, 2 & 3)
     // ------------------------------------------------------------------------

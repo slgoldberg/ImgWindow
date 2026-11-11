@@ -62,9 +62,11 @@
 #pragma clang diagnostic ignored "-Wsign-compare"
 #endif
 
+#if !defined(CONTRIB_DISABLE_ALL)
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "contrib/stb_image.h"
+#endif
 
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -654,7 +656,7 @@ ImgWindow::ImgWindow(
     }
 #endif
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     EnableDefaultMarkdownImageService(true);
 #endif
 }
@@ -1489,7 +1491,7 @@ ImgWindow::DrawWindowCB(XPLMWindowID /* inWindowID */, void *inRefcon)
         return;
     }
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     ProcessPendingMarkdownTextures();
 #endif
 
@@ -2080,7 +2082,7 @@ void ImgWindow::DeleteTexture(ImTextureID textureID) {
     s_TexturesPendingDestruction.push_back({textureID, XPLMGetCycleNumber()});
 }
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
 static std::atomic<bool> s_MarkdownShutdownRequested{false};
 #endif
 
@@ -2099,7 +2101,7 @@ void ImgWindow::Shutdown() {
     }
     s_MemoryTextures.clear();
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     s_MarkdownShutdownRequested = true;
     ClearMarkdownTextureCache();
 #endif
@@ -2117,6 +2119,7 @@ void ImgWindow::Shutdown() {
     s_TexturesPendingDestruction.clear();
 }
 
+#if !defined(CONTRIB_DISABLE_ALL)
 ImTextureID ImgWindow::RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth, int* outHeight)
 {
     if (outWidth) *outWidth = 0;
@@ -2130,7 +2133,7 @@ ImTextureID ImgWindow::RegisterMemoryImage(const std::string& name, const void* 
             ImgWindow::DeleteTexture(it->second.textureID);
         }
         s_MemoryTextures.erase(it);
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
         UnregisterMarkdownNamedTexture(name);
 #endif
     }
@@ -2156,13 +2159,14 @@ ImTextureID ImgWindow::RegisterMemoryImage(const std::string& name, const void* 
     entry.size = ImVec2((float)w, (float)h);
     s_MemoryTextures[name] = entry;
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     // 4. Automatically mirror into Markdown named texture registry:
     RegisterMarkdownNamedTexture(name, texID, entry.size);
 #endif
 
     return texID;
 }
+#endif
 
 void ImgWindow::UnregisterMemoryImage(const std::string& name)
 {
@@ -2172,7 +2176,7 @@ void ImgWindow::UnregisterMemoryImage(const std::string& name)
             ImgWindow::DeleteTexture(it->second.textureID);
         }
         s_MemoryTextures.erase(it);
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
         UnregisterMarkdownNamedTexture(name);
 #endif
     }
@@ -2189,7 +2193,7 @@ ImTextureID ImgWindow::GetNamedTexture(const std::string& name, ImVec2* outSize)
         return it->second.textureID;
     }
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
     ImGui::MarkdownImageData mdData;
     if (GetMarkdownNamedTexture(name, mdData) && mdData.isValid) {
         if (outSize) *outSize = mdData.size;
@@ -2237,7 +2241,7 @@ void ImGui::ImageNamed(const char* name, const ImVec2& size, const ImVec2& uv0, 
 #endif
 }
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+#if !defined(CONTRIB_DISABLE_ALL) && !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
 static std::map<std::string, ImGui::MarkdownImageData> s_MarkdownNamedTextures;
 
 struct MarkdownDiskTextureEntry {
