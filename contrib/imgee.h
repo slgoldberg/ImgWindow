@@ -13,6 +13,6 @@
 #ifndef IMGUI_CONTRIB_IMGEE_PASCAL_H
 #define IMGUI_CONTRIB_IMGEE_PASCAL_H
 
-#include "imgee.h"
+#include "ImGee/imgee.h"
 
 #endif // IMGUI_CONTRIB_IMGEE_PASCAL_H
