@@ -39,13 +39,13 @@
     #define IMGEE_HAS_IMGWINDOW 1
 #endif
 
-#if !defined(STBI_INCLUDE_STB_IMAGE_H)
-    #if !defined(STB_IMAGE_STATIC)
-    #define STB_IMAGE_STATIC
-    #endif
-    #if !defined(IMGEE_NO_STB_IMAGE_IMPLEMENTATION) && !defined(STB_IMAGE_IMPLEMENTATION)
+// Allow the host to explicitly opt into compiling the stb_image implementation
+// in a single translation unit if the host plugin does not already link it.
+#if defined(IMGEE_IMPLEMENT_STB_IMAGE) && !defined(STB_IMAGE_IMPLEMENTATION)
     #define STB_IMAGE_IMPLEMENTATION
-    #endif
+#endif
+
+#if !defined(STBI_INCLUDE_STB_IMAGE_H)
 
     #if defined(__clang__)
     #pragma clang diagnostic push
