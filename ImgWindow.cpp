@@ -368,10 +368,10 @@ ImgWindow::ImgWindow(
     XPLMWindowDecoration decoration,
     XPLMWindowLayer layer,
     bool cursors) :
-    mDecoration(decoration),
     mFirstRender(true),
     mFontAtlas(sFontAtlas),
     bHandleWndResize(xplm_WindowDecorationSelfDecoratedResizable == decoration),
+    mDecoration(decoration),
     mPreferredLayer(layer),
     bUseImgCursors(cursors)
 {
@@ -2024,6 +2024,10 @@ void ImgWindow::DeleteTexture(ImTextureID textureID) {
 struct NamedTextureEntry {
     ImTextureID textureID = (ImTextureID)0;
     ImVec2 size = ImVec2(0.0f, 0.0f);
+    ImVec2 uv0 = ImVec2(0.0f, 0.0f);
+    ImVec2 uv1 = ImVec2(1.0f, 1.0f);
+    ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    ImVec4 border_col = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
     bool owned = false;
 };
 
@@ -2101,7 +2105,8 @@ ImTextureID ImgWindow::RegisterNamedTexture(const std::string& name, const unsig
     return texID;
 }
 
-ImTextureID ImgWindow::RegisterNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size)
+ImTextureID ImgWindow::RegisterNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size,
+                                            ImVec2 uv0, ImVec2 uv1, ImVec4 tint_col, ImVec4 border_col)
 {
     if (name.empty() || !textureID) return (ImTextureID)0;
 
@@ -2110,6 +2115,10 @@ ImTextureID ImgWindow::RegisterNamedTexture(const std::string& name, ImTextureID
     NamedTextureEntry entry;
     entry.textureID = textureID;
     entry.size = size;
+    entry.uv0 = uv0;
+    entry.uv1 = uv1;
+    entry.tint_col = tint_col;
+    entry.border_col = border_col;
     entry.owned = false;
     GetNamedTextures()[name] = entry;
 
@@ -2154,13 +2163,27 @@ ImTextureID ImgWindow::RegisterMemoryImage(const std::string& name, const void* 
 
 ImTextureID ImgWindow::GetNamedTexture(const std::string& name, ImVec2* outSize)
 {
+    return GetNamedTexture(name, outSize, nullptr, nullptr, nullptr, nullptr);
+}
+
+ImTextureID ImgWindow::GetNamedTexture(const std::string& name, ImVec2* outSize, ImVec2* outUv0, ImVec2* outUv1,
+                                       ImVec4* outTintCol, ImVec4* outBorderCol)
+{
     if (outSize) *outSize = ImVec2(0.0f, 0.0f);
+    if (outUv0) *outUv0 = ImVec2(0.0f, 0.0f);
+    if (outUv1) *outUv1 = ImVec2(1.0f, 1.0f);
+    if (outTintCol) *outTintCol = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    if (outBorderCol) *outBorderCol = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
     if (name.empty()) return (ImTextureID)0;
 
     auto& map = GetNamedTextures();
     auto it = map.find(name);
     if (it != map.end()) {
         if (outSize) *outSize = it->second.size;
+        if (outUv0) *outUv0 = it->second.uv0;
+        if (outUv1) *outUv1 = it->second.uv1;
+        if (outTintCol) *outTintCol = it->second.tint_col;
+        if (outBorderCol) *outBorderCol = it->second.border_col;
         return it->second.textureID;
     }
 
@@ -2171,7 +2194,8 @@ void ImGui::ImageNamed(const char* name, const ImVec2& size, const ImVec2& uv0, 
 {
     if (!name || !*name) return;
     ImVec2 nativeSize;
-    ImTextureID tex = ImgWindow::GetNamedTexture(name, &nativeSize);
+    ImVec2 storedUv0(0.0f, 0.0f), storedUv1(1.0f, 1.0f);
+    ImTextureID tex = ImgWindow::GetNamedTexture(name, &nativeSize, &storedUv0, &storedUv1, nullptr, nullptr);
     if (!tex && Detail::GetNamedTextureResolver()) {
         tex = Detail::GetNamedTextureResolver()(name, &nativeSize);
     }
@@ -2186,11 +2210,14 @@ void ImGui::ImageNamed(const char* name, const ImVec2& size, const ImVec2& uv0, 
         renderSize.y = std::round(renderSize.x * (nativeSize.y / nativeSize.x));
     }
 
+    ImVec2 effUv0 = (uv0.x == 0.0f && uv0.y == 0.0f && uv1.x == 1.0f && uv1.y == 1.0f) ? storedUv0 : uv0;
+    ImVec2 effUv1 = (uv0.x == 0.0f && uv0.y == 0.0f && uv1.x == 1.0f && uv1.y == 1.0f) ? storedUv1 : uv1;
+
 #if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
     (void)tint_col; (void)border_col;
-    ImGui::Image(tex, renderSize, uv0, uv1);
+    ImGui::Image(tex, renderSize, effUv0, effUv1);
 #else
-    ImGui::Image(tex, renderSize, uv0, uv1, tint_col, border_col);
+    ImGui::Image(tex, renderSize, effUv0, effUv1, tint_col, border_col);
 #endif
 }
 

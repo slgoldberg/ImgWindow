@@ -248,7 +248,8 @@ Register raw RGBA pixel buffers or load static `.png`/`.jpg` byte arrays compile
 // Option A: Raw RGBA pixel buffer (built into core ImgWindow):
 ImgWindow::RegisterNamedTexture("my_badge", g_RgbaBytes, w, h);
 
-// Option B: Compressed PNG/JPG buffer (inline helper when stb_image.h is included):
+// Option B: Compressed PNG/JPG buffer (auto-wired when contrib.h / contrib/imgee.h is included,
+//           or via ImgWindow::SetMemoryImageDecoder in pure core builds):
 int w = 0, h = 0;
 ImgWindow::RegisterMemoryImage("my_badge", g_PngBytes, sizeof(g_PngBytes), &w, &h);
 

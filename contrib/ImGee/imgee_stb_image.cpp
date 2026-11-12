@@ -1,45 +1,22 @@
 // ============================================================================
-// ImGee: Dedicated stb_image Compilation Unit (contrib/ImGee/imgee_stb_image.cpp)
+// ImGee: Optional Dedicated stb_image TU (contrib/ImGee/imgee_stb_image.cpp)
 // ----------------------------------------------------------------------------
-// Author: Steven L. Goldberg (@slgoldberg)
+// Author: Steven L. Goldberg (@slgoldberg) and the Rogers
 // License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
 //
-// Standalone compilation unit that provides the stb_image implementation
-// for host applications that do not already compile or link stb_image in
-// their own plugin sources.
+// ImGee works 100% header-only out of the box with zero CMake changes.
 //
-// If your plugin already compiles stb_image (such as in imgui4xp or FlyWithLua),
-// you do NOT need to add this file to your build.
+// Optional Compile-Speed Optimization for Large Multi-TU Plugins:
+// If your plugin includes "contrib.h" across dozens of .cpp files and you wish
+// to compile ImGee's isolated image decoder only once instead of per-TU:
+//   1. Define -DIMGEE_EXTERNAL_STB_IMAGE in your target compile definitions.
+//   2. Add contrib/ImGee/imgee_stb_image.cpp to your target sources.
+// (Safe to use even if your plugin also compiles its own <stb_image.h>.)
 // ============================================================================
 
-#define STB_IMAGE_IMPLEMENTATION
-
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#pragma clang diagnostic ignored "-Wsign-compare"
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wsign-compare"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
+#ifndef IMGEE_EXTERNAL_STB_IMAGE
+#define IMGEE_EXTERNAL_STB_IMAGE
 #endif
+#define IMGEE_STB_IMAGE_TU
 
-#if defined(__has_include)
-    #if __has_include(<stb_image.h>)
-        #include <stb_image.h>
-    #elif __has_include("stb_image.h")
-        #include "stb_image.h"
-    #elif __has_include("../stb_image.h")
-        #include "../stb_image.h"
-    #endif
-#else
-    #include "../stb_image.h"
-#endif
-
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
+#include "imgee_stbi_internal.h"

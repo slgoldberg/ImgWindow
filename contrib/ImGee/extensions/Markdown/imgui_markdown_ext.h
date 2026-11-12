@@ -1984,6 +1984,7 @@ namespace ImGui {
 
     /** Recursively renders text containing embedded inline XML/HTML tags with full nested styling */
     inline void RenderInlineTaggedText(const std::string& input_text, const MarkdownConfig* config) {
+        (void)config;
         std::string text = (input_text.find('*') != std::string::npos || input_text.find('_') != std::string::npos ||
                             input_text.find('~') != std::string::npos || input_text.find('+') != std::string::npos ||
                             input_text.find('`') != std::string::npos)
@@ -2546,6 +2547,7 @@ namespace ImGui {
         // Mathematically calculates the exact ImVec2 dimensions of a parsed markdown string 
         // WITHOUT rendering it to the screen. Perfect for pre-calculating X-Plane OS window boundaries!
         inline ImVec2 CalcMarkdownSize(ImGuiID hash_id, int pass, const std::string& markdown_text, float wrap_width = 0.0f, float font_scale = 0.0f, const MarkdownConfig* md_config = nullptr) {
+            (void)hash_id;
             ImVec2 calculated_size(0, 0);
 
             // Save ambient context font metrics so dry-run measurement cannot leak side effects

@@ -461,6 +461,7 @@ namespace ImGui {
                 }
 
                 bool isMono = (tagStr.find("mono") != std::string::npos);
+                (void)isMono;
 
                 if (isSelfClosing) {
                     if (needSameLine) ImGui::SameLine(0.0f, 0.0f);
@@ -535,6 +536,7 @@ namespace ImGui {
                 }
 
                 bool isMono = (tagStr.find("mono") != std::string::npos);
+                (void)isMono;
 
                 if (isSelfClosing) {
                     if (needSameLine) ImGui::SameLine(0.0f, 0.0f);

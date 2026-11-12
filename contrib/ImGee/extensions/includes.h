@@ -19,13 +19,15 @@
 #ifndef IMGUI_CONTRIB_EXTENSIONS_INCLUDES_H
 #define IMGUI_CONTRIB_EXTENSIONS_INCLUDES_H
 
-#if !defined(CONTRIB_DISABLE_EXTENSIONS) && \
+#if !defined(IMGEE_DISABLE_EXTENSIONS) && \
+    !defined(CONTRIB_DISABLE_EXTENSIONS) && \
     !defined(IMGUI_CONTRIB_DISABLE_EXTENSIONS) && \
     !defined(IMGUI_DISABLE_CONTRIB_EXTENSIONS) && \
     !defined(IMGUI_DISABLE_EXTENSIONS) && \
     !defined(IMGWINDOW_DISABLE_CONTRIB_EXTENSIONS)
 
-#if !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && \
+#if !defined(IMGEE_DISABLE_TIMED_TOOLTIP) && \
+    !defined(CONTRIB_DISABLE_TIMED_TOOLTIP) && \
     !defined(IMGUI_CONTRIB_DISABLE_TIMED_TOOLTIP) && \
     !defined(IMGUI_DISABLE_CONTRIB_TIMED_TOOLTIP) && \
     !defined(IMGUI_DISABLE_TIMED_TOOLTIP) && \
@@ -33,7 +35,8 @@
 #include "TimedTooltip/imgui_tooltip_ext.h"
 #endif
 
-#if !defined(CONTRIB_DISABLE_MARKDOWN) && \
+#if !defined(IMGEE_DISABLE_MARKDOWN) && \
+    !defined(CONTRIB_DISABLE_MARKDOWN) && \
     !defined(IMGUI_CONTRIB_DISABLE_MARKDOWN) && \
     !defined(IMGUI_DISABLE_CONTRIB_MARKDOWN) && \
     !defined(IMGUI_DISABLE_MARKDOWN) && \
@@ -41,7 +44,8 @@
 #include "Markdown/imgui_markdown_ext.h"
 #endif
 
-#if !defined(CONTRIB_DISABLE_TYPOGRAPHY) && \
+#if !defined(IMGEE_DISABLE_TYPOGRAPHY) && \
+    !defined(CONTRIB_DISABLE_TYPOGRAPHY) && \
     !defined(IMGUI_CONTRIB_DISABLE_TYPOGRAPHY) && \
     !defined(IMGUI_DISABLE_CONTRIB_TYPOGRAPHY) && \
     !defined(IMGUI_DISABLE_TYPOGRAPHY) && \

@@ -407,15 +407,21 @@ public:
      *  @return The created ImTextureID, or (ImTextureID)0 on failure. */
     static ImTextureID RegisterNamedTexture(const std::string& name, const unsigned char* rgba_pixels, int width, int height);
 
-    /** Registers an existing GPU ImTextureID with specified dimensions into the named texture registry.
-     *  The texture resource is non-owning (will not be deleted by ImgWindow on Shutdown). */
-    static ImTextureID RegisterNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size = ImVec2(0.0f, 0.0f));
+    /** Registers an existing GPU ImTextureID with specified dimensions (and optional sprite UVs / tint / border)
+     *  into the named texture registry. The texture resource is non-owning (will not be deleted by ImgWindow on Shutdown). */
+    static ImTextureID RegisterNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size = ImVec2(0.0f, 0.0f),
+                                            ImVec2 uv0 = ImVec2(0.0f, 0.0f), ImVec2 uv1 = ImVec2(1.0f, 1.0f),
+                                            ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4 border_col = ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 
     /** Looks up a named texture registered via RegisterNamedTexture (or RegisterMemoryImage).
      *  @param name The texture identifier
      *  @param outSize Optional pointer to receive the native dimensions of the texture
      *  @return The ImTextureID, or (ImTextureID)0 if not found. */
     static ImTextureID GetNamedTexture(const std::string& name, ImVec2* outSize = nullptr);
+
+    /** Extended lookup overload also retrieving optional sprite UVs, tint, and border color. */
+    static ImTextureID GetNamedTexture(const std::string& name, ImVec2* outSize, ImVec2* outUv0, ImVec2* outUv1,
+                                       ImVec4* outTintCol = nullptr, ImVec4* outBorderCol = nullptr);
 
     /** Unregisters a named texture and frees its GPU texture resource (if owned). */
     static void UnregisterNamedTexture(const std::string& name);
@@ -425,8 +431,7 @@ public:
     static inline ImTextureID RegisterMarkdownNamedTexture(const std::string& name, ImTextureID id, ImVec2 size = ImVec2(0.0f, 0.0f),
                                                            ImVec2 uv0 = ImVec2(0.0f, 0.0f), ImVec2 uv1 = ImVec2(1.0f, 1.0f),
                                                            ImVec4 tint_col = ImVec4(1,1,1,1), ImVec4 border_col = ImVec4(0,0,0,0)) {
-        (void)uv0; (void)uv1; (void)tint_col; (void)border_col;
-        return RegisterNamedTexture(name, id, size);
+        return RegisterNamedTexture(name, id, size, uv0, uv1, tint_col, border_col);
     }
     static inline void UnregisterMarkdownNamedTexture(const std::string& name) { UnregisterNamedTexture(name); }
 

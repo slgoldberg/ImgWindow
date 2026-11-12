@@ -601,6 +601,8 @@ if (ImGui::SelectPulldown("##PowerMode", &s_PowerMode, kPowerModes, 3, nullptr, 
 | `IMGEE_DISABLE_TOGGLE_BUTTONS` | `CONTRIB_DISABLE_TOGGLE_BUTTONS` | Excludes animated physical toggle switches. |
 | `IMGEE_DISABLE_CLICKABLE_LINKS` | `CONTRIB_DISABLE_CLICKABLE_LINKS` | Excludes OS hand cursor links (`ButtonLink`, `TextLink`). |
 | `IMGEE_DISABLE_SPINNERS` | `CONTRIB_DISABLE_SPINNERS` | Excludes activity spinners and countdown timer dials. |
+| `IMGEE_DISABLE_STB_IMAGE` | *(None)* | Disables ImGee's isolated built-in `stb_image` decoder. |
+| `IMGEE_EXTERNAL_STB_IMAGE` | *(None)* | Optional compile-speed optimization: skips inline decoder compilation so you can compile `contrib/ImGee/imgee_stb_image.cpp` once in large multi-TU plugins. |
 | `IMGEE_ENABLE_GLOBAL_NAMESPACES` | `CONTRIB_ENABLE_GLOBAL_NAMESPACES` | Publishes `Markdown::`, `MD::`, and `TimedTooltip::` to global scope. |
 
 > [!NOTE]

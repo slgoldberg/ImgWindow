@@ -130,6 +130,115 @@
 // #define IMGEE_DISABLE_MOUSE_WHEEL_COMBO      // Exclude MouseWheelCombo & ComboWithReset
 // #define IMGEE_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT // Disable automatic mouse-wheel defeat on scrollable viewports
 
+// --- Image Decoding & Build Optimization ---
+// #define IMGEE_DISABLE_STB_IMAGE              // Disable ImGee's isolated built-in stb_image decoder
+// #define IMGEE_EXTERNAL_STB_IMAGE             // Compile ImGee's decoder once via contrib/ImGee/imgee_stb_image.cpp
+
+// ============================================================================
+// Bidirectional Opt-Out Propagation: IMGEE_DISABLE_* -> CONTRIB_DISABLE_*
+// (Ensures sub-headers checking legacy CONTRIB_DISABLE_* flags honor IMGEE_*)
+// ============================================================================
+#if defined(IMGEE_DISABLE_EXTENSIONS) && !defined(CONTRIB_DISABLE_EXTENSIONS)
+    #define CONTRIB_DISABLE_EXTENSIONS
+#endif
+#if defined(IMGEE_DISABLE_EXTENSIONS) || defined(CONTRIB_DISABLE_EXTENSIONS)
+    #ifndef IMGEE_DISABLE_TIMED_TOOLTIP
+        #define IMGEE_DISABLE_TIMED_TOOLTIP
+    #endif
+    #ifndef IMGEE_DISABLE_MARKDOWN
+        #define IMGEE_DISABLE_MARKDOWN
+    #endif
+    #ifndef IMGEE_DISABLE_TYPOGRAPHY
+        #define IMGEE_DISABLE_TYPOGRAPHY
+    #endif
+#endif
+#if defined(IMGEE_DISABLE_WIDGETS) && !defined(CONTRIB_DISABLE_WIDGETS)
+    #define CONTRIB_DISABLE_WIDGETS
+#endif
+#if defined(IMGEE_DISABLE_TIMED_TOOLTIP) && !defined(CONTRIB_DISABLE_TIMED_TOOLTIP)
+    #define CONTRIB_DISABLE_TIMED_TOOLTIP
+#endif
+#if defined(IMGEE_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
+    #define CONTRIB_DISABLE_MARKDOWN
+#endif
+#if defined(IMGEE_DISABLE_TYPOGRAPHY) && !defined(CONTRIB_DISABLE_TYPOGRAPHY)
+    #define CONTRIB_DISABLE_TYPOGRAPHY
+#endif
+#if defined(IMGEE_DISABLE_TEXT_MD) && !defined(CONTRIB_DISABLE_TEXT_MD)
+    #define CONTRIB_DISABLE_TEXT_MD
+#endif
+#if defined(IMGEE_DISABLE_TEXT_WRAPPED_MD) && !defined(CONTRIB_DISABLE_TEXT_WRAPPED_MD)
+    #define CONTRIB_DISABLE_TEXT_WRAPPED_MD
+#endif
+#if defined(IMGEE_DISABLE_BUTTON_MD) && !defined(CONTRIB_DISABLE_BUTTON_MD)
+    #define CONTRIB_DISABLE_BUTTON_MD
+#endif
+#if defined(IMGEE_DISABLE_TOGGLE_BUTTONS) && !defined(CONTRIB_DISABLE_TOGGLE_BUTTONS)
+    #define CONTRIB_DISABLE_TOGGLE_BUTTONS
+#endif
+#if defined(IMGEE_DISABLE_TOGGLE_MOUSE_WHEEL) && !defined(CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL)
+    #define CONTRIB_DISABLE_TOGGLE_MOUSE_WHEEL
+#endif
+#if defined(IMGEE_DISABLE_MOUSE_WHEEL_CONTROLS) && !defined(CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS)
+    #define CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS
+#endif
+#if defined(IMGEE_DISABLE_CLICKABLE_LINKS) && !defined(CONTRIB_DISABLE_CLICKABLE_LINKS)
+    #define CONTRIB_DISABLE_CLICKABLE_LINKS
+#endif
+#if defined(IMGEE_DISABLE_BADGES) && !defined(CONTRIB_DISABLE_BADGES)
+    #define CONTRIB_DISABLE_BADGES
+#endif
+#if defined(IMGEE_DISABLE_SPINNERS) && !defined(CONTRIB_DISABLE_SPINNERS)
+    #define CONTRIB_DISABLE_SPINNERS
+#endif
+#if defined(IMGEE_DISABLE_COPY_BUTTON) && !defined(CONTRIB_DISABLE_COPY_BUTTON)
+    #define CONTRIB_DISABLE_COPY_BUTTON
+#endif
+#if defined(IMGEE_DISABLE_KNOBS) && !defined(CONTRIB_DISABLE_KNOBS)
+    #define CONTRIB_DISABLE_KNOBS
+#endif
+#if defined(IMGEE_DISABLE_FILE_DIALOG) && !defined(CONTRIB_DISABLE_FILE_DIALOG)
+    #define CONTRIB_DISABLE_FILE_DIALOG
+#endif
+#if defined(IMGEE_DISABLE_POPUP_MENUS) && !defined(CONTRIB_DISABLE_POPUP_MENUS)
+    #define CONTRIB_DISABLE_POPUP_MENUS
+#endif
+#if defined(IMGEE_DISABLE_ICONS) && !defined(CONTRIB_DISABLE_ICONS)
+    #define CONTRIB_DISABLE_ICONS
+#endif
+#if defined(IMGEE_DISABLE_ICON_BUTTON) && !defined(CONTRIB_DISABLE_ICON_BUTTON)
+    #define CONTRIB_DISABLE_ICON_BUTTON
+#endif
+#if defined(IMGEE_DISABLE_GET_MOUSE_WHEEL) && !defined(CONTRIB_DISABLE_GET_MOUSE_WHEEL)
+    #define CONTRIB_DISABLE_GET_MOUSE_WHEEL
+#endif
+#if defined(IMGEE_DISABLE_ADJUST_MOUSE_WHEEL) && !defined(CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL)
+    #define CONTRIB_DISABLE_ADJUST_MOUSE_WHEEL
+#endif
+#if defined(IMGEE_DISABLE_CYCLE_MOUSE_WHEEL) && !defined(CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL)
+    #define CONTRIB_DISABLE_CYCLE_MOUSE_WHEEL
+#endif
+#if defined(IMGEE_DISABLE_PERCENT_SLIDER) && !defined(CONTRIB_DISABLE_PERCENT_SLIDER)
+    #define CONTRIB_DISABLE_PERCENT_SLIDER
+#endif
+#if defined(IMGEE_DISABLE_SLIDER_PERCENT) && !defined(CONTRIB_DISABLE_SLIDER_PERCENT)
+    #define CONTRIB_DISABLE_SLIDER_PERCENT
+#endif
+#if defined(IMGEE_DISABLE_MOUSE_WHEEL_COMBO) && !defined(CONTRIB_DISABLE_MOUSE_WHEEL_COMBO)
+    #define CONTRIB_DISABLE_MOUSE_WHEEL_COMBO
+#endif
+#if defined(IMGEE_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT) && !defined(CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT)
+    #define CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT
+#endif
+
+// ============================================================================
+// 0. ISOLATED INTERNAL IMAGE DECODER (Turnkey PNG/JPEG/BMP/GIF/TGA support)
+// ============================================================================
+
+#if !defined(IMGEE_DISABLE_STB_IMAGE)
+#include "imgee_stbi_internal.h"
+#endif
+
 // ============================================================================
 // 1. EXTENSIONS (Included first to satisfy downstream cross-feature bridges)
 // ============================================================================
@@ -169,24 +278,25 @@
 namespace ImGeeDetail {
     struct AutoImgWindowResolverBridge {
         AutoImgWindowResolverBridge() {
+#if defined(IMGUI_SET_NAMED_TEXTURE_RESOLVER_DEFINED)
             // 1. Bridge ImGui named texture queries to ImgWindow
             ImGui::SetNamedTextureResolver([](const char* name, ImVec2* outSize) -> ImTextureID {
                 return ImgWindow::GetNamedTexture(name ? name : "", outSize);
             });
+#endif
 
-            // 2. Auto-wire in-memory compressed image decoder via stb_image
+#if defined(IMGEE_HAS_STBI_INTERNAL)
+            // 2. Auto-wire in-memory compressed image decoder via ImGee's isolated stb_image
             ImgWindow::SetMemoryImageDecoder(
-                [](const void* data, size_t len, int* outW, int* outH) -> unsigned char* {
-                    int comp = 0;
-                    return stbi_load_from_memory((const unsigned char*)data, (int)len, outW, outH, &comp, 4);
-                },
-                [](void* pixels) {
-                    stbi_image_free(pixels);
-                }
+                &ImGeeStbi::LoadFromMemory,
+                &ImGeeStbi::ImageFree
             );
+#endif
 
-            // 3. Register shutdown handler to purge Markdown VRAM cache on plugin stop
+#if defined(IMGUI_MARKDOWN_IMAGE_SERVICE_H)
+            // 3. Register shutdown handler to purge Markdown VRAM cache on plugin stop/reload
             ImgWindow::AddShutdownHandler(&ImGui::MarkdownImageService::ClearTextureCache);
+#endif
         }
     };
     static AutoImgWindowResolverBridge s_AutoImgWindowResolverBridge;
