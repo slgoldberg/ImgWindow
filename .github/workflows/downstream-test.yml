@@ -37,6 +37,11 @@ jobs:
         with:
           path: imgui4xp/src/ImgWindow
 
+      # 2b. Print overlaid ImgWindow SHA for auditability
+      - name: Verify overlaid ImgWindow commit
+        shell: bash
+        run: echo "Testing overlaid ImgWindow commit: $(git -C imgui4xp/src/ImgWindow rev-parse --short HEAD)"
+
       # 3. Platform-specific environment configuration
       - name: "Windows: Configure MinGW generator"
         if: runner.os == 'Windows'

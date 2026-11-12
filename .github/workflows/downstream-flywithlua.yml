@@ -38,6 +38,13 @@ jobs:
         with:
           path: FlyWithLua/src/ImgWindow
 
+      # 2b. Prevent FlyWithLua's CMakeLists.txt from resetting src/ImgWindow via `git submodule update`
+      - name: Lock overlaid ImgWindow tree
+        shell: bash
+        run: |
+          echo "Testing overlaid ImgWindow commit: $(git -C FlyWithLua/src/ImgWindow rev-parse --short HEAD)"
+          rm -rf FlyWithLua/.git
+
       # 3. Windows environment setup (MinGW generator)
       - name: "Windows: Configure MinGW environment"
         if: runner.os == 'Windows'
