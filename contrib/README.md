@@ -1,6 +1,12 @@
-# ImGui Contributions in ImgWindow (`contrib/` & `ImGee`)
+# Third-Party & Community Offerings in ImgWindow (`contrib/`)
 
-Welcome to the `contrib/` directory of **ImgWindow**. This directory houses **ImGee**, ImgWindow's premier bundled suite of **Dear ImGui (`ImGui::`) extensions and immediate-mode avionics widgets** for X-Plane plugins.
+Welcome to the `contrib/` directory of **ImgWindow**.
+
+`ImgWindow/contrib/` is `ImgWindow`'s general **community third-party container** -- an open home for optional, community-contributed libraries, packages, and add-ons that work alongside `ImgWindow`, enhance Dear ImGui development, or both.
+
+* **`contrib.h` (Community Umbrella Header):** Pulls in all bundled packages inside `contrib/` (via `contrib/includes.h`).
+* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](ImGee/README.md)** (`v1.0.0`), a 100% generic, standalone-ready Dear ImGui UI toolkit (architected to live in its own dedicated GitHub repository/submodule while remaining bundled here for `ImgWindow` users out of the box).
+* **Future Community Packages (`contrib/<PackageName>/`):** Third-party developers are welcome to submit independent packages under `contrib/` without coupling them to `ImgWindow` core or `ImGee`.
 
 ---
 
@@ -30,12 +36,16 @@ Look at the spectrum of UI tasks a flight sim plugin author faces, and how **ImG
 
 ---
 
-## 🚀 Quick Start: Just `#include "contrib.h"` (or `#include "contrib/imgee.h"`)
+## 🚀 Quick Start: `#include "contrib/imgee.h"` (or `#include "contrib.h"`)
 
-Using `contrib/` requires zero setup or boilerplate. Simply include the master header:
+Using ImGee (or the full `contrib/` container) requires zero setup or CMake changes:
 
 ```cpp
-#include "contrib.h"
+// Include strictly the ImGee UI toolkit:
+#include "contrib/imgee.h"
+
+// (Or include ImgWindow's community umbrella header for all contrib/ packages):
+// #include "contrib.h"
 ```
 
 > [!IMPORTANT]
@@ -66,7 +76,7 @@ ImGui::TimedTooltip::Text("Hover-delayed stationary tooltip.");
 > * Prefer brevity? **`ImGui::MD::Text(...)`** is an official shorthand alias for **`ImGui::Markdown::Text(...)`**.
 > * Prefer root access? **`ImGui::TextMD(...)`** and **`ImGui::TextMarkdown(...)`** work directly under `ImGui::`.
 > * Combining tooltips and markdown? **`ImGui::TimedTooltip::MD::Text`** and **`ImGui::MD::TimedTooltip::Text`** work identically.
-> * Want to skip `ImGui::` completely? `#define CONTRIB_ENABLE_GLOBAL_NAMESPACES` before including `contrib.h` to use `Markdown::`, `MD::`, and `TimedTooltip::` directly in the global scope.
+> * Want to skip `ImGui::` completely? `#define IMGEE_ENABLE_GLOBAL_NAMESPACES` before including `contrib/imgee.h` (or `contrib.h`) to use `Markdown::`, `MD::`, and `TimedTooltip::` directly in the global scope.
 
 ---
 
@@ -76,30 +86,18 @@ The `contrib/` directory serves as an extensible **community container** for Dea
 
 ```
 ImgWindow/
-├── contrib.h                              # Master concentrator (-> contrib/includes.h)
+├── contrib.h                              # Community umbrella header (-> contrib/includes.h)
 └── contrib/
     ├── includes.h                         # Level-1 Container Switchboard (cascades to packages)
+    ├── imgee.h                            # Convenience forwarder strictly for ImGee (-> ImGee/imgee.h)
     │
-    ├── ImGee/                             # Package 1: ImGee Avionics & UI Toolkit
+    ├── ImGee/                             # Package 1: ImGee Avionics & Desktop UI Toolkit (v1.0.0)
     │   ├── imgee.h                        # Canonical ImGee master header & IMGEE_* switches
     │   ├── imgee-global.h                 # Opt-in global namespace aliases
-    │   ├── docs/
-    │   │   └── ImGee_User_Guide.md        # Comprehensive User Manual (Publication-ready)
+    │   ├── docs/                          # ImGee User Guide & UX Design Manifesto (MD + PDF)
     │   ├── extensions/                    # Subsystems (Typography, Markdown, TimedTooltip)
-    │   │   ├── TimedTooltip/              # Stationary & delayed tooltip engine
-    │   │   ├── Markdown/                  # GFM table parser, column sorter & text renderer
-    │   │   └── Typography/                # Font roles (ImFontRole) & inline StyledText
-    │   └── widgets/                       # Immediate-mode flight controls & vector icons
-    │       ├── imgui_icons.h              # Zero-texture procedural vector icon engine
-    │       ├── imgui_knobs.h              # Avionics rotary knobs, dimmer dials & detents
-    │       ├── imgui_mouse_wheel_controls.h # Wheel sliders, combos & reset chasers
-    │       ├── imgui_badges.h             # Status badges, pills, annunciators & <kbd>
-    │       ├── imgui_popup_menus.h        # Directional popups (AboveItem) & pulldowns
-    │       ├── imgui_toggle_buttons.h     # Tactile animated rocker/toggle switches
-    │       ├── imgui_spinners.h           # Procedural radar sweeps & radial timers
-    │       ├── imgui_clickable_links.h    # OS hand cursor links (XPLMOpenURL)
-    │       ├── imgui_copy_button.h        # Vector copy buttons with 1.5s visual feedback
-    │       └── imgui_file_dialog.h        # Non-blocking in-sim file dialogs
+    │   ├── widgets/                       # Immediate-mode controls, file dialogs & vector icons
+    │   └── themes/                        # Curated studio & cockpit palettes (Charcoal, Rusty)
     │
     ├── extensions/                        # Backward-Compatible Forwarding Headers
     └── widgets/                           # Backward-Compatible Forwarding Headers
@@ -151,10 +149,9 @@ Uncomment or pass any of these macros to selectively exclude individual ImGee su
 
 ## How to Contribute
 
-We welcome community contributions! Whether porting an existing open-source widget or introducing a new UI component:
+We welcome community contributions!
 
-1. **Choose the Category:** Determine if your code is a standalone **Widget** (a single control in `widgets/`) or a full **Extension** (a package in `extensions/`).
-2. **Namespace Appropriately:** Follow the namespacing rules above.
-3. **Keep Dependencies Minimal:** Header-only or clean single-file implementations are strongly preferred.
-4. **Document Your Work:** Include a dedicated `README.md` in your extension folder detailing usage, API signatures, and code examples.
-5. **Open a PR:** Submit a Pull Request against the repository with a description and sample screenshot or code snippet.
+1. **Contributing a New Third-Party Package (`contrib/<PackageName>/`):** If you have built a standalone library, utility, or add-on that works with `ImgWindow` or Dear ImGui, place it in its own self-contained folder under `contrib/<PackageName>/` with a primary `.h` entry point, license header, and `README.md`.
+2. **Contributing to ImGee (`contrib/ImGee/`):** To propose a new widget, theme, or extension for the **ImGee** toolkit itself, see the architecture and namespacing guidelines in **[`contrib/ImGee/README.md`](ImGee/README.md)**.
+3. **Keep Dependencies Minimal:** Header-only or clean single-file implementations with zero build-system friction are strongly preferred.
+4. **Open a PR:** Submit a Pull Request against the repository with a clear description and sample screenshot or code snippet.

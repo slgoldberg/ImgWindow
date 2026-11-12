@@ -2,7 +2,7 @@
 ## Ergonomics, Cognitive Affordances, and Human Factors for Simulation User Interfaces
 
 **Authors & Architecture:** Steven L. Goldberg (@slgoldberg) & the Antigravity Engineering Team  
-**Custodian:** ImGee Platform (ImgWindow / LuiGee / PyGee) • **Version:** v0.9.x (Living Draft • Nov 2026)
+**Custodian:** ImGee Platform (ImgWindow / LuiGee / PyGee) • **Version:** v1.0.0 (Living Standard • Nov 2026)
 
 ---
 
@@ -16,7 +16,7 @@ While battle-tested in flight simulation, **ImGee is 100% generic Dear ImGui and
 
 ### Multi-Language Delivery & Ecosystem Topology
 
-ImGee is delivered as an integral component of the **ImgWindow** suite, providing a unified interaction vocabulary across multiple programming languages and runtime contexts:
+Bundled alongside **ImgWindow** (inside `contrib/ImGee/`) and architected as a standalone open-source library, ImGee provides a unified interaction vocabulary across multiple programming languages and runtime contexts:
 * **C++ Native (`ImGee`):** Direct, zero-overhead immediate-mode C++11/C++17 integration for any Dear ImGui project.
 * **Lua Scripting (`LuiGee`):** Turnkey Lua bindings for FlyWithLua (supporting X-Plane 11.20 through latest 12+ and beyond), bringing toggles, knobs, dials, and timed tooltips to script authors.
 * **Python Scripting (`PyGee`):** Planned bindings designed for rapid Python prototyping and integration with environments like XPPython3.
@@ -41,7 +41,7 @@ Stock Dear ImGui deliberately remains a minimalist, unopinionated canvas -- prim
 Part I establishes the core human-factors principles, cognitive load theory, and structural interaction laws built directly into the ImGee framework engine.
 
 > [!NOTE]
-> **Living Document & Design Intentionality (v0.9.x Work in Progress):**
+> **Living Document & Design Intentionality:**
 > This manifesto is not a static academic treatise or an immutable finished decree. It is an evolving architectural contract -- a compass designed to help developers and pilots understand where we are coming from, intuit how to use our work in the best possible way, and hold the ImGee framework accountable as our collective simulation experiences expand.
 
 ---

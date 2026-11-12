@@ -127,7 +127,7 @@ PLUGIN_API void XPluginStop(void) {
 Build your plugin and launch X-Plane. When your first window is displayed on X-Plane 12.4.4+, `ImgWindow` logs its dynamic routing decision to X-Plane's `Log.txt`:
 
 ```text
-ImgWindow v2.2.1: [YourPlugin] using Panel Graphics for ImGui rendering.
+ImgWindow v2.4.0: [YourPlugin] using Panel Graphics for ImGui rendering.
 ```
 
 *(On X-Plane 11 or earlier X-Plane 12 versions, `ImgWindow` falls back to its legacy OpenGL pipeline and logs the reason.)*

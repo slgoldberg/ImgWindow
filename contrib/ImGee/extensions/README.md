@@ -14,7 +14,7 @@ In ImGee, an **Extension** is a self-contained subsystem providing substantial f
 
 ### Namespacing Philosophy: Omar Cornut's Standard & Sub-Namespaces
 
-A common question from newcomers is: *“Why not invent a separate root namespace like `extgui::`, `eximgui::`, or `extimgui::` to distinguish extension code?”*
+A common question from newcomers is: *"Why not invent a separate root namespace like `extgui::`, `eximgui::`, or `extimgui::` to distinguish extension code?"*
 
 The answer lies in **Dear ImGui's official architectural philosophy**:
 
@@ -47,7 +47,7 @@ namespace ImGui {
 > **Forgiving Aliases ("It Just Works"):** Prefer shorter names or don't want to think about namespaces?
 > * **`ImGui::MD::`** is an official, zero-overhead shorthand alias for **`ImGui::Markdown::`**.
 > * Root shorthands like **`ImGui::TextMD(...)`** and cross-extension bridges like **`ImGui::TimedTooltip::MD::Text`** work seamlessly.
-> * Want to skip `ImGui::` entirely? `#define CONTRIB_ENABLE_GLOBAL_NAMESPACES` publishes `Markdown::`, `MD::`, and `TimedTooltip::` directly to the global scope.
+> * Want to skip `ImGui::` entirely? `#define IMGEE_ENABLE_GLOBAL_NAMESPACES` publishes `Markdown::`, `MD::`, and `TimedTooltip::` directly to the global scope.
 
 ---
 
@@ -65,7 +65,7 @@ namespace ImGui {
 
 When creating or porting a new extension:
 
-1. **Self-Contained Folder:** Place all headers, implementation files, and assets in a dedicated folder under `contrib/ImGee/extensions/<ExtensionName>/`.
+1. **Self-Contained Folder:** Place all headers, implementation files, and assets in a dedicated folder under `ImGee/extensions/<ExtensionName>/`.
 2. **Single Header Entrypoint:** Provide a primary header (e.g. `<extension_name>_ext.h` or `<extension_name>.h`) that consumers can include with one `#include` directive.
 3. **No Mandatory Global State:** Avoid requiring global mutable state where possible. If state is needed, manage it within an explicit context struct or provide clean default fallbacks.
 4. **ImGui Version Compatibility:** Gate version-specific ImGui calls using `#if IMGUI_VERSION_NUM >= ...` so the extension builds cleanly across supported Dear ImGui versions.

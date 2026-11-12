@@ -254,10 +254,10 @@ It handles the entire lifecycle -- uploading raw RGBA8 pixels or decoding PNG/JP
 // Option A: Raw RGBA pixel buffers (Zero external dependencies, built into core ImgWindow):
 ImTextureID texA = ImgWindow::RegisterNamedTexture("my_icon", rgba_bytes, width, height);
 
-// Option B: Compressed PNG/JPG byte arrays (Auto-wired out of the box when including contrib.h / contrib/imgee.h,
+// Option B: Compressed PNG/JPG byte arrays (Auto-wired out of the box when including contrib/imgee.h,
 //           or configurable in pure core ImgWindow via ImgWindow::SetMemoryImageDecoder):
 #include "ImgWindow.h"
-#include "contrib.h"
+#include "contrib/imgee.h"
 
 // Static embedded PNG array:
 static const unsigned char g_AvionicsBeaconPng[] = { 0x89, 0x50, 0x4e, 0x47, ... };
@@ -275,7 +275,7 @@ void InitializePluginAssets() {
 ```
 
 ### 1. Automatic Unified Markdown & StyledText Aliasing
-Registering a named texture automatically aliases it for all Markdown and `StyledText` consumers when opting into `contrib.h`:
+Registering a named texture automatically aliases it for all Markdown and `StyledText` consumers when opting into ImGee (`#include "contrib/imgee.h"` or `"contrib.h"`):
 * **Standard Markdown**:
   ```markdown
   ![Beacon Icon](avionics_beacon)

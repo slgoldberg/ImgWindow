@@ -40,7 +40,7 @@ There is no need to maintain two separate codebases or force your users to upgra
 
 > [!TIP]
 > **Universal Dear ImGui Compatibility (v1.78 WIP through v1.92+):**<br>
-> You do **not** need to upgrade your plugin's Dear ImGui version to use Panel Graphics! `ImgWindow v2.3.0` universally bridges **any** Dear ImGui version from legacy v1.78 WIP all the way through modern v1.92+ directly into Vulkan/Metal Panel Graphics on X-Plane 12.4.4+ (with automatic OpenGL fallback on older simulators). Legacy static font atlases (v1.78 -- v1.89), interim versions (v1.90 -- v1.91), and modern multi-page dynamic atlases (v1.92+) are all auto-detected and uploaded synchronously without requiring changes to your UI code.
+> You do **not** need to upgrade your plugin's Dear ImGui version to use Panel Graphics! `ImgWindow v2.4.0` universally bridges **any** Dear ImGui version from legacy v1.78 WIP all the way through modern v1.92+ directly into Vulkan/Metal Panel Graphics on X-Plane 12.4.4+ (with automatic OpenGL fallback on older simulators). Legacy static font atlases (v1.78 -- v1.89), interim versions (v1.90 -- v1.91), and modern multi-page dynamic atlases (v1.92+) are all auto-detected and uploaded synchronously without requiring changes to your UI code.
 
 > [!NOTE]
 > **Historical Note (Early Betas):** During the initial **X-Plane 12.4.4b1** and **b2** betas, the Panel Graphics API had breaking phase restrictions that required asynchronous queuing. Laminar relaxed these in **12.4.4b3** and finalized them in **12.4.4+**.
@@ -72,9 +72,9 @@ add_definitions(-DIMGWINDOW_USE_PANEL_GRAPHICS)
 
 When your plugin initializes its first ImGui window, `ImgWindow` will log its routing decision to X-Plane's `Log.txt`. To verify that Panel Graphics is active, look for the following line:
 
-> `ImgWindow v2.2.1: [YourPlugin] using Panel Graphics for ImGui rendering.`
+> `ImgWindow v2.4.0: [YourPlugin] using Panel Graphics for ImGui rendering.`
 
-*(Note: When running on OpenGL or falling back on earlier sim versions, `ImgWindow` logs the active backend and specific reason, e.g. `ImgWindow v2.2.1: [YourPlugin] using OpenGL for ImGui rendering (would need XPLM v4.4 for Panel Graphics rendering).`)*
+*(Note: When running on OpenGL or falling back on earlier sim versions, `ImgWindow` logs the active backend and specific reason, e.g. `ImgWindow v2.4.0: [YourPlugin] using OpenGL for ImGui rendering (would need XPLM v4.4 for Panel Graphics rendering).`)*
 
 ---
 
@@ -288,4 +288,4 @@ However, if your plugin is being disabled or stopped (e.g., inside `XPluginDisab
 
 As with the main [README](../README.md), please feel free to submit a PR or feedback directly to the author if you are interested in improving this document, correcting any inaccuracies or outright errors, and/or adding more relevant examples, tools, documentation, or references.
 
-This file was last updated in *October, 2026* by Steven L. Goldberg, for `ImgWindow v2`.
+This file was last updated in *November, 2026* by Steven L. Goldberg, for `ImgWindow v2`.

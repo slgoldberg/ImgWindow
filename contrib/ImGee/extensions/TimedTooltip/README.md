@@ -1,6 +1,6 @@
 # TimedTooltip Extension
 
-The **TimedTooltip** extension provides an advanced, stationary tooltip engine designed specifically for Dear ImGui within X-Plane plugins. 
+The **TimedTooltip** extension provides an advanced, stationary tooltip engine for Dear ImGui as part of the **ImGee** UI toolkit (battle-tested in desktop applications and X-Plane cockpit plugins via `ImgWindow`). 
 
 Unlike standard Dear ImGui tooltips which move with the mouse and can flicker, obstruct UI elements, or run off-screen, `TimedTooltip` locks in place, calculates dynamic viewport boundaries, preserves custom interactive cursors, isolates its styling hermetically from parent windows, and supports both plain-text and rich Markdown content.
 
@@ -40,7 +40,8 @@ Unlike standard Dear ImGui tooltips which move with the mouse and can flicker, o
 
 ### 1. Include the Header
 ```cpp
-#include "contrib/ImGee/extensions/TimedTooltip/imgui_tooltip_ext.h"
+#include "ImgWindow/contrib/imgee.h"
+// (Or a-la-carte: #include "ImgWindow/contrib/ImGee/extensions/TimedTooltip/imgui_tooltip_ext.h")
 ```
 
 ### 2. Basic Usage (Plain Text)
@@ -58,7 +59,7 @@ ImGui::TimedTooltip::Text("Saves the active route to disk as an .fms file.");
 If using the companion **Markdown** extension, simply call `TextMD`:
 
 ```cpp
-#include "contrib.h"
+#include "ImgWindow/contrib/imgee.h"
 
 ImGui::Button("Autopilot Nav");
 ImGui::TimedTooltip::TextMD("Arms **LNAV** mode. *Requires active GPS waypoint.*");
@@ -97,7 +98,7 @@ The `TooltipConfig` (aliased as `ImGui::TimedTooltip::Config`) controls timing, 
 
 > [!NOTE]
 > **Resolution-Independent Base Dimensions**:
-> All dimensional settings (`default_wrap_width`, `min_wrap_width`, `max_wrap_width`, `padding`, `item_spacing`, `frame_padding`, and `indent_spacing`) are defined in **base design boxels** (at 1.0× baseline). The tooltip engine resolves the active ambient scale (`ImGui::GetFontSize() / 14.0f` or explicit `font_scale`) and automatically scales constraints and padding dynamically. Callers do not need to manually multiply configuration values by font zoom factors.
+> All dimensional settings (`default_wrap_width`, `min_wrap_width`, `max_wrap_width`, `padding`, `item_spacing`, `frame_padding`, and `indent_spacing`) are defined in **base design boxels** (at 1.0x baseline). The tooltip engine resolves the active ambient scale (`ImGui::GetFontSize() / 14.0f` or explicit `font_scale`) and automatically scales constraints and padding dynamically. Callers do not need to manually multiply configuration values by font zoom factors.
 
 ---
 
@@ -187,7 +188,7 @@ Tooltips attached to interactive or proxy-instrumented widgets (like `ButtonLink
 ### 1. 100% Solid Opacity (`alpha = 1.0f`)
 In legacy OpenGL, plugins composited in uncorrected gamma space, where semi-transparent yellow cards (`alpha = 0.95f`) appeared largely solid. 
 
-In X-Plane 12's modern **Panel Graphics** pipeline (Metal on macOS, Vulkan on Windows/Linux), compositing is computed in **physically linear color space**. Even a minor 5% transparency allows intense runway lights, aircraft labels, and bright background elements to illuminate the pixels under dark text. Furthermore, linear antialiasing blends 50% edge coverage at $\approx 73\%$ background luminance ($(0.5)^{1/2.2} \approx 0.73$), optically eroding dark letter stems.
+In X-Plane 12's modern **Panel Graphics** pipeline (Metal on macOS, Vulkan on Windows/Linux), compositing is computed in **physically linear color space**. Even a minor 5% transparency allows intense runway lights, aircraft labels, and bright background elements to illuminate the pixels under dark text. Furthermore, linear antialiasing blends 50% edge coverage at ~73% background luminance (`0.5^(1/2.2) ~ 0.73`), optically eroding dark letter stems.
 
 To ensure crisp, dark typography without background wash-out, `TooltipConfig::bg_color` defaults to **`1.0f` solid opacity** (`ImVec4(1.0f, 0.95f, 0.6f, 1.0f)`).
 

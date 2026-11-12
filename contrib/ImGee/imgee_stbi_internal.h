@@ -305,7 +305,11 @@
 #endif
 
 namespace ImGeeStbi {
+#if defined(__has_include) && __has_include("stb_image.h")
+#include "stb_image.h"
+#else
 #include "../stb_image.h"
+#endif
 
     inline unsigned char* LoadFromMemory(const void* data, size_t len, int* outW, int* outH) {
         int comp = 0;

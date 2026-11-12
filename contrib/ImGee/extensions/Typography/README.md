@@ -1,16 +1,16 @@
 # ImGee Typography & StyledText Extension
 
-The **Typography** extension provides semantic font hierarchy management and a lightweight, inline rich text engine for Dear ImGui within the **ImGee** suite for **ImgWindow**.
+The **Typography** extension provides semantic font hierarchy management and a lightweight, inline rich text engine for Dear ImGui as part of the **ImGee** UI toolkit.
 
-Unlike full Markdown documents (which enforce paragraph margins, headers, block indentation, and thematic breaks), the **Inline StyledText Engine** is designed for tight cockpit UI elements: data readouts, status pills, tables, buttons, and mixed-style sentences where continuous baseline alignment is paramount.
+Unlike full Markdown documents (which enforce paragraph margins, headers, block indentation, and thematic breaks), the **Inline StyledText Engine** is designed for tight UI elements: data readouts, status pills, tables, buttons, and mixed-style sentences where continuous baseline alignment is paramount.
 
 ---
 
 ## 🚀 Key Features
 
-1. **Semantic Font Hierarchy (`ImFontRole`)**:
-   Eliminates hardcoded font pointers (`m_pHeaderFont->...`). Plugins register fonts by semantic role (`Title`, `Header`, `Body`, `Small`, `Mono`), and widgets request fonts by role.
-2. **Commutative Scoped Font Guard (`ScopedFontRole`)**:
+1. **Semantic Font Hierarchy (`ImGui::ImFontRole`)**:
+   Eliminates hardcoded font pointers (`m_pHeaderFont->...`). Applications register fonts by semantic role (`Regular`, `Title`, `Small`, `Bold`, `BoldLarge`, `Monospace`, `Italic`), and widgets request fonts by role.
+2. **Commutative Scoped Font Guard (`ImGui::ScopedFontRole`)**:
    Zero-leak RAII guard that safely pushes a semantic font role and pops it upon exiting the scope.
 3. **Inline StyledText Engine (`ImGui::StyledText`)**:
    Renders mixed bold, italic, monospace, colored text, badges, pills, keyboard keycaps, and images within a single immediate-mode call.
@@ -26,61 +26,64 @@ Unlike full Markdown documents (which enforce paragraph margins, headers, block 
 ## 1. Semantic Font Roles (`imgui_font_roles.h`)
 
 ### The Problem
-Traditional Dear ImGui plugins pass raw `ImFont*` pointers across classes or query global singletons (`m_Fonts[2]`). If a specific font size or style isn't loaded, code either asserts or crashes.
+Traditional Dear ImGui applications pass raw `ImFont*` pointers across classes or query fragile array indices (`Fonts[2]`). If a specific font size or style isn't loaded, code either asserts or crashes.
 
 ### The Solution: Semantic Roles & 4-Tier Fallback
 Font roles decouple your layout code from font assets:
 
 ```cpp
-#include "contrib/ImGee/extensions/Typography/imgui_font_roles.h"
+#include "ImgWindow/contrib/imgee.h"
+// (Or standalone: #include "ImGee/imgee.h")
 
-// Available Roles:
-enum class ImFontRole {
-    Default,
-    Body,
-    Title,
-    Header,
-    Heading,
-    Subheading,
-    Caption,
-    Small,
-    Mono,
-    Code,
-    Large,
-    Bold,
-    Italic
+// Available Roles in namespace ImGui:
+enum class ImFontRole : int {
+    Regular = 0,     // Slot 0: Standard body text (14px)
+    Title = 1,       // Slot 1: Window & section titles (16px)
+    Small = 2,       // Slot 2: Compact subtext & captions (12px)
+    Bold = 3,        // Slot 3: Bold emphasis (14px bold)
+    BoldLarge = 4,   // Slot 4: Large bold banners (16px+ bold)
+    Monospace = 5,   // Slot 5: Code, datarefs & numeric readouts
+    Italic = 6,      // Slot 6: True italic text
+    MonospaceMedium = 7, // Slot 7: Compact monospace tables
+    BoldItalic = 8,  // Slot 8: Bold-italic emphasis
+
+    // Extended Document Roles:
+    Heading1 = 9,    // Document H1 (falls back to BoldLarge -> Title -> Bold)
+    Heading2 = 10,   // Document H2 (falls back to Title -> Bold)
+    Heading3 = 11,   // Document H3 (falls back to Bold -> Regular)
+    Tiny = 12        // Micro 10px text (falls back to Small -> Regular)
 };
 ```
 
-#### Registering Roles in `ImgFontAtlas`
-During plugin startup, bind loaded fonts to semantic roles:
+#### Registering Font Roles
+During startup, bind your loaded `ImFont*` handles to semantic roles (if you load fonts in ImGee's standard 9-slot order into `io.Fonts->Fonts[0..8]`, slots `0..8` resolve automatically even without explicit calls!):
 
 ```cpp
 void InitializeFonts() {
-    auto atlas = ImgWindow::sFontAtlas;
+    auto atlas = ImgWindow::sFontAtlas; // (or ImGui::GetIO().Fonts in standalone ImGui)
     ImFont* fontRegular = atlas->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 15.0f);
     ImFont* fontBold    = atlas->AddFontFromFileTTF("fonts/Roboto-Bold.ttf", 15.0f);
-    ImFont* fontHeader  = atlas->AddFontFromFileTTF("fonts/Roboto-Bold.ttf", 20.0f);
+    ImFont* fontTitle   = atlas->AddFontFromFileTTF("fonts/Roboto-Bold.ttf", 20.0f);
     ImFont* fontMono    = atlas->AddFontFromFileTTF("fonts/SourceCodePro-Regular.ttf", 14.0f);
 
-    atlas->SetFontRole(ImFontRole::Body,   fontRegular);
-    atlas->SetFontRole(ImFontRole::Bold,   fontBold);
-    atlas->SetFontRole(ImFontRole::Header, fontHeader);
-    atlas->SetFontRole(ImFontRole::Mono,   fontMono);
+    ImGui::SetFontRole(ImGui::ImFontRole::Regular,   fontRegular);
+    ImGui::SetFontRole(ImGui::ImFontRole::Bold,      fontBold);
+    ImGui::SetFontRole(ImGui::ImFontRole::Title,     fontTitle);
+    ImGui::SetFontRole(ImGui::ImFontRole::Monospace, fontMono);
 }
 ```
 
-#### Scoped Font Guards (`ScopedFontRole`)
+#### Scoped Font Guards (`ImGui::ScopedFontRole`)
 Use RAII guards to push and pop font roles safely:
 
 ```cpp
 {
-    ScopedFontRole headerGuard(ImFontRole::Header);
+    ImGui::ScopedFontRole titleGuard(ImGui::ImFontRole::Title);
     ImGui::Text("Avionics Status & Navigation");
 } // Restores previous font automatically
 
 {
-    ScopedFontRole monoGuard(ImFontRole::Mono);
+    ImGui::ScopedFontRole monoGuard(ImGui::ImFontRole::Monospace);
     ImGui::Text("RAW NMEA: $GPGGA,123519,4807.038,N,01131.000,E*47");
 }
 ```
@@ -104,8 +107,6 @@ void ImGui::StyledTextUnformatted(const char* text, const char* text_end = nullp
 ### Basic Usage
 
 ```cpp
-#include "contrib/ImGee/extensions/Typography/imgui_styled_text.h"
-
 // Inline bold, italic, and color:
 ImGui::StyledText("Transponder is <color=green>ACTIVE</color> on <b>XPDR1</b>.");
 
@@ -143,8 +144,6 @@ ImGui::StyledTextWrapped("Notice: Route clearance is <i>pending</i> from <color=
 For standard Dear ImGui UI layouts where XML tags are not needed, direct wrapper functions render text immediately with semantic font roles:
 
 ```cpp
-#include "contrib/ImGee/extensions/Typography/imgui_font_roles.h"
-
 // Formatted and unformatted small text (Slot 2, 12px):
 ImGui::SmallText("Altitude: %.0f ft", altitude);
 ImGui::SmallTextUnformatted("Captions and secondary subtext");
@@ -162,9 +161,9 @@ ImGui::MonoText("ICAO: %s | SQUAWK: %04d", callsign, squawk);
 
 ---
 
-## 3. In-Memory Image & Icon Integration
+## 4. In-Memory Image & Icon Integration
 
-The StyledText engine directly integrates with `ImgWindow`'s in-memory texture service and procedural vector icons.
+The StyledText engine directly integrates with named memory textures (`ImgWindow::RegisterMemoryImage` or `ImGui::MarkdownImageService`) and procedural vector icons.
 
 ### In-Memory Textures (`<img ... />`)
 ```cpp
@@ -201,7 +200,7 @@ ImGui::StyledText("Heading: ▲ 180° | Pitch: ▼ -2.5° | Revert: ↺");
 
 ---
 
-## 4. Pre-Measurement (`CalcTextStyledSize`)
+## 5. Pre-Measurement (`CalcTextStyledSize`)
 
 When calculating window bounds, stationary tooltip geometry, or layout columns, compute the exact size without rendering:
 
@@ -213,10 +212,10 @@ ImVec2 size = ImGui::CalcTextStyledSize("Transponder: <pill color=green>ACTIVE</
 
 ---
 
-## 5. Opt-Out Configuration
+## 6. Opt-Out Configuration
 
-If your project defines conflicting identifiers, define the following before including `contrib.h` or `extensions.h`:
+If your project defines conflicting identifiers, define the following before including `imgee.h` (or `extensions.h`):
 
 ```cpp
-#define CONTRIB_DISABLE_TYPOGRAPHY    // Disables Typography and StyledText extension
+#define IMGEE_DISABLE_TYPOGRAPHY    // Disables Typography and StyledText extension
 ```

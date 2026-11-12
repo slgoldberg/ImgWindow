@@ -6,9 +6,9 @@
 
 #pragma once
 
-#ifndef IMGUI_CONTRIB_GLOBAL_H
-#define IMGUI_CONTRIB_GLOBAL_H
+#ifndef IMGUI_CONTRIB_FORWARD_GLOBAL_H
+#define IMGUI_CONTRIB_FORWARD_GLOBAL_H
 
 #include "ImGee/imgee-global.h"
 
-#endif // IMGUI_CONTRIB_GLOBAL_H
+#endif // IMGUI_CONTRIB_FORWARD_GLOBAL_H

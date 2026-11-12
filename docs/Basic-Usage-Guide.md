@@ -226,42 +226,44 @@ Instead, always call **`SafeDelete()`**, which is an `ImgWindow` helper method. 
 
 ---
 
-## 4. Modern UI & Typography Enhancements (`v2.3.0+`)
+## 4. Modern UI, Image Services & Optional ImGee Enhancements (`v2.3.0+` / `v2.4.0`)
 
-Starting in `ImgWindow v2.3.0`, the framework includes high-level architectural services for semantic typography, memory imagery, and first-class menus:
+Core `ImgWindow` (`ImgWindow.h`) provides a built-in named texture and memory-image registry, and seamlessly pairs with **[ImGee](ImGee_User_Guide.md)** (`#include "contrib/imgee.h"`, or `"contrib.h"` for `ImgWindow`'s full community umbrella header) when you want semantic typography, first-class menus, and zero-font vector icons:
 
-### 4.1 Semantic Font Roles (`ImFontRole`)
-Instead of hardcoding raw pointer manipulations or guessing font indices, `ImgWindow` provides a semantic font registry:
-* **Roles:** `ImFontRole::Title`, `ImFontRole::Header`, `ImFontRole::Body`, `ImFontRole::Small`, and `ImFontRole::Mono`.
-* **4-Tier Fallback Hierarchy:** If an explicit font role is not configured, it gracefully falls back (e.g. `Title` $\rightarrow$ `Header` $\rightarrow$ `Body` $\rightarrow$ `DefaultFont`), guaranteeing that UI text never crashes.
-* **RAII Scoped Guards:**
-  ```cpp
-  {
-      ScopedFontRole guard(ImFontRole::Header);
-      ImGui::Text("Avionics Status");
-  } // Automatically restores previous font stack state upon exiting scope
-  ```
-
-### 4.2 In-Memory Image Service (`ImgWindow::RegisterNamedTexture` & `RegisterMemoryImage`)
+### 4.1 In-Memory Image Service (`ImgWindow::RegisterNamedTexture` & `RegisterMemoryImage` — Core `ImgWindow.h`)
 Register raw RGBA pixel buffers or load static `.png`/`.jpg` byte arrays compiled into your plugin directly into GPU textures with zero disk I/O:
 ```cpp
-// Option A: Raw RGBA pixel buffer (built into core ImgWindow):
+// Option A: Raw RGBA pixel buffer (built directly into core ImgWindow.h):
 ImgWindow::RegisterNamedTexture("my_badge", g_RgbaBytes, w, h);
 
-// Option B: Compressed PNG/JPG buffer (auto-wired when contrib.h / contrib/imgee.h is included,
+// Option B: Compressed PNG/JPG buffer (auto-wired when contrib/imgee.h is included,
 //           or via ImgWindow::SetMemoryImageDecoder in pure core builds):
 int w = 0, h = 0;
 ImgWindow::RegisterMemoryImage("my_badge", g_PngBytes, sizeof(g_PngBytes), &w, &h);
 
-// Use anywhere in C++:
+// Use anywhere in C++ (core ImgWindow.h):
 ImGui::ImageNamed("my_badge", ImVec2(32.0f, 0.0f)); // Auto-computed height!
 
-// Or in Markdown & StyledText (when opting into contrib/ImGee):
+// Or in Markdown & StyledText (when opting into ImGee via #include "contrib/imgee.h"):
 ImGui::TextMD("![Badge](my_badge)");
 ImGui::StyledText("Transponder: <img name='my_badge' width=24 height=24 /> ACTIVE");
 ```
 
-### 4.3 Directional Popups & SelectPulldown
+### 4.2 Semantic Font Roles (`ImGui::ImFontRole` — ImGee `contrib/imgee.h`)
+Instead of hardcoding raw pointer manipulations or guessing font indices, ImGee's Typography extension provides a semantic font registry:
+* **Roles:** `ImGui::ImFontRole::Regular`, `Title`, `Small`, `Bold`, `BoldLarge`, `Monospace`, `Italic`, `MonospaceMedium`, and `BoldItalic` (plus `Heading1`..`Heading3` and `Tiny`).
+* **4-Tier Fallback Hierarchy:** If an explicit font role is not configured, it gracefully falls back (e.g. `Title` → `BoldLarge` → `Bold` → `Regular` → `DefaultFont`), guaranteeing that UI text never crashes.
+* **RAII Scoped Guards:**
+  ```cpp
+  #include "contrib/imgee.h"
+
+  {
+      ImGui::ScopedFontRole guard(ImGui::ImFontRole::Title);
+      ImGui::Text("Avionics Status");
+  } // Automatically restores previous font stack state upon exiting scope
+  ```
+
+### 4.3 Directional Popups & SelectPulldown (ImGee `contrib/imgee.h`)
 * **Anchored Popups (`OpenPopupAtItem` & `BeginAnchoredPopup`)**:
   Anchor popups above (`ImGuiPopupAnchor_AboveItem`) or below buttons with sub-pixel precision, font-scale invariant geometry, and muscle-memory toggle protection.
 * **Headroom Queries (`GetLastPopupHeight`)**:
@@ -269,7 +271,7 @@ ImGui::StyledText("Transponder: <img name='my_badge' width=24 height=24 /> ACTIV
 * **SelectPulldown**:
   Compact 1-line dataref selectors with closed-state scroll pass-through and open-state wheel cycling.
 
-### 4.4 Procedural Vector Icons & Icon Buttons (`imgui_icons.h`)
+### 4.4 Procedural Vector Icons & Icon Buttons (ImGee `contrib/imgee.h`)
 Eliminates missing-glyph diamond replacement boxes (`?`) when font atlases omit extended Unicode blocks (such as arrows, chevrons, or symbols):
 * **Zero Dependencies**: Draws crisp antialiased vector geometry directly to `ImDrawList` without fonts or textures.
 * **Inline Icon Widget**:

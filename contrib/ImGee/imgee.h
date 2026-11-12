@@ -87,6 +87,24 @@
 #if defined(CONTRIB_DISABLE_ICON_BUTTON) && !defined(IMGEE_DISABLE_ICON_BUTTON)
     #define IMGEE_DISABLE_ICON_BUTTON
 #endif
+#if defined(CONTRIB_DISABLE_COPY_BUTTON) && !defined(IMGEE_DISABLE_COPY_BUTTON)
+    #define IMGEE_DISABLE_COPY_BUTTON
+#endif
+#if defined(CONTRIB_DISABLE_KNOBS) && !defined(IMGEE_DISABLE_KNOBS)
+    #define IMGEE_DISABLE_KNOBS
+#endif
+#if defined(CONTRIB_DISABLE_FILE_DIALOG) && !defined(IMGEE_DISABLE_FILE_DIALOG)
+    #define IMGEE_DISABLE_FILE_DIALOG
+#endif
+#if defined(CONTRIB_DISABLE_THEMES) && !defined(IMGEE_DISABLE_THEMES)
+    #define IMGEE_DISABLE_THEMES
+#endif
+#if defined(CONTRIB_DISABLE_RESET_UNDO) && !defined(IMGEE_DISABLE_RESET_UNDO)
+    #define IMGEE_DISABLE_RESET_UNDO
+#endif
+#if defined(CONTRIB_DISABLE_RESET_BUTTON) && !defined(IMGEE_DISABLE_RESET_BUTTON)
+    #define IMGEE_DISABLE_RESET_BUTTON
+#endif
 
 #if !defined(IMGEE_DISABLE_ALL) && \
     !defined(DISABLE_IMGEE) && \
@@ -229,6 +247,15 @@
 #endif
 #if defined(IMGEE_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT) && !defined(CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT)
     #define CONTRIB_DISABLE_MOUSE_WHEEL_SCROLL_DEFEAT
+#endif
+#if defined(IMGEE_DISABLE_RESET_UNDO) && !defined(CONTRIB_DISABLE_RESET_UNDO)
+    #define CONTRIB_DISABLE_RESET_UNDO
+#endif
+#if defined(IMGEE_DISABLE_RESET_BUTTON) && !defined(CONTRIB_DISABLE_RESET_BUTTON)
+    #define CONTRIB_DISABLE_RESET_BUTTON
+#endif
+#if defined(IMGEE_DISABLE_THEMES) && !defined(CONTRIB_DISABLE_THEMES)
+    #define CONTRIB_DISABLE_THEMES
 #endif
 
 // ============================================================================

@@ -1,6 +1,6 @@
 # Markdown Extension
 
-The **Markdown** extension provides rich Markdown parsing and rendering for Dear ImGui within ImgWindow, based on `enkisoftware/imgui_markdown` and heavily enhanced for X-Plane plugin user interfaces.
+The **Markdown** extension provides rich CommonMark and GitHub Flavored Markdown parsing and rendering for Dear ImGui as part of the **ImGee** UI toolkit (based on `enkisoftware/imgui_markdown` and heavily enhanced for modern desktop and cockpit user interfaces).
 
 It allows you to embed rich text formatting, headers, links, lists, and custom interactive widgets directly into your ImGui windows, settings panels, and stationary tooltips.
 
@@ -19,8 +19,8 @@ The Markdown system is structured as a clean two-layer architecture:
    * Responsible for raw character scanning, CommonMark tokenization, AST-like block dispatch, and low-level C-style callbacks (`formatCallback`, `linkCallback`, `imageCallback`, `tooltipCallback`).
    * Our fork incorporates crucial low-level fixes for CommonMark punctuation lookahead and bullet list token isolation.
 
-2. **ImgWindow Extension Wrapper (`imgui_markdown_ext.h`):**
-   * High-level, ergonomic C++ layer designed specifically for X-Plane plugins and modern ImGui applications.
+2. **ImGee Extension Wrapper (`imgui_markdown_ext.h`):**
+   * High-level, ergonomic C++ layer designed for modern Dear ImGui applications and X-Plane cockpit plugins.
    * Encapsulates all functionality inside the second-level `ImGui::Markdown::` namespace, with `ImGui::MD::` provided as an official, zero-overhead namespace alias (`namespace ImGui { namespace MD = Markdown; }`).
    * Eliminates the upstream symbol collision: Upstream's raw C-style function `ImGui::Markdown(text, len, config)` has been moved to `ImGui::Markdown::Render(...)` (and `ImGui::MD::Render(...)`). This prevents beginners from accidentally invoking the raw unconfigured parser and frees `ImGui::Markdown` to be a clean, first-class C++ namespace.
    * Introduces an XML/HTML-style inline tag pre-processor (`<tag>`, `<color>`, `<backdrop>`, `<badge>`, `<btn>`) with custom tag callback registration via `ImGui::Markdown::RegisterTag`.
@@ -36,7 +36,7 @@ The Markdown system is structured as a clean two-layer architecture:
   * Primary namespace is `ImGui::Markdown::Text(...)` for full clarity.
   * Shorthand alias `ImGui::MD::Text(...)` is 100% interchangeable.
   * Root convenience aliases `ImGui::TextMD(...)` / `ImGui::TextMarkdown(...)` allow drop-in usage matching `ImGui::Text(...)`.
-  * Opt-in global convenience (`#define CONTRIB_ENABLE_GLOBAL_NAMESPACES` or `#include "contrib/contrib-global.h"`) publishes `Markdown::Text(...)` and `MD::Text(...)` to the global scope for developers seeking minimum boilerplate.
+  * Opt-in global convenience (`#define IMGEE_ENABLE_GLOBAL_NAMESPACES` before `imgee.h`, or `#include "ImGee/imgee-global.h"`) publishes `Markdown::Text(...)` and `MD::Text(...)` to the global scope for developers seeking minimum boilerplate.
 
 * **CommonMark Backslash Escaping:**
   * Escapes any ASCII punctuation character (`\*`, `\#`, `\_`, `\<`, `\>`, `\[`, `\]`, `\(`, `\)`, `\\`, etc.) to render literally without triggering emphasis, headers, HTML tags, or links.
@@ -61,8 +61,8 @@ The Markdown system is structured as a clean two-layer architecture:
 * **Fenced Code Blocks with Width Clamping & Continuation Soft-Wrapping:**
   * Multi-line code blocks (`` ``` `` and `~~~`) clamp their container width to available window content space (`avail_width`) while guaranteeing minimum toolbar control width.
   * Continuation lines soft-wrap naturally without horizontal clipping.
-  * **CommonMark 4.5 Indentation Stripping:** Code blocks nested inside lists or indented sections automatically strip up to $N$ spaces of leading indentation matching the opening fence, preventing code from being pushed awkwardly to the right inside the container.
-  * **Indented Closing Fences:** Closing fences indented by $\ge 4$ spaces or tabs are properly recognized, preventing list continuation text from being accidentally swallowed.
+  * **CommonMark 4.5 Indentation Stripping:** Code blocks nested inside lists or indented sections automatically strip up to `N` spaces of leading indentation matching the opening fence, preventing code from being pushed awkwardly to the right inside the container.
+  * **Indented Closing Fences:** Closing fences indented by >= 4 spaces or tabs are properly recognized, preventing list continuation text from being accidentally swallowed.
   * **Scoped Copy Button:** Integrated vector copy button with checkmark animation and 1.5s transient visual feedback. Scoped via `ImGuiStorage` to ensure multiple code blocks in the same window maintain their feedback independently.
   * **Mode Toggle with Mouse-Wheel Scroll-Defeat:** The animated `Raw [===O] Preview` toggle switch automatically defeats mouse-wheel adjustments when inside scrollable parent viewports, preventing accidental mode switches when scrolling through documentation.
 * **Soft-Wrap Leading Space Suppression:**
@@ -72,7 +72,7 @@ The Markdown system is structured as a clean two-layer architecture:
   * Defeats ImGui viewport culling by employing pass-unique offscreen window hashes.
 * **Interactive CommonMark Tables with Sorting & Bi-Directional State Serialization:**
   * Parses standard CommonMark pipe tables with column alignment (`:---`, `:---:`, `---:`), natural cell content measurement, and rich inline Markdown/tags inside cells.
-  * **Tristate Interactive Sorting:** Click any header to cycle Ascending &uarr; &rarr; Descending &darr; &rarr; Unsorted, with responsive hand cursor hover and rendered sort indicator arrows.
+  * **Tristate Interactive Sorting:** Click any header to cycle Ascending ▲ → Descending ▼ → Unsorted, with responsive hand cursor hover and rendered sort indicator arrows.
   * **Column Divider Resizing:** Drag any column boundary separator to customize column widths dynamically.
   * **Total Width Border Grip:** Drag the right-border resize handle to stretch or contract table width up to 5x available window width (smooth horizontal scrolling in narrow viewports).
   * **A/B Double-Click Toggle Memory:** Double-clicking the right border grip toggles back and forth between the baseline preset and user-modified geometry with 100% memory of column widths and total width.
@@ -96,17 +96,17 @@ The Markdown system is structured as a clean two-layer architecture:
 
 ### 1. Include the Header
 ```cpp
-#include "contrib/ImGee/extensions/Markdown/imgui_markdown_ext.h"
-// (Or simply: #include "contrib.h")
+#include "ImgWindow/contrib/imgee.h"
+// (Or standalone: #include "ImGee/imgee.h", or a-la-carte: "ImGee/extensions/Markdown/imgui_markdown_ext.h")
 ```
 
 > [!IMPORTANT]
 > **Migrating from Upstream `imgui_markdown`: Remove Old Includes!**
-> If your plugin previously included upstream `imgui_markdown.h` directly:
+> If your project previously included upstream `imgui_markdown.h` directly:
 > 1. **Remove your old `#include "imgui_markdown.h"`** lines and delete any loose copies of `imgui_markdown.h` from your project's header search paths.
-> 2. **Include `#include "contrib.h"` (or `#include "contrib/ImGee/extensions/Markdown/imgui_markdown_ext.h"`) instead.**
+> 2. **Include `#include "ImgWindow/contrib/imgee.h"` (or `#include "ImGee/imgee.h"` standalone) instead.**
 >
-> `imgui_markdown_ext.h` automatically includes our modernized, patched engine (`contrib/ImGee/extensions/Markdown/imgui_markdown.h`) under the hood. Keeping an older upstream copy in your project tree risks compiling against the unpatched upstream engine, which lacks our typographic lookahead, mathematical hanging indents, and `ImGui::MD::` widget suite!
+> `imgui_markdown_ext.h` automatically includes our modernized, patched engine (`imgui_markdown.h`) under the hood. Keeping an older upstream copy in your project tree risks compiling against the unpatched upstream engine, which lacks our typographic lookahead, mathematical hanging indents, and `ImGui::MD::` widget suite!
 
 ### 2. Configure Default Styles & Fonts (Optional)
 
@@ -185,10 +185,10 @@ if (ImGui::Markdown::TextLink("Open **Avionics Settings**")) {
 > In `ImGui::MD::Text(...)`, `ImGui::MD::TextWrapped(...)`, and `ImGui::TimedTooltip::TextMD(...)`, text is rendered via `ImGui::TextUnformatted(start, end)`, bypassing ImGui's `"##"` label parser completely. You can freely start strings or lines with `#`, `##`, or `###` for H1/H2/H3 headers without any escaping!
 
 ### 4. Rendering Markdown in Timed Tooltips
-When combined with the companion **TimedTooltip** extension (included in either order, or via `#include "contrib/includes.h"`), rich multi-line Markdown tooltips are attached with a single line of code:
+When combined with the companion **TimedTooltip** extension (included in either order, or via `#include "ImgWindow/contrib/imgee.h"`), rich multi-line Markdown tooltips are attached with a single line of code:
 
 ```cpp
-#include "contrib/includes.h"
+#include "ImgWindow/contrib/imgee.h"
 
 ImGui::Button("Accessibility Mode");
 ImGui::TimedTooltip::TextMD(
@@ -275,7 +275,7 @@ void Initialize() {
   * **Automatic Monospace Typography:** Uses `mdConfig.monoFont` (or ambient monospace font) line-by-line without word-wrapping or accidental markup parsing.
   * **Responsive Width Clamping & Soft-Wrapping:** Dynamically hugs content lines while clamping maximum container width to available window space (`avail_width`). Wrapped continuation lines flow naturally without horizontal overflow.
   * **CommonMark 4.5 Indentation Stripping:** When code blocks are nested inside list items or indented sections, leading indentation matching the opening fence is automatically stripped from code content, preventing code from being pushed awkwardly to the right.
-  * **Indented Closing Fences:** Supports closing fences indented by $\ge 4$ spaces or tabs without swallowing subsequent markdown.
+  * **Indented Closing Fences:** Supports closing fences indented by >= 4 spaces or tabs without swallowing subsequent markdown.
   * **Language Badge (Steve TextLink):** Renders the language identifier on the left of the header bar. Formats recognized by built-in highlighters (`lua`, `cpp`, `markdown`, `plaintext`) or host callbacks are color-branded (Lua blue, C++ cobalt, Markdown teal, Plain text slate, Custom purple); unrecognized languages are styled in muted neutral charcoal. Hovering triggers `ImGuiMouseCursor_Hand`; clicking toggles an informative persistent tooltip (e.g. `"C++ format (Syntax highlighted)"`).
   * **Animated Raw / Preview Toggle:** For `markdown` or `md` containers, renders an animated sliding toggle switch (`Raw [===O] Preview`) with smooth thumb easing, mouse-wheel scrub support, and live re-entrant formatting (including nested child code blocks). In scrollable viewports, mouse-wheel auto-defeat prevents accidental toggles while navigating long documents.
   * **One-Click Vector Clipboard Copy:** Integrated procedural vector copy button on the far right with a transient 1.5s `Copied!` visual feedback state, `ImGuiMouseCursor_Hand` hover cursor, and optional host `setClipboardTextFn` forwarding. Scoped via `ImGuiStorage` to ensure multiple code blocks in the same window maintain their feedback independently without cross-talk.
@@ -311,7 +311,7 @@ Standard CommonMark pipe tables render as full-featured, interactive Dear ImGui 
 * **Features:**
   * **CommonMark Syntax & Cell Alignment:** Parses headers, separator row, and data rows with cell text alignments (`:---` left, `:---:` center, `---:` right).
   * **Rich Cell Content:** Cells support full inline Markdown formatting (bold, italic, code spans, `<pill>`, `<badge>`, etc.).
-  * **Tristate Header Sorting:** Click any column header to cycle between `Ascending` &uarr;, `Descending` &darr;, and `None` (unsorted). Renders directional arrows and native hand cursor (`ImGuiMouseCursor_Hand`).
+  * **Tristate Header Sorting:** Click any column header to cycle between `Ascending` ▲, `Descending` ▼, and `None` (unsorted). Renders directional arrows and native hand cursor (`ImGuiMouseCursor_Hand`).
   * **Internal Column Divider Dragging:** Drag any column boundary separator to adjust relative column widths.
   * **Rightmost Width Grip Handle:** An interactive grab-handle on the rightmost edge of the table allows stretching or contracting the overall table width up to 5x available window space.
   * **Horizontal Scroll Protection:** If the containing window has `ImGuiWindowFlags_HorizontalScrollbar`, tables retain their natural readable widths without being squished when the host window is narrow.
@@ -350,7 +350,7 @@ mdConfig.userData = &myMarkdownString;
 ```
 
 #### 7. Built-in Image Services (Tiers 1, 2 & 3)
-Images in Markdown (`![alt text](url)`) are resolved automatically via `ImgWindow`'s built-in 3-tier image service, requiring zero boilerplate callbacks:
+Images in Markdown (`![alt text](url)`) are resolved automatically via ImGee's built-in 3-tier image service (`ImGui::MarkdownImageService`), bridging seamlessly to `ImgWindow` when present and requiring zero boilerplate callbacks:
 
 1. **Tier 1: In-Memory Named Textures (`texture://name` or `name`):**
    * Pre-register memory textures (cockpit gauges, avionics icons, branding):
@@ -838,17 +838,16 @@ void RenderSettingsPanelVanilla()
 
 ---
 
-#### The Clean Way: With ImgWindow Extensions (`MD` + `TimedTooltip`)
+#### The Clean Way: With ImGee (`MD` + `TimedTooltip`)
 ```cpp
 // -----------------------------------------------------------------------------
-// WITH EXTENSIONS: Clean, declarative, expressive code.
+// WITH IMGEE: Clean, declarative, expressive code.
 // The engine automatically handles dynamic font scaling, lookahead word wrapping,
 // hanging bullet indents, draw-list pills, delay timers, and screen docking!
 // -----------------------------------------------------------------------------
-#include "contrib/ImGee/extensions/Markdown/imgui_markdown_ext.h"
-#include "contrib/ImGee/extensions/TimedTooltip/imgui_tooltip_ext.h"
+#include "ImgWindow/contrib/imgee.h"
 
-void RenderSettingsPanelExtensions()
+void RenderSettingsPanelImGee()
 {
     ImGui::Begin("Plugin Settings & Reference");
 
