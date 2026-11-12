@@ -186,9 +186,7 @@ namespace ImGeeDetail {
             );
 
             // 3. Register shutdown handler to purge Markdown VRAM cache on plugin stop
-            ImgWindow::AddShutdownHandler([]() {
-                ImGui::MarkdownImageService::ClearTextureCache();
-            });
+            ImgWindow::AddShutdownHandler(&ImGui::MarkdownImageService::ClearTextureCache);
         }
     };
     static AutoImgWindowResolverBridge s_AutoImgWindowResolverBridge;

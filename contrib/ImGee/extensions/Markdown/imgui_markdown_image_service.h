@@ -20,6 +20,7 @@
 #include <map>
 #include <mutex>
 #include <thread>
+#include <atomic>
 #include <cmath>
 #include <sys/stat.h>
 #include <algorithm>
@@ -31,38 +32,50 @@
 #include "imgui_markdown.h"
 
 // If ImgWindow is available, use its texture upload driver; otherwise fallback to external
-#if defined(__has_include)
-    #if __has_include("ImgWindow.h")
+#if defined(IMGWINDOW_H) || (defined(__has_include) && __has_include("ImgWindow.h"))
+    #if !defined(IMGWINDOW_H)
         #include "ImgWindow.h"
-        #define IMGEE_HAS_IMGWINDOW 1
     #endif
+    #define IMGEE_HAS_IMGWINDOW 1
 #endif
 
-#if !defined(STB_IMAGE_STATIC)
-#define STB_IMAGE_STATIC
-#endif
-#if !defined(STB_IMAGE_IMPLEMENTATION)
-#define STB_IMAGE_IMPLEMENTATION
-#endif
+#if !defined(STBI_INCLUDE_STB_IMAGE_H)
+    #if !defined(STB_IMAGE_STATIC)
+    #define STB_IMAGE_STATIC
+    #endif
+    #if !defined(IMGEE_NO_STB_IMAGE_IMPLEMENTATION) && !defined(STB_IMAGE_IMPLEMENTATION)
+    #define STB_IMAGE_IMPLEMENTATION
+    #endif
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-#pragma clang diagnostic ignored "-Wsign-compare"
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wsign-compare"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
+    #if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wunused-function"
+    #pragma clang diagnostic ignored "-Wsign-compare"
+    #pragma clang diagnostic ignored "-Wunused-parameter"
+    #elif defined(__GNUC__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused-function"
+    #pragma GCC diagnostic ignored "-Wsign-compare"
+    #pragma GCC diagnostic ignored "-Wunused-parameter"
+    #endif
 
-#include "../../../stb_image.h"
+    #if defined(__has_include)
+        #if __has_include(<stb_image.h>)
+            #include <stb_image.h>
+        #elif __has_include("stb_image.h")
+            #include "stb_image.h"
+        #elif __has_include("../../../stb_image.h")
+            #include "../../../stb_image.h"
+        #endif
+    #else
+        #include "../../../stb_image.h"
+    #endif
 
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
+    #if defined(__clang__)
+    #pragma clang diagnostic pop
+    #elif defined(__GNUC__)
+    #pragma GCC diagnostic pop
+    #endif
 #endif
 
 namespace ImGui {
@@ -133,7 +146,13 @@ inline RemoteFetchCallback GetRemoteFetchCallback() {
     return GetRemoteFetchCallbackRef();
 }
 
+inline std::atomic<bool>& GetShutdownRequested() {
+    static std::atomic<bool> s_Shutdown{false};
+    return s_Shutdown;
+}
+
 inline void ClearTextureCache() {
+    GetShutdownRequested().store(true);
     {
         std::lock_guard<std::mutex> lock(GetCompletedMutex());
         for (auto& item : GetCompletedQueue()) {
@@ -280,6 +299,10 @@ static bool FetchRemoteBytesCurl(const std::string& url, std::vector<uint8_t>& o
 #endif
 
 inline void FetchRemoteImageWorker(std::string url) {
+    if (GetShutdownRequested().load()) {
+        return;
+    }
+
     std::vector<uint8_t> rawBytes;
     bool fetchOk = false;
 
@@ -287,10 +310,14 @@ inline void FetchRemoteImageWorker(std::string url) {
         fetchOk = GetRemoteFetchCallback()(url, rawBytes);
     }
 #if !defined(_WIN32)
-    if (!fetchOk) {
+    if (!fetchOk && !GetShutdownRequested().load()) {
         fetchOk = FetchRemoteBytesCurl(url, rawBytes);
     }
 #endif
+
+    if (GetShutdownRequested().load()) {
+        return;
+    }
 
     MarkdownRemoteDecodedPayload payload;
     payload.url = url;
@@ -298,6 +325,10 @@ inline void FetchRemoteImageWorker(std::string url) {
     if (fetchOk && !rawBytes.empty()) {
         int w = 0, h = 0, comp = 0;
         uint8_t* pixels = stbi_load_from_memory(rawBytes.data(), (int)rawBytes.size(), &w, &h, &comp, 4);
+        if (GetShutdownRequested().load()) {
+            if (pixels) stbi_image_free(pixels);
+            return;
+        }
         if (pixels && w > 0 && h > 0) {
             payload.pixels = pixels;
             payload.width = w;
@@ -311,9 +342,18 @@ inline void FetchRemoteImageWorker(std::string url) {
         payload.success = false;
     }
 
+    if (GetShutdownRequested().load()) {
+        if (payload.pixels) stbi_image_free(payload.pixels);
+        return;
+    }
+
     {
         std::lock_guard<std::mutex> lock(GetCompletedMutex());
-        GetCompletedQueue().push_back(payload);
+        if (!GetShutdownRequested().load()) {
+            GetCompletedQueue().push_back(payload);
+        } else if (payload.pixels) {
+            stbi_image_free(payload.pixels);
+        }
     }
 }
 
@@ -476,15 +516,30 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
     // 3. Tier 3: Remote Web URLs
     bool isRemoteUrl = (url.rfind("http://", 0) == 0 || url.rfind("https://", 0) == 0);
     if (isRemoteUrl) {
+        if (GetShutdownRequested().load()) {
+            ImGui::MarkdownImageData invalid;
+            invalid.isValid = false;
+            return invalid;
+        }
+
         auto& entry = GetDiskTextureCache()[url];
         entry.inFlight = true;
         entry.failed = false;
         entry.lastAttemptTime = ImGui::GetTime();
         entry.retryCount++;
 
-        std::thread([url]() {
-            FetchRemoteImageWorker(url);
-        }).detach();
+        try {
+            std::thread([url]() {
+                FetchRemoteImageWorker(url);
+            }).detach();
+        } catch (...) {
+            entry.inFlight = false;
+            entry.failed = true;
+            entry.lastAttemptTime = ImGui::GetTime();
+            ImGui::MarkdownImageData invalid;
+            invalid.isValid = false;
+            return invalid;
+        }
 
         ImGui::MarkdownImageData loadingData;
         loadingData.isValid = false;
@@ -565,7 +620,7 @@ inline void EnableDefaultImageService(bool enable = true) {
     }
 }
 
-namespace {
+namespace MarkdownImageDetail {
     struct AutoMarkdownImageServiceInit {
         AutoMarkdownImageServiceInit() {
             EnableDefaultImageService(true);

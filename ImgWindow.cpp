@@ -2026,11 +2026,19 @@ struct NamedTextureEntry {
     ImVec2 size = ImVec2(0.0f, 0.0f);
     bool owned = false;
 };
-static std::map<std::string, NamedTextureEntry> s_NamedTextures;
+
+static std::map<std::string, NamedTextureEntry>& GetNamedTextures() {
+    static std::map<std::string, NamedTextureEntry> s_NamedTextures;
+    return s_NamedTextures;
+}
 
 static ImgWindow::MemoryImageDecodeFn s_MemoryImageDecodeFn = nullptr;
 static ImgWindow::MemoryImageFreeFn   s_MemoryImageFreeFn   = nullptr;
-static std::vector<ImgWindow::ShutdownHandlerFn> s_ShutdownHandlers;
+
+static std::vector<ImgWindow::ShutdownHandlerFn>& GetShutdownHandlers() {
+    static std::vector<ImgWindow::ShutdownHandlerFn> s_ShutdownHandlers;
+    return s_ShutdownHandlers;
+}
 
 void ImgWindow::SetMemoryImageDecoder(MemoryImageDecodeFn decodeFn, MemoryImageFreeFn freeFn)
 {
@@ -2040,24 +2048,27 @@ void ImgWindow::SetMemoryImageDecoder(MemoryImageDecodeFn decodeFn, MemoryImageF
 
 void ImgWindow::AddShutdownHandler(ShutdownHandlerFn fn)
 {
-    if (fn) {
-        s_ShutdownHandlers.push_back(fn);
+    auto& handlers = GetShutdownHandlers();
+    if (fn && std::find(handlers.begin(), handlers.end(), fn) == handlers.end()) {
+        handlers.push_back(fn);
     }
 }
 
 void ImgWindow::Shutdown() {
     // 0. Invoke registered subsystem shutdown handlers
-    for (auto fn : s_ShutdownHandlers) {
+    for (auto fn : GetShutdownHandlers()) {
         if (fn) fn();
     }
+    GetShutdownHandlers().clear();
 
     // 1. Clean up registered named textures (owned textures only)
-    for (auto& pair : s_NamedTextures) {
+    auto& namedTextures = GetNamedTextures();
+    for (auto& pair : namedTextures) {
         if (pair.second.owned && pair.second.textureID) {
             ImgWindow::DeleteTexture(pair.second.textureID);
         }
     }
-    s_NamedTextures.clear();
+    namedTextures.clear();
 
     for (const auto& item : s_TexturesPendingDestruction) {
 #ifdef IMGWINDOW_USE_PANEL_GRAPHICS
@@ -2086,7 +2097,7 @@ ImTextureID ImgWindow::RegisterNamedTexture(const std::string& name, const unsig
     entry.textureID = texID;
     entry.size = ImVec2(static_cast<float>(width), static_cast<float>(height));
     entry.owned = true;
-    s_NamedTextures[name] = entry;
+    GetNamedTextures()[name] = entry;
 
     return texID;
 }
@@ -2101,19 +2112,20 @@ ImTextureID ImgWindow::RegisterNamedTexture(const std::string& name, ImTextureID
     entry.textureID = textureID;
     entry.size = size;
     entry.owned = false;
-    s_NamedTextures[name] = entry;
+    GetNamedTextures()[name] = entry;
 
     return textureID;
 }
 
 void ImgWindow::UnregisterNamedTexture(const std::string& name)
 {
-    auto it = s_NamedTextures.find(name);
-    if (it != s_NamedTextures.end()) {
+    auto& map = GetNamedTextures();
+    auto it = map.find(name);
+    if (it != map.end()) {
         if (it->second.owned && it->second.textureID) {
             ImgWindow::DeleteTexture(it->second.textureID);
         }
-        s_NamedTextures.erase(it);
+        map.erase(it);
     }
 }
 
@@ -2146,8 +2158,9 @@ ImTextureID ImgWindow::GetNamedTexture(const std::string& name, ImVec2* outSize)
     if (outSize) *outSize = ImVec2(0.0f, 0.0f);
     if (name.empty()) return (ImTextureID)0;
 
-    auto it = s_NamedTextures.find(name);
-    if (it != s_NamedTextures.end()) {
+    auto& map = GetNamedTextures();
+    auto it = map.find(name);
+    if (it != map.end()) {
         if (outSize) *outSize = it->second.size;
         return it->second.textureID;
     }
@@ -2160,6 +2173,9 @@ void ImGui::ImageNamed(const char* name, const ImVec2& size, const ImVec2& uv0, 
     if (!name || !*name) return;
     ImVec2 nativeSize;
     ImTextureID tex = ImgWindow::GetNamedTexture(name, &nativeSize);
+    if (!tex && Detail::GetNamedTextureResolver()) {
+        tex = Detail::GetNamedTextureResolver()(name, &nativeSize);
+    }
     if (!tex) return;
 
     ImVec2 renderSize = size;
