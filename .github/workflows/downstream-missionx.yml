@@ -40,7 +40,8 @@ jobs:
       # 2b. Print overlaid ImgWindow SHA for auditability
       - name: Verify overlaid ImgWindow commit
         shell: bash
-        run: echo "Testing overlaid ImgWindow commit: $(git -C mx-source-build/libs/imgui4xp/ImgWindow rev-parse --short HEAD)"
+        run: |
+          echo "Testing overlaid ImgWindow commit: $(git -C mx-source-build/libs/imgui4xp/ImgWindow rev-parse --short HEAD)"
 
       # 3. Platform setup & dependencies
       - name: "Linux: Install dependencies"
