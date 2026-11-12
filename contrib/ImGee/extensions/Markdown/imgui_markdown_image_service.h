@@ -94,7 +94,11 @@ struct MarkdownDiskTextureEntry {
     double lastAttemptTime = 0.0;
     int retryCount = 0;
 };
-static std::map<std::string, MarkdownDiskTextureEntry> s_MarkdownDiskTextureCache;
+
+inline std::map<std::string, MarkdownDiskTextureEntry>& GetDiskTextureCache() {
+    static std::map<std::string, MarkdownDiskTextureEntry> s_Cache;
+    return s_Cache;
+}
 
 struct MarkdownRemoteDecodedPayload {
     std::string url;
@@ -104,47 +108,59 @@ struct MarkdownRemoteDecodedPayload {
     bool success = false;
 };
 
-static std::mutex s_MarkdownCompletedMutex;
-static std::vector<MarkdownRemoteDecodedPayload> s_MarkdownCompletedQueue;
+inline std::mutex& GetCompletedMutex() {
+    static std::mutex s_Mutex;
+    return s_Mutex;
+}
+
+inline std::vector<MarkdownRemoteDecodedPayload>& GetCompletedQueue() {
+    static std::vector<MarkdownRemoteDecodedPayload> s_Queue;
+    return s_Queue;
+}
+
 typedef bool (*RemoteFetchCallback)(const std::string& url, std::vector<uint8_t>& outData);
-static RemoteFetchCallback s_RemoteFetchCallback = nullptr;
+
+inline RemoteFetchCallback& GetRemoteFetchCallbackRef() {
+    static RemoteFetchCallback s_Callback = nullptr;
+    return s_Callback;
+}
 
 inline void SetRemoteFetchCallback(RemoteFetchCallback callback) {
-    s_RemoteFetchCallback = callback;
+    GetRemoteFetchCallbackRef() = callback;
 }
 
 inline RemoteFetchCallback GetRemoteFetchCallback() {
-    return s_RemoteFetchCallback;
+    return GetRemoteFetchCallbackRef();
 }
 
 inline void ClearTextureCache() {
     {
-        std::lock_guard<std::mutex> lock(s_MarkdownCompletedMutex);
-        for (auto& item : s_MarkdownCompletedQueue) {
+        std::lock_guard<std::mutex> lock(GetCompletedMutex());
+        for (auto& item : GetCompletedQueue()) {
             if (item.pixels) {
                 stbi_image_free(item.pixels);
                 item.pixels = nullptr;
             }
         }
-        s_MarkdownCompletedQueue.clear();
+        GetCompletedQueue().clear();
     }
 
-    for (auto& pair : s_MarkdownDiskTextureCache) {
+    for (auto& pair : GetDiskTextureCache()) {
         if (pair.second.textureID) {
 #if defined(IMGEE_HAS_IMGWINDOW)
             ImgWindow::DeleteTexture(pair.second.textureID);
 #endif
         }
     }
-    s_MarkdownDiskTextureCache.clear();
+    GetDiskTextureCache().clear();
 }
 
 inline void ProcessPendingTextures() {
     std::vector<MarkdownRemoteDecodedPayload> completed;
     {
-        std::lock_guard<std::mutex> lock(s_MarkdownCompletedMutex);
-        if (!s_MarkdownCompletedQueue.empty()) {
-            completed.swap(s_MarkdownCompletedQueue);
+        std::lock_guard<std::mutex> lock(GetCompletedMutex());
+        if (!GetCompletedQueue().empty()) {
+            completed.swap(GetCompletedQueue());
         }
     }
 
@@ -153,7 +169,7 @@ inline void ProcessPendingTextures() {
     }
 
     for (auto& item : completed) {
-        auto& entry = s_MarkdownDiskTextureCache[item.url];
+        auto& entry = GetDiskTextureCache()[item.url];
         entry.inFlight = false;
 
         if (item.success && item.pixels && item.width > 0 && item.height > 0) {
@@ -267,8 +283,8 @@ inline void FetchRemoteImageWorker(std::string url) {
     std::vector<uint8_t> rawBytes;
     bool fetchOk = false;
 
-    if (s_RemoteFetchCallback) {
-        fetchOk = s_RemoteFetchCallback(url, rawBytes);
+    if (GetRemoteFetchCallback()) {
+        fetchOk = GetRemoteFetchCallback()(url, rawBytes);
     }
 #if !defined(_WIN32)
     if (!fetchOk) {
@@ -296,8 +312,8 @@ inline void FetchRemoteImageWorker(std::string url) {
     }
 
     {
-        std::lock_guard<std::mutex> lock(s_MarkdownCompletedMutex);
-        s_MarkdownCompletedQueue.push_back(payload);
+        std::lock_guard<std::mutex> lock(GetCompletedMutex());
+        GetCompletedQueue().push_back(payload);
     }
 }
 
@@ -430,8 +446,8 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
     }
 
     // 2. Check Disk & Remote Texture Cache
-    auto it = s_MarkdownDiskTextureCache.find(url);
-    if (it != s_MarkdownDiskTextureCache.end()) {
+    auto it = GetDiskTextureCache().find(url);
+    if (it != GetDiskTextureCache().end()) {
         if (it->second.inFlight) {
             ImGui::MarkdownImageData loadingData;
             loadingData.isValid = false;
@@ -460,7 +476,7 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
     // 3. Tier 3: Remote Web URLs
     bool isRemoteUrl = (url.rfind("http://", 0) == 0 || url.rfind("https://", 0) == 0);
     if (isRemoteUrl) {
-        auto& entry = s_MarkdownDiskTextureCache[url];
+        auto& entry = GetDiskTextureCache()[url];
         entry.inFlight = true;
         entry.failed = false;
         entry.lastAttemptTime = ImGui::GetTime();
@@ -482,7 +498,7 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
     bool fileFound = (stat(resolvedPath.c_str(), &st) == 0 && S_ISREG(st.st_mode));
 
     if (!fileFound) {
-        auto& entry = s_MarkdownDiskTextureCache[url];
+        auto& entry = GetDiskTextureCache()[url];
         entry.inFlight = false;
         entry.failed = true;
         entry.lastAttemptTime = ImGui::GetTime();
@@ -495,7 +511,7 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
     int width = 0, height = 0, channels = 0;
     stbi_uc* pixels = stbi_load(resolvedPath.c_str(), &width, &height, &channels, 4);
     if (!pixels) {
-        auto& entry = s_MarkdownDiskTextureCache[url];
+        auto& entry = GetDiskTextureCache()[url];
         entry.inFlight = false;
         entry.failed = true;
         entry.lastAttemptTime = ImGui::GetTime();
@@ -512,7 +528,7 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
     stbi_image_free(pixels);
 
     if (!texID) {
-        auto& entry = s_MarkdownDiskTextureCache[url];
+        auto& entry = GetDiskTextureCache()[url];
         entry.inFlight = false;
         entry.failed = true;
         entry.lastAttemptTime = ImGui::GetTime();
@@ -528,7 +544,7 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
     successEntry.inFlight = false;
     successEntry.failed = false;
     successEntry.retryCount = 0;
-    s_MarkdownDiskTextureCache[url] = successEntry;
+    GetDiskTextureCache()[url] = successEntry;
 
     ImGui::MarkdownImageData img;
     img.isValid = true;

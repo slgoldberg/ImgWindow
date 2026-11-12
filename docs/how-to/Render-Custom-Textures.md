@@ -2,10 +2,10 @@
 
 > [!TIP]
 > **TripTik Navigation:**
-> * 🧭 **[Ground-School.md](Ground-School.md)** *(Architecture Overview — read this first if you want the big picture)*
+> * 🧭 **[Ground-School.md](Ground-School.md)** *(Architecture Overview -- read this first if you want the big picture)*
 > * 🛫 **[TripTik 1: Get Started with ImgWindow](Get-Started-With-ImgWindow.md)** *(Starter guide for new C++ plugins or migrating from Lua/XPWidgets)*
 > * 🚀 **[TripTik 2: Support Panel Graphics](Support-Panel-Graphics.md)** *(Upgrading an existing `ImgWindow` plugin to v2)*
-> * 🖼️ **TripTik 3: Render Custom Textures** *(You are here — rendering `.png`/`.jpg` images via `CreateTexture()`)*
+> * 🖼️ **TripTik 3: Render Custom Textures** *(You are here -- rendering `.png`/`.jpg` images via `CreateTexture()`)*
 
 ---
 
@@ -28,7 +28,7 @@ flowchart TD
 
 This TripTik is for developers who have used earlier versions of `ImgWindow` (or standalone Dear ImGui in X-Plane) and already render custom imagery inside their windows using `ImGui::Image()` or `ImGui::ImageButton()`. Historically, that meant binding textures through the legacy **OpenGL** pipeline and storing 32-bit integer handles (`GLuint`, `int`, or truncated `(ImTextureID)(intptr_t)glId`).
 
-If your plugin loads **external 2D images**—e.g., JPG, PNG, or other file formats containing images such as plugin logos, interactive checklists, aircraft diagrams, moving map tiles, or weather radar—this guide will walk you through transitioning those textures to `ImgWindow v2`.
+If your plugin loads **external 2D images** -- e.g., JPG, PNG, or other file formats containing images such as plugin logos, interactive checklists, aircraft diagrams, moving map tiles, or weather radar -- this guide will walk you through transitioning those textures to `ImgWindow v2`.
 
 > [!NOTE]
 > **What Textures Are We Talking About?**
@@ -242,13 +242,20 @@ void deleteImage() {
 
 ---
 
-## ⚡ Step 5: Turnkey In-Memory Image Service (`ImgWindow::RegisterMemoryImage`)
+## ⚡ Step 5: Turnkey In-Memory Image Service (`ImgWindow::RegisterNamedTexture` & `RegisterMemoryImage`)
 
-If your plugin bundles embedded images (e.g. static `.h` or `.png` byte arrays compiled directly into your binary) or downloads images from memory streams, `ImgWindow v2.3.0+` provides a turnkey **In-Memory Image Service** (codenamed `xyzzy`).
+If your plugin bundles embedded images (e.g. static `.h` or `.png` byte arrays compiled directly into your binary) or downloads images from memory streams, `ImgWindow v2.4.0+` provides a turnkey **In-Memory Image Service** (codenamed `xyzzy`).
 
-It handles the entire lifecycle—decoding PNG/JPG buffers via embedded `stb_image`, uploading to the active GPU driver (OpenGL, Vulkan, or Metal), caching dimensions, and registering global texture aliases—with **zero disk I/O and a single line of C++**:
+It handles the entire lifecycle -- uploading raw RGBA8 pixels or decoding PNG/JPG buffers via `stb_image`, uploading to the active GPU driver (Panel Graphics or OpenGL), caching dimensions, and registering global texture aliases -- with **zero disk I/O and a single line of C++**:
 
 ```cpp
+#include "ImgWindow.h"
+
+// Option A: Raw RGBA pixel buffers (Zero external dependencies, built into core ImgWindow):
+ImTextureID texA = ImgWindow::RegisterNamedTexture("my_icon", rgba_bytes, width, height);
+
+// Option B: Compressed PNG/JPG byte arrays (Turnkey inline helper when stb_image.h is included):
+#include <stb_image.h> // Or "stb_image.h"
 #include "ImgWindow.h"
 
 // Static embedded PNG array:
@@ -257,7 +264,7 @@ static const unsigned char g_AvionicsBeaconPng[] = { 0x89, 0x50, 0x4e, 0x47, ...
 void InitializePluginAssets() {
     int w = 0, h = 0;
     // Register by identifier:
-    ImTextureID tex = ImgWindow::RegisterMemoryImage(
+    ImTextureID texB = ImgWindow::RegisterMemoryImage(
         "avionics_beacon", 
         g_AvionicsBeaconPng, 
         sizeof(g_AvionicsBeaconPng), 
@@ -267,7 +274,7 @@ void InitializePluginAssets() {
 ```
 
 ### 1. Automatic Unified Markdown & StyledText Aliasing
-Registering a memory image automatically aliases it for all Markdown and `StyledText` consumers:
+Registering a named texture automatically aliases it for all Markdown and `StyledText` consumers when opting into `contrib.h`:
 * **Standard Markdown**:
   ```markdown
   ![Beacon Icon](avionics_beacon)
@@ -279,7 +286,7 @@ Registering a memory image automatically aliases it for all Markdown and `Styled
   ```
 
 ### 2. Native Icon Badges, Pills & Unary Annunciators
-Memory images automatically bridge directly into `ImGui::Badge` and `ImGui::Pill`:
+Named textures automatically bridge directly into `ImGui::Badge` and `ImGui::Pill`:
 * **Embedded Icon Capsules**:
   ```markdown
   * Transponder: <pill icon=avionics_beacon color=#2ecc71>ACTIVE</pill>
@@ -304,9 +311,9 @@ Memory images automatically bridge directly into `ImGui::Badge` and `ImGui::Pill
   ```
 
 ### 3. Cleanup & Unregistration
-You can explicitly unregister a texture at runtime, or let `ImgWindow::Shutdown()` automatically purge all registered memory images from VRAM upon plugin disable:
+You can explicitly unregister a texture at runtime, or let `ImgWindow::Shutdown()` automatically purge all registered named textures from VRAM upon plugin disable:
 ```cpp
-ImgWindow::UnregisterMemoryImage("avionics_beacon");
+ImgWindow::UnregisterNamedTexture("avionics_beacon");
 ```
 
 ---

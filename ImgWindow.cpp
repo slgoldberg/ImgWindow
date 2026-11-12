@@ -2028,7 +2028,29 @@ struct NamedTextureEntry {
 };
 static std::map<std::string, NamedTextureEntry> s_NamedTextures;
 
+static ImgWindow::MemoryImageDecodeFn s_MemoryImageDecodeFn = nullptr;
+static ImgWindow::MemoryImageFreeFn   s_MemoryImageFreeFn   = nullptr;
+static std::vector<ImgWindow::ShutdownHandlerFn> s_ShutdownHandlers;
+
+void ImgWindow::SetMemoryImageDecoder(MemoryImageDecodeFn decodeFn, MemoryImageFreeFn freeFn)
+{
+    s_MemoryImageDecodeFn = decodeFn;
+    s_MemoryImageFreeFn   = freeFn;
+}
+
+void ImgWindow::AddShutdownHandler(ShutdownHandlerFn fn)
+{
+    if (fn) {
+        s_ShutdownHandlers.push_back(fn);
+    }
+}
+
 void ImgWindow::Shutdown() {
+    // 0. Invoke registered subsystem shutdown handlers
+    for (auto fn : s_ShutdownHandlers) {
+        if (fn) fn();
+    }
+
     // 1. Clean up registered named textures (owned textures only)
     for (auto& pair : s_NamedTextures) {
         if (pair.second.owned && pair.second.textureID) {
@@ -2093,6 +2115,30 @@ void ImgWindow::UnregisterNamedTexture(const std::string& name)
         }
         s_NamedTextures.erase(it);
     }
+}
+
+ImTextureID ImgWindow::RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth, int* outHeight)
+{
+    if (outWidth) *outWidth = 0;
+    if (outHeight) *outHeight = 0;
+    if (name.empty() || !data || lengthBytes == 0) return (ImTextureID)0;
+
+    if (!s_MemoryImageDecodeFn) {
+        return (ImTextureID)0;
+    }
+
+    int w = 0, h = 0;
+    unsigned char* pixels = s_MemoryImageDecodeFn(data, lengthBytes, &w, &h);
+    if (!pixels || w <= 0 || h <= 0) return (ImTextureID)0;
+
+    ImTextureID texID = RegisterNamedTexture(name, pixels, w, h);
+    if (s_MemoryImageFreeFn) {
+        s_MemoryImageFreeFn(pixels);
+    }
+
+    if (outWidth) *outWidth = w;
+    if (outHeight) *outHeight = h;
+    return texID;
 }
 
 ImTextureID ImgWindow::GetNamedTexture(const std::string& name, ImVec2* outSize)

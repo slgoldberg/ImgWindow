@@ -12,7 +12,7 @@
 3. **Clunky Input Affordances:** Checkboxes look like desktop form controls rather than physical cockpit switches; sliders do not respond naturally to the mouse scroll wheel; and there is no universal "revert to calibrated default" pattern for complex tuning parameters.
 4. **Rigid Text Rendering:** Stock text rendering lacks inline semantic sizing, baseline alignment, and formatted Markdown tables with column resizing and persistent sorting.
 
-**`ImGee`** is a specialized **ImGui toolkit** designed specifically to bridge these gaps. At its core, ImGee is an **avionics toolkit for ImGui** that extends, wraps, and simplifies everyday developer needs—from high-polish information displays to tactile flight-deck controls. Bundled as the premier package within the `ImgWindow` `contrib/` ecosystem (and architected to stand as an independent open-source library), ImGee transforms Dear ImGui into a cockpit-grade design system with zero mandatory dependencies, zero runtime allocations in hot loops, and complete backward compatibility.
+**`ImGee`** is a specialized **ImGui toolkit** designed specifically to bridge these gaps. At its core, ImGee is an **avionics toolkit for ImGui** that extends, wraps, and simplifies everyday developer needs -- from high-polish information displays to tactile flight-deck controls. Bundled as the premier package within the `ImgWindow` `contrib/` ecosystem (and architected to stand as an independent open-source library), ImGee transforms Dear ImGui into a cockpit-grade design system with zero mandatory dependencies, zero runtime allocations in hot loops, and complete backward compatibility.
 
 ```
 ImgWindow/
@@ -154,7 +154,7 @@ Because of this standard submodule topology, typing `#include "contrib.h"` will 
 *(Note: If your build system explicitly adds the `ImgWindow` directory directly to your `-I` compiler flags, `#include "contrib.h"` works identically).*
 
 ### 5.3 Direct Package Integration: ImGee Suite Only
-If you wish to include *only* the ImGee suite—bypassing the container switchboard or avoiding potential future third-party packages in `contrib/`—you can include ImGee directly using any of our symmetrical package headers:
+If you wish to include *only* the ImGee suite -- bypassing the container switchboard or avoiding potential future third-party packages in `contrib/` -- you can include ImGee directly using any of our symmetrical package headers:
 
 ```cpp
 // Option A: Canonical top-level contrib forwarder (Recommended):
@@ -573,13 +573,16 @@ if (ImGui::SelectPulldown("##PowerMode", &s_PowerMode, kPowerModes, 3, nullptr, 
 
 ## Appendix A: Preprocessor Opt-Out Configuration & Build Matrix
 
-For projects with strict binary footprint requirements or codebases that define conflicting symbols, ImGee provides a comprehensive two-tier opt-out matrix. Define any of the following macros *before* including `contrib.h` or `imgee.h`:
+> [!NOTE]
+> **Zero-Overhead Opt-In Architecture:** Core `ImgWindow` never includes `contrib/` or `ImGee/`. If your project only needs standard windowing, simply `#include "ImgWindow.h"` -- zero ImGee code is compiled into your binary, and no opt-out defines are necessary.
+>
+> The opt-out directives below are only needed if you choose to include the ImGee suite (`#include "contrib.h"` or `#include "contrib/imgee.h"`) but wish to selectively exclude specific subsystems (such as Markdown or Knobs) that might conflict with pre-existing third-party libraries in your project.
 
-### A.1 Master Container & Suite Toggles
+### A.1 Master Suite Toggle
 | Preprocessor Define | Scope | Description |
 | :--- | :--- | :--- |
-| `CONTRIB_DISABLE_ALL` | Container | Completely disables the entire `contrib/` folder. Zero contrib code compiled. |
-| `IMGEE_DISABLE_ALL` (or `CONTRIB_IMGEE_DISABLE_ALL`) | Suite | Excludes the entire ImGee suite while leaving other contrib packages active. |
+| `IMGEE_DISABLE_ALL` (or `CONTRIB_IMGEE_DISABLE_ALL`) | Suite | Excludes the entire ImGee suite when including container headers. |
+| `CONTRIB_DISABLE_ALL` *(Legacy)* | Container | Legacy global kill-switch retained for backward compatibility. |
 
 ### A.2 Subsystem & Feature Opt-Outs
 | Canonical Macro Directive | Legacy Alias | Description |

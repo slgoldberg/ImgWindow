@@ -115,11 +115,14 @@ To guarantee 100% backward compatibility for existing code and downstream CI pip
 
 ## ⚙️ Configuration Reference: Opt-Out Flags
 
-The library provides a hierarchical two-tier configuration matrix:
+> [!NOTE]
+> **Core ImgWindow is 100% Opt-In:** Neither `ImgWindow.h` nor `ImgWindow.cpp` includes anything from `contrib/`. If your plugin only uses core windowing, simply `#include "ImgWindow.h"` -- zero contrib code is compiled, and no disable macros are needed.
+>
+> The opt-out flags below apply only when you explicitly include `contrib.h` (or `contrib/imgee.h`) and want to selectively exclude specific features or subsystems.
 
-### Tier 1: Master Container & Package Toggles
-* **`CONTRIB_DISABLE_ALL`** (or `DISABLE_CONTRIB`, `IMGWINDOW_DISABLE_CONTRIB`): Completely shuts off the entire `contrib/` ecosystem. Zero contrib code compiled.
-* **`IMGEE_DISABLE_ALL`** (or `CONTRIB_IMGEE_DISABLE_ALL`): Disables the entire ImGee suite while leaving the container active for future packages.
+### Tier 1: Suite Toggles
+* **`IMGEE_DISABLE_ALL`** (or `CONTRIB_IMGEE_DISABLE_ALL`): Disables the entire ImGee suite when including container headers.
+* **`CONTRIB_DISABLE_ALL`** *(Legacy)*: Legacy global kill-switch retained in container headers for backward compatibility.
 
 ### Tier 2: ImGee Feature & Subsystem Toggles
 Uncomment or pass any of these macros to selectively exclude individual ImGee subsystems or widgets:

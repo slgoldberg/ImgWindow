@@ -12,11 +12,11 @@ The recent course correction in commit `627e4db` was a triumphant victory: by pr
 However, **font scale coupling physics** remains an open architectural issue whenever windows are zoomed or downscaled:
 
 1. **The Downscaled Squeeze Box ($< 1.0\times$):**
-   In dense cockpits, developers routinely scale child frames down to $0.70\times$–$0.75\times$ to cram annunciators, radio stacks, or CDU numeric tables into tight physical cutouts. 
-   Because tooltips inherited `FontWindowScale` linearly $1:1$, the explanatory text shrank to 7–9px microprint. 
+   In dense cockpits, developers routinely scale child frames down to $0.70\times$ -- $0.75\times$ to cram annunciators, radio stacks, or CDU numeric tables into tight physical cutouts. 
+   Because tooltips inherited `FontWindowScale` linearly $1:1$, the explanatory text shrank to 7 -- 9px microprint. 
    **As Roger brilliantly observed: tooltips live in the open sky!** A floating overlay has zero obligation to suffer the physical layout constraints of the tiny button beneath it.
 2. **The Billboard Balloon Effect ($> 1.5\times$):**
-   When a pilot sits back from a large 4K display or zooms a panel to $1.8\times$–$2.0\times$, a linear $1:1$ tooltip balloons in both axes, consuming nearly $4\times$ the screen real estate and occluding half the windshield.
+   When a pilot sits back from a large 4K display or zooms a panel to $1.8\times$ -- $2.0\times$, a linear $1:1$ tooltip balloons in both axes, consuming nearly $4\times$ the screen real estate and occluding half the windshield.
 3. **The Developer Override Paradox (The ABC Experience):**
    In real-world avionics code (like *A-Better-Camera*), developers occasionally need explicit control (e.g. making a sub-label $0.9\times$, or an annunciator tooltip $1.2\times$). If an API provides only raw unconstrained power, developers can accidentally generate unreadable 3px micro-text or 5000px crashes. 
 

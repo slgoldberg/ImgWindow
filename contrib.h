@@ -5,8 +5,7 @@
 // License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
 //
 // Single-include front door in the top-level ImgWindow directory that pulls in
-// all contributed Dear ImGui extensions and widgets from contrib/includes.h,
-// unless disabled via #define CONTRIB_DISABLE_ALL (or IMGUI_DISABLE_CONTRIB).
+// all contributed Dear ImGui extensions and widgets from contrib/includes.h.
 //
 // Usage:
 //   #include "third-party/ImgWindow/contrib.h"

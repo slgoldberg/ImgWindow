@@ -103,7 +103,7 @@ Because of this standard submodule topology, typing `#include "contrib.h"` will 
 *(Note: If your build system explicitly adds the `ImgWindow` directory directly to your `-I` compiler flags, `#include "contrib.h"` works identically).*
 
 ### 3. Direct Package Integration: ImGee Suite Only
-If you wish to include *only* the ImGee suite—bypassing the container switchboard or avoiding potential future third-party packages in `contrib/`—you can include ImGee directly using any of our symmetrical package headers:
+If you wish to include *only* the ImGee suite -- bypassing the container switchboard or avoiding potential future third-party packages in `contrib/` -- you can include ImGee directly using any of our symmetrical package headers:
 
 ```cpp
 // Option A: Canonical top-level contrib forwarder (Recommended):
@@ -142,7 +142,7 @@ When ImGee is spun out into its own dedicated open-source Git repository and sub
 #include "ImGee/imgee.h"
 ```
 
-Everything is configured and ready by default out of the box—no subsystem initialization, factory registration, or frame hooks required.
+Everything is configured and ready by default out of the box -- no subsystem initialization, factory registration, or frame hooks required.
 
 ---
 

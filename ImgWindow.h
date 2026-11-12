@@ -430,28 +430,33 @@ public:
     }
     static inline void UnregisterMarkdownNamedTexture(const std::string& name) { UnregisterNamedTexture(name); }
 
-#if defined(STBI_VERSION_1)
+    /** Image decoding hook types for compressed in-memory formats (PNG, JPG, etc.).
+     *  Allows third-party or host decoders (such as stb_image) to plug in dynamically. */
+    typedef unsigned char* (*MemoryImageDecodeFn)(const void* data, size_t len, int* outW, int* outH);
+    typedef void (*MemoryImageFreeFn)(void* pixels);
+
+    /** Registers a custom image decoder and deallocator for RegisterMemoryImage.
+     *  Auto-wired by contrib/ImGee when present, or configurable by host applications. */
+    static void SetMemoryImageDecoder(MemoryImageDecodeFn decodeFn, MemoryImageFreeFn freeFn);
+
     /** In-Memory Compressed Image Service:
-     *  Decodes in-memory compressed images (PNG, JPG, etc.) via stb_image and registers into the named registry.
-     *  Available automatically whenever stb_image.h has been included. */
-    static inline ImTextureID RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth = nullptr, int* outHeight = nullptr)
-    {
-        if (outWidth) *outWidth = 0;
-        if (outHeight) *outHeight = 0;
-        if (name.empty() || !data || lengthBytes == 0) return (ImTextureID)0;
+     *  Decodes in-memory compressed images (PNG, JPG, BMP, etc.) via the active decoder hook,
+     *  creates the underlying GPU texture via CreateTexture(), and registers it by name.
+     *  Cleaned up automatically on Shutdown().
+     *  @param name Unique identifier string
+     *  @param data Pointer to raw compressed image data in memory
+     *  @param lengthBytes Size of data in bytes
+     *  @param outWidth Optional pointer to receive decoded width in pixels
+     *  @param outHeight Optional pointer to receive decoded height in pixels
+     *  @return The created ImTextureID, or (ImTextureID)0 on failure. */
+    static ImTextureID RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth = nullptr, int* outHeight = nullptr);
 
-        int w = 0, h = 0, comp = 0;
-        unsigned char* pixels = stbi_load_from_memory((const unsigned char*)data, (int)lengthBytes, &w, &h, &comp, 4);
-        if (!pixels) return (ImTextureID)0;
+    /** Shutdown listener callback type */
+    typedef void (*ShutdownHandlerFn)();
 
-        ImTextureID texID = RegisterNamedTexture(name, pixels, w, h);
-        stbi_image_free(pixels);
-
-        if (outWidth) *outWidth = w;
-        if (outHeight) *outHeight = h;
-        return texID;
-    }
-#endif
+    /** Registers a shutdown handler invoked during ImgWindow::Shutdown().
+     *  Allows decoupled subsystems (e.g. Markdown image cache) to flush VRAM safely. */
+    static void AddShutdownHandler(ShutdownHandlerFn fn);
 
     /** Clear ActiveID early if an InputText currently holds focus and the user clicked outside its bounding rect.
      *  Automatically invoked every frame in updateImgui() right after ImGui::NewFrame().

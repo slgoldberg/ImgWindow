@@ -25,7 +25,7 @@ ImGee is delivered as an integral component of the **ImgWindow** suite, providin
 
 ImGee was architected with profound respect for **Omar Cornut's** foundational vision for Dear ImGui.
 
-Stock Dear ImGui deliberately remains a minimalist, unopinionated canvas—primarily optimized for in-engine developer debuggers. ImGee honors this architecture by refusing to fork or mutate Dear ImGui internals, strictly following its official extensibility model (custom widgets, `ImDrawList`, layout stacks, font roles, ambient styles) to deliver:
+Stock Dear ImGui deliberately remains a minimalist, unopinionated canvas -- primarily optimized for in-engine developer debuggers. ImGee honors this architecture by refusing to fork or mutate Dear ImGui internals, strictly following its official extensibility model (custom widgets, `ImDrawList`, layout stacks, font roles, ambient styles) to deliver:
 1. **Active Cursor Affordances:** Banishing dead `Arrow` cursors in favor of explicit functional cues (`Hand`, `ResizeNS`, `ResizeEW`, `TextInput`).
 2. **Stationary, Polite Assistance:** Replacing mouse-bound tooltip jitter with dwell-verified, stationary `TimedTooltips`.
 3. **Physical vs. Categorical Consistency:** Enforcing boundary clamping for monotonic scalar values and circular wrapping for qualitative carousels.
@@ -42,7 +42,7 @@ Part I establishes the core human-factors principles, cognitive load theory, and
 
 > [!NOTE]
 > **Living Document & Design Intentionality (v0.9.x Work in Progress):**
-> This manifesto is not a static academic treatise or an immutable finished decree. It is an evolving architectural contract—a compass designed to help developers and pilots understand where we are coming from, intuit how to use our work in the best possible way, and hold the ImGee framework accountable as our collective simulation experiences expand.
+> This manifesto is not a static academic treatise or an immutable finished decree. It is an evolving architectural contract -- a compass designed to help developers and pilots understand where we are coming from, intuit how to use our work in the best possible way, and hold the ImGee framework accountable as our collective simulation experiences expand.
 
 ---
 
@@ -51,7 +51,7 @@ Part I establishes the core human-factors principles, cognitive load theory, and
 Flight simulation tools, glass-cockpit avionics, and mission utilities operate in a fundamentally different cognitive domain than web applications or office productivity software:
 
 * **High Cognitive Load:** The pilot is actively flying the aircraft, trimming pitch, monitoring engine instruments, communicating with ATC, and maintaining situational awareness.
-* **Peripheral & Fast-Action Modality:** Interactions with plugins and panels happen in quick, fleeting bursts—often using one hand on a mouse while the other is on a flight stick or throttle.
+* **Peripheral & Fast-Action Modality:** Interactions with plugins and panels happen in quick, fleeting bursts -- often using one hand on a mouse while the other is on a flight stick or throttle.
 * **The Golden Human Factors Rule:**
   > **Protect Expert Mode. Never force the user into Thinking Mode.**
   >
@@ -85,7 +85,7 @@ A mouse pointer is not merely an indicator of (X, Y) screen coordinates; it is t
 
 ## 3. The First-Gesture Discoverability Law
 
-When an expert user encounters a new or unfamiliar dropdown or pulldown widget, they perform a **micro-gesture**—a single notch of the mouse wheel—to discover if the widget is interactive.
+When an expert user encounters a new or unfamiliar dropdown or pulldown widget, they perform a **micro-gesture** -- a single notch of the mouse wheel -- to discover if the widget is interactive.
 
 ### Natural List Order
 > **Scrolling the wheel DOWN (negative delta) MUST ALWAYS advance +1 down the visual list (0 → 1 → 2).**
@@ -162,7 +162,7 @@ When a dropdown or pulldown menu is opened, the user's interaction modality is f
 3. The user can rapidly spin the wheel through 10 items and read the context-sensitive tooltip for each successive selection in real time (the "Lens" effect).
 
 ### The Hysteresis Threshold
-* To prevent accidental unlatching caused by physical wheel vibrations (notched wheel detents often introduce a 1–2 px micro-jiggle on physical mice), the latch must ignore micro-movements.
+* To prevent accidental unlatching caused by physical wheel vibrations (notched wheel detents often introduce a 1 -- 2 px micro-jiggle on physical mice), the latch must ignore micro-movements.
 * The latch is broken only when deliberate pointer motion is detected:
   ```text
   Δx > 6.0 px   or   Δy > 6.0 px
@@ -216,7 +216,7 @@ To resolve these defects, ImGee mandates the **Stationary TimedTooltip Architect
 
 * **Deliberate Dwell Verification:** Assistance is presented only after the cursor rests motionless over an element for a deliberate dwell threshold (default 500 ms). Rapid traversals across the cockpit produce complete visual tranquility.
 * **Stationary Anchor Placement:** Tooltips are anchored solidly to the widget's physical bounding box (`ItemRectMin` / `ItemRectMax`). The text stays completely still, allowing the eye to read without chasing a moving target.
-* **Polite Auto-Dismissal:** After an ergonomic reading duration (e.g. 8–10 seconds), the tooltip cleanly dismisses itself. The pilot does not need to swat the mouse away to clear the panel.
+* **Polite Auto-Dismissal:** After an ergonomic reading duration (e.g. 8 -- 10 seconds), the tooltip cleanly dismisses itself. The pilot does not need to swat the mouse away to clear the panel.
 * **Rich Markdown Formatting (`TimedTooltip::MD::Text`):** Tooltips are not restricted to plain text; they support formatted headers, bold labels, colorized status pills (`<pill>`), code blocks, and keyboard shortcut tags (`<kbd>`).
 * **Non-Modal Interactive Chasers (`TextMDLink`):** Allows inline documentation links and expandable detail views that remain accessible without vanishing beneath the user's cursor.
 
@@ -309,11 +309,11 @@ While the Zero-Inert Law is an absolute standard for widget design, the underlyi
 1. **Host-Level Cursor Support Varies:**  
    Not all Dear ImGui installations natively implement dynamic OS cursor changes. In some raw desktop backends or custom game-engine viewports, cursor routing is either unmapped or requires explicit host configuration (`io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange` overrides).
 2. **Turnkey Support in ImgWindow v2:**  
-   In the X-Plane ecosystem, ImGee is delivered alongside **`ImgWindow v2`**, which natively features a complete hardware and software cursor management subsystem. Custom cursors are supported out of the box—both on a granular per-window basis (`SetUseCustomCursors(true)`) and globally across the plugin. Well-behaved plugins should ensure custom cursors are enabled by default so users immediately enjoy active visual feedback.
+   In the X-Plane ecosystem, ImGee is delivered alongside **`ImgWindow v2`**, which natively features a complete hardware and software cursor management subsystem. Custom cursors are supported out of the box -- both on a granular per-window basis (`SetUseCustomCursors(true)`) and globally across the plugin. Well-behaved plugins should ensure custom cursors are enabled by default so users immediately enjoy active visual feedback.
 3. **User Sovereignty (The 1-Click Toggle):**  
    Users must always get the final say. Some simulation pilots perceive minor latency with software-rendered cursor overlays under heavy GPU loads, or simply prefer their OS pointer. Well-engineered plugins should provide an accessible preference toggle in their settings menu allowing users to disable custom cursor rendering (and re-enable it at will).
 4. **Developer Responsibility: "Eat Your Own Dogfood":**  
-   Developers should make every effort to keep custom cursors **enabled in their own development environments**. If you disable cursors while designing panels, you become blind to what end users experience by default. Keeping cursors active guarantees you will immediately catch regressions—such as buttons erroneously hovering on inert `Arrow` or dropdown lists failing to switch to `ResizeNS`.
+   Developers should make every effort to keep custom cursors **enabled in their own development environments**. If you disable cursors while designing panels, you become blind to what end users experience by default. Keeping cursors active guarantees you will immediately catch regressions -- such as buttons erroneously hovering on inert `Arrow` or dropdown lists failing to switch to `ResizeNS`.
 
 <!-- pagebreak -->
 

@@ -5,7 +5,7 @@ The **Markdown** extension provides rich Markdown parsing and rendering for Dear
 It allows you to embed rich text formatting, headers, links, lists, and custom interactive widgets directly into your ImGui windows, settings panels, and stationary tooltips.
 
 > **Author / Maintainer:** Steven L. Goldberg ([@slgoldberg](https://github.com/slgoldberg))  
-> **Original Upstream:** Juliette Foucaut ([@juliettef](https://github.com/juliettef)) & Doug Binks ([@dougbinks](https://github.com/dougbinks)) — Repository: [enkisoftware/imgui_markdown](https://github.com/enkisoftware/imgui_markdown)  
+> **Original Upstream:** Juliette Foucaut ([@juliettef](https://github.com/juliettef)) & Doug Binks ([@dougbinks](https://github.com/dougbinks)) -- Repository: [enkisoftware/imgui_markdown](https://github.com/enkisoftware/imgui_markdown)  
 > **License:** BSD 3-Clause (Extension Wrapper; see [ImgWindow LICENSE](../../../README.md#licensing-note)) & zlib (Upstream Parser)
 
 ---
@@ -68,7 +68,7 @@ The Markdown system is structured as a clean two-layer architecture:
 * **Soft-Wrap Leading Space Suppression:**
   * Forced line breaks on wrapped prose cleanly suppress carried-forward leading spaces, ensuring continuation lines align flush against the left text margin.
 * **Layout Pre-Calculation (`CalcSize` / `CalcTextSize`):**
-  * Exposes `ImGui::MD::CalcSize(...)` (aliased as `CalcTextSize`) to pre-measure exact wrapped multi-line Markdown dimensions without rendering to the screen—crucial for sizing OS floating windows, child frames, and stationary tooltips.
+  * Exposes `ImGui::MD::CalcSize(...)` (aliased as `CalcTextSize`) to pre-measure exact wrapped multi-line Markdown dimensions without rendering to the screen -- crucial for sizing OS floating windows, child frames, and stationary tooltips.
   * Defeats ImGui viewport culling by employing pass-unique offscreen window hashes.
 * **Interactive CommonMark Tables with Sorting & Bi-Directional State Serialization:**
   * Parses standard CommonMark pipe tables with column alignment (`:---`, `:---:`, `---:`), natural cell content measurement, and rich inline Markdown/tags inside cells.
@@ -110,7 +110,7 @@ The Markdown system is structured as a clean two-layer architecture:
 
 ### 2. Configure Default Styles & Fonts (Optional)
 
-You are responsible for loading your own fonts into your `ImgFontAtlas` during plugin startup (e.g., in `InitializeImGui()`). There is no runtime font synthesization in Dear ImGui—if you want Markdown to render distinct headers, bold text, or italics, you must load those fonts into your atlas.
+You are responsible for loading your own fonts into your `ImgFontAtlas` during plugin startup (e.g., in `InitializeImGui()`). There is no runtime font synthesization in Dear ImGui -- if you want Markdown to render distinct headers, bold text, or italics, you must load those fonts into your atlas.
 
 As demonstrated in [`sample-code/InitializeImGui.cpp`](../../../../sample-code/InitializeImGui.cpp), each sequential, non-merged font added increments an index in `ImGui::GetIO().Fonts->Fonts[i]`. We recommend defining macro aliases for these slots:
 

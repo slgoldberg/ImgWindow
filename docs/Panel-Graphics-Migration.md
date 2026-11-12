@@ -30,7 +30,7 @@ Because X-Plane 12.4.4+ now natively handles deferred Vulkan command encoding, w
 
 ## Part 2: Upgrading from earlier versions of ImgWindow (Legacy OpenGL)
 
-If you are migrating your plugin from an older version of the framework (Legacy OpenGL) to `v2` (which adds modern Panel Graphics support), this section covers everything you need to know to safely transition to the modern, hyper-performant backend—while retaining full backwards compatibility for your X-Plane 11 users!
+If you are migrating your plugin from an older version of the framework (Legacy OpenGL) to `v2` (which adds modern Panel Graphics support), this section covers everything you need to know to safely transition to the modern, hyper-performant backend -- while retaining full backwards compatibility for your X-Plane 11 users!
 
 With the release of X-Plane 12.4.4b1, Laminar Research introduced the **Panel Graphics API** (XPLM v4.4), routing UI rendering through a modern Vulkan/Metal backend.
 
@@ -40,7 +40,7 @@ There is no need to maintain two separate codebases or force your users to upgra
 
 > [!TIP]
 > **Universal Dear ImGui Compatibility (v1.78 WIP through v1.92+):**<br>
-> You do **not** need to upgrade your plugin's Dear ImGui version to use Panel Graphics! `ImgWindow v2.3.0` universally bridges **any** Dear ImGui version from legacy v1.78 WIP all the way through modern v1.92+ directly into Vulkan/Metal Panel Graphics on X-Plane 12.4.4+ (with automatic OpenGL fallback on older simulators). Legacy static font atlases (v1.78–v1.89), interim versions (v1.90–v1.91), and modern multi-page dynamic atlases (v1.92+) are all auto-detected and uploaded synchronously without requiring changes to your UI code.
+> You do **not** need to upgrade your plugin's Dear ImGui version to use Panel Graphics! `ImgWindow v2.3.0` universally bridges **any** Dear ImGui version from legacy v1.78 WIP all the way through modern v1.92+ directly into Vulkan/Metal Panel Graphics on X-Plane 12.4.4+ (with automatic OpenGL fallback on older simulators). Legacy static font atlases (v1.78 -- v1.89), interim versions (v1.90 -- v1.91), and modern multi-page dynamic atlases (v1.92+) are all auto-detected and uploaded synchronously without requiring changes to your UI code.
 
 > [!NOTE]
 > **Historical Note (Early Betas):** During the initial **X-Plane 12.4.4b1** and **b2** betas, the Panel Graphics API had breaking phase restrictions that required asynchronous queuing. Laminar relaxed these in **12.4.4b3** and finalized them in **12.4.4+**.

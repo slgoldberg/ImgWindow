@@ -2,8 +2,8 @@
 
 > [!TIP]
 > **TripTik Navigation:**
-> * 🧭 **[Ground-School.md](Ground-School.md)** *(Architecture Overview — read this first if you want the big picture)*
-> * 🛫 **TripTik 1: Get Started with ImgWindow** *(You are here — starter guide for new C++ plugins or migrating from Lua/XPWidgets)*
+> * 🧭 **[Ground-School.md](Ground-School.md)** *(Architecture Overview -- read this first if you want the big picture)*
+> * 🛫 **TripTik 1: Get Started with ImgWindow** *(You are here -- starter guide for new C++ plugins or migrating from Lua/XPWidgets)*
 > * 🚀 **[TripTik 2: Support Panel Graphics](Support-Panel-Graphics.md)** *(Upgrading an existing `ImgWindow` plugin to v2)*
 > * 🖼️ **[TripTik 3: Render Custom Textures](Render-Custom-Textures.md)** *(Rendering `.png`/`.jpg` images via `CreateTexture()`)*
 
@@ -167,13 +167,13 @@ protected:
 > **Flexible Window Geometry & Positioning (`WindowGeometry`)**:
 > In `ImgWindow v2.2+`, you can construct windows using whichever positioning paradigm best fits your plugin:
 > * **Auto-Centered (Fastest & Simplest)**:
->   `ImgWindow(width, height)` — centers automatically on the primary monitor with zero coordinate math (very similar to FlyWithLua's window creation!).
+>   `ImgWindow(width, height)` -- centers automatically on the primary monitor with zero coordinate math (very similar to FlyWithLua's window creation!).
 > * **Top-Left Origin (Familiar 2D Desktop Math)**:
->   `ImgWindow(WindowGeometry::FromTopLeft(x, y, width, height))` — eliminates inverted $Y$ coordinate headaches.
+>   `ImgWindow(WindowGeometry::FromTopLeft(x, y, width, height))` -- eliminates inverted $Y$ coordinate headaches.
 > * **Saved Settings (.ini) with Auto-Docking**:
->   `ImgWindow(WindowGeometry::Sanitize(savedL, savedT, savedR, savedB))` — guarantees windows never spawn off-screen if monitors or resolutions change, while preserving "poor-man's docking" margins.
+>   `ImgWindow(WindowGeometry::Sanitize(savedL, savedT, savedR, savedB))` -- guarantees windows never spawn off-screen if monitors or resolutions change, while preserving "poor-man's docking" margins.
 > * **Legacy Raw Boxels**:
->   `ImgWindow(left, top, right, bottom)` — 100% backward-compatible with legacy plugins.
+>   `ImgWindow(left, top, right, bottom)` -- 100% backward-compatible with legacy plugins.
 
 
 ---
@@ -188,7 +188,7 @@ The canonical, best-practice pattern is **"Commands for Everything"** using **`X
 
 1. **Automatic Shortcut Display**: When a user assigns a keyboard key or joystick button to your command in X-Plane's Settings, X-Plane automatically prints their custom hotkey directly inside your plugin's menu item!
 2. **Universal Accessibility**: External scripts (such as `FlyWithLua`), hardware cockpit panels (StreamDecks, custom switch panels), and other plugins can trigger your command directly via `XPLMCommandOnce(...)`.
-3. **Single Source of Truth**: You write **one** command handler that toggles window visibility. Your menu item simply points to that command—eliminating redundant menu callbacks and state synchronization.
+3. **Single Source of Truth**: You write **one** command handler that toggles window visibility. Your menu item simply points to that command -- eliminating redundant menu callbacks and state synchronization.
 
 Here is the turnkey pattern to register your command and menu item:
 
@@ -226,7 +226,7 @@ static int ToggleSettingsCommandHandler(XPLMCommandRef inCommand,
 > **Why `return 0;`? The Phase Consistency Rule:**
 > In X-Plane command handlers, returning `0` signals that your plugin has consumed the command. To prevent X-Plane's internal dispatch tables from going out of sync across key-press and key-release events, you must return the **same value across all phases** (`Begin`, `Continue`, `End`).
 > 
-> For advanced patterns—including continuous held commands with acceleration curves, multi-command multiplexing, and hardware switch integration—see the in-depth guide in [**Ground School: The Command System**](Ground-School.md#the-command-system-how-modern-x-plane-plugins-dispatch-actions).
+> For advanced patterns -- including continuous held commands with acceleration curves, multi-command multiplexing, and hardware switch integration -- see the in-depth guide in [**Ground School: The Command System**](Ground-School.md#the-command-system-how-modern-x-plane-plugins-dispatch-actions).
 
 
 // 3. In your XPluginEnable() entry point:
@@ -465,10 +465,10 @@ private:
 > If you seeded your project from `imgui4xp` (Step 1), you don't have to settle for plain text `"Pop Out"` or `"X"` buttons! `imgui4xp` already bundles **Font Awesome 5** (`IconsFontAwesome5.h`) and automatically merges standard icons into `ImgWindow::sFontAtlas` during startup (in `imgui_starter_window.cpp`'s `configureImgWindow()`).
 > 
 > Simply `#include "IconsFontAwesome5.h"` to use crisp vector icons directly:
-> * `ICON_FA_WINDOW_MAXIMIZE` — Standard OS pop-out icon
-> * `ICON_FA_WINDOW_RESTORE` — Standard return-to-sim / pop-in icon
-> * `ICON_FA_WINDOW_CLOSE` (or `ICON_FA_TIMES`) — Standard "X" close icon
-> * `ICON_FA_EXTERNAL_LINK_SQUARE_ALT` — Move window to VR headset
+> * `ICON_FA_WINDOW_MAXIMIZE` -- Standard OS pop-out icon
+> * `ICON_FA_WINDOW_RESTORE` -- Standard return-to-sim / pop-in icon
+> * `ICON_FA_WINDOW_CLOSE` (or `ICON_FA_TIMES`) -- Standard "X" close icon
+> * `ICON_FA_EXTERNAL_LINK_SQUARE_ALT` -- Move window to VR headset
 
 ---
 
@@ -476,7 +476,7 @@ private:
 
 In the example above, you might notice a few widgets that don't exist in vanilla Dear ImGui:
 
-* **`ImGui::MD::Text(...)`** (or **`ImGui::Markdown::Text(...)`**): Renders headers, bold emphasis, and bullet lists directly using standard Markdown syntax—matching standard `ImGui::Text()` layout without custom string parsing. (`MD` is the official shorthand alias for `Markdown`.)
+* **`ImGui::MD::Text(...)`** (or **`ImGui::Markdown::Text(...)`**): Renders headers, bold emphasis, and bullet lists directly using standard Markdown syntax -- matching standard `ImGui::Text()` layout without custom string parsing. (`MD` is the official shorthand alias for `Markdown`.)
 * **`ImGui::TimedTooltip::Text(...)`**: Classic desktop-style tooltips that behave politely. Unlike default ImGui tooltips (which pop up instantly on first contact and follow your cursor around like an annoying swarm of gnats), `TimedTooltip` waits for an intentional hover pause before appearing, locks into a stationary position so it is easy to read, and automatically dismisses after reading so it never stays permanently stuck on screen obstructing your view.
 * **`ImGui::MouseWheelSlider(...)`**: Sliders and dials that respond naturally to mouse-wheel scrolling without awkward click-dragging.
 
@@ -545,7 +545,7 @@ Trigger your command (or click your menu item), and your Dear ImGui window will 
 Now that your window infrastructure is rock-solid, where should you go next?
 
 ### 1. Elevate Your UI with ImGee (Enhanced UI Ergonomics)
-Vanilla Dear ImGui was built for video game debug menus. To turn your window into a polished, desktop-grade interface—with animated toggle switches, mouse-wheel dials and sliders, 1-click resets with undo, and stationary Markdown tooltips—check out the **[ImGee UX Suite](../../contrib/ImGee/README.md)** (detailed in the [**ImGee User Guide**](../ImGee_User_Guide.md)). You can activate the entire suite in one line:
+Vanilla Dear ImGui was built for video game debug menus. To turn your window into a polished, desktop-grade interface -- with animated toggle switches, mouse-wheel dials and sliders, 1-click resets with undo, and stationary Markdown tooltips -- check out the **[ImGee UX Suite](../../contrib/ImGee/README.md)** (detailed in the [**ImGee User Guide**](../ImGee_User_Guide.md)). You can activate the entire suite in one line:
 
 ```cpp
 #include "contrib.h" // Turnkey access to all widgets and extensions

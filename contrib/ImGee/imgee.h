@@ -157,7 +157,7 @@
 #endif
 
 // ============================================================================
-// 5. HOST PLATFORM BRIDGES (ImgWindow Named Texture Resolver)
+// 5. HOST PLATFORM BRIDGES (ImgWindow Named Texture Resolver, Decoder & Shutdown)
 // ============================================================================
 
 #if defined(IMGWINDOW_H) || (defined(__has_include) && __has_include("ImgWindow.h"))
@@ -169,8 +169,25 @@
 namespace ImGeeDetail {
     struct AutoImgWindowResolverBridge {
         AutoImgWindowResolverBridge() {
+            // 1. Bridge ImGui named texture queries to ImgWindow
             ImGui::SetNamedTextureResolver([](const char* name, ImVec2* outSize) -> ImTextureID {
                 return ImgWindow::GetNamedTexture(name ? name : "", outSize);
+            });
+
+            // 2. Auto-wire in-memory compressed image decoder via stb_image
+            ImgWindow::SetMemoryImageDecoder(
+                [](const void* data, size_t len, int* outW, int* outH) -> unsigned char* {
+                    int comp = 0;
+                    return stbi_load_from_memory((const unsigned char*)data, (int)len, outW, outH, &comp, 4);
+                },
+                [](void* pixels) {
+                    stbi_image_free(pixels);
+                }
+            );
+
+            // 3. Register shutdown handler to purge Markdown VRAM cache on plugin stop
+            ImgWindow::AddShutdownHandler([]() {
+                ImGui::MarkdownImageService::ClearTextureCache();
             });
         }
     };

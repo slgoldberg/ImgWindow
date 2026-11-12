@@ -122,7 +122,7 @@ ImGui::ToggleButtons("Surface Style##style_pair", &s_WindowStyle, "Solid Opaque"
 * **Features:**
   * **Optional Right-Side Clickable Title:** Following standard Dear ImGui `"Title##id"` semantics, if `label` contains text before `"##"`, it is drawn to the right of the button pair, shows a Hand cursor on hover, toggles the state on click, and ignores the mouse wheel.
   * **Clamped Mouse-Wheel Toggling:** Scrolling up/right over either button selects `1` (`label_on`); scrolling down/left selects `0` (`label_off`).
-  * **Per-Button Tooltips (`item_tooltips`) & Wheel-Selection Tooltip Latch (`out_hovered_item`):** When the user spins the mouse wheel over either button to change the state, tooltip targeting (and `*out_hovered_item`) automatically latches onto the newly selected button (`0` or `1`)—even if the stationary mouse cursor is still parked over the unselected button—until the mouse moves (`> 1.5px`).
+  * **Per-Button Tooltips (`item_tooltips`) & Wheel-Selection Tooltip Latch (`out_hovered_item`):** When the user spins the mouse wheel over either button to change the state, tooltip targeting (and `*out_hovered_item`) automatically latches onto the newly selected button (`0` or `1`) -- even if the stationary mouse cursor is still parked over the unselected button -- until the mouse moves (`> 1.5px`).
 
 ---
 

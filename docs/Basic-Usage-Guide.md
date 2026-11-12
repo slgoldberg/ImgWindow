@@ -242,16 +242,20 @@ Instead of hardcoding raw pointer manipulations or guessing font indices, `ImgWi
   } // Automatically restores previous font stack state upon exiting scope
   ```
 
-### 4.2 In-Memory Image Service (`ImgWindow::RegisterMemoryImage`)
-Load static `.png` or `.jpg` byte arrays compiled into your plugin directly into GPU textures with zero disk I/O:
+### 4.2 In-Memory Image Service (`ImgWindow::RegisterNamedTexture` & `RegisterMemoryImage`)
+Register raw RGBA pixel buffers or load static `.png`/`.jpg` byte arrays compiled into your plugin directly into GPU textures with zero disk I/O:
 ```cpp
+// Option A: Raw RGBA pixel buffer (built into core ImgWindow):
+ImgWindow::RegisterNamedTexture("my_badge", g_RgbaBytes, w, h);
+
+// Option B: Compressed PNG/JPG buffer (inline helper when stb_image.h is included):
 int w = 0, h = 0;
 ImgWindow::RegisterMemoryImage("my_badge", g_PngBytes, sizeof(g_PngBytes), &w, &h);
 
-// Use in C++:
+// Use anywhere in C++:
 ImGui::ImageNamed("my_badge", ImVec2(32.0f, 0.0f)); // Auto-computed height!
 
-// Or in Markdown & StyledText:
+// Or in Markdown & StyledText (when opting into contrib/ImGee):
 ImGui::TextMD("![Badge](my_badge)");
 ImGui::StyledText("Transponder: <img name='my_badge' width=24 height=24 /> ACTIVE");
 ```

@@ -5,7 +5,7 @@
 // License: BSD 3-Clause (see LICENSE / ImgWindow license terms)
 //
 // Master package orchestrator for the contrib/ directory. Cascades inclusions
-// to active contributed packages unless disabled via CONTRIB_DISABLE_ALL.
+// to active contributed packages.
 // ============================================================================
 
 #pragma once

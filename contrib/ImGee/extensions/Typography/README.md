@@ -17,7 +17,7 @@ Unlike full Markdown documents (which enforce paragraph margins, headers, block 
 4. **Continuous Vertical Baseline Alignment**:
    Inline badges, pills, `<kbd>` keycaps, and icons automatically compute font metrics (`Font->Ascent`, `Font->Descent`) to align their visual center with the surrounding text baseline, completely eliminating vertical text jitter.
 5. **Universal Procedural Vector Icons**:
-   Full integration with `imgui_icons.h`—supports `<icon caret-up />`, emoji shortcodes (`:gear:`), raw Unicode glyphs (`▲`, `↺`), and named memory textures.
+   Full integration with `imgui_icons.h` -- supports `<icon caret-up />`, emoji shortcodes (`:gear:`), raw Unicode glyphs (`▲`, `↺`), and named memory textures.
 6. **Layout Pre-Measurement (`ImGui::CalcTextStyledSize`)**:
    Calculates exact rendered dimensions in pixels without drawing to the screen.
 

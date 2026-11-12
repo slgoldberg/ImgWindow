@@ -120,7 +120,7 @@ ImGui::TimedTooltip::SetDefaultTooltipConfig(&s_MyTooltipConfig);
 Every subsequent call to `ImGui::TimedTooltip::Text(...)` and `ImGui::TimedTooltip::TextMD(...)` will automatically use this configuration without needing any per-call arguments.
 
 ### Pattern B: Per-Call Override (Instant & Dynamic)
-If a specific widget needs unique styling—for example, a wider maximum width, distinct background color, or custom padding—you can fetch a copy of the active configuration using `ImGui::TimedTooltip::GetConfig()`, tweak the desired fields, and pass it directly to `Text` or `TextMD`:
+If a specific widget needs unique styling -- for example, a wider maximum width, distinct background color, or custom padding -- you can fetch a copy of the active configuration using `ImGui::TimedTooltip::GetConfig()`, tweak the desired fields, and pass it directly to `Text` or `TextMD`:
 
 ```cpp
 // Safely copies the active global config (or built-in defaults if no global config was set):
