@@ -2059,7 +2059,6 @@ void ImgWindow::Shutdown() {
     for (auto fn : GetShutdownHandlers()) {
         if (fn) fn();
     }
-    GetShutdownHandlers().clear();
 
     // 1. Clean up registered named textures (owned textures only)
     auto& namedTextures = GetNamedTextures();

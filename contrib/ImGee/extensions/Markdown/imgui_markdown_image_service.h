@@ -119,6 +119,7 @@ struct MarkdownRemoteDecodedPayload {
     int width = 0;
     int height = 0;
     bool success = false;
+    uint64_t generation = 0;
 };
 
 inline std::mutex& GetCompletedMutex() {
@@ -146,13 +147,13 @@ inline RemoteFetchCallback GetRemoteFetchCallback() {
     return GetRemoteFetchCallbackRef();
 }
 
-inline std::atomic<bool>& GetShutdownRequested() {
-    static std::atomic<bool> s_Shutdown{false};
-    return s_Shutdown;
+inline std::atomic<uint64_t>& GetCacheGeneration() {
+    static std::atomic<uint64_t> s_Generation{0};
+    return s_Generation;
 }
 
 inline void ClearTextureCache() {
-    GetShutdownRequested().store(true);
+    GetCacheGeneration().fetch_add(1);
     {
         std::lock_guard<std::mutex> lock(GetCompletedMutex());
         for (auto& item : GetCompletedQueue()) {
@@ -188,6 +189,14 @@ inline void ProcessPendingTextures() {
     }
 
     for (auto& item : completed) {
+        if (item.generation != GetCacheGeneration().load()) {
+            if (item.pixels) {
+                stbi_image_free(item.pixels);
+                item.pixels = nullptr;
+            }
+            continue;
+        }
+
         auto& entry = GetDiskTextureCache()[item.url];
         entry.inFlight = false;
 
@@ -298,8 +307,8 @@ static bool FetchRemoteBytesCurl(const std::string& url, std::vector<uint8_t>& o
 }
 #endif
 
-inline void FetchRemoteImageWorker(std::string url) {
-    if (GetShutdownRequested().load()) {
+inline void FetchRemoteImageWorker(std::string url, uint64_t gen) {
+    if (GetCacheGeneration().load() != gen) {
         return;
     }
 
@@ -310,22 +319,23 @@ inline void FetchRemoteImageWorker(std::string url) {
         fetchOk = GetRemoteFetchCallback()(url, rawBytes);
     }
 #if !defined(_WIN32)
-    if (!fetchOk && !GetShutdownRequested().load()) {
+    if (!fetchOk && GetCacheGeneration().load() == gen) {
         fetchOk = FetchRemoteBytesCurl(url, rawBytes);
     }
 #endif
 
-    if (GetShutdownRequested().load()) {
+    if (GetCacheGeneration().load() != gen) {
         return;
     }
 
     MarkdownRemoteDecodedPayload payload;
     payload.url = url;
+    payload.generation = gen;
 
     if (fetchOk && !rawBytes.empty()) {
         int w = 0, h = 0, comp = 0;
         uint8_t* pixels = stbi_load_from_memory(rawBytes.data(), (int)rawBytes.size(), &w, &h, &comp, 4);
-        if (GetShutdownRequested().load()) {
+        if (GetCacheGeneration().load() != gen) {
             if (pixels) stbi_image_free(pixels);
             return;
         }
@@ -342,14 +352,14 @@ inline void FetchRemoteImageWorker(std::string url) {
         payload.success = false;
     }
 
-    if (GetShutdownRequested().load()) {
+    if (GetCacheGeneration().load() != gen) {
         if (payload.pixels) stbi_image_free(payload.pixels);
         return;
     }
 
     {
         std::lock_guard<std::mutex> lock(GetCompletedMutex());
-        if (!GetShutdownRequested().load()) {
+        if (GetCacheGeneration().load() == gen) {
             GetCompletedQueue().push_back(payload);
         } else if (payload.pixels) {
             stbi_image_free(payload.pixels);
@@ -516,21 +526,16 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
     // 3. Tier 3: Remote Web URLs
     bool isRemoteUrl = (url.rfind("http://", 0) == 0 || url.rfind("https://", 0) == 0);
     if (isRemoteUrl) {
-        if (GetShutdownRequested().load()) {
-            ImGui::MarkdownImageData invalid;
-            invalid.isValid = false;
-            return invalid;
-        }
-
         auto& entry = GetDiskTextureCache()[url];
         entry.inFlight = true;
         entry.failed = false;
         entry.lastAttemptTime = ImGui::GetTime();
         entry.retryCount++;
 
+        uint64_t currentGen = GetCacheGeneration().load();
         try {
-            std::thread([url]() {
-                FetchRemoteImageWorker(url);
+            std::thread([url, currentGen]() {
+                FetchRemoteImageWorker(url, currentGen);
             }).detach();
         } catch (...) {
             entry.inFlight = false;
