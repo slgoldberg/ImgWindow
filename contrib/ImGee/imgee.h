@@ -156,6 +156,29 @@
 #include "imgee-global.h"
 #endif
 
+// ============================================================================
+// 5. HOST PLATFORM BRIDGES (ImgWindow Named Texture Resolver)
+// ============================================================================
+
+#if defined(IMGWINDOW_H) || (defined(__has_include) && __has_include("ImgWindow.h"))
+#if !defined(IMGWINDOW_H)
+#include "ImgWindow.h"
+#endif
+#ifndef IMGEE_IMGWINDOW_RESOLVER_BRIDGED
+#define IMGEE_IMGWINDOW_RESOLVER_BRIDGED
+namespace ImGeeDetail {
+    struct AutoImgWindowResolverBridge {
+        AutoImgWindowResolverBridge() {
+            ImGui::SetNamedTextureResolver([](const char* name, ImVec2* outSize) -> ImTextureID {
+                return ImgWindow::GetNamedTexture(name ? name : "", outSize);
+            });
+        }
+    };
+    static AutoImgWindowResolverBridge s_AutoImgWindowResolverBridge;
+}
+#endif
+#endif
+
 #endif // !IMGEE_DISABLE_ALL
 
 #endif // IMGEE_H

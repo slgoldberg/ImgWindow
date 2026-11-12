@@ -56,10 +56,6 @@
 
 #include "ImgFontAtlas.h"
 
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
-#include "contrib/extensions/Markdown/imgui_markdown.h"
-#endif
-
 /** ImgWindow is a Window for creating dear imgui widgets within.
  *
  * There's a few traps to be aware of when using dear imgui with X-Plane:
@@ -400,27 +396,62 @@ public:
     static ImTextureID CreateTexture(const unsigned char* pixels, int width, int height);
     static void DeleteTexture(ImTextureID textureID);
 
-    /** In-Memory Image Service:
-     *  Registers an in-memory compressed image (PNG, JPG, BMP, TGA, etc. from compiled byte arrays or memory buffers)
-     *  by name. Automatically decodes to RGBA8 via stb_image, uploads to GPU via CreateTexture(),
-     *  and registers it into the named texture registry for use in both C++ and Markdown.
-     *  Cleaned up automatically on Shutdown().
+    /** In-Memory Named Texture Registry:
+     *  Registers a raw 4-channel RGBA pixel buffer into the named texture registry.
+     *  Creates the underlying GPU texture via CreateTexture() and manages its lifecycle.
+     *  Automatically deleted on Shutdown().
      *  @param name Unique identifier string (e.g. "company_logo" or "icon_warning")
-     *  @param data Pointer to raw compressed image file data in memory (e.g. from an .inc / .h file)
-     *  @param lengthBytes Size of data in bytes
-     *  @param outWidth Optional pointer to receive the decoded image width in pixels
-     *  @param outHeight Optional pointer to receive the decoded image height in pixels
-     *  @return The created ImTextureID, or (ImTextureID)0 if decoding or GPU texture creation failed. */
-    static ImTextureID RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth = nullptr, int* outHeight = nullptr);
+     *  @param rgba_pixels Pointer to raw 4-channel RGBA pixel data
+     *  @param width Image width in pixels
+     *  @param height Image height in pixels
+     *  @return The created ImTextureID, or (ImTextureID)0 on failure. */
+    static ImTextureID RegisterNamedTexture(const std::string& name, const unsigned char* rgba_pixels, int width, int height);
 
-    /** Unregisters a named in-memory image and frees its GPU texture resource. */
-    static void UnregisterMemoryImage(const std::string& name);
+    /** Registers an existing GPU ImTextureID with specified dimensions into the named texture registry.
+     *  The texture resource is non-owning (will not be deleted by ImgWindow on Shutdown). */
+    static ImTextureID RegisterNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size = ImVec2(0.0f, 0.0f));
 
-    /** Looks up a named texture (registered via RegisterMemoryImage or RegisterMarkdownNamedTexture).
+    /** Looks up a named texture registered via RegisterNamedTexture (or RegisterMemoryImage).
      *  @param name The texture identifier
      *  @param outSize Optional pointer to receive the native dimensions of the texture
      *  @return The ImTextureID, or (ImTextureID)0 if not found. */
     static ImTextureID GetNamedTexture(const std::string& name, ImVec2* outSize = nullptr);
+
+    /** Unregisters a named texture and frees its GPU texture resource (if owned). */
+    static void UnregisterNamedTexture(const std::string& name);
+
+    // Backward-compatibility aliases:
+    static inline void UnregisterMemoryImage(const std::string& name) { UnregisterNamedTexture(name); }
+    static inline ImTextureID RegisterMarkdownNamedTexture(const std::string& name, ImTextureID id, ImVec2 size = ImVec2(0.0f, 0.0f),
+                                                           ImVec2 uv0 = ImVec2(0.0f, 0.0f), ImVec2 uv1 = ImVec2(1.0f, 1.0f),
+                                                           ImVec4 tint_col = ImVec4(1,1,1,1), ImVec4 border_col = ImVec4(0,0,0,0)) {
+        (void)uv0; (void)uv1; (void)tint_col; (void)border_col;
+        return RegisterNamedTexture(name, id, size);
+    }
+    static inline void UnregisterMarkdownNamedTexture(const std::string& name) { UnregisterNamedTexture(name); }
+
+#if defined(STBI_VERSION_1)
+    /** In-Memory Compressed Image Service:
+     *  Decodes in-memory compressed images (PNG, JPG, etc.) via stb_image and registers into the named registry.
+     *  Available automatically whenever stb_image.h has been included. */
+    static inline ImTextureID RegisterMemoryImage(const std::string& name, const void* data, size_t lengthBytes, int* outWidth = nullptr, int* outHeight = nullptr)
+    {
+        if (outWidth) *outWidth = 0;
+        if (outHeight) *outHeight = 0;
+        if (name.empty() || !data || lengthBytes == 0) return (ImTextureID)0;
+
+        int w = 0, h = 0, comp = 0;
+        unsigned char* pixels = stbi_load_from_memory((const unsigned char*)data, (int)lengthBytes, &w, &h, &comp, 4);
+        if (!pixels) return (ImTextureID)0;
+
+        ImTextureID texID = RegisterNamedTexture(name, pixels, w, h);
+        stbi_image_free(pixels);
+
+        if (outWidth) *outWidth = w;
+        if (outHeight) *outHeight = h;
+        return texID;
+    }
+#endif
 
     /** Clear ActiveID early if an InputText currently holds focus and the user clicked outside its bounding rect.
      *  Automatically invoked every frame in updateImgui() right after ImGui::NewFrame().
@@ -449,46 +480,6 @@ public:
     /** Flushes all pending texture destructions immediately. 
      *  Must be called during XPluginStop/XPluginDisable to prevent VRAM leaks. */
     static void Shutdown();
-
-#if !defined(IMGWINDOW_DISABLE_MARKDOWN) && !defined(CONTRIB_DISABLE_MARKDOWN)
-    // ------------------------------------------------------------------------
-    // Markdown Image Services & Texture Registry (Tiers 1, 2 & 3)
-    // ------------------------------------------------------------------------
-    /** Tier 1: In-Memory Named Texture Registry
-     *  Allows plugins to register pre-loaded textures by name or URI (e.g. "my_logo" or "texture://my_logo")
-     *  so Markdown references like ![Logo](texture://my_logo) or ![Logo](my_logo) resolve instantly. */
-    static void RegisterMarkdownNamedTexture(const std::string& name, ImTextureID textureID, ImVec2 size = ImVec2(0.0f, 0.0f), ImVec2 uv0 = ImVec2(0.0f, 0.0f), ImVec2 uv1 = ImVec2(1.0f, 1.0f), ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4 border_col = ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    static void UnregisterMarkdownNamedTexture(const std::string& name);
-    static bool GetMarkdownNamedTexture(const std::string& name, ImGui::MarkdownImageData& outData);
-
-    /** Tier 2: Built-in Default Markdown Image Callback
-     *  Automatically resolves named textures, loads local disk image files via stb_image,
-     *  uploads 4-channel RGBA textures via ImgWindow::CreateTexture(), and caches them in VRAM.
-     *  Includes negative caching for missing files and automatic cleanup on Shutdown(). */
-    static ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLinkCallbackData data);
-
-    /** Enable or disable the built-in default image callback for all Markdown renderers.
-     *  Automatically enabled when an ImgWindow is instantiated. */
-    static void EnableDefaultMarkdownImageService(bool enable = true);
-
-    /** Tier 3: Asynchronous Remote Web Image Fetching (HTTP / HTTPS)
-     *  Downloads remote images on a background worker thread, decodes off-thread via stb_image,
-     *  and safely transfers the decoded pixel buffer to the main simulator thread for GPU upload. */
-    typedef bool (*MarkdownRemoteFetchCallback)(const std::string& url, std::vector<uint8_t>& outData);
-
-    /** Sets an optional custom remote image fetch callback (e.g. for plugins with their own HTTP managers) */
-    static void SetMarkdownRemoteFetchCallback(MarkdownRemoteFetchCallback callback);
-
-    /** Gets the active custom remote image fetch callback, if any */
-    static MarkdownRemoteFetchCallback GetMarkdownRemoteFetchCallback();
-
-    /** Processes any downloaded remote markdown textures waiting to be uploaded to the GPU.
-     *  Called automatically every frame during markdown rendering and DrawWindowCB. */
-    static void ProcessPendingMarkdownTextures();
-
-    /** Destroys all GPU textures loaded by the markdown image cache. */
-    static void ClearMarkdownTextureCache();
-#endif
 
     [[deprecated("Texture bake delays are no longer required. X-Plane 12.4.4b3+ synchronously builds textures instantly. This method is a no-op and can be safely removed.")]]
     void SetTextureBakeDelay(bool enableDelay, int frameCount = 2) {

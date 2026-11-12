@@ -43,6 +43,7 @@
 #endif
 #endif
 #include "imgui_markdown.h"
+#include "imgui_markdown_image_service.h"
 #if !defined(CONTRIB_DISABLE_BADGES) && \
     !defined(CONTRIB_DISABLE_BADGE) && \
     !defined(CONTRIB_DISABLE_WIDGETS) && \
