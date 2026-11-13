@@ -84,25 +84,37 @@ inline void StyleColorsCharcoal(ImGuiStyle* dst = nullptr)
     // Tabs
     colors[ImGuiCol_Tab]                   = ImVec4(0.20f, 0.22f, 0.26f, 0.86f);
     colors[ImGuiCol_TabHovered]            = ImVec4(0.38f, 0.43f, 0.52f, 0.90f);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19090)
+    colors[ImGuiCol_TabSelected]           = ImVec4(0.30f, 0.33f, 0.39f, 1.00f);
+    colors[ImGuiCol_TabDimmed]             = ImVec4(0.14f, 0.15f, 0.18f, 0.90f);
+    colors[ImGuiCol_TabDimmedSelected]     = ImVec4(0.22f, 0.24f, 0.28f, 1.00f);
+#else
     colors[ImGuiCol_TabActive]             = ImVec4(0.30f, 0.33f, 0.39f, 1.00f);
     colors[ImGuiCol_TabUnfocused]          = ImVec4(0.14f, 0.15f, 0.18f, 0.90f);
     colors[ImGuiCol_TabUnfocusedActive]    = ImVec4(0.22f, 0.24f, 0.28f, 1.00f);
+#endif
 
     // Plots & Tables
     colors[ImGuiCol_PlotLines]             = ImVec4(0.75f, 0.80f, 0.88f, 1.00f);
     colors[ImGuiCol_PlotLinesHovered]      = ImVec4(0.95f, 0.96f, 1.00f, 1.00f);
     colors[ImGuiCol_PlotHistogram]         = ImVec4(0.55f, 0.62f, 0.72f, 1.00f);
     colors[ImGuiCol_PlotHistogramHovered]  = ImVec4(0.75f, 0.82f, 0.92f, 1.00f);
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM >= 18000)
     colors[ImGuiCol_TableHeaderBg]         = ImVec4(0.20f, 0.22f, 0.26f, 1.00f);
     colors[ImGuiCol_TableBorderStrong]     = ImVec4(0.32f, 0.35f, 0.40f, 0.85f);
     colors[ImGuiCol_TableBorderLight]      = ImVec4(0.24f, 0.26f, 0.30f, 0.55f);
     colors[ImGuiCol_TableRowBg]            = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
     colors[ImGuiCol_TableRowBgAlt]         = ImVec4(1.00f, 1.00f, 1.00f, 0.035f);
+#endif
 
     // Text selection & Modal dimming
     colors[ImGuiCol_TextSelectedBg]        = ImVec4(0.40f, 0.48f, 0.60f, 0.55f);
     colors[ImGuiCol_DragDropTarget]        = ImVec4(0.90f, 0.93f, 0.97f, 0.95f);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19140)
+    colors[ImGuiCol_NavCursor]             = ImVec4(0.65f, 0.72f, 0.82f, 0.85f);
+#else
     colors[ImGuiCol_NavHighlight]          = ImVec4(0.65f, 0.72f, 0.82f, 0.85f);
+#endif
     colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
     colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0.08f, 0.09f, 0.10f, 0.60f);
     colors[ImGuiCol_ModalWindowDimBg]      = ImVec4(0.08f, 0.09f, 0.10f, 0.65f);
@@ -166,19 +178,31 @@ inline void StyleColorsRusty(ImGuiStyle* dst = nullptr)
 
     colors[ImGuiCol_Tab]                   = ImVec4(0.26f, 0.17f, 0.13f, 0.86f);
     colors[ImGuiCol_TabHovered]            = ImVec4(0.50f, 0.33f, 0.24f, 0.90f);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19090)
+    colors[ImGuiCol_TabSelected]           = ImVec4(0.38f, 0.25f, 0.19f, 1.00f);
+    colors[ImGuiCol_TabDimmed]             = ImVec4(0.17f, 0.12f, 0.09f, 0.90f);
+    colors[ImGuiCol_TabDimmedSelected]     = ImVec4(0.28f, 0.18f, 0.13f, 1.00f);
+#else
     colors[ImGuiCol_TabActive]             = ImVec4(0.38f, 0.25f, 0.19f, 1.00f);
     colors[ImGuiCol_TabUnfocused]          = ImVec4(0.17f, 0.12f, 0.09f, 0.90f);
     colors[ImGuiCol_TabUnfocusedActive]    = ImVec4(0.28f, 0.18f, 0.13f, 1.00f);
+#endif
 
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM >= 18000)
     colors[ImGuiCol_TableHeaderBg]         = ImVec4(0.24f, 0.16f, 0.12f, 1.00f);
     colors[ImGuiCol_TableBorderStrong]     = ImVec4(0.42f, 0.30f, 0.23f, 0.85f);
     colors[ImGuiCol_TableBorderLight]      = ImVec4(0.32f, 0.22f, 0.16f, 0.55f);
     colors[ImGuiCol_TableRowBg]            = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
     colors[ImGuiCol_TableRowBgAlt]         = ImVec4(1.00f, 0.90f, 0.80f, 0.035f);
+#endif
 
     colors[ImGuiCol_TextSelectedBg]        = ImVec4(0.62f, 0.36f, 0.22f, 0.55f);
     colors[ImGuiCol_DragDropTarget]        = ImVec4(0.98f, 0.72f, 0.42f, 0.95f);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19140)
+    colors[ImGuiCol_NavCursor]             = ImVec4(0.92f, 0.58f, 0.36f, 0.85f);
+#else
     colors[ImGuiCol_NavHighlight]          = ImVec4(0.92f, 0.58f, 0.36f, 0.85f);
+#endif
     colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 0.95f, 0.90f, 0.70f);
     colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0.10f, 0.08f, 0.06f, 0.60f);
     colors[ImGuiCol_ModalWindowDimBg]      = ImVec4(0.10f, 0.08f, 0.06f, 0.65f);

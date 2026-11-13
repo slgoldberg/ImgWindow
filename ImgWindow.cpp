@@ -2213,9 +2213,19 @@ void ImGui::ImageNamed(const char* name, const ImVec2& size, const ImVec2& uv0, 
     ImVec2 effUv0 = (uv0.x == 0.0f && uv0.y == 0.0f && uv1.x == 1.0f && uv1.y == 1.0f) ? storedUv0 : uv0;
     ImVec2 effUv1 = (uv0.x == 0.0f && uv0.y == 0.0f && uv1.x == 1.0f && uv1.y == 1.0f) ? storedUv1 : uv1;
 
-#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
-    (void)tint_col; (void)border_col;
-    ImGui::Image(tex, renderSize, effUv0, effUv1);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19190)
+    if (border_col.w > 0.0f) {
+        const float border_size = ImGui::GetStyle().ImageBorderSize;
+        ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, border_size > 1.0f ? border_size : 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Border, border_col);
+        ImGui::ImageWithBg(tex, renderSize, effUv0, effUv1, ImVec4(0, 0, 0, 0), tint_col);
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+    } else {
+        ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 0.0f);
+        ImGui::ImageWithBg(tex, renderSize, effUv0, effUv1, ImVec4(0, 0, 0, 0), tint_col);
+        ImGui::PopStyleVar();
+    }
 #else
     ImGui::Image(tex, renderSize, effUv0, effUv1, tint_col, border_col);
 #endif

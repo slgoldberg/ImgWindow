@@ -294,18 +294,22 @@
 #pragma clang diagnostic ignored "-Wunused-parameter"
 #pragma clang diagnostic ignored "-Wcomma"
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#pragma clang diagnostic ignored "-Wshadow"
 #elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wshadow"
 #elif defined(_MSC_VER)
 #pragma warning(push)
 #pragma warning(disable: 4100 4244 4456 4457 4701 4996)
 #endif
 
 namespace ImGeeStbi {
-#if defined(__has_include) && __has_include("stb_image.h")
+#if defined(__has_include) && __has_include("../stb_image.h")
+#include "../stb_image.h"
+#elif defined(__has_include) && __has_include("stb_image.h")
 #include "stb_image.h"
 #else
 #include "../stb_image.h"

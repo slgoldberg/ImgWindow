@@ -40,26 +40,48 @@
 #endif
 #endif
 
-#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) && defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
-#ifndef IMGUI_OBSOLETE_SHIMS_DEFINED
-#define IMGUI_OBSOLETE_SHIMS_DEFINED
+#ifndef IMGEE_INTERNAL_COMPAT_DEFINED
+#define IMGEE_INTERNAL_COMPAT_DEFINED
 namespace ImGui {
+namespace ImGeeCompat {
     inline void PushFont(ImFont* font) {
-        PushFont(font, font ? font->LegacySize : 0.0f);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+        ImGui::PushFont(font, font ? font->LegacySize : 0.0f);
+#else
+        ImGui::PushFont(font);
+#endif
     }
     inline void Image(ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), const ImVec4& border_col = ImVec4(0, 0, 0, 0)) {
-        (void)tint_col; (void)border_col;
-        Image(ImTextureRef(user_texture_id), image_size, uv0, uv1);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19190)
+        if (border_col.w > 0.0f) {
+            const float border_size = ImGui::GetStyle().ImageBorderSize;
+            ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, border_size > 1.0f ? border_size : 1.0f);
+            ImGui::PushStyleColor(ImGuiCol_Border, border_col);
+            ImGui::ImageWithBg(user_texture_id, image_size, uv0, uv1, ImVec4(0, 0, 0, 0), tint_col);
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar();
+        } else {
+            ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 0.0f);
+            ImGui::ImageWithBg(user_texture_id, image_size, uv0, uv1, ImVec4(0, 0, 0, 0), tint_col);
+            ImGui::PopStyleVar();
+        }
+#else
+        ImGui::Image(user_texture_id, image_size, uv0, uv1, tint_col, border_col);
+#endif
     }
     inline void SetWindowFontScale(float scale) {
-        ImGuiWindow* window = GetCurrentWindow();
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) && defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
         if (window) {
             window->FontWindowScale = scale;
-            UpdateCurrentFontSize(0.0f);
+            ImGui::UpdateCurrentFontSize(0.0f);
         }
-    }
-}
+#else
+        ImGui::SetWindowFontScale(scale);
 #endif
+    }
+} // namespace ImGeeCompat
+} // namespace ImGui
 #endif
 
 namespace ImGui {
@@ -482,11 +504,11 @@ else // only *add* to max timeout if it's not very short per above:
             ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, config->indent_spacing * scale);
             bool open = ImGui::Begin(window_name, nullptr, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
             (void)open;
-            ImGui::SetWindowFontScale(scale);
+            ImGui::ImGeeCompat::SetWindowFontScale(scale);
             ImGui::PushStyleColor(ImGuiCol_Text, config->text_color); // Pushed AFTER Begin to affect window contents!
             ImGui::PushStyleColor(ImGuiCol_Separator, config->text_color); // Ensures markdown horizontal lines match the text color!
             if (config->font) {
-                ImGui::PushFont(config->font);
+                ImGui::ImGeeCompat::PushFont(config->font);
                 state.font_pushed = true;
             } else {
                 state.font_pushed = false;

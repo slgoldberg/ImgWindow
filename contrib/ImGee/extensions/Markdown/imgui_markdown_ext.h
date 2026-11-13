@@ -354,7 +354,7 @@ namespace ImGui {
             }
 #endif
             if (mono) {
-                ImGui::PushFont(mono);
+                ImGui::ImGeeCompat::PushFont(mono);
                 return;
             }
         }
@@ -377,7 +377,7 @@ namespace ImGui {
 #endif
         }
         if (fontToPush) {
-            ImGui::PushFont(fontToPush);
+            ImGui::ImGeeCompat::PushFont(fontToPush);
             return;
         }
 
@@ -1449,7 +1449,7 @@ namespace ImGui {
 
                 ImFont* mono_font = (config && config->monoFont) ? config->monoFont : nullptr;
                 if (mono_font) {
-                    ImGui::PushFont(mono_font);
+                    ImGui::ImGeeCompat::PushFont(mono_font);
                 } else {
                     PushMarkdownTagFont(config, style);
                 }
@@ -1671,7 +1671,7 @@ namespace ImGui {
                         render_size.x = avail_w;
                         render_size.y = std::round(render_size.y * scale);
                     }
-                    ImGui::Image(imgData.user_texture_id, render_size, imgData.uv0, imgData.uv1, imgData.tint_col, imgData.border_col);
+                    ImGui::ImGeeCompat::Image(imgData.user_texture_id, render_size, imgData.uv0, imgData.uv1, imgData.tint_col, imgData.border_col);
                 } else if (imgData.isLoading) {
                     std::string clean_src = param;
                     size_t src_pos = clean_src.find("src=");
@@ -2577,7 +2577,7 @@ namespace ImGui {
 #endif
             ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
             if (font_scale > 0.0f) {
-                ImGui::SetWindowFontScale(font_scale);
+                ImGui::ImGeeCompat::SetWindowFontScale(font_scale);
             }
         
             MarkdownConfig measure_cfg;
@@ -2602,7 +2602,7 @@ namespace ImGui {
 #endif
             ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
             if (font_scale > 0.0f) {
-                ImGui::SetWindowFontScale(font_scale);
+                ImGui::ImGeeCompat::SetWindowFontScale(font_scale);
             }
             
             ImGui::BeginGroup();
@@ -3254,7 +3254,7 @@ namespace TimedTooltip {
         if (BeginStationaryTooltipProxy(id, is_hovered, config_override)) {
             displayed = true;
 
-            ImGui::SetWindowFontScale(scale);
+            ImGui::ImGeeCompat::SetWindowFontScale(scale);
             if (no_wrap) {
                 MD::Text(std::string(buffer), &local_md);
             } else {

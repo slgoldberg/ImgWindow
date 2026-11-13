@@ -401,7 +401,11 @@ namespace ImGui {
         // --- 3. Directory & File List Table ---
         const float footer_h = (std::max)(42.0f, ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y * 2.0f);
         float table_height = (std::max)(60.0f, ImGui::GetContentRegionAvail().y - footer_h);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19000)
+        if (ImGui::BeginChild("##file_list", ImVec2(0.0f, table_height), ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar)) {
+#else
         if (ImGui::BeginChild("##file_list", ImVec2(0.0f, table_height), true, ImGuiWindowFlags_HorizontalScrollbar)) {
+#endif
             for (const auto& item : state.cached_items) {
                 // Filter match
                 if (state.filter_buf[0] != '\0') {
@@ -625,7 +629,11 @@ namespace ImGui {
         // --- 3. Directory & File List Table ---
         const float footer_h = (std::max)(42.0f, ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y * 2.0f);
         float table_height = (std::max)(60.0f, ImGui::GetContentRegionAvail().y - footer_h);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19000)
+        if (ImGui::BeginChild("##save_file_list", ImVec2(0.0f, table_height), ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar)) {
+#else
         if (ImGui::BeginChild("##save_file_list", ImVec2(0.0f, table_height), true, ImGuiWindowFlags_HorizontalScrollbar)) {
+#endif
             for (const auto& item : state.cached_items) {
                 // Filter match
                 if (state.filter_buf[0] != '\0') {

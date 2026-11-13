@@ -54,26 +54,48 @@
   #define ImTrunc(v) ((float)(int)(v))
 #endif
 
-#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) && defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
-#ifndef IMGUI_OBSOLETE_SHIMS_DEFINED
-#define IMGUI_OBSOLETE_SHIMS_DEFINED
+#ifndef IMGEE_INTERNAL_COMPAT_DEFINED
+#define IMGEE_INTERNAL_COMPAT_DEFINED
 namespace ImGui {
+namespace ImGeeCompat {
     inline void PushFont(ImFont* font) {
-        PushFont(font, font ? font->LegacySize : 0.0f);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200)
+        ImGui::PushFont(font, font ? font->LegacySize : 0.0f);
+#else
+        ImGui::PushFont(font);
+#endif
     }
     inline void Image(ImTextureID user_texture_id, const ImVec2& image_size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), const ImVec4& border_col = ImVec4(0, 0, 0, 0)) {
-        (void)tint_col; (void)border_col;
-        Image(ImTextureRef(user_texture_id), image_size, uv0, uv1);
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19190)
+        if (border_col.w > 0.0f) {
+            const float border_size = ImGui::GetStyle().ImageBorderSize;
+            ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, border_size > 1.0f ? border_size : 1.0f);
+            ImGui::PushStyleColor(ImGuiCol_Border, border_col);
+            ImGui::ImageWithBg(user_texture_id, image_size, uv0, uv1, ImVec4(0, 0, 0, 0), tint_col);
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar();
+        } else {
+            ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 0.0f);
+            ImGui::ImageWithBg(user_texture_id, image_size, uv0, uv1, ImVec4(0, 0, 0, 0), tint_col);
+            ImGui::PopStyleVar();
+        }
+#else
+        ImGui::Image(user_texture_id, image_size, uv0, uv1, tint_col, border_col);
+#endif
     }
     inline void SetWindowFontScale(float scale) {
-        ImGuiWindow* window = GetCurrentWindow();
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 19200) && defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
         if (window) {
             window->FontWindowScale = scale;
-            UpdateCurrentFontSize(0.0f);
+            ImGui::UpdateCurrentFontSize(0.0f);
         }
-    }
-}
+#else
+        ImGui::SetWindowFontScale(scale);
 #endif
+    }
+} // namespace ImGeeCompat
+} // namespace ImGui
 #endif
 
 namespace ImGui {
@@ -1289,7 +1311,7 @@ namespace ImGui
         ImFont* mono_font = mdConfig_.monoFont;
         if( mono_font )
         {
-            ImGui::PushFont( mono_font );
+            ImGui::ImGeeCompat::PushFont( mono_font );
         }
 
         ImGui::Dummy( ImVec2( 0.0f, 2.0f * scale ) );
@@ -1380,7 +1402,7 @@ namespace ImGui
             {
                 ImGui::Markdown::Render( code_, codeLength_, preview_config );
             }
-            if( mono_font ) ImGui::PushFont( mono_font );
+            if( mono_font ) ImGui::ImGeeCompat::PushFont( mono_font );
         }
         else if( mdConfig_.codeBlockCallback )
         {
@@ -2216,7 +2238,7 @@ namespace ImGui
                         ImVec2 inner_sz;
                         if( chosen_font )
                         {
-                            ImGui::PushFont( chosen_font );
+                            ImGui::ImGeeCompat::PushFont( chosen_font );
                             inner_sz = ImGui::CalcTextSize( content_start, content_end );
                             ImGui::PopFont();
                         }
@@ -2275,7 +2297,7 @@ namespace ImGui
                     const char* link_text_end = b_close;
                     if( is_header && mdConfig_.boldFont )
                     {
-                        ImGui::PushFont( mdConfig_.boldFont );
+                        ImGui::ImGeeCompat::PushFont( mdConfig_.boldFont );
                         ImVec2 sz = ImGui::CalcTextSize( link_text_start, link_text_end );
                         ImGui::PopFont();
                         return sz.x;
@@ -2322,7 +2344,7 @@ namespace ImGui
             ImVec2 sz;
             if( chosen_font )
             {
-                ImGui::PushFont( chosen_font );
+                ImGui::ImGeeCompat::PushFont( chosen_font );
                 sz = ImGui::CalcTextSize( s, e );
                 ImGui::PopFont();
             }
@@ -2921,12 +2943,12 @@ namespace ImGui
         {
             if( mdConfig_.boldFont )
             {
-                ImGui::PushFont( mdConfig_.boldFont );
+                ImGui::ImGeeCompat::PushFont( mdConfig_.boldFont );
                 pushed_font = true;
             }
             else if( mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font )
             {
-                ImGui::PushFont( mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font );
+                ImGui::ImGeeCompat::PushFont( mdConfig_.headingFormats[ MarkdownConfig::NUMHEADINGS - 1 ].font );
                 pushed_font = true;
             }
         }
@@ -4183,7 +4205,7 @@ namespace ImGui
                                         render_size.x = avail_w;
                                         render_size.y = std::round( render_size.y * scale );
                                     }
-                                    ImGui::Image( imgData.user_texture_id, render_size, imgData.uv0, imgData.uv1, imgData.tint_col, imgData.border_col );
+                                    ImGui::ImGeeCompat::Image( imgData.user_texture_id, render_size, imgData.uv0, imgData.uv1, imgData.tint_col, imgData.border_col );
                                 }
                             }
                         }
@@ -4385,7 +4407,7 @@ namespace ImGui
                                     render_size.x = avail_w;
                                     render_size.y = std::round( render_size.y * scale );
                                 }
-                                ImGui::Image( imageData.user_texture_id, render_size, imageData.uv0, imageData.uv1, imageData.tint_col, imageData.border_col );
+                                ImGui::ImGeeCompat::Image( imageData.user_texture_id, render_size, imageData.uv0, imageData.uv1, imageData.tint_col, imageData.border_col );
                                 drawnImage = true;
                             }
                         }
@@ -4757,7 +4779,7 @@ namespace ImGui
         case MarkdownFormatType::ORDERED_LIST:
             if( markdownFormatInfo_.config && markdownFormatInfo_.config->regularFont )
             {
-                if( start_ ) ImGui::PushFont( markdownFormatInfo_.config->regularFont );
+                if( start_ ) ImGui::ImGeeCompat::PushFont( markdownFormatInfo_.config->regularFont );
                 else         ImGui::PopFont();
             }
             break;
@@ -4769,7 +4791,7 @@ namespace ImGui
                 ImFont* mono_font = markdownFormatInfo_.config ? markdownFormatInfo_.config->monoFont : nullptr;
                 if( mono_font )
                 {
-                    if( start_ ) ImGui::PushFont( mono_font );
+                    if( start_ ) ImGui::ImGeeCompat::PushFont( mono_font );
                     else         ImGui::PopFont();
                 }
                 break;
@@ -4811,7 +4833,7 @@ namespace ImGui
                 ImFont* italic_font = markdownFormatInfo_.config ? markdownFormatInfo_.config->italicFont : nullptr;
                 if( italic_font )
                 {
-                    if( start_ ) ImGui::PushFont( italic_font );
+                    if( start_ ) ImGui::ImGeeCompat::PushFont( italic_font );
                     else         ImGui::PopFont();
                 }
                 else
@@ -4836,7 +4858,7 @@ namespace ImGui
                 {
                     if( bi_font )
                     {
-                        ImGui::PushFont( bi_font );
+                        ImGui::ImGeeCompat::PushFont( bi_font );
                     }
                 }
                 else
@@ -4859,7 +4881,7 @@ namespace ImGui
 			    {
 				    if( bold_font )
 				    {
-					    ImGui::PushFont( bold_font );
+					    ImGui::ImGeeCompat::PushFont( bold_font );
 				    }
 			    }
                 else
@@ -4899,7 +4921,7 @@ namespace ImGui
             {
                 if( fmt.font  )
                 {
-                    ImGui::PushFont( fmt.font );
+                    ImGui::ImGeeCompat::PushFont( fmt.font );
                 }
                 if( !markdownFormatInfo_.isStartOfDoc &&
                     !markdownFormatInfo_.isPrecededBySeparator &&
