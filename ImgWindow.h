@@ -585,6 +585,11 @@ protected:
      * preferred layer or the VR layer depending on if the headset is in use.
      */
     void moveForVR();
+
+    /** Converts target boxel dimensions to OS pixels using the live (OS pixel / boxel) ratio,
+     *  clamps to resizing limits and the containing OS monitor via XPLMGetAllMonitorBoundsOS(),
+     *  and preserves Y-up (macOS) vs. Y-down (Windows/Linux) OS coordinate conventions. */
+    bool ApplyBoxelSizeToPoppedOutOS (int target_boxel_w, int target_boxel_h);
     
     /** A hook called right before ImGui::Begin in case you want to set up something
      * before interface building begins
