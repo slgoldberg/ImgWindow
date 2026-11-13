@@ -590,7 +590,13 @@ namespace ImGui {
         if (IsItemClicked()) {
             clicked = true;
         }
+#if defined(CONTRIB_ICONS_AVAILABLE)
         DrawVectorIcon(GetWindowDrawList(), ImVec2(pos.x, pos.y + offset_y), icon_sz, col, "external-link");
+#else
+        (void)pos;
+        (void)offset_y;
+        (void)col;
+#endif
 
         if (clicked && url && *url) {
             OpenURL(url);

@@ -131,6 +131,8 @@ namespace ImGui {
                 vec_icon_name = norm;
             }
         }
+#else
+        (void)icon_name;
 #endif
         const bool has_icon = (has_tex_icon || has_vec_icon);
         const bool has_text = (text != nullptr && *text != '\0');

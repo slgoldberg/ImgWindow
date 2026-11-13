@@ -37,6 +37,7 @@
     !defined(IMGUI_CONTRIB_DISABLE_ICONS) && \
     !defined(IMGUI_DISABLE_ICONS) && \
     !defined(IMGUI_DISABLE_CONTRIB_ICONS)
+#define CONTRIB_ICONS_AVAILABLE 1
 
 #if defined(__has_include)
     #if __has_include(<imgui.h>)
@@ -124,7 +125,7 @@ namespace ImGui {
         else if (s.rfind("fa-", 0) == 0)     s = s.substr(3);
 
         // Canonical aliases
-        if (s == "reset" || s == "undo-alt" || s == "rotate-left" || s == "refresh" || s == "reload" || s == "sync") return "undo";
+        if (s == "reset" || s == "undo-alt" || s == "rotate-left" || s == "refresh" || s == "reload" || s == "sync" || s == "retweet") return "undo";
         if (s == "restore" || s == "redo-alt" || s == "rotate-right") return "redo";
         if (s == "external" || s == "open-in-new" || s == "link-external" || s == "external-link-alt" || s == "arrow-up-right") return "external-link";
         if (s == "folder-open" || s == "directory") return "folder";

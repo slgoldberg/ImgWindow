@@ -277,7 +277,11 @@ namespace ImGui {
                     while (!inside.empty() && (inside.back() == '/' || inside.back() == ' ' || inside.back() == '\t')) inside.pop_back();
                     while (!inside.empty() && (inside.front() == ' ' || inside.front() == '\t')) inside.erase(0, 1);
                     if (style.icon_name.empty() && !inside.empty()) {
+#if defined(CONTRIB_HAS_ICONS)
                         style.icon_name = NormalizeIconName(inside.c_str());
+#else
+                        style.icon_name = inside;
+#endif
                     }
                     style.clean_text.erase(icon_tag, tag_end - icon_tag + 1);
                     while (!style.clean_text.empty() && (style.clean_text.front() == ' ' || style.clean_text.front() == '\t')) style.clean_text.erase(0, 1);
@@ -492,6 +496,7 @@ namespace ImGui {
     inline bool PreprocessMarkdownIconsAndShortcodes(const char* text, size_t len, std::string& out) {
         if (!text || len == 0) return false;
 #if !defined(CONTRIB_HAS_ICONS)
+        (void)out;
         return false;
 #else
         out.reserve(len + 128);
@@ -1484,7 +1489,11 @@ namespace ImGui {
                     }
                 }
 
+#if defined(CONTRIB_HAS_ICONS)
                 bool has_icon = (!style.icon_name.empty() && IsVectorIcon(style.icon_name.c_str()));
+#else
+                bool has_icon = false;
+#endif
                 float icon_sz = font_size * 0.90f;
                 bool has_text = !style.clean_text.empty();
                 float gap = (has_icon && has_text) ? (4.0f * scale) : 0.0f;
@@ -1496,6 +1505,7 @@ namespace ImGui {
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
                 ImU32 col_u32 = ImGui::GetColorU32(bg_col);
                 ImU32 fg_u32 = ImGui::GetColorU32(fg_col);
+                (void)fg_u32;
 
                 draw_list->AddRectFilled(
                     ImVec2(pos.x - pad_x, pos.y - pad_y),
@@ -1504,11 +1514,13 @@ namespace ImGui {
                 );
 
                 float cur_x = pos.x;
+#if defined(CONTRIB_HAS_ICONS)
                 if (has_icon) {
                     ImVec2 icon_pos(cur_x, pos.y + (font_size - icon_sz) * 0.5f);
                     ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, fg_u32, style.icon_name.c_str());
                     cur_x += icon_sz + gap;
                 }
+#endif
 
                 if (has_text) {
                     ImGui::SetCursorScreenPos(ImVec2(cur_x, pos.y));
@@ -1985,11 +1997,15 @@ namespace ImGui {
     /** Recursively renders text containing embedded inline XML/HTML tags with full nested styling */
     inline void RenderInlineTaggedText(const std::string& input_text, const MarkdownConfig* config) {
         (void)config;
-        std::string text = (input_text.find('*') != std::string::npos || input_text.find('_') != std::string::npos ||
-                            input_text.find('~') != std::string::npos || input_text.find('+') != std::string::npos ||
-                            input_text.find('`') != std::string::npos)
-                           ? ExpandInlineMarkdownEmphasisToTags(input_text)
-                           : input_text;
+        std::string preprocessed_icons;
+        const std::string& icon_ready = PreprocessMarkdownIconsAndShortcodes(input_text.c_str(), input_text.length(), preprocessed_icons)
+                                            ? preprocessed_icons
+                                            : input_text;
+        std::string text = (icon_ready.find('*') != std::string::npos || icon_ready.find('_') != std::string::npos ||
+                            icon_ready.find('~') != std::string::npos || icon_ready.find('+') != std::string::npos ||
+                            icon_ready.find('`') != std::string::npos)
+                           ? ExpandInlineMarkdownEmphasisToTags(icon_ready)
+                           : icon_ready;
 
         if (text.find('<') == std::string::npos) {
             ImGui::TextUnformatted(text.c_str());
@@ -2663,6 +2679,59 @@ namespace ImGui {
             return CalcMarkdownSize(0, 0, std::string(markdown_text ? markdown_text : ""), wrap_width, font_scale, md_config);
         }
 
+        namespace Detail {
+            inline void RenderMarkdownOverlayPreservingDC(const ImVec2& screen_pos, const std::string& md_text) {
+                if (md_text.empty()) return;
+                ImGuiWindow* window = ImGui::GetCurrentWindow();
+                if (!window) return;
+
+                const ImVec2 saved_cursor_pos            = window->DC.CursorPos;
+                const ImVec2 saved_cursor_pos_prev_line  = window->DC.CursorPosPrevLine;
+                const ImVec2 saved_cursor_max_pos        = window->DC.CursorMaxPos;
+                const ImVec2 saved_curr_line_size        = window->DC.CurrLineSize;
+                const ImVec2 saved_prev_line_size        = window->DC.PrevLineSize;
+                const float  saved_curr_line_base_offset = window->DC.CurrLineTextBaseOffset;
+                const float  saved_prev_line_base_offset = window->DC.PrevLineTextBaseOffset;
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 18900)
+                const bool   saved_is_same_line          = window->DC.IsSameLine;
+                const bool   saved_is_set_pos            = window->DC.IsSetPos;
+#endif
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM >= 18500)
+                const ImGuiLastItemData saved_last_item  = GImGui->LastItemData;
+#else
+                const ImGuiID              saved_last_id   = window->DC.LastItemId;
+                const ImGuiItemStatusFlags saved_last_st   = window->DC.LastItemStatusFlags;
+                const ImRect               saved_last_rect = window->DC.LastItemRect;
+#endif
+
+                const MarkdownConfig* base_cfg = GetDefaultMarkdownConfig();
+                MarkdownConfig nowrap_cfg = base_cfg ? *base_cfg : MarkdownConfig{};
+                nowrap_cfg.wrapWidth = -1.0f;
+
+                ImGui::SetCursorScreenPos(screen_pos);
+                Markdown::TextUnformatted(md_text, &nowrap_cfg);
+
+                window->DC.CursorPos              = saved_cursor_pos;
+                window->DC.CursorPosPrevLine      = saved_cursor_pos_prev_line;
+                window->DC.CursorMaxPos           = saved_cursor_max_pos;
+                window->DC.CurrLineSize           = saved_curr_line_size;
+                window->DC.PrevLineSize           = saved_prev_line_size;
+                window->DC.CurrLineTextBaseOffset = saved_curr_line_base_offset;
+                window->DC.PrevLineTextBaseOffset = saved_prev_line_base_offset;
+#if defined(IMGUI_VERSION_NUM) && (IMGUI_VERSION_NUM >= 18900)
+                window->DC.IsSameLine             = saved_is_same_line;
+                window->DC.IsSetPos               = saved_is_set_pos;
+#endif
+#if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM >= 18500)
+                GImGui->LastItemData              = saved_last_item;
+#else
+                window->DC.LastItemId             = saved_last_id;
+                window->DC.LastItemStatusFlags    = saved_last_st;
+                window->DC.LastItemRect           = saved_last_rect;
+#endif
+            }
+        } // namespace Detail
+
         /// Renders an interactive Dear ImGui push button supporting procedural vector icons,
         /// pills, badges, rich Markdown formatting, Unicode glyphs, hand cursor on hover,
         /// and optional rich Markdown tooltips.
@@ -2706,18 +2775,27 @@ namespace ImGui {
             bool is_handled = false;
 
             if (is_standalone_pill) {
-                ImVec2 orig_screen_pos = ImGui::GetCursorScreenPos();
+                ImGui::AlignTextToFramePadding();
+                ImGuiWindow* window = ImGui::GetCurrentWindow();
+                const ImVec2 orig_screen_pos      = ImGui::GetCursorScreenPos();
+                const ImVec2 saved_curr_line_size = window ? window->DC.CurrLineSize : ImVec2(0.0f, 0.0f);
+                const float  saved_curr_base_off  = window ? window->DC.CurrLineTextBaseOffset : 0.0f;
 
-                ImGui::BeginGroup();
-                Markdown::TextUnformatted(display_part);
-                ImGui::EndGroup();
+                const MarkdownConfig* base_cfg = GetDefaultMarkdownConfig();
+                MarkdownConfig nowrap_cfg = base_cfg ? *base_cfg : MarkdownConfig{};
+                nowrap_cfg.wrapWidth = -1.0f;
+                Markdown::TextUnformatted(display_part, &nowrap_cfg);
 
                 ImVec2 item_sz = ImGui::GetItemRectSize();
                 ImVec2 final_sz = size_arg;
                 if (final_sz.x <= 0.0f) final_sz.x = item_sz.x;
-                if (final_sz.y <= 0.0f) final_sz.y = item_sz.y;
+                if (final_sz.y <= 0.0f) final_sz.y = ImMax(item_sz.y, ImGui::GetFrameHeight());
 
                 ImGui::SetCursorScreenPos(orig_screen_pos);
+                if (window) {
+                    window->DC.CurrLineSize           = saved_curr_line_size;
+                    window->DC.CurrLineTextBaseOffset = saved_curr_base_off;
+                }
                 std::string inv_id = "##" + (id_part.empty() ? "btn_md_pill" : id_part);
                 clicked = ImGui::InvisibleButton(inv_id.c_str(), final_sz);
                 btn_id = ImGui::GetItemID();
@@ -2746,7 +2824,6 @@ namespace ImGui {
                 if (tag_start != std::string::npos) {
                     size_t tag_end = target_display.find(">", tag_start);
                     if (tag_end != std::string::npos) {
-                        has_icon = true;
                         prefix_text = target_display.substr(0, tag_start);
                         suffix_text = target_display.substr(tag_end + 1);
 
@@ -2756,32 +2833,37 @@ namespace ImGui {
                         while (!suffix_text.empty() && (suffix_text.front() == ' ' || suffix_text.front() == '\t')) suffix_text.erase(0, 1);
                         while (!suffix_text.empty() && (suffix_text.back() == ' ' || suffix_text.back() == '\t')) suffix_text.pop_back();
 
-                        std::string tag_body = target_display.substr(tag_start + 5, tag_end - (tag_start + 5));
-                        if (!tag_body.empty() && tag_body.back() == '/') tag_body.pop_back();
+                        // Use dedicated single-icon + label layout only when the icon is strictly leading or trailing
+                        // and there is no second <icon> tag; otherwise fall through to full Markdown button layout.
+                        if ((prefix_text.empty() || suffix_text.empty()) && suffix_text.find("<icon") == std::string::npos) {
+                            has_icon = true;
+                            std::string tag_body = target_display.substr(tag_start + 5, tag_end - (tag_start + 5));
+                            if (!tag_body.empty() && tag_body.back() == '/') tag_body.pop_back();
 
-                        std::istringstream iss(tag_body);
-                        std::string token;
-                        while (iss >> token) {
-                            if (token.find("color=") == 0 || token.find("col=") == 0) {
-                                size_t eq = token.find('=');
-                                has_custom_color = ParseMarkdownColor(token.substr(eq + 1), icon_color);
-                            } else if (token.find("name=") == 0 || token.find("icon=") == 0) {
-                                size_t eq = token.find('=');
-                                icon_name = NormalizeIconName(token.substr(eq + 1).c_str());
-                            } else if (token.find("size=") == 0) {
-                                size_t eq = token.find('=');
-                                custom_icon_size = (float)atof(token.substr(eq + 1).c_str());
-                            } else {
-                                std::string norm = NormalizeIconName(token.c_str());
-                                if (IsVectorIcon(norm.c_str()) && icon_name.empty()) {
-                                    icon_name = norm;
+                            std::istringstream iss(tag_body);
+                            std::string token;
+                            while (iss >> token) {
+                                if (token.find("color=") == 0 || token.find("col=") == 0) {
+                                    size_t eq = token.find('=');
+                                    has_custom_color = ParseMarkdownColor(token.substr(eq + 1), icon_color);
+                                } else if (token.find("name=") == 0 || token.find("icon=") == 0) {
+                                    size_t eq = token.find('=');
+                                    icon_name = NormalizeIconName(token.substr(eq + 1).c_str());
+                                } else if (token.find("size=") == 0) {
+                                    size_t eq = token.find('=');
+                                    custom_icon_size = (float)atof(token.substr(eq + 1).c_str());
                                 } else {
-                                    ImVec4 test_c;
-                                    if (ParseMarkdownColor(token, test_c) && !has_custom_color) {
-                                        icon_color = test_c;
-                                        has_custom_color = true;
-                                    } else if (icon_name.empty()) {
+                                    std::string norm = NormalizeIconName(token.c_str());
+                                    if (IsVectorIcon(norm.c_str()) && icon_name.empty()) {
                                         icon_name = norm;
+                                    } else {
+                                        ImVec4 test_c;
+                                        if (ParseMarkdownColor(token, test_c) && !has_custom_color) {
+                                            icon_color = test_c;
+                                            has_custom_color = true;
+                                        } else if (icon_name.empty()) {
+                                            icon_name = norm;
+                                        }
                                     }
                                 }
                             }
@@ -2801,9 +2883,18 @@ namespace ImGui {
                     float font_size = ImGui::GetFontSize();
                     float icon_sz = (custom_icon_size > 0.0f) ? custom_icon_size : std::round(font_size * 0.90f);
 
-                    std::string label_text = prefix_text.empty() ? suffix_text : (suffix_text.empty() ? prefix_text : (prefix_text + " " + suffix_text));
+                    std::string label_text = prefix_text.empty() ? suffix_text : prefix_text;
                     bool has_text = !label_text.empty();
-                    ImVec2 text_sz = has_text ? ImGui::CalcTextSize(label_text.c_str()) : ImVec2(0.0f, 0.0f);
+                    bool label_has_md = has_text && (label_text.find('<') != std::string::npos ||
+                                                     label_text.find('*') != std::string::npos ||
+                                                     label_text.find('_') != std::string::npos ||
+                                                     label_text.find('`') != std::string::npos ||
+                                                     label_text.find('~') != std::string::npos ||
+                                                     label_text.find('+') != std::string::npos ||
+                                                     label_text.find(':') != std::string::npos);
+                    ImVec2 text_sz = !has_text ? ImVec2(0.0f, 0.0f)
+                                               : (label_has_md ? CalcMarkdownSize(0, 0, label_text)
+                                                               : ImGui::CalcTextSize(label_text.c_str()));
                     float spacing = has_text ? style.ItemInnerSpacing.x : 0.0f;
                     float content_w = has_text ? (icon_sz + spacing + text_sz.x) : icon_sz;
 
@@ -2812,7 +2903,9 @@ namespace ImGui {
                         btn_sz.x = has_text ? (content_w + style.FramePadding.x * 2.0f) : ((btn_sz.y > 0.0f) ? btn_sz.y : frame_h);
                     }
                     if (btn_sz.y <= 0.0f) {
-                        btn_sz.y = frame_h;
+                        btn_sz.y = (has_text && text_sz.y > ImGui::GetTextLineHeightWithSpacing() + 1.0f)
+                                       ? ImMax(text_sz.y + style.FramePadding.y * 2.0f, frame_h)
+                                       : ImMax(text_sz.y, frame_h);
                     }
 
                     std::string invisible_label = "###" + id_part;
@@ -2837,10 +2930,18 @@ namespace ImGui {
                         ImVec2 icon_pos(start_x, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
                         ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
                         ImVec2 text_pos(start_x + icon_sz + spacing, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
-                        draw_list->AddText(text_pos, text_col, label_text.c_str());
+                        if (label_has_md) {
+                            Detail::RenderMarkdownOverlayPreservingDC(text_pos, label_text);
+                        } else {
+                            draw_list->AddText(text_pos, text_col, label_text.c_str());
+                        }
                     } else {
                         ImVec2 text_pos(start_x, std::round((p_min.y + p_max.y - text_sz.y) * 0.5f));
-                        draw_list->AddText(text_pos, text_col, label_text.c_str());
+                        if (label_has_md) {
+                            Detail::RenderMarkdownOverlayPreservingDC(text_pos, label_text);
+                        } else {
+                            draw_list->AddText(text_pos, text_col, label_text.c_str());
+                        }
                         ImVec2 icon_pos(start_x + text_sz.x + spacing, std::round((p_min.y + p_max.y - icon_sz) * 0.5f));
                         ImGui::DrawVectorIcon(draw_list, icon_pos, icon_sz, icol, icon_name.c_str());
                     }
@@ -2854,6 +2955,8 @@ namespace ImGui {
                                                 display_part.find('*') != std::string::npos ||
                                                 display_part.find('_') != std::string::npos ||
                                                 display_part.find('`') != std::string::npos ||
+                                                display_part.find('~') != std::string::npos ||
+                                                display_part.find('+') != std::string::npos ||
                                                 display_part.find(':') != std::string::npos);
 
                 if (has_markdown_formatting) {
@@ -2866,7 +2969,9 @@ namespace ImGui {
                         btn_sz.x = measured.x + style.FramePadding.x * 2.0f;
                     }
                     if (btn_sz.y <= 0.0f) {
-                        btn_sz.y = ImMax(measured.y + style.FramePadding.y * 2.0f, frame_h);
+                        btn_sz.y = (measured.y > ImGui::GetTextLineHeightWithSpacing() + 1.0f)
+                                       ? ImMax(measured.y + style.FramePadding.y * 2.0f, frame_h)
+                                       : ImMax(measured.y, frame_h);
                     }
 
                     std::string invisible_label = "###" + (id_part.empty() ? "btn_md" : id_part);
@@ -2877,14 +2982,11 @@ namespace ImGui {
                         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
                     }
 
-                    ImVec2 next_cursor = ImGui::GetCursorPos();
                     ImVec2 p_min = ImGui::GetItemRectMin();
-                    float offset_x = ImMax(style.FramePadding.x, (btn_sz.x - measured.x) * 0.5f);
-                    float offset_y = ImMax(style.FramePadding.y, (btn_sz.y - measured.y) * 0.5f);
+                    float offset_x = std::round(ImMax(0.0f, (btn_sz.x - measured.x) * 0.5f));
+                    float offset_y = std::round(ImMax(0.0f, (btn_sz.y - measured.y) * 0.5f));
 
-                    ImGui::SetCursorScreenPos(ImVec2(p_min.x + offset_x, p_min.y + offset_y));
-                    Markdown::TextUnformatted(display_part);
-                    ImGui::SetCursorPos(next_cursor);
+                    Detail::RenderMarkdownOverlayPreservingDC(ImVec2(p_min.x + offset_x, p_min.y + offset_y), display_part);
                     is_handled = true;
                 }
             }
