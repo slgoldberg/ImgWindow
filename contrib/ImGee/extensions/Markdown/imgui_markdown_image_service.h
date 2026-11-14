@@ -25,8 +25,10 @@
 #include <string>
 #include <vector>
 #include <map>
+#if !defined(_WIN32)
 #include <mutex>
 #include <thread>
+#endif
 #include <atomic>
 #include <cmath>
 #include <cstdlib>
@@ -37,6 +39,7 @@
 #define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
 #endif
 #include <algorithm>
+#include <utility>
 
 #if defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
@@ -150,8 +153,34 @@ struct MarkdownRemoteDecodedPayload {
     uint64_t generation = 0;
 };
 
-inline std::mutex& GetCompletedMutex() {
-    static std::mutex s_Mutex;
+#if defined(_WIN32)
+// Use native Win32 CRITICAL_SECTION on Windows so ImGee compiles cleanly on
+// MinGW-w64's 'win32' thread model (where std::mutex / std::thread are omitted)
+// and avoids introducing a runtime dependency on libwinpthread-1.dll.
+struct CompletedMutex {
+    CRITICAL_SECTION cs;
+    CompletedMutex()  { InitializeCriticalSection(&cs); }
+    ~CompletedMutex() { DeleteCriticalSection(&cs); }
+    CompletedMutex(const CompletedMutex&) = delete;
+    CompletedMutex& operator=(const CompletedMutex&) = delete;
+    void lock()   { EnterCriticalSection(&cs); }
+    void unlock() { LeaveCriticalSection(&cs); }
+};
+
+struct CompletedLockGuard {
+    CompletedMutex& mtx;
+    explicit CompletedLockGuard(CompletedMutex& m) : mtx(m) { mtx.lock(); }
+    ~CompletedLockGuard() { mtx.unlock(); }
+    CompletedLockGuard(const CompletedLockGuard&) = delete;
+    CompletedLockGuard& operator=(const CompletedLockGuard&) = delete;
+};
+#else
+using CompletedMutex = std::mutex;
+using CompletedLockGuard = std::lock_guard<std::mutex>;
+#endif
+
+inline CompletedMutex& GetCompletedMutex() {
+    static CompletedMutex s_Mutex;
     return s_Mutex;
 }
 
@@ -183,7 +212,7 @@ inline std::atomic<uint64_t>& GetCacheGeneration() {
 inline void ClearTextureCache() {
     GetCacheGeneration().fetch_add(1);
     {
-        std::lock_guard<std::mutex> lock(GetCompletedMutex());
+        CompletedLockGuard lock(GetCompletedMutex());
         for (auto& item : GetCompletedQueue()) {
             if (item.pixels) {
                 FreeDecodedImageInternal(item.pixels);
@@ -206,7 +235,7 @@ inline void ClearTextureCache() {
 inline void ProcessPendingTextures() {
     std::vector<MarkdownRemoteDecodedPayload> completed;
     {
-        std::lock_guard<std::mutex> lock(GetCompletedMutex());
+        CompletedLockGuard lock(GetCompletedMutex());
         if (!GetCompletedQueue().empty()) {
             completed.swap(GetCompletedQueue());
         }
@@ -486,7 +515,7 @@ inline void FetchRemoteImageWorker(std::string url, uint64_t gen) {
     }
 
     {
-        std::lock_guard<std::mutex> lock(GetCompletedMutex());
+        CompletedLockGuard lock(GetCompletedMutex());
         if (GetCacheGeneration().load() == gen) {
             GetCompletedQueue().push_back(payload);
         } else if (payload.pixels) {
@@ -494,6 +523,58 @@ inline void FetchRemoteImageWorker(std::string url, uint64_t gen) {
         }
     }
 }
+
+#if defined(_WIN32)
+struct Win32FetchWorkerArgs {
+    std::string url;
+    uint64_t generation;
+};
+
+inline DWORD WINAPI Win32FetchWorkerProc(LPVOID lpParam) {
+    Win32FetchWorkerArgs* args = static_cast<Win32FetchWorkerArgs*>(lpParam);
+    if (args) {
+        std::string workerUrl = std::move(args->url);
+        uint64_t workerGen = args->generation;
+        delete args;
+        try {
+            FetchRemoteImageWorker(workerUrl, workerGen);
+        } catch (...) {
+        }
+    }
+    return 0;
+}
+
+inline bool SpawnDetachedFetchWorker(const std::string& url, uint64_t currentGen) {
+    // Ensure main-thread static initialization before the worker thread starts
+    (void)GetCompletedMutex();
+    (void)GetCompletedQueue();
+    (void)GetCacheGeneration();
+    Win32FetchWorkerArgs* args = nullptr;
+    try {
+        args = new Win32FetchWorkerArgs{url, currentGen};
+    } catch (...) {
+        return false;
+    }
+    HANDLE hThread = CreateThread(NULL, 0, &Win32FetchWorkerProc, args, 0, NULL);
+    if (!hThread) {
+        delete args;
+        return false;
+    }
+    CloseHandle(hThread);
+    return true;
+}
+#else
+inline bool SpawnDetachedFetchWorker(const std::string& url, uint64_t currentGen) {
+    try {
+        std::thread([url, currentGen]() {
+            FetchRemoteImageWorker(url, currentGen);
+        }).detach();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+#endif
 
 struct MarkdownImageModifiers {
     std::string clean_url;
@@ -859,11 +940,7 @@ inline ImGui::MarkdownImageData DefaultMarkdownImageCallback(ImGui::MarkdownLink
         entry.retryCount++;
 
         uint64_t currentGen = GetCacheGeneration().load();
-        try {
-            std::thread([url, currentGen]() {
-                FetchRemoteImageWorker(url, currentGen);
-            }).detach();
-        } catch (...) {
+        if (!SpawnDetachedFetchWorker(url, currentGen)) {
             entry.inFlight = false;
             entry.failed = true;
             entry.lastAttemptTime = ImGui::GetTime();
