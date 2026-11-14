@@ -19,7 +19,7 @@ Stock `Dear ImGui` is a brilliant immediate-mode canvas engineered primarily for
 * **Rich Markdown, GFM Tables & Semantic Typography:** Interactive CommonMark with sortable/resizable GFM tables, async 3-tier image loading (memory, disk, and off-thread HTTP/HTTPS), `ImFontRole` semantic typography, baseline-aligned `StyledText`, status `<pill>` / `<badge>` / `<kbd>` capsules, curated themes (`Charcoal`, `Rusty`), and a zero-font procedural vector icon engine.
 
 ### Ecosystem Relationship: `ImGee` vs. `ImgWindow` & `contrib/`
-* **`ImGee`** is a **100% generic, standalone-ready Dear ImGui UI toolkit** (architected to live in its own dedicated GitHub repository and multi-language ecosystem alongside Lua's **LuiGee** and Python's **PyGee**). Nothing in ImGee's core requires X-Plane.
+* **`ImGee`** is a **100% generic, standalone-ready Dear ImGui UI toolkit** (architected to live in its own dedicated GitHub repository alongside Lua's **LuiGee** and potential future language bindings). Nothing in ImGee's core requires X-Plane.
 * **`ImgWindow`** is the X-Plane C++ windowing and dynamic Panel Graphics (Vulkan/Metal + OpenGL) framework.
 * **`ImgWindow/contrib/`** is `ImgWindow`'s general **community third-party container** -- a shared home for optional add-on libraries that complement `ImgWindow` or Dear ImGui. Today, `ImGee` is bundled inside `contrib/ImGee/` (with convenience header `contrib/imgee.h`) so `ImgWindow` users get it out of the box, while remaining cleanly isolated from `ImgWindow` core and any future third-party community packages added to `contrib/`.
 

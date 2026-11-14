@@ -2,7 +2,7 @@
 ## Ergonomics, Cognitive Affordances, and Human Factors for Simulation User Interfaces
 
 **Authors & Architecture:** Steven L. Goldberg (@slgoldberg) & the Antigravity Engineering Team  
-**Custodian:** ImGee Platform (ImgWindow / LuiGee / PyGee) • **Version:** v1.0.0 (Living Standard • Nov 2026)
+**Custodian:** ImGee Platform (ImGee / ImgWindow / LuiGee) • **Version:** v1.0.0 (Living Standard • Nov 2026)
 
 ---
 
@@ -19,7 +19,7 @@ While battle-tested in flight simulation, **ImGee is 100% generic Dear ImGui and
 Bundled alongside **ImgWindow** (inside `contrib/ImGee/`) and architected as a standalone open-source library, ImGee provides a unified interaction vocabulary across multiple programming languages and runtime contexts:
 * **C++ Native (`ImGee`):** Direct, zero-overhead immediate-mode C++11/C++17 integration for any Dear ImGui project.
 * **Lua Scripting (`LuiGee`):** Turnkey Lua bindings for FlyWithLua (supporting X-Plane 11.20 through latest 12+ and beyond), bringing toggles, knobs, dials, and timed tooltips to script authors.
-* **Python Scripting (`PyGee`):** Planned bindings designed for rapid Python prototyping and integration with environments like XPPython3.
+* **Future Language Bindings:** Architected so community or future bindings for other languages (such as Python, Rust, or C#) can share the exact same interaction standards.
 
 ### Reverence for Dear ImGui & The Extensibility Model
 
@@ -252,7 +252,7 @@ Color and formatting are not decorative; in aviation interfaces, they are semant
 # Part II: The Developer's Covenant
 ### Architectural Promises to End Users
 
-The ImGee engine provides the physical affordances, but great user experience requires a partnership between the framework and the application developer. When you build avionics, tools, or plugins using ImGee, LuiGee, or PyGee, you make a sacred compact with your users to honor their cognitive airspace.
+The ImGee engine provides the physical affordances, but great user experience requires a partnership between the framework and the application developer. When you build avionics, tools, or plugins using ImGee or LuiGee, you make a sacred compact with your users to honor their cognitive airspace.
 
 Here are the **Seven Promises** every developer must uphold:
 
