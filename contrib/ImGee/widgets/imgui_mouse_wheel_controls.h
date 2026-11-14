@@ -1245,7 +1245,8 @@ namespace ImGui {
                                           const char* reset_label = nullptr,
                                           const char* restore_label = nullptr)
         {
-            float width = abutting ? std::round(height * 0.85f) : height;
+            (void)abutting;
+            float width = height;
             const char* primary = (reset_label != nullptr) ? reset_label : GetDefaultResetButtonLabelStorage();
             const char* alt     = (restore_label != nullptr) ? restore_label : GetDefaultRestoreButtonLabelStorage();
             const float pad_x   = GetStyle().FramePadding.x * 1.5f;
