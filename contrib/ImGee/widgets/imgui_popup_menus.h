@@ -40,6 +40,13 @@
 #ifndef IMGUI_POPUP_MENUS_H
 #define IMGUI_POPUP_MENUS_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #if !defined(CONTRIB_DISABLE_POPUP_MENUS) && \
     !defined(IMGUI_CONTRIB_DISABLE_POPUP_MENUS) && \
     !defined(IMGUI_DISABLE_POPUP_MENUS) && \
@@ -512,7 +519,7 @@ namespace ImGui {
         if (width > 0.0f) {
             btn_w = width;
         } else if (width < 0.0f) {
-            btn_w = std::max(min_btn_w, ImGui::GetContentRegionAvail().x + width);
+            btn_w = (std::max)(min_btn_w, ImGui::GetContentRegionAvail().x + width);
         }
 
         if (is_open) {
@@ -726,5 +733,10 @@ namespace ImGui {
 } // namespace ImGui
 
 #endif // !CONTRIB_DISABLE_POPUP_MENUS
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_POPUP_MENUS_H

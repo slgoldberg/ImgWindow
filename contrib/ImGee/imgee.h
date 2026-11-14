@@ -23,6 +23,13 @@
 #ifndef IMGEE_H
 #define IMGEE_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 // ============================================================================
 // ImGee Version Specifications
 // ============================================================================
@@ -332,5 +339,10 @@ namespace ImGeeDetail {
 #endif
 
 #endif // !IMGEE_DISABLE_ALL
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGEE_H

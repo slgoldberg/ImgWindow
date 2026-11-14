@@ -19,6 +19,13 @@
 #ifndef IMGUI_TOOLTIP_EXT_H
 #define IMGUI_TOOLTIP_EXT_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #include "imgui.h"
 #if defined(__has_include)
     #if __has_include("imgui_internal.h")
@@ -86,8 +93,6 @@ namespace ImGeeCompat {
 
 namespace ImGui {
 namespace TimedTooltip {
-    using std::min;
-    using std::max;
 
     enum TooltipFontScalePolicy {
         TooltipFontScale_Damped = 0,    // Default: Open-sky 1.0x floor + upper dampening curve
@@ -433,7 +438,7 @@ namespace TimedTooltip {
                 if (state.last_size.y > 0) {
 /* [Roger: This is experimental: -Steve] */
 /* [The goal being to force very short timeouts for just one line or two.] */
-const float ssMult = min(max(0.125f, config->size_skew_multiplier), 0.875f);
+const float ssMult = (std::min)((std::max)(0.125f, config->size_skew_multiplier), 0.875f);
 const float ssFactor = 16.f * scale; // approx chunk sizes (vertical or horizontal)
 if (state.last_size.y <= ssFactor)
     max_timeout = (int)(ssMult * (0.5f * (max_timeout) + state.last_size.x / ssFactor));
@@ -807,7 +812,7 @@ namespace TimedTooltip {
             state.last_scale = scale;
         }
 
-        float max_screen_w = std::max(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
+        float max_screen_w = (std::max)(100.0f, ImGui::GetIO().DisplaySize.x - 40.0f);
         float min_w = config->min_wrap_width * scale;
         float max_w = config->max_wrap_width * scale;
         if (min_w < 50.0f * scale) min_w = 50.0f * scale;
@@ -1027,6 +1032,11 @@ namespace TimedTooltip {
 #include "imgui_markdown_ext.h"
 #endif
 #endif
+#endif
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
 #endif
 
 #endif // IMGUI_TOOLTIP_EXT_H

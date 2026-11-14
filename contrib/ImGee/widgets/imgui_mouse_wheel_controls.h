@@ -46,6 +46,13 @@
 #define IMGUI_MOUSE_WHEEL_CONTROLS_H
 #define IMGUI_EXTRA_WHEEL_SLIDER_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #include "imgui.h"
 #include <cmath>
 
@@ -474,8 +481,8 @@ namespace ImGui {
 #endif
                 float prev = *valRef;
                 float next = *valRef + scale * clicks;
-                float lower = std::min(minVal, maxVal);
-                float upper = std::max(minVal, maxVal);
+                float lower = (std::min)(minVal, maxVal);
+                float upper = (std::max)(minVal, maxVal);
                 *valRef = (lower < upper) ? Clamp(next, lower, upper) : lower;
                 if (*valRef != prev) {
                     isHandled = true;
@@ -531,8 +538,8 @@ namespace ImGui {
 
                 int prev = *valRef;
                 int next = *valRef + delta;
-                int lower = std::min(minVal, maxVal);
-                int upper = std::max(minVal, maxVal);
+                int lower = (std::min)(minVal, maxVal);
+                int upper = (std::max)(minVal, maxVal);
                 *valRef = (lower < upper) ? Clamp(next, lower, upper) : lower;
                 if (*valRef != prev) {
                     isHandled = true;
@@ -706,7 +713,7 @@ namespace ImGui {
             float box_h = GetFrameHeight();
             ImVec2 box_max(box_min.x + box_w, box_min.y + box_h);
             float arrow_size = box_h;
-            float value_x2 = std::max(box_min.x, box_max.x - arrow_size);
+            float value_x2 = (std::max)(box_min.x, box_max.x - arrow_size);
 
             const char* preview_value = (*current_item >= 0 && *current_item < items_count && items[*current_item])
                                         ? items[*current_item]
@@ -1440,7 +1447,7 @@ namespace ImGui {
             // bottom-right (~4:30) around the left and top to the top-right arrowhead (~1:15).
             ImVec2 center(p.x + width * 0.48f, p.y + height * 0.52f);
             float radius = height * 0.25f;
-            float thickness = std::max(1.2f, height * 0.095f);
+            float thickness = (std::max)(1.2f, height * 0.095f);
 
             const float kPI = 3.14159265f;
             const float a_tail = 0.28f * kPI;
@@ -1478,7 +1485,7 @@ namespace ImGui {
             // sweeping counter-clockwise from bottom-left around the right to top-left!
             ImVec2 center(p.x + width * 0.52f, p.y + height * 0.52f);
             float radius = height * 0.25f;
-            float thickness = std::max(1.2f, height * 0.095f);
+            float thickness = (std::max)(1.2f, height * 0.095f);
 
             const float kPI = 3.14159265f;
             const float a_head = -0.62f * kPI;
@@ -1571,7 +1578,7 @@ namespace ImGui {
                                          float wheel_step = 0.0f)
     {
         bool changed = WheelSliderDetail::CallDragInt(label, v, v_speed, v_min, v_max, format, flags);
-        float step = (wheel_step > 0.0f) ? wheel_step : std::max(1.0f, v_speed);
+        float step = (wheel_step > 0.0f) ? wheel_step : (std::max)(1.0f, v_speed);
         if (WheelSliderDetail::AdjustInt(v, v_min, v_max, step))
             changed = true;
         return changed;
@@ -1657,7 +1664,7 @@ namespace ImGui {
         float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
-        float slider_w = std::max(50.0f, total_item_w - btn_w);
+        float slider_w = (std::max)(50.0f, total_item_w - btn_w);
 
         // 1. Slider Track:
         PushItemWidth(slider_w);
@@ -1690,8 +1697,8 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                float lower = std::min(v_min, v_max);
-                float upper = std::max(v_min, v_max);
+                float lower = (std::min)(v_min, v_max);
+                float upper = (std::max)(v_min, v_max);
                 *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
@@ -1767,7 +1774,7 @@ namespace ImGui {
         float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
-        float slider_w = std::max(50.0f, total_item_w - btn_w);
+        float slider_w = (std::max)(50.0f, total_item_w - btn_w);
 
         // 1. Slider Track:
         PushItemWidth(slider_w);
@@ -1799,8 +1806,8 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                int lower = std::min(v_min, v_max);
-                int upper = std::max(v_min, v_max);
+                int lower = (std::min)(v_min, v_max);
+                int upper = (std::max)(v_min, v_max);
                 *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
@@ -1876,7 +1883,7 @@ namespace ImGui {
         float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
-        float slider_w = std::max(50.0f, total_item_w - btn_w);
+        float slider_w = (std::max)(50.0f, total_item_w - btn_w);
 
         // 1. Slider Track (Percent):
         float pct = *v * 100.0f;
@@ -1911,8 +1918,8 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                float lower = std::min(v_min, v_max);
-                float upper = std::max(v_min, v_max);
+                float lower = (std::min)(v_min, v_max);
+                float upper = (std::max)(v_min, v_max);
                 *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
@@ -1990,7 +1997,7 @@ namespace ImGui {
         float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
-        float drag_w = std::max(50.0f, total_item_w - btn_w);
+        float drag_w = (std::max)(50.0f, total_item_w - btn_w);
 
         // 1. Drag Box:
         PushItemWidth(drag_w);
@@ -2024,8 +2031,8 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                float lower = std::min(v_min, v_max);
-                float upper = std::max(v_min, v_max);
+                float lower = (std::min)(v_min, v_max);
+                float upper = (std::max)(v_min, v_max);
                 *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
@@ -2102,7 +2109,7 @@ namespace ImGui {
         float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
-        float drag_w = std::max(50.0f, total_item_w - btn_w);
+        float drag_w = (std::max)(50.0f, total_item_w - btn_w);
 
         // 1. Drag Box:
         PushItemWidth(drag_w);
@@ -2114,7 +2121,7 @@ namespace ImGui {
         float wheel_clicks = (io.MouseWheel != 0.0f) ? io.MouseWheel : io.MouseWheelH;
         bool is_scrolling = (wheel_clicks != 0.0f && IsItemHovered() && !WheelSliderDetail::IsCurrentWindowScrollableY());
 
-        float step = (wheel_step > 0.0f) ? wheel_step : std::max(1.0f, v_speed);
+        float step = (wheel_step > 0.0f) ? wheel_step : (std::max)(1.0f, v_speed);
         if (WheelSliderDetail::AdjustInt(v, v_min, v_max, step))
             changed = true;
 
@@ -2135,8 +2142,8 @@ namespace ImGui {
                 *v = v_default;
                 changed = true;
             } else if (can_restore) {
-                int lower = std::min(v_min, v_max);
-                int upper = std::max(v_min, v_max);
+                int lower = (std::min)(v_min, v_max);
+                int upper = (std::max)(v_min, v_max);
                 *v = (lower < upper) ? WheelSliderDetail::Clamp(restore_val, lower, upper) : lower;
                 changed = true;
             }
@@ -2358,7 +2365,7 @@ namespace ImGui {
         float btn_w = WheelSliderDetail::CalcResetButtonWidth(btn_size, true);
         const ImGuiStyle& style = GetStyle();
         float total_item_w = CalcItemWidth();
-        float combo_w = std::max(50.0f, total_item_w - btn_w);
+        float combo_w = (std::max)(50.0f, total_item_w - btn_w);
 
         // 1. Combo Box (supports wheel cycling both when closed AND while popup is open):
         bool popup_open = false;
@@ -2494,6 +2501,11 @@ namespace ImGui {
 #endif // !CONTRIB_DISABLE_MOUSE_WHEEL_COMBO
 
 } // namespace ImGui
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_MOUSE_WHEEL_CONTROLS_H
 #endif // !IMGUI_DISABLE_MOUSE_WHEEL_CONTROLS

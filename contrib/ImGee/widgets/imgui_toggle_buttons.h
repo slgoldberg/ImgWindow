@@ -26,6 +26,13 @@
 #define IMGUI_TOGGLE_BUTTONS_H
 #define IMGUI_EXTRA_TOGGLE_BUTTON_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #include "imgui.h"
 #include <algorithm>
 #include <cstring>
@@ -230,7 +237,7 @@ namespace ImGui {
         float radius = height * 0.5f;
 
         // Line-level vertical centering so the switch perfectly balances with text baseline:
-        float line_h = (size_arg.y > 0.0f) ? std::max(size_arg.y, frame_h) : frame_h;
+        float line_h = (size_arg.y > 0.0f) ? (std::max)(size_arg.y, frame_h) : frame_h;
         float y_offset = std::floor((line_h - height) * 0.5f + 0.5f);
 
         ImVec2 pill_min = ImVec2(p.x, p.y + y_offset);
@@ -279,9 +286,9 @@ namespace ImGui {
             float speed = 12.0f; // animation rate
             float dt = GetIO().DeltaTime;
             if (*p_t < target) {
-                *p_t = std::min(target, *p_t + speed * dt);
+                *p_t = (std::min)(target, *p_t + speed * dt);
             } else if (*p_t > target) {
-                *p_t = std::max(target, *p_t - speed * dt);
+                *p_t = (std::max)(target, *p_t - speed * dt);
             }
         }
         float t = p_t ? *p_t : target;
@@ -741,6 +748,11 @@ namespace ImGui {
     }
 
 } // namespace ImGui
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_EXTRA_TOGGLE_BUTTON_H
 #endif // IMGUI_DISABLE_EXTRA_TOGGLE_BUTTON

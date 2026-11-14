@@ -26,6 +26,13 @@
 #define IMGUI_CLICKABLE_LINKS_H
 #define IMGUI_EXTRA_CLICKABLE_LINK_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #include "imgui.h"
 #include <string>
 #include <cstdlib>
@@ -34,8 +41,10 @@
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
     #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
     #include <windows.h>
-    #include <shellapi.h>
 #else
     #include <sys/stat.h>
 #endif
@@ -474,6 +483,25 @@ namespace ImGui {
 #endif
 #endif
 
+#if defined(_WIN32)
+    namespace ClickableLinksDetail {
+        inline bool Win32ShellOpen(const char* target_cstr)
+        {
+            if (!target_cstr || target_cstr[0] == '\0') return false;
+            typedef HINSTANCE (WINAPI *ShellExecuteA_t)(HWND, LPCSTR, LPCSTR, LPCSTR, LPCSTR, INT);
+            static ShellExecuteA_t s_ShellExecuteA = []() -> ShellExecuteA_t {
+                HMODULE hShell32 = LoadLibraryA("shell32.dll");
+                if (!hShell32) return nullptr;
+                return reinterpret_cast<ShellExecuteA_t>(
+                    reinterpret_cast<void*>(GetProcAddress(hShell32, "ShellExecuteA")));
+            }();
+            if (!s_ShellExecuteA) return false;
+            HINSTANCE res = s_ShellExecuteA(NULL, "open", target_cstr, NULL, NULL, 1 /* SW_SHOWNORMAL */);
+            return (reinterpret_cast<INT_PTR>(res) > 32);
+        }
+    }
+#endif
+
     /**
      * @brief Cross-platform helper to open a web URL, local file, or document in
      * the operating system's default viewer or browser.
@@ -515,8 +543,7 @@ namespace ImGui {
         // Web URLs: dispatch straight to default browser
         if (target.rfind("http://", 0) == 0 || target.rfind("https://", 0) == 0) {
 #if defined(_WIN32)
-            HINSTANCE res = ShellExecuteA(NULL, "open", target.c_str(), NULL, NULL, SW_SHOWNORMAL);
-            return (reinterpret_cast<INT_PTR>(res) > 32);
+            return ClickableLinksDetail::Win32ShellOpen(target.c_str());
 #elif defined(__APPLE__)
             std::string cmd = "open \"" + target + "\" &";
             return (system(cmd.c_str()) == 0);
@@ -530,8 +557,7 @@ namespace ImGui {
         std::string resolved = target;
 
 #if defined(_WIN32)
-        HINSTANCE res = ShellExecuteA(NULL, "open", resolved.c_str(), NULL, NULL, SW_SHOWNORMAL);
-        return (reinterpret_cast<INT_PTR>(res) > 32);
+        return ClickableLinksDetail::Win32ShellOpen(resolved.c_str());
 #elif defined(__APPLE__)
         std::string cmd = "open \"" + resolved + "\" &";
         return (system(cmd.c_str()) == 0);
@@ -640,6 +666,11 @@ namespace Detail {
 #endif
 
 } // namespace ImGui
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_EXTRA_CLICKABLE_LINK_H
 #endif // IMGUI_DISABLE_EXTRA_CLICKABLE_LINK

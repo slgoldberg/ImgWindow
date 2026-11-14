@@ -19,6 +19,13 @@
 #ifndef IMGUI_MARKDOWN_EXT_H
 #define IMGUI_MARKDOWN_EXT_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #include "imgui.h"
 #if defined(__has_include)
     #if __has_include("imgui_internal.h")
@@ -3221,6 +3228,11 @@ namespace ImGui {
 #endif
 
 } // namespace ImGui
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_MARKDOWN_EXT_H
 

@@ -47,6 +47,13 @@
 #ifndef IMGUI_CONTRIB_WIDGETS_INCLUDES_H
 #define IMGUI_CONTRIB_WIDGETS_INCLUDES_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #if !defined(IMGEE_DISABLE_WIDGETS) && \
     !defined(CONTRIB_DISABLE_WIDGETS) && \
     !defined(IMGUI_CONTRIB_DISABLE_WIDGETS) && \
@@ -67,5 +74,10 @@
 #include "imgui_popup_menus.h"
 
 #endif // !CONTRIB_DISABLE_WIDGETS
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_CONTRIB_WIDGETS_INCLUDES_H

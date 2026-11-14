@@ -15,6 +15,13 @@
 #ifndef IMGUI_MARKDOWN_IMAGE_SERVICE_H
 #define IMGUI_MARKDOWN_IMAGE_SERVICE_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #include <string>
 #include <vector>
 #include <map>
@@ -1021,5 +1028,10 @@ namespace MarkdownImageDetail {
 
 } // namespace MarkdownImageService
 } // namespace ImGui
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_MARKDOWN_IMAGE_SERVICE_H

@@ -281,7 +281,7 @@ ImFont* ImgFontAtlas::MergeFontAwesome(ImFont* base_font,
 #else
         float base_sz = base_font ? base_font->FontSize : 14.0f;
 #endif
-        font_size = std::max(8.0f, base_sz + size_offset);
+        font_size = (std::max)(8.0f, base_sz + size_offset);
     }
 
     ImFontConfig config;

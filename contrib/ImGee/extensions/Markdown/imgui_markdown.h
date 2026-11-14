@@ -2,6 +2,13 @@
 #ifndef IMGUI_MARKDOWN_H
 #define IMGUI_MARKDOWN_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 // License: zlib
 // Copyright (c) 2019 Juliette Foucaut & Doug Binks
 
@@ -851,10 +858,10 @@ namespace ImGui
 
     inline void DrawTextDecorationLine( ImColor col_, bool is_strikethrough_ )
     {
-        ImVec2 min = ImGui::GetItemRectMin();
-        ImVec2 max = ImGui::GetItemRectMax();
-        float y = is_strikethrough_ ? std::floor( ( min.y + max.y ) * 0.5f ) : std::floor( max.y - 1.0f );
-        ImGui::GetWindowDrawList()->AddLine( ImVec2( min.x, y ), ImVec2( max.x, y ), col_, 1.0f );
+        ImVec2 r_min = ImGui::GetItemRectMin();
+        ImVec2 r_max = ImGui::GetItemRectMax();
+        float y = is_strikethrough_ ? std::floor( ( r_min.y + r_max.y ) * 0.5f ) : std::floor( r_max.y - 1.0f );
+        ImGui::GetWindowDrawList()->AddLine( ImVec2( r_min.x, y ), ImVec2( r_max.x, y ), col_, 1.0f );
     }
 
     inline void UnderLine( ImColor col_ )
@@ -5143,5 +5150,10 @@ namespace ImGui
     }
 
 }
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_MARKDOWN_H

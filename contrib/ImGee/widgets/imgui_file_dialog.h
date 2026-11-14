@@ -29,6 +29,13 @@
 #ifndef IMGUI_FILE_DIALOG_H
 #define IMGUI_FILE_DIALOG_H
 
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma push_macro("min")
+#pragma push_macro("max")
+#undef min
+#undef max
+#endif
+
 #include "imgui.h"
 #include <string>
 #include <vector>
@@ -41,6 +48,9 @@
 #if defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
     #endif
     #include <windows.h>
 #else
@@ -753,6 +763,11 @@ namespace ImGui {
     }
 
 } // namespace ImGui
+
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#endif
 
 #endif // IMGUI_FILE_DIALOG_H
 #endif // !CONTRIB_DISABLE_FILE_DIALOG
