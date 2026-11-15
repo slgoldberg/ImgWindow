@@ -543,8 +543,9 @@ namespace ImGui {
             }
 
             // 1. Backtick handling:
-            //    - If single-glyph backtick rescue (e.g. `↺`, `▲`, `▼`, `^`, `v`):
-            //      convert to `<icon ... />` (stripping backticks so the user gets their intended icon).
+            //    - If single-glyph or bracketed single-glyph backtick rescue
+            //      (e.g. `↺`, `[↺]`, `▲`, `▼`, `^`, `[^]`, `v`, `[v]`):
+            //      convert to `<icon ... />` (preserving `[` / `]` if bracketed).
             //    - Otherwise (inline code span like `:plane:`, `<icon ... />`, `#[^](ICON)`):
             //      PRESERVE VERBATIM! Do NOT expand shortcodes or macros inside code spans.
             if (text[i] == '`') {
@@ -572,13 +573,21 @@ namespace ImGui {
                     if (close_pos != std::string::npos) {
                         if (backtick_count == 1) {
                             std::string inner(text + i + 1, close_pos - (i + 1));
-                            std::string norm = NormalizeIconName(inner.c_str());
+                            bool has_brackets = (inner.length() >= 3 && inner.front() == '[' && inner.back() == ']');
+                            std::string query = has_brackets ? inner.substr(1, inner.length() - 2) : inner;
+                            if (has_brackets) {
+                                while (!query.empty() && (query.front() == ' ' || query.front() == '\t')) query.erase(query.begin());
+                                while (!query.empty() && (query.back() == ' ' || query.back() == '\t')) query.pop_back();
+                            }
+                            std::string norm = NormalizeIconName(query.c_str());
                             if (IsVectorIcon(norm.c_str())) {
-                                bool is_raw_glyph = (inner.length() >= 3 && (unsigned char)inner[0] == 0xE2);
-                                if (is_raw_glyph || inner == "^" || inner == "v") {
+                                bool is_raw_glyph = (query.length() == 3 && (unsigned char)query[0] == 0xE2);
+                                if (is_raw_glyph || query == "^" || query == "v") {
+                                    if (has_brackets) out.push_back('[');
                                     out.append("<icon ");
                                     out.append(norm);
                                     out.append(" />");
+                                    if (has_brackets) out.push_back(']');
                                     any_replaced = true;
                                     i = close_pos + 1;
                                     continue;

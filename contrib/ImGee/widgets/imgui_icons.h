@@ -77,6 +77,22 @@ namespace ImGui {
 
         std::string s(name);
 
+        // Trim punctuation wrappers (":", "[", "]", "(", ")", "#", whitespace) first
+        // so bracketed/padded raw UTF-8 glyphs like "[↺]" or " ▲ " normalize cleanly too:
+        size_t start = 0;
+        while (start < s.size() && (s[start] == ':' || s[start] == ' ' || s[start] == '\t' ||
+                                    s[start] == '#' || s[start] == '[' || s[start] == ']' ||
+                                    s[start] == '(' || s[start] == ')')) {
+            start++;
+        }
+        size_t end = s.size();
+        while (end > start && (s[end - 1] == ':' || s[end - 1] == ' ' || s[end - 1] == '\t' ||
+                              s[end - 1] == '#' || s[end - 1] == '[' || s[end - 1] == ']' ||
+                              s[end - 1] == '(' || s[end - 1] == ')')) {
+            end--;
+        }
+        s = s.substr(start, end - start);
+
         // Check for raw UTF-8 Unicode glyphs:
         if (s == "\xE2\x86\xBA") return "undo";        // ↺ U+21BA
         if (s == "\xE2\x86\xBB") return "redo";        // ↻ U+21BB
@@ -98,21 +114,6 @@ namespace ImGui {
         if (s == "\xE2\x9A\xA0") return "warning";     // ⚠ U+26A0
         if (s == "\xE2\x98\x85") return "star";        // ★ U+2605
         if (s == "\xE2\x9C\x88") return "plane";       // ✈ U+2708
-
-        // Trim punctuation wrappers (":", "[", "]", "(", ")", "#", whitespace)
-        size_t start = 0;
-        while (start < s.size() && (s[start] == ':' || s[start] == ' ' || s[start] == '\t' ||
-                                    s[start] == '#' || s[start] == '[' || s[start] == ']' ||
-                                    s[start] == '(' || s[start] == ')')) {
-            start++;
-        }
-        size_t end = s.size();
-        while (end > start && (s[end - 1] == ':' || s[end - 1] == ' ' || s[end - 1] == '\t' ||
-                              s[end - 1] == '#' || s[end - 1] == '[' || s[end - 1] == ']' ||
-                              s[end - 1] == '(' || s[end - 1] == ')')) {
-            end--;
-        }
-        s = s.substr(start, end - start);
 
         for (char& c : s) {
             c = (char)tolower((unsigned char)c);
