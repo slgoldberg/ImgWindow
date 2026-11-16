@@ -37,8 +37,8 @@
 
 // Version format: MmmPP (Major, 2-digit Minor, 2-digit Patch)
 // e.g., v2.0.0 becomes 20000. v1.12.3 becomes 11203.
-#define IMGWINDOW_VERSION       "2.4.0"
-#define IMGWINDOW_VERSION_NUM   20400
+#define IMGWINDOW_VERSION       "2.4.1"
+#define IMGWINDOW_VERSION_NUM   20401
 
 #include "SystemGL.h"
 
@@ -706,6 +706,8 @@ private:
 
     void translateToImguiSpace(int inX, int inY, float &outX, float &outY);
 
+    bool IsInSelfResizeBorder(int globalX, int globalY) const;
+
     float mModelView[16], mProjection[16];
     int mViewport[4];
 
@@ -791,7 +793,8 @@ protected:
         
         DragTy () { clear(); }
         void clear () { wnd = left = top = right = bottom = false; }
-        operator bool() const { return wnd || left || top || right || bottom; }
+        bool isResize () const { return left || top || right || bottom; }
+        operator bool() const { return wnd || isResize(); }
     } dragWhat;
 };
 

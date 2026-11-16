@@ -55,6 +55,11 @@ ImgFontAtlas::~ImgFontAtlas()
         }
         mTextureBound = false;
     }
+#ifdef IMGUI_V192_REFACTOR
+    if (mOurAtlas) {
+        mOurAtlas->Locked = false;
+    }
+#endif
     delete mOurAtlas;
     mOurAtlas = nullptr;
 }

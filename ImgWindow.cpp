@@ -212,6 +212,10 @@ static std::vector<std::pair<ImTextureID, int>> s_TexturesPendingDestruction;
 // (IMPORTANT: This is required for ImGui v1.92+ since the font atlas is now self-managed, to preserve the semantics of XPLM windows created with ImgWindow on older versions of ImGui where the font atlas is shared across all such windows. This means it should "just work" to swap your legacy ImGui implementation for ImGui v1.92 or later, without having to change your code.)
 void CheckAndRebuildAtlas(ImFontAtlas* atlas, ImTextureID& textureID)
 {
+    if (!atlas) {
+        return;
+    }
+
     // Honor "blankout" period, if any. (If so, skip rebuilding the atlas this frame.)
     if (XPLMGetCycleNumber() < ImgWindow::sBlankoutUntilCycle) {
         return;  // Skip checking/rebuilding this frame for now.
@@ -223,31 +227,39 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, ImTextureID& textureID)
     bool need_rebuild = !atlas->TexIsBuilt;
 
     // --- V1.92 STEALTH MODE LIFECYCLE FIX ---
-    // Because we are using a SHARED atlas that spans ImGui contexts in "stealth" mode,
-    // ImGui's internal new-frame machinery completely ignores our atlas.
-    // (We must manually trigger the synchronous CPU build and update the frame state
-    // to prevent CPU memory leaks from un-freed texture buffers and dirty-flag thrashing.)
-    static int sLastUpdatedFrame = -1;
+    // Because we are using a SHARED or per-window stealth atlas hidden from ImGui's automatic
+    // NewFrame() list, we manually trigger the synchronous CPU build and update the per-atlas
+    // frame state via atlas->Builder->FrameCount. Tracking per-atlas (rather than via a single
+    // global static int) guarantees that fallback per-window atlases and shared sFontAtlas
+    // instances never starve each other in the same X-Plane cycle, and monotonically advances
+    // even during pre-sim frames when XPLMGetCycleNumber() is still 0.
     int currentFrame = XPLMGetCycleNumber();
-    if (sLastUpdatedFrame != currentFrame) {
+    int lastAtlasFrame = (atlas->Builder != nullptr) ? atlas->Builder->FrameCount : -1;
+    if (!atlas->TexIsBuilt || lastAtlasFrame < currentFrame) {
         if (!atlas->TexIsBuilt) {
             // Force ImGui to synchronously build the CPU texture buffers right now.
-            // We temporarily strip the RendererHasTextures flag so it actually builds the glyphs, then re-add it after.
-            ImGuiIO& io = ImGui::GetIO();
-            io.BackendFlags &= ~ImGuiBackendFlags_RendererHasTextures;
+            // Strip RendererHasTextures across all contexts bound to this atlas (since ImGui
+            // checks DrawListSharedDatas[0]->Context) so it preloads all glyph ranges, then restore.
+            ImGuiIO& curIo = ImGui::GetIO();
+            curIo.BackendFlags &= ~ImGuiBackendFlags_RendererHasTextures;
+            for (int i = 0; i < atlas->DrawListSharedDatas.Size; ++i) {
+                if (ImGuiContext* ctx = atlas->DrawListSharedDatas[i]->Context) {
+                    ctx->IO.BackendFlags &= ~ImGuiBackendFlags_RendererHasTextures;
+                }
+            }
             extern void ImFontAtlasBuildMain(ImFontAtlas* atlas);
             ImFontAtlasBuildMain(atlas);
-            io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
-
-
+            for (int i = 0; i < atlas->DrawListSharedDatas.Size; ++i) {
+                if (ImGuiContext* ctx = atlas->DrawListSharedDatas[i]->Context) {
+                    ctx->IO.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+                }
+            }
+            curIo.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
         }
 
         // Finally, clear the dirty lock and free old texture buffers from CPU memory.
-        // We use X-Plane's cycle number (which is globally monotonic) instead of ImGui's FrameCount,
-        // because each window context has its own independent FrameCount which would violate
-        // ImGui's strict monotonic assertion when switching between windows!
-        ImFontAtlasUpdateNewFrame(atlas, currentFrame, false);
-        sLastUpdatedFrame = currentFrame;
+        int nextAtlasFrame = (currentFrame > lastAtlasFrame) ? currentFrame : (lastAtlasFrame + 1);
+        ImFontAtlasUpdateNewFrame(atlas, nextAtlasFrame, false);
     }
 
     // if (!need_rebuild && atlas->TexID.GetTexID()) {
@@ -311,7 +323,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, ImTextureID& textureID)
                 if (atlas->TexData) {
                     atlas->TexData->SetTexID(textureID);
                 }
-                if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
+                if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas() == atlas) {
                     ImgWindow::sFontAtlas->updateTextureTracking(textureID);
                 }
             } else
@@ -336,7 +348,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, ImTextureID& textureID)
                 if (atlas->TexData) {
                     atlas->TexData->SetTexID(textureID);
                 }
-                if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas()) {
+                if (ImgWindow::sFontAtlas && ImgWindow::sFontAtlas->getAtlas() == atlas) {
                     ImgWindow::sFontAtlas->updateTextureTracking(textureID);
                 }
             }
@@ -381,11 +393,10 @@ ImgWindow::ImgWindow(
     IMGUI_CHECKVERSION();
 #endif
 
-    ImFontAtlas *iFontAtlas = nullptr;
-    if (mFontAtlas) {
-        mFontAtlas->bindTexture();
-        iFontAtlas = mFontAtlas->getAtlas();
-    }
+    // Note: GPU font texture binding is intentionally deferred until updateImgui() on the first
+    // draw callback so constructing an ImgWindow during XPluginStart / XPluginEnable never touches
+    // OpenGL or Panel Graphics before X-Plane enters an active drawing phase.
+    ImFontAtlas *iFontAtlas = mFontAtlas ? mFontAtlas->getAtlas() : nullptr;
     mImGuiContext = ImGui::CreateContext(iFontAtlas);
     ImGui::SetCurrentContext(mImGuiContext);
     auto &io = ImGui::GetIO();
@@ -395,20 +406,15 @@ ImgWindow::ImgWindow(
     // (IMPORTANT: the font atlas is shared across all XPLM windows created from ImgWindow or ImgWindow-derived classes.)
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
 
-    // Just-in-time atlas build & verification:
-    // we check this immediately to handle initial builds, high-DPI switches, or fallback default fonts.
-    // (This replaces the legacy binding logic #ifdef'ed out below for ImGui v1.90 and above.)
-    if (io.Fonts) {
-        CheckAndRebuildAtlas(io.Fonts, mFontTexture);
-    }
-
     // "Stealth Mode":
-    // Remove this atlas from the context's update list to prevent ImGui v1.92+
-    // from trying to manage the texture lifecycle (which can cause crashes
-    // since we want to manage this stuff, not let ImGui modify at will).
-    if (iFontAtlas) {
+    // Remove io.Fonts (both when using the shared sFontAtlas AND when sFontAtlas is nullptr and
+    // CreateContext allocated a per-window fallback atlas!) from the context's automatic update list.
+    // Leaving a fallback io.Fonts in mImGuiContext->FontAtlases caused ImGui::NewFrame() to run
+    // ImFontAtlasUpdateNewFrame(..., true) against our preloaded atlas, tripping assertions in
+    // imgui_draw.cpp (lines 2774 & 2788) in Debug builds.
+    if (io.Fonts) {
         for (int i = 0; i < mImGuiContext->FontAtlases.Size; i++) {
-            if (mImGuiContext->FontAtlases[i] == iFontAtlas) {
+            if (mImGuiContext->FontAtlases[i] == io.Fonts) {
                 mImGuiContext->FontAtlases.erase(mImGuiContext->FontAtlases.Data + i);
                 break;
             }
@@ -465,68 +471,9 @@ ImgWindow::ImgWindow(
     auto &style = ImGui::GetStyle();
     style.WindowRounding = 0;
 
-#ifndef IMGUI_V192_REFACTOR
-    // bind the font
-    if (mFontAtlas) {
-        mFontTexture = (ImTextureID)(intptr_t)io.Fonts->TexID;
-    } else {
-        if (!iFontAtlas || iFontAtlas->TexID == (ImTextureID)0) {
-            // fallback binding if an atlas wasn't explicitly set.
-#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
-            if (ImgPanelGraphics::IsAvailable()) {
-                unsigned char *pixels = nullptr;
-                int width = 0, height = 0;
-                io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-                if (pixels && width > 0 && height > 0) {
-                    std::vector<unsigned char> lin_pixels(pixels, pixels + (width * height * 4));
-                    // Force RGB to pure white (255) so the texture acts strictly as a pure opacity mask,
-                    // preventing black edge bleeding, and preserve linear alpha coverage without crushing:
-                    for (int i = 0; i < width * height; i++) {
-                        unsigned char* p = &lin_pixels[i * 4];
-                        p[0] = 255;
-                        p[1] = 255;
-                        p[2] = 255;
-                    }
-                    mFontTexture = (ImTextureID)(intptr_t)ImgPanelGraphics::CreateTexture(lin_pixels.data(), width, height);
-                    io.Fonts->SetTexID(mFontTexture);
-                }
-            } else
-#endif
-            {
-                unsigned char *pixels;
-                int width, height;
-                io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
-
-                // slightly stupid dance around the texture number due to XPLM not using GLint here.
-                int texNum = 0;
-                XPLMGenerateTextureNumbers(&texNum, 1);
-                mFontTexture = (ImTextureID)(intptr_t)texNum;
-
-                // upload texture.
-                XPLMBindTexture2d((int)(intptr_t)mFontTexture, 0);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-                glTexImage2D(GL_TEXTURE_2D,
-                             0,
-                             GL_ALPHA,
-                             width,
-                             height,
-                             0,
-                             GL_ALPHA,
-                             GL_UNSIGNED_BYTE,
-                             pixels);
-                io.Fonts->SetTexID(mFontTexture);
-            }
-        }
-    }
-#else
-    // Sync texture ID:
-    // if CheckAndRebuildAtlas() above did its job, mFontTexture is set; if the shared atlas was already built, grab the ID here.
-    if (io.Fonts->TexData && io.Fonts->TexData->GetTexID() != (ImTextureID)0) {
-        mFontTexture = (ImTextureID)io.Fonts->TexData->GetTexID();
-    }
-#endif /* IMGUI_V192_REFACTOR */
+    // Note: Font atlas GPU texture upload (both for ImGui <= 1.91 and v1.92+, and both for shared
+    // sFontAtlas and fallback default io.Fonts) is handled lazily in updateImgui() on the first
+    // actual draw callback so early window construction never makes premature GPU calls.
 
     // disable OSX-like keyboard behaviours always - we don't have the keymapping for it.
     io.ConfigMacOSXBehaviors = false;
@@ -611,20 +558,36 @@ ImgWindow::~ImgWindow()
     ImGuiIO& io = ImGui::GetIO();
     if (io.Fonts)
     {
-        // 1. Get the shared data pointer for THIS context:
-        ImDrawListSharedData* data = ImGui::GetDrawListSharedData();
-
-        // 2. Manually find and remove it from the Atlas's list:
-        for (int i = 0; i < io.Fonts->DrawListSharedDatas.Size; i++)
-        {
-            if (io.Fonts->DrawListSharedDatas[i] == data) {
-                io.Fonts->DrawListSharedDatas.erase(io.Fonts->DrawListSharedDatas.Data + i);
-                break; // Found and removed.
+        if (mFontAtlas) {
+            // Shared ImgFontAtlas: detach THIS context's DrawListSharedData and sever io.Fonts
+            // so ImGui::DestroyContext does not destroy the shared atlas.
+            ImDrawListSharedData* data = ImGui::GetDrawListSharedData();
+            for (int i = 0; i < io.Fonts->DrawListSharedDatas.Size; i++)
+            {
+                if (io.Fonts->DrawListSharedDatas[i] == data) {
+                    io.Fonts->DrawListSharedDatas.erase(io.Fonts->DrawListSharedDatas.Data + i);
+                    break;
+                }
+            }
+            if (io.Fonts->RefCount > 0) {
+                io.Fonts->RefCount--;
+            }
+            io.Fonts = NULL;
+        } else {
+            // Private per-window fallback atlas (allocated by CreateContext(nullptr) when sFontAtlas
+            // was null): restore to FontAtlases so ImGui::DestroyContext -> ImGui::Shutdown() cleanly
+            // unregisters, unlocks, and deletes it with zero heap leaks or Locked assertions.
+            bool alreadyListed = false;
+            for (int i = 0; i < mImGuiContext->FontAtlases.Size; i++) {
+                if (mImGuiContext->FontAtlases[i] == io.Fonts) {
+                    alreadyListed = true;
+                    break;
+                }
+            }
+            if (!alreadyListed) {
+                mImGuiContext->FontAtlases.push_back(io.Fonts);
             }
         }
-
-        // 3. NOW it is safe to sever the link (prevent double free):
-        io.Fonts = NULL;
     }
 #endif /* IMGUI_V192_REFACTOR */
     if (!mFontAtlas) {
@@ -1336,6 +1299,18 @@ ImgWindow::translateImguiToBoxel(float inX, float inY, int &outX, int &outY)
     outY = (int)(mTop - inY);
 }
 
+bool
+ImgWindow::IsInSelfResizeBorder(int globalX, int globalY) const
+{
+    if (!IsInsideSim() || !bHandleWndResize) {
+        return false;
+    }
+    return (globalX <= (mLeft + WND_RESIZE_LEFT_WIDTH) ||
+            globalX >= (mRight - WND_RESIZE_RIGHT_WIDTH) ||
+            globalY >= (mTop - WND_RESIZE_TOP_WIDTH) ||
+            globalY <= (mBottom + WND_RESIZE_BOTTOM_WIDTH));
+}
+
 
 void
 ImgWindow::updateImgui()
@@ -1376,12 +1351,7 @@ ImgWindow::updateImgui()
         const bool isMouseInside = isWindowInFront && (mouseX >= mLeft && mouseX <= mRight &&
                                                        mouseY >= mBottom && mouseY <= mTop);
 
-        const bool isInsideContent = isMouseInside &&
-            !(IsInsideSim() && bHandleWndResize &&
-              (mouseX < (mLeft + WND_RESIZE_LEFT_WIDTH) ||
-               mouseX > (mRight - WND_RESIZE_RIGHT_WIDTH) ||
-               mouseY > (mTop - WND_RESIZE_TOP_WIDTH) ||
-               mouseY < (mBottom + WND_RESIZE_BOTTOM_WIDTH)));
+        const bool isInsideContent = isMouseInside && !IsInSelfResizeBorder(mouseX, mouseY);
 
         if (!isInsideContent) {
             if (bUseImgCursors) {
@@ -1432,15 +1402,65 @@ ImgWindow::updateImgui()
 #endif
 
 #ifdef IMGUI_V192_REFACTOR
-    // Just-in-time rebuild:
-    // If the ImGui client code added a font or scaled text since the last frame, the atlas will be "dirty".
-    // (So we catch such things here and rebuild what's needed instantly before ImGui tries to draw.)
-    if (mFontAtlas && mFontAtlas->getAtlas()) {
-        CheckAndRebuildAtlas(mFontAtlas->getAtlas(), mFontTexture);
+    // Just-in-time build & GPU upload (both for shared sFontAtlas and per-window fallback io.Fonts):
+    // If the ImGui client code added a font or scaled text since the last frame, or if this is the
+    // window's very first draw frame, build/upload synchronously before ImGui::NewFrame() runs.
+    ImFontAtlas* activeAtlas = (mFontAtlas && mFontAtlas->getAtlas()) ? mFontAtlas->getAtlas() : io.Fonts;
+    if (activeAtlas) {
+        CheckAndRebuildAtlas(activeAtlas, mFontTexture);
     }
 #else
-    if (io.Fonts && io.Fonts->TexID != (ImTextureID)0) {
-        mFontTexture = (ImTextureID)(intptr_t)io.Fonts->TexID;
+    if (mFontAtlas) {
+        mFontAtlas->bindTexture();
+        if (io.Fonts && io.Fonts->TexID != (ImTextureID)0) {
+            mFontTexture = (ImTextureID)(intptr_t)io.Fonts->TexID;
+        }
+    } else if (io.Fonts && io.Fonts->TexID == (ImTextureID)0) {
+        // Lazily bind fallback per-window default font on first draw frame:
+#if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
+        if (ImgPanelGraphics::IsAvailable()) {
+            unsigned char *pixels = nullptr;
+            int width = 0, height = 0;
+            io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+            if (pixels && width > 0 && height > 0) {
+                std::vector<unsigned char> lin_pixels(pixels, pixels + (width * height * 4));
+                // Force RGB to pure white (255) so the texture acts strictly as a pure opacity mask:
+                for (int i = 0; i < width * height; i++) {
+                    unsigned char* p = &lin_pixels[i * 4];
+                    p[0] = 255;
+                    p[1] = 255;
+                    p[2] = 255;
+                }
+                mFontTexture = (ImTextureID)(intptr_t)ImgPanelGraphics::CreateTexture(lin_pixels.data(), width, height);
+                io.Fonts->SetTexID(mFontTexture);
+            }
+        } else
+#endif
+        {
+            unsigned char *pixels = nullptr;
+            int width = 0, height = 0;
+            io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
+            if (pixels && width > 0 && height > 0) {
+                int texNum = 0;
+                XPLMGenerateTextureNumbers(&texNum, 1);
+                mFontTexture = (ImTextureID)(intptr_t)texNum;
+
+                XPLMBindTexture2d((int)(intptr_t)mFontTexture, 0);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                glTexImage2D(GL_TEXTURE_2D,
+                             0,
+                             GL_ALPHA,
+                             width,
+                             height,
+                             0,
+                             GL_ALPHA,
+                             GL_UNSIGNED_BYTE,
+                             pixels);
+                io.Fonts->SetTexID(mFontTexture);
+            }
+        }
     }
 #endif /* IMGUI_V192_REFACTOR */
 
@@ -1575,20 +1595,31 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
     ImGui::SetCurrentContext(mImGuiContext);
     ImGuiIO& io = ImGui::GetIO();
 
-    // Tell ImGui the mouse position relative to the window
-    translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
-#ifdef IMGUI_V190_REFACTOR
-    io.AddMousePosEvent(io.MousePos.x, io.MousePos.y);
-#endif
-    const int loc_x = int(io.MousePos.x);       // local x, relative to top/left corner
-    const int loc_y = int(io.MousePos.y);
+    // Compute local ImGui coordinates without committing them to ImGuiIO yet so clicks/drags
+    // claimed by the outer self-resize border never leak onto edge-aligned ImGui widgets
+    // (such as a vertical scrollbar sitting flush against the right window border).
+    float localPosX = -FLT_MAX, localPosY = -FLT_MAX;
+    translateToImguiSpace(x, y, localPosX, localPosY);
+    const int loc_x = (localPosX == -FLT_MAX) ? -1 : int(localPosX);
+    const int loc_y = (localPosY == -FLT_MAX) ? -1 : int(localPosY);
     const int dx = x - lastMouseDragX;          // dragged how far since last down/drag event?
     const int dy = y - lastMouseDragY;
 
     switch (inMouse) {
 
         case xplm_MouseDrag:
-            io.MouseDown[button] = true;
+            if (!(button == 0 && dragWhat.isResize())) {
+                io.MousePos = ImVec2(localPosX, localPosY);
+#ifdef IMGUI_V190_REFACTOR
+                io.AddMousePosEvent(localPosX, localPosY);
+#endif
+                io.MouseDown[button] = true;
+            } else {
+                io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+#ifdef IMGUI_V190_REFACTOR
+                io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+#endif
+            }
 
             // Any kind of self-dragging/resizing only happens with a floating window in the sim
             if ((button == 0 || bCanMove) &&  // left button OR right-drag (if move allowed)
@@ -1635,10 +1666,12 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                 // Change window geometry
                 SetWindowGeometry(mLeft, mTop, mRight, mBottom);
                 // now that the window has moved under the mouse we need to update relative mouse pos
-                translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
+                if (!(button == 0 && dragWhat.isResize())) {
+                    translateToImguiSpace(x, y, io.MousePos.x, io.MousePos.y);
 #ifdef IMGUI_V190_REFACTOR
-                io.AddMousePosEvent(io.MousePos.x, io.MousePos.y);
+                    io.AddMousePosEvent(io.MousePos.x, io.MousePos.y);
 #endif
+                }
                 // Update the last handled position
                 lastMouseDragX = x;
                 lastMouseDragY = y;
@@ -1647,10 +1680,6 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
 
         case xplm_MouseDown:
             bHasMouseFocus = true;
-#ifdef IMGUI_V190_REFACTOR
-            io.AddMouseButtonEvent(button, true);
-#endif
-            io.MouseDown[button] = true;
 
             // Which part of the window would we drag, if any?
             dragWhat.clear();
@@ -1679,16 +1708,47 @@ ImgWindow::HandleMouseClickGeneric(int x, int y, XPLMMouseStatus inMouse, int bu
                     lastMouseDragY = y;
                 }
             }
+
+            // Only dispatch mouse-down to ImGui if the outer self-resize border did NOT claim it.
+            // (We intentionally still pass dragWhat.wnd through so right-click context menus and
+            // interactive buttons inside SetWindowDragArea header bars continue working normally.)
+            if (!(button == 0 && dragWhat.isResize())) {
+                io.MousePos = ImVec2(localPosX, localPosY);
+#ifdef IMGUI_V190_REFACTOR
+                io.AddMousePosEvent(localPosX, localPosY);
+                io.AddMouseButtonEvent(button, true);
+#endif
+                io.MouseDown[button] = true;
+            } else {
+                io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+#ifdef IMGUI_V190_REFACTOR
+                io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+#endif
+            }
             break;
 
         case xplm_MouseUp:
+        {
+            const bool wasResize = (button == 0 && dragWhat.isResize());
+            if (!wasResize) {
+                io.MousePos = ImVec2(localPosX, localPosY);
 #ifdef IMGUI_V190_REFACTOR
-            io.AddMouseButtonEvent(button, false);
+                io.AddMousePosEvent(localPosX, localPosY);
+                io.AddMouseButtonEvent(button, false);
 #endif
+            } else {
+                io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+#ifdef IMGUI_V190_REFACTOR
+                io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+#endif
+            }
             io.MouseDown[button] = false;
-            lastMouseDragX = lastMouseDragY = -1;
-            dragWhat.clear();
+            if (button == 0 || !dragWhat.isResize()) {
+                lastMouseDragX = lastMouseDragY = -1;
+                dragWhat.clear();
+            }
             break;
+        }
         default:
             // dunno!
             break;
@@ -1858,18 +1918,10 @@ ImgWindow::HandleCursorFuncCB(
         return xplm_CursorDefault;
     }
 
-#ifdef IMGUI_V190_REFACTOR
-    io.AddMousePosEvent(outX, outY);
-#endif
-    io.MousePos = ImVec2(outX, outY);
-    
-    // Don't use ImGui mouse cursor handling if disabled, or if cursor is
-    // within special XPLM self-styled resize handling regions.
-    if (thisWindow->IsInsideSim() && thisWindow->bHandleWndResize &&
-        (x < (thisWindow->mLeft + WND_RESIZE_LEFT_WIDTH) ||
-         x > (thisWindow->mRight - WND_RESIZE_RIGHT_WIDTH) ||
-         y > (thisWindow->mTop - WND_RESIZE_TOP_WIDTH) ||
-         y < (thisWindow->mBottom + WND_RESIZE_BOTTOM_WIDTH)))
+    // Don't use ImGui mouse cursor handling if cursor is within special XPLM
+    // self-styled resize handling regions (evaluated BEFORE AddMousePosEvent so
+    // hovering the border never queues inside-window coordinates onto edge scrollbars).
+    if (thisWindow->IsInSelfResizeBorder(x, y))
     {
         // Defer to XPLM's resize cursor when inside the XPLM-managed resize grab regions:
         io.MouseDrawCursor = false;
@@ -1879,6 +1931,11 @@ ImgWindow::HandleCursorFuncCB(
         io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
         return xplm_CursorDefault;
     }
+
+#ifdef IMGUI_V190_REFACTOR
+    io.AddMousePosEvent(outX, outY);
+#endif
+    io.MousePos = ImVec2(outX, outY);
 
     if (!thisWindow->bUseImgCursors) {
         // Defer to XPLM's default hardware cursor if dynamic ImGui cursors are not enabled:
