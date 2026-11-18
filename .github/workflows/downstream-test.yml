@@ -36,12 +36,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: imgui4xp/src/ImgWindow
+          submodules: recursive
 
       # 2b. Print overlaid ImgWindow SHA for auditability
       - name: Verify overlaid ImgWindow commit
         shell: bash
         run: |
-          echo "Testing overlaid ImgWindow commit: $(git -C imgui4xp/src/ImgWindow rev-parse --short HEAD)"
+          echo "Testing overlaid ImgWindow commit: $(git -C imgui4xp/src/ImgWindow rev-parse --short HEAD) (ImGee: $(git -C imgui4xp/src/ImgWindow/contrib/ImGee rev-parse --short HEAD))"
 
       # 3. Platform-specific environment configuration
       - name: "Windows: Configure MinGW generator"
