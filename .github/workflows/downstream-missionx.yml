@@ -57,14 +57,16 @@ jobs:
         shell: bash
         working-directory: mx-source-build/libs
         run: |
+          rm -rf xpsdk xpsdk-master
           if [ "${{ runner.os }}" = "macOS" ]; then
             ditto -x -k XPSDK.zip .
           else
             unzip -o XPSDK.zip
           fi
-          chmod -R u+w xpsdk 2>/dev/null || true
-          rm -rf xpsdk
-          mv xpsdk-master xpsdk
+          chmod -R u+w xpsdk xpsdk-master 2>/dev/null || true
+          if [ -d xpsdk-master ]; then
+            mv xpsdk-master xpsdk
+          fi
 
       # 5. Configure CMake
       - name: Configure CMake
