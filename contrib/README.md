@@ -5,7 +5,7 @@ Welcome to the `contrib/` directory of **ImgWindow**.
 `ImgWindow/contrib/` is `ImgWindow`'s general **community third-party container** -- an open home for optional, community-contributed libraries, packages, and add-ons that work alongside `ImgWindow`, enhance Dear ImGui development, or both.
 
 * **`contrib.h` (Community Umbrella Header):** Pulls in all bundled packages inside `contrib/` (via `contrib/includes.h`).
-* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](ImGee/README.md)** (`v1.0.0`), a 100% generic, standalone-ready Dear ImGui UI toolkit (architected to live in its own dedicated GitHub repository/submodule while remaining bundled here for `ImgWindow` users out of the box).
+* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](ImGee/README.md)** (`v1.0.0`, [`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee)), a 100% generic, standalone Dear ImGui UI toolkit bundled here as a git submodule for `ImgWindow` users out of the box.
 * **Future Community Packages (`contrib/<PackageName>/`):** Third-party developers are welcome to submit independent packages under `contrib/` without coupling them to `ImgWindow` core or `ImGee`.
 
 ---
@@ -47,6 +47,8 @@ Using ImGee (or the full `contrib/` container) requires zero setup or CMake chan
 // (Or include ImgWindow's community umbrella header for all contrib/ packages):
 // #include "contrib.h"
 ```
+
+*(Note: `contrib/ImGee` is bundled as a git submodule inside `ImgWindow`. Make sure your repository was cloned or updated with `git submodule update --init --recursive` so `contrib/ImGee/` is populated on disk.)*
 
 > [!IMPORTANT]
 > **macOS Developers: Enable OS Clipboard (`IMGUI_ENABLE_OSX_DEFAULT_CLIPBOARD_FUNCTIONS`)**  

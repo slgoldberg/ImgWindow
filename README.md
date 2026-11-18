@@ -207,15 +207,22 @@ To set up the "submodule" connection within your project:
 % git submodule update --init --recursive
 ```
 
-To update the submodule any time:
+To update the submodule any time (including nested packages such as `contrib/ImGee`):
 
 ```bash
 % cd /path/to/project_sources/third-party/ImgWindow
-% git pull                                       
+% git pull
+% git submodule update --init --recursive
 % cd /path/to/project_sources
 % git add third-party/ImgWindow
 % git commit -m "Update embedded ImgWindow from slgoldberg's fork"
 ```
+
+> [!IMPORTANT]
+> **Upgrading from ImgWindow v2.4.x or earlier (ImGee Users):**
+> Starting with ImGee v1.0.0, `contrib/ImGee` is bundled as a nested git submodule inside `ImgWindow`.
+> * If your plugin **only uses core `ImgWindow.h`** (and never includes `contrib.h` or `contrib/imgee.h`), you do not need `contrib/ImGee` populated at all.
+> * If your plugin **uses ImGee (`contrib/imgee.h` or `contrib.h`)**, run `git submodule update --init --recursive` once after pulling so Git populates `contrib/ImGee/`.
 
 ## Contributing to this project
 
