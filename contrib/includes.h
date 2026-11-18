@@ -23,12 +23,9 @@
 #if defined(__has_include)
   #if !__has_include("ImGee/imgee.h")
     #error "ImgWindow/contrib/ImGee submodule is not initialized! Please run: git submodule update --init --recursive"
-  #else
-    #include "ImGee/imgee.h"
   #endif
-#else
-  #include "ImGee/imgee.h"
 #endif
+#include "ImGee/imgee.h"
 #endif
 
 // Placeholder: Future packages will be auto-included here as subdirectories are added!

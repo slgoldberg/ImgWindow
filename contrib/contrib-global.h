@@ -12,10 +12,7 @@
 #if defined(__has_include)
   #if !__has_include("ImGee/imgee-global.h")
     #error "ImgWindow/contrib/ImGee submodule is not initialized! Please run: git submodule update --init --recursive"
-  #else
-    #include "ImGee/imgee-global.h"
   #endif
-#else
-  #include "ImGee/imgee-global.h"
 #endif
+#include "ImGee/imgee-global.h"
 #endif // IMGUI_CONTRIB_FORWARD_GLOBAL_H

@@ -4,10 +4,7 @@
 #if defined(__has_include)
   #if !__has_include("../../ImGee/extensions/Typography/imgui_styled_text.h")
     #error "ImgWindow/contrib/ImGee submodule is not initialized! Please run: git submodule update --init --recursive"
-  #else
-    #include "../../ImGee/extensions/Typography/imgui_styled_text.h"
   #endif
-#else
-  #include "../../ImGee/extensions/Typography/imgui_styled_text.h"
 #endif
+#include "../../ImGee/extensions/Typography/imgui_styled_text.h"
 #endif
