@@ -58,11 +58,11 @@
 #endif
 
 // Returns false when X-Plane is running unfocused in the background (e.g. user
-// Cmd-Tabbed / Alt-Tabbed to another desktop application). Suppressing hover
-// coordinates and software cursors while unfocused prevents phantom widget/tooltip
-// hovers and avoids drawing ImGui's software cursor underneath the foreground app's
-// OS hardware cursor. Uses runtime symbol lookup so downstream plugins require zero
-// extra linker flags (-lobjc / AppKit / user32).
+// Cmd-Tabbed / Alt-Tabbed to another desktop application). Software cursors are
+// always suppressed while unfocused to avoid drawing ImGui's cursor underneath the
+// foreground app's OS hardware cursor; hover coordinates are also suppressed by
+// default unless opted in via SetAllowBackgroundHover(true). Uses runtime symbol
+// lookup so downstream plugins require zero extra linker flags (-lobjc / AppKit / user32).
 static bool IsHostAppForeground()
 {
 #if defined(__APPLE__) || defined(__MACH__)
@@ -1412,11 +1412,16 @@ ImgWindow::updateImgui()
         XPLMGetMouseLocation(&mouseX, &mouseY);
 #endif
 
-        const bool isWindowInFront = IsHostAppForeground() && IsWindowInFront();
+        const bool isAppForeground = IsHostAppForeground();
+        const bool isWindowInFront = (isAppForeground || bAllowBackgroundHover) && IsWindowInFront();
         const bool isMouseInside = isWindowInFront && (mouseX >= mLeft && mouseX <= mRight &&
                                                        mouseY >= mBottom && mouseY <= mTop);
 
         const bool isInsideContent = isMouseInside && !IsInSelfResizeBorder(mouseX, mouseY);
+
+        if (!isAppForeground && bUseImgCursors) {
+            io.MouseDrawCursor = false;
+        }
 
         if (!isInsideContent) {
             if (bUseImgCursors) {
@@ -1971,9 +1976,10 @@ ImgWindow::HandleCursorFuncCB(
 
     // When X-Plane itself is unfocused in the background, another OS application owns
     // the hardware cursor (so xplm_CursorHidden has no effect on the OS pointer).
-    // Invalidate ImGui mouse coordinates and disable software cursor rendering so
-    // background windows neither trigger phantom hovers/tooltips nor draw a second cursor!
-    if (!IsHostAppForeground()) {
+    // Always suppress ImGui's software cursor when unfocused to prevent double cursors;
+    // also invalidate hover coordinates unless the window opted in via SetAllowBackgroundHover(true).
+    const bool isAppForeground = IsHostAppForeground();
+    if (!isAppForeground && !thisWindow->bAllowBackgroundHover) {
         if (thisWindow->bUseImgCursors) {
             io.MouseDrawCursor = false;
         }
@@ -2018,8 +2024,9 @@ ImgWindow::HandleCursorFuncCB(
 #endif
     io.MousePos = ImVec2(outX, outY);
 
-    if (!thisWindow->bUseImgCursors) {
-        // Defer to XPLM's default hardware cursor if dynamic ImGui cursors are not enabled:
+    if (!thisWindow->bUseImgCursors || !isAppForeground) {
+        // Defer to XPLM's default hardware cursor when dynamic ImGui cursors are disabled
+        // or when X-Plane is unfocused in the background (preventing double cursors):
         io.MouseDrawCursor = false;
         return xplm_CursorDefault;
     }

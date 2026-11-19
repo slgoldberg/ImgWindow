@@ -482,6 +482,13 @@ public:
     void SetCaptureKeyboardOnMouseFocus(bool enable) { bCaptureKeyboardOnMouseFocus = enable; }
     bool GetCaptureKeyboardOnMouseFocus() const { return bCaptureKeyboardOnMouseFocus; }
 
+    /** Controls whether ImGui hover coordinates remain active while X-Plane itself is unfocused
+     *  in the background (default: false). Even when enabled, software cursor rendering
+     *  (io.MouseDrawCursor) remains suppressed while X-Plane is unfocused so the foreground OS
+     *  cursor and ImGui cursor are never drawn simultaneously. */
+    void SetAllowBackgroundHover(bool enable) { bAllowBackgroundHover = enable; }
+    bool GetAllowBackgroundHover() const { return bAllowBackgroundHover; }
+
     // -----------------------------------------------------------------------
     // DEPRECATED ALIASES (Retained for API backwards compatibility for now)
     // -----------------------------------------------------------------------
@@ -780,6 +787,7 @@ private:
 protected:
     bool bExplicitKeyboardFocus = false;
     bool bCaptureKeyboardOnMouseFocus = false;
+    bool bAllowBackgroundHover = false;
     bool bHasMouseFocus = false;
     float mCustomExtensionScale = 0.0f;
 
