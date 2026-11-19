@@ -49,12 +49,77 @@
 #include <map>
 #if defined(__APPLE__) || defined(__MACH__)
 #include <ApplicationServices/ApplicationServices.h>
+#include <dlfcn.h>
 #elif defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
 #endif
+
+// Returns false when X-Plane is running unfocused in the background (e.g. user
+// Cmd-Tabbed / Alt-Tabbed to another desktop application). Suppressing hover
+// coordinates and software cursors while unfocused prevents phantom widget/tooltip
+// hovers and avoids drawing ImGui's software cursor underneath the foreground app's
+// OS hardware cursor. Uses runtime symbol lookup so downstream plugins require zero
+// extra linker flags (-lobjc / AppKit / user32).
+static bool IsHostAppForeground()
+{
+#if defined(__APPLE__) || defined(__MACH__)
+#if defined(__arm64__) || defined(__aarch64__)
+    typedef bool ObjCBool;
+#else
+    typedef signed char ObjCBool;
+#endif
+    typedef void* (*SelRegisterNameFn)(const char*);
+    typedef ObjCBool (*MsgSendBoolFn)(void*, void*);
+
+    static bool          s_Resolved    = false;
+    static void**        s_NSAppPtr    = nullptr;
+    static void*         s_IsActiveSel = nullptr;
+    static MsgSendBoolFn s_MsgSend     = nullptr;
+
+    if (!s_Resolved) {
+        s_NSAppPtr = reinterpret_cast<void**>(dlsym(RTLD_DEFAULT, "NSApp"));
+        SelRegisterNameFn selFn = reinterpret_cast<SelRegisterNameFn>(dlsym(RTLD_DEFAULT, "sel_registerName"));
+        s_MsgSend = reinterpret_cast<MsgSendBoolFn>(dlsym(RTLD_DEFAULT, "objc_msgSend"));
+        if (selFn) {
+            s_IsActiveSel = selFn("isActive");
+        }
+        s_Resolved = true;
+    }
+    if (s_NSAppPtr && *s_NSAppPtr && s_IsActiveSel && s_MsgSend) {
+        return s_MsgSend(*s_NSAppPtr, s_IsActiveSel) != 0;
+    }
+    return true;
+#elif defined(_WIN32)
+    typedef HWND  (WINAPI *GetForegroundWindowFn)();
+    typedef DWORD (WINAPI *GetWindowThreadProcessIdFn)(HWND, LPDWORD);
+
+    static bool                       s_Resolved  = false;
+    static GetForegroundWindowFn      s_GetFgWnd  = nullptr;
+    static GetWindowThreadProcessIdFn s_GetWndPid = nullptr;
+
+    if (!s_Resolved) {
+        HMODULE user32 = GetModuleHandleA("user32.dll");
+        if (user32) {
+            s_GetFgWnd  = reinterpret_cast<GetForegroundWindowFn>(reinterpret_cast<void*>(GetProcAddress(user32, "GetForegroundWindow")));
+            s_GetWndPid = reinterpret_cast<GetWindowThreadProcessIdFn>(reinterpret_cast<void*>(GetProcAddress(user32, "GetWindowThreadProcessId")));
+        }
+        s_Resolved = true;
+    }
+    if (s_GetFgWnd && s_GetWndPid) {
+        HWND fgWnd = s_GetFgWnd();
+        if (!fgWnd) return false;
+        DWORD fgPid = 0;
+        s_GetWndPid(fgWnd, &fgPid);
+        return (fgPid == GetCurrentProcessId());
+    }
+    return true;
+#else
+    return true;
+#endif
+}
 
 /* ImGui version checks and refactor macros.
  * IMGUI_V190_REFACTOR defined for ImGui v1.90.0 and above (keyboard API refactor).
@@ -1347,7 +1412,7 @@ ImgWindow::updateImgui()
         XPLMGetMouseLocation(&mouseX, &mouseY);
 #endif
 
-        const bool isWindowInFront = IsWindowInFront();
+        const bool isWindowInFront = IsHostAppForeground() && IsWindowInFront();
         const bool isMouseInside = isWindowInFront && (mouseX >= mLeft && mouseX <= mRight &&
                                                        mouseY >= mBottom && mouseY <= mTop);
 
@@ -1903,6 +1968,22 @@ ImgWindow::HandleCursorFuncCB(
 
     ImGui::SetCurrentContext(thisWindow->mImGuiContext);
     ImGuiIO& io = ImGui::GetIO();
+
+    // When X-Plane itself is unfocused in the background, another OS application owns
+    // the hardware cursor (so xplm_CursorHidden has no effect on the OS pointer).
+    // Invalidate ImGui mouse coordinates and disable software cursor rendering so
+    // background windows neither trigger phantom hovers/tooltips nor draw a second cursor!
+    if (!IsHostAppForeground()) {
+        if (thisWindow->bUseImgCursors) {
+            io.MouseDrawCursor = false;
+        }
+#ifdef IMGUI_V190_REFACTOR
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+#endif
+        io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+        return xplm_CursorDefault;
+    }
+
     float outX, outY;
     thisWindow->translateToImguiSpace(x, y, outX, outY);
 
