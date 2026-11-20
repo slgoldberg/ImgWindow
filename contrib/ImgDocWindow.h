@@ -45,6 +45,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <string>
 #include <vector>
 #include <sys/stat.h>
@@ -140,6 +141,9 @@ public:
             mSourceFilePath = resolved;
             mBaseDir = extractParentDir(resolved);
             mConfig.showReloadButton = true;
+            struct stat st;
+            mLastMtime = (stat(resolved.c_str(), &st) == 0) ? st.st_mtime : 0;
+            mAutoReloadAccum = 0.0f;
             mState.InvalidateTocCache();
             return true;
         }
@@ -202,6 +206,9 @@ public:
 
     void SetEnableTopDragGrip(bool enable) { mEnableTopDragGrip = enable; }
     bool GetEnableTopDragGrip() const { return mEnableTopDragGrip; }
+
+    void SetAutoReloadOnDiskChange(bool enable) { mAutoReloadOnDiskChange = enable; }
+    bool GetAutoReloadOnDiskChange() const { return mAutoReloadOnDiskChange; }
 
     void SetZoom(float zoom, bool resizeWindow = false)
     {
@@ -295,6 +302,18 @@ protected:
         mDocImGuiContext = ImGui::GetCurrentContext();
         mState.is_open = true;
 
+        // 0. Optional throttled mtime hot-reload when editing Markdown files on disk
+        if (mAutoReloadOnDiskChange && !mSourceFilePath.empty()) {
+            mAutoReloadAccum += ImGui::GetIO().DeltaTime;
+            if (mAutoReloadAccum >= 1.0f) {
+                mAutoReloadAccum = 0.0f;
+                struct stat st;
+                if (stat(mSourceFilePath.c_str(), &st) == 0 && st.st_mtime != mLastMtime) {
+                    ReloadDocument();
+                }
+            }
+        }
+
         // 1. Optional Top Avionics Glass Drag Handle (Self-Decorated In-Sim Mode)
         updateSelfDecoratedDragGrip();
 
@@ -325,13 +344,28 @@ protected:
         cfg.onOpacityChanged      = &ImgDocWindow::cbOpacityChanged;
         cfg.onThemeChanged        = &ImgDocWindow::cbThemeChanged;
 
-        // 3. Render composite 2-row header + Nx zoomed Markdown viewport + 1.0x footer
+        // 3. Inset inside X-Plane's 15px self-resize grab border when in-sim & self-resizable
+        //    so [X], Theme combo, vertical scrollbar, and footer stay 100% clickable.
+        ImVec2 viewerSize(0.0f, 0.0f);
+        if (IsInsideSim() && GetWindowDecoration() == xplm_WindowDecorationSelfDecoratedResizable) {
+            const float padX   = 16.0f;
+            const float padTop = 10.0f;
+            const float padBot = 16.0f;
+            const ImVec2 winSz = ImGui::GetWindowSize();
+            ImGui::SetCursorPos(ImVec2(padX, padTop));
+            viewerSize = ImVec2(
+                (std::max)(64.0f, winSz.x - padX * 2.0f),
+                (std::max)(64.0f, winSz.y - padTop - padBot));
+        }
+
+        // 4. Render composite 2-row header + Nx zoomed Markdown viewport + 1.0x footer
         ImGui::DocumentViewer(
             "##img_doc_window_viewer",
             mMarkdownText.c_str(),
             mMarkdownText.size(),
             mState,
-            &cfg);
+            &cfg,
+            viewerSize);
     }
 
 private:
@@ -396,36 +430,38 @@ private:
         // drag zone never overlaps interactive Row 1 buttons or the Zoom slider.
         const std::string& ttl = !mDocTitle.empty() ? mDocTitle : std::string("Documentation");
         const float titleEstW  = ImGui::CalcTextSize(ttl.c_str()).x + 34.0f;
-        const float minLeft    = style.WindowPadding.x + titleEstW + 8.0f;
+        const float minLeft    = 16.0f + titleEstW + 8.0f;
         const float suiteEstW  = 356.0f + (mPdfPath.empty() ? 0.0f : 44.0f);
-        const float maxRight   = winW - suiteEstW - style.WindowPadding.x - 8.0f;
+        const float maxRight   = winW - suiteEstW - 16.0f - 8.0f;
 
+        // Start at y = 6 so y = 0..5 stays reserved for X-Plane's top self-resize grab strip
+        int dragT = (GetWindowDecoration() == xplm_WindowDecorationSelfDecoratedResizable) ? 6 : 0;
         int dragL = static_cast<int>(std::max(centerLocal - 56.0f, minLeft));
         int dragR = static_cast<int>(std::min(centerLocal + 56.0f, maxRight));
-        int dragB = 16;
+        int dragB = 24;
 
         if (dragR - dragL < 28) {
-            // Narrow window fallback: keep a thin 6px top-edge drag strip above Row 1 controls
-            dragL = static_cast<int>(style.WindowPadding.x);
-            dragR = static_cast<int>((std::max)(style.WindowPadding.x + 24.0f, winW - style.WindowPadding.x));
-            dragB = 6;
+            // Narrow window fallback: thin top strip between resize border (y=6) and Row 1 (y=10)
+            dragL = static_cast<int>((std::max)(16.0f, style.WindowPadding.x));
+            dragR = static_cast<int>((std::max)(40.0f, winW - 16.0f));
+            dragB = 10;
         }
 
-        SetWindowDragArea(dragL, 0, dragR, dragB);
+        SetWindowDragArea(dragL, dragT, dragR, dragB);
 
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec2 winPos = ImGui::GetWindowPos();
-        if (dragB >= 12) {
+        if (dragB >= 16) {
             const float gripCenterX = winPos.x + 0.5f * static_cast<float>(dragL + dragR);
             const float gripHalfW   = (std::min)(24.0f, 0.4f * static_cast<float>(dragR - dragL));
             dl->AddRectFilled(
-                ImVec2(gripCenterX - gripHalfW, winPos.y + 4.0f),
-                ImVec2(gripCenterX + gripHalfW, winPos.y + 7.5f),
+                ImVec2(gripCenterX - gripHalfW, winPos.y + 5.5f),
+                ImVec2(gripCenterX + gripHalfW, winPos.y + 9.0f),
                 IM_COL32(255, 255, 255, 95),
                 2.0f);
         }
 
-        const ImVec2 gripMin(winPos.x + static_cast<float>(dragL), winPos.y);
+        const ImVec2 gripMin(winPos.x + static_cast<float>(dragL), winPos.y + static_cast<float>(dragT));
         const ImVec2 gripMax(winPos.x + static_cast<float>(dragR), winPos.y + static_cast<float>(dragB));
         const bool gripHovered = ImGui::IsMouseHoveringRect(gripMin, gripMax) && !IsWindowMoving();
         if ((gripHovered || IsWindowMoving()) && mState.dynamic_cursors_enabled) {
@@ -673,8 +709,11 @@ private:
     ImGui::DocumentViewerConfig mConfig{};
     ImGuiContext*               mDocImGuiContext = nullptr;
 
-    bool mScaleWindowOnZoom = true;
-    bool mEnableTopDragGrip = true;
+    bool   mScaleWindowOnZoom      = true;
+    bool   mEnableTopDragGrip      = true;
+    bool   mAutoReloadOnDiskChange = true;
+    time_t mLastMtime              = 0;
+    float  mAutoReloadAccum        = 0.0f;
 
     int  mSavedSimLeft        = 0;
     int  mSavedSimTop         = 0;
