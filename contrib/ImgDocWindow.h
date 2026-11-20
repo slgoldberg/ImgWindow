@@ -62,7 +62,7 @@ public:
     static constexpr int kDefaultMinHeight = 380;
     static constexpr int kDefaultMaxWidth  = 2560;
     static constexpr int kDefaultMaxHeight = 1600;
-    static constexpr int kDefaultChromeH   = 78;
+    static constexpr int kDefaultChromeH   = 72;
 
     explicit ImgDocWindow(
         const std::string& windowTitle = "Documentation",
@@ -132,7 +132,7 @@ public:
     /** Loads a UTF-8 Markdown file from disk. Relative paths are automatically
      *  searched relative to the calling X-Plane plugin's root directory, binary
      *  directory, and the simulator working directory. Automatically configures
-     *  baseDir for relative images and enables the Row 2 [Reload] button. */
+     *  baseDir for relative images and mtime disk hot-reloading. */
     bool LoadMarkdownFile(const std::string& pathOrRelPath)
     {
         mRequestedFilePath = pathOrRelPath;
@@ -140,7 +140,6 @@ public:
         if (!resolved.empty() && readUtf8File(resolved, mMarkdownText)) {
             mSourceFilePath = resolved;
             mBaseDir = extractParentDir(resolved);
-            mConfig.showReloadButton = true;
             struct stat st;
             mLastMtime = (stat(resolved.c_str(), &st) == 0) ? st.st_mtime : 0;
             mAutoReloadAccum = 0.0f;
@@ -357,13 +356,14 @@ protected:
         cfg.onOpacityChanged      = &ImgDocWindow::cbOpacityChanged;
         cfg.onThemeChanged        = &ImgDocWindow::cbThemeChanged;
 
-        // 3. Inset inside X-Plane's 15px self-resize grab border when in-sim & self-resizable
-        //    so [X], Theme combo, vertical scrollbar, and footer stay 100% clickable.
+        // 3. Inset inside X-Plane's 15px self-resize grab border on left/right when in-sim & self-resizable
+        //    so [X], Theme combo, and vertical scrollbar stay 100% clickable, while letting the read-only
+        //    footer text sit snugly in the bottom gutter without dead space underneath it.
         ImVec2 viewerSize(0.0f, 0.0f);
         if (IsInsideSim() && GetWindowDecoration() == xplm_WindowDecorationSelfDecoratedResizable) {
             const float padX   = 16.0f;
             const float padTop = 10.0f;
-            const float padBot = 16.0f;
+            const float padBot = cfg.showFooterCloseButton ? 16.0f : 3.0f;
             const ImVec2 winSz = ImGui::GetWindowSize();
             ImGui::SetCursorPos(ImVec2(padX, padTop));
             viewerSize = ImVec2(
@@ -396,7 +396,7 @@ private:
         mConfig.showFitButton    = true;
         mConfig.showCursorToggle = true;
         mConfig.showPopOutButton = true;
-        mConfig.showVrButton     = true;
+        mConfig.showVrButton     = false;
         mConfig.showCloseButton  = true;
         mConfig.showFooter       = true;
 
@@ -444,7 +444,7 @@ private:
         const std::string& ttl = !mDocTitle.empty() ? mDocTitle : std::string("Documentation");
         const float titleEstW  = ImGui::CalcTextSize(ttl.c_str()).x + 34.0f;
         const float minLeft    = 16.0f + titleEstW + 8.0f;
-        const float suiteEstW  = 356.0f + (mPdfPath.empty() ? 0.0f : 44.0f);
+        const float suiteEstW  = 324.0f + (mPdfPath.empty() ? 0.0f : 44.0f) + (mConfig.showVrButton ? 32.0f : 0.0f);
         const float maxRight   = winW - suiteEstW - 16.0f - 8.0f;
 
         // Start at y = 6 so y = 0..5 stays reserved for X-Plane's top self-resize grab strip
