@@ -24,7 +24,7 @@ Look at the spectrum of UI tasks a flight sim plugin author faces, and how **ImG
 
 | Common Cockpit UI Task | Vanilla Dear ImGui Friction | ImGee Solution |
 | :--- | :--- | :--- |
-| **Interactive Help & Manuals** | `SetTooltip()` follows the mouse cursor, flickers, and clips outside simulator window boundaries. Limited to plain ASCII strings. | **`ImGui::TimedTooltip` & `ImGui::MD`**<br>Stationary anchor after initial delay, low-water wheel reset, smart cursor-avoidance and screen-edge clamping, and full Markdown rendering. |
+| **Interactive Help & Manuals** | `SetTooltip()` follows the mouse cursor, flickers, and clips outside simulator window boundaries. Limited to plain ASCII strings, and building an in-sim manual window takes hundreds of lines of boilerplate. | **`ImGui::DocumentViewer`, `ImgDocWindow`, `ImGui::TimedTooltip` & `ImGui::MD`**<br>Turnkey 2-row zoomable Markdown manual viewer with TOC jump pulldown, opacity/theme chrome, image lightboxes, and stationary delayed tooltips. |
 | **Two-Position Switches** | Clunky `[x]` checkboxes with no visual state distinction or dual-label tooltips. | **`ImGui::ToggleButton`**<br>Animated physical rocker/toggle switches with font-relative scaling, custom palettes, and automatic dual-state tooltips (`"Off Hint", "On Hint"`). |
 | **Avionics Dials & Adjusters** | Requires click-and-drag. The mouse wheel does nothing, requiring awkward custom tracking. | **`ImGui::MouseWheelSlider` / `MouseWheelDrag` / `MouseWheelCombo`**<br>Natural mouse-wheel stepping with configurable increments and fine-tune modifier keys. |
 | **Fearless Settings Tweaking** | No standard "revert to default" pattern; users hesitate to adjust complex tuning parameters. | **`ImGui::AdjustItemOnMouseWheel` & Reset Chasers**<br>Inline 1-click restore-to-default icon chaser with instant undo history. |
@@ -92,12 +92,13 @@ ImgWindow/
 └── contrib/
     ├── includes.h                         # Level-1 Container Switchboard (cascades to packages)
     ├── imgee.h                            # Convenience forwarder strictly for ImGee (-> ImGee/imgee.h)
+    ├── ImgDocWindow.h                     # Optional turnkey X-Plane manual window subclassing ImgWindow
     │
-    ├── ImGee/                             # Package 1: ImGee Avionics & Desktop UI Toolkit (v1.0.0)
+    ├── ImGee/                             # Package 1: ImGee Avionics & Desktop UI Toolkit (v1.1.0-dev)
     │   ├── imgee.h                        # Canonical ImGee master header & IMGEE_* switches
     │   ├── imgee-global.h                 # Opt-in global namespace aliases
     │   ├── docs/                          # ImGee User Guide & UX Design Manifesto (MD + PDF)
-    │   ├── extensions/                    # Subsystems (Typography, Markdown, TimedTooltip)
+    │   ├── extensions/                    # Subsystems (Typography, Markdown, TimedTooltip, Viewport, DocViewer)
     │   ├── widgets/                       # Immediate-mode controls, file dialogs & vector icons
     │   └── themes/                        # Curated studio & cockpit palettes (Charcoal, Rusty)
     │
@@ -108,7 +109,19 @@ ImgWindow/
 ### 1. ImGee Suite (`contrib/ImGee/`)
 The complete avionics and flight-sim UI design system. See &rarr; **[ImGee User Guide](ImGee/docs/ImGee_User_Guide.md)** and **[contrib/ImGee/README.md](ImGee/README.md)**.
 
-### 2. Zero-Breakage Forwarding Shims (`contrib/extensions/`, `contrib/widgets/`)
+### 2. Turnkey X-Plane Manual Window (`contrib/ImgDocWindow.h`)
+Want a complete in-sim Markdown User Guide window (with `1.0x` zoom/TOC/opacity/theme header chrome, proportional X-Plane window scaling, Pop-Out/VR transitions, and automatic plugin-relative image/file lookup) while keeping core `ImgWindow.h` 100% decoupled? Include `contrib/ImgDocWindow.h`:
+
+```cpp
+#include "contrib/ImgDocWindow.h"
+
+auto manual = std::make_unique<ImgDocWindow>("My Plugin -- User Guide");
+manual->LoadMarkdownFile("docs/User_Guide.md");   // Resolves relative to your plugin folder!
+manual->SetCompanionPdfPath("docs/User_Guide.pdf");
+manual->SetVisible(true);
+```
+
+### 3. Zero-Breakage Forwarding Shims (`contrib/extensions/`, `contrib/widgets/`)
 To guarantee 100% backward compatibility for existing code and downstream CI pipelines, thin forwarding headers remain in `contrib/extensions/` and `contrib/widgets/`, routing cleanly to their canonical locations in `contrib/ImGee/`.
 
 ---
@@ -136,6 +149,8 @@ Uncomment or pass any of these macros to selectively exclude individual ImGee su
 | **`IMGEE_DISABLE_TYPOGRAPHY`** | `CONTRIB_DISABLE_TYPOGRAPHY` | Excludes `ImFontRole` and `ImGui::StyledText`. |
 | **`IMGEE_DISABLE_MARKDOWN`** | `CONTRIB_DISABLE_MARKDOWN` | Excludes Markdown parser, GFM tables, and callouts. |
 | **`IMGEE_DISABLE_TIMED_TOOLTIP`** | `CONTRIB_DISABLE_TIMED_TOOLTIP` | Excludes stationary delayed tooltip engine. |
+| **`IMGEE_DISABLE_ZOOMABLE_VIEWPORT`** | `CONTRIB_DISABLE_ZOOMABLE_VIEWPORT` | Excludes zoomable child viewport container (`BeginZoomedViewport`). |
+| **`IMGEE_DISABLE_DOC_VIEWER`** | `CONTRIB_DISABLE_DOC_VIEWER` | Excludes composite `ImGui::DocumentViewer` extension. |
 | **`IMGEE_DISABLE_KNOBS`** | `CONTRIB_DISABLE_KNOBS` | Excludes avionics rotary knobs, dials, and detents. |
 | **`IMGEE_DISABLE_MOUSE_WHEEL_CONTROLS`** | `CONTRIB_DISABLE_MOUSE_WHEEL_CONTROLS` | Excludes mouse-wheel sliders, drags, combos, and reset buttons. |
 | **`IMGEE_DISABLE_BADGES`** | `CONTRIB_DISABLE_BADGES` | Excludes status badges, pills, annunciators, and keycaps. |
