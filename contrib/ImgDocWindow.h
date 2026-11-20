@@ -239,6 +239,13 @@ public:
     }
     float GetWindowOpacity() const { return mState.window_opacity; }
 
+    void SetTransparentHud(bool enable)
+    {
+        mState.transparent_hud = enable;
+        SetTheme(mState.theme_index);
+    }
+    bool GetTransparentHud() const { return mState.transparent_hud; }
+
     bool JumpToAnchor(const char* anchorOrSlug)
     {
         return ImGui::JumpToDocumentAnchor(mState, anchorOrSlug);
@@ -283,6 +290,12 @@ public:
 protected:
     ImGuiWindowFlags_ beforeBegin() override
     {
+        if (mFirstRender) {
+            ImGui::ApplyDocumentViewerTheme(
+                mState.theme_index,
+                mState.transparent_hud && IsSelfDecorated(),
+                mState.window_opacity);
+        }
         return static_cast<ImGuiWindowFlags_>(
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     }
