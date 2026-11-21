@@ -48,6 +48,12 @@ An opt-in feature allowing the framework to move in-simulator windows automatica
 + **Cursor invalidation on blur:**<br>
 Automatically invalidates the cursor position when the window loses focus, ensuring it updates correctly when the user clicks back in.
 
++ **Background Window Hover Freeze & Blur Safety (v2.5+):**<br>
+Prevents phantom clicks and hover flickering when X-Plane is unfocused in the background (e.g. while interacting with charts, web browsers, or Discord on a secondary display). `ImgWindow` automatically detects when the simulator loses OS-level application focus and freezes mouse hover and cursor state transitions. Plugins that intentionally require active background cursor interaction can selectively opt out via `SetAllowBackgroundHover(true)`.
+
++ **Turnkey In-Sim Documentation Windows (`ImgDocWindow.h`, v2.5+):**<br>
+Single-include drop-in window class (`contrib/ImgDocWindow.h`) combining `ImgWindow` with `ImGee::DocumentViewer` to deliver searchable, table-of-contents navigated, zoomable, thematic documentation windows with zero boilerplate.
+
 + **Optional Per-Window Custom ImGui Cursors:**<br>
 Opt-in support for dynamic ImGui mouse cursors. If enabled, the plugin can change the mouse cursor based on what ImGui is hovering over (e.g., an I-beam over text inputs, or a pointing finger over buttons). These were always part of the ImGui API, but ImgWindow used to ignore them. Now, it ensures the cursor is properly handed off between X-Plane and ImGui.
 
@@ -223,6 +229,63 @@ To update the submodule any time (including nested packages such as `contrib/ImG
 > Starting with ImGee v1.0.0, `contrib/ImGee` is bundled as a nested git submodule inside `ImgWindow`.
 > * If your plugin **only uses core `ImgWindow.h`** (and never includes `contrib.h` or `contrib/imgee.h`), you do not need `contrib/ImGee` populated at all.
 > * If your plugin **uses ImGee (`contrib/imgee.h` or `contrib.h`)**, run `git submodule update --init --recursive` once after pulling so Git populates `contrib/ImGee/`.
+
+### Self-Healing Submodules in CMake (Recommended)
+
+If your plugin build system uses CMake, you can make submodule management completely hands-off and foolproof for contributors and CI pipelines. Adding the following self-healing block to your `CMakeLists.txt` automatically detects if `ImgWindow` or nested packages like `contrib/ImGee` are uninitialized, and fetches them in the background during the CMake configure step:
+
+```cmake
+# ------------------------------------------------------------------------------
+# Self-Healing Submodule Initialization (ImgWindow & ImGee)
+# ------------------------------------------------------------------------------
+find_package(Git QUIET)
+if(GIT_FOUND)
+    # Adjust path if your submodule lives in third-party/ or src/
+    set(_IMGWINDOW_CHECK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ImgWindow")
+    if(NOT EXISTS "${_IMGWINDOW_CHECK_DIR}")
+        set(_IMGWINDOW_CHECK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ImgWindow")
+    endif()
+
+    # Resolve enclosing git repository root (handles root or src/ CMakeLists.txt)
+    set(_GIT_REPO_ROOT "")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+        set(_GIT_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../.git")
+        get_filename_component(_GIT_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+    endif()
+
+    # Case 1: ImgWindow itself is missing (fresh clone without --recursive)
+    if(_GIT_REPO_ROOT AND NOT EXISTS "${_IMGWINDOW_CHECK_DIR}/ImgWindow.h")
+        message(STATUS "[ImgWindow] Submodule missing -- initializing recursively...")
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive
+            WORKING_DIRECTORY "${_GIT_REPO_ROOT}"
+            RESULT_VARIABLE _GIT_SUBMOD_RESULT
+        )
+        if(NOT _GIT_SUBMOD_RESULT EQUAL "0")
+            message(WARNING "[ImgWindow] Automatic submodule update failed. Please run 'git submodule update --init --recursive' manually.")
+        else()
+            message(STATUS "[ImgWindow] Submodules successfully initialized!")
+        endif()
+    # Case 2: ImgWindow is present, but nested contrib/ImGee submodule is uninitialized.
+    # Runs inside ImgWindow itself so ImGee is initialized without touching or reverting your ImgWindow checkout!
+    elseif(EXISTS "${_IMGWINDOW_CHECK_DIR}/.git"
+           AND EXISTS "${_IMGWINDOW_CHECK_DIR}/.gitmodules"
+           AND NOT EXISTS "${_IMGWINDOW_CHECK_DIR}/contrib/ImGee/imgee.h")
+        message(STATUS "[ImgWindow] contrib/ImGee submodule missing -- initializing recursively...")
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive
+            WORKING_DIRECTORY "${_IMGWINDOW_CHECK_DIR}"
+            RESULT_VARIABLE _GIT_SUBMOD_RESULT
+        )
+        if(NOT _GIT_SUBMOD_RESULT EQUAL "0")
+            message(WARNING "[ImgWindow] Automatic contrib/ImGee submodule update failed. Please run 'git -C \"${_IMGWINDOW_CHECK_DIR}\" submodule update --init --recursive' manually.")
+        else()
+            message(STATUS "[ImgWindow] contrib/ImGee submodule successfully initialized!")
+        endif()
+    endif()
+endif()
+```
 
 ## Contributing to this project
 
