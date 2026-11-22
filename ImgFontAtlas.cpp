@@ -133,11 +133,11 @@ ImgFontAtlas::bindTexture()
         int width = 0, height = 0;
         mOurAtlas->GetTexDataAsRGBA32(&pixels, &width, &height);
         if (pixels && width > 0 && height > 0) {
-            std::vector<unsigned char> lin_pixels(pixels, pixels + (width * height * 4));
+            std::vector<unsigned char> lin_pixels(pixels, pixels + (static_cast<size_t>(width) * static_cast<size_t>(height) * 4));
             // Force RGB to pure white (255) so the texture acts strictly as a pure opacity mask,
             // preventing black edge bleeding, and preserve linear alpha coverage without crushing:
             for (int i = 0; i < width * height; i++) {
-                unsigned char* p = &lin_pixels[i * 4];
+                unsigned char* p = &lin_pixels[static_cast<size_t>(i) * 4];
                 p[0] = 255;
                 p[1] = 255;
                 p[2] = 255;
@@ -151,11 +151,11 @@ ImgFontAtlas::bindTexture()
         GetCustomAtlasTextureData(mOurAtlas, outInfo);
         
         if (outInfo.pixels && outInfo.width > 0 && outInfo.height > 0) {
-            std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
+            std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (static_cast<size_t>(outInfo.width) * static_cast<size_t>(outInfo.height) * 4));
             // Force RGB to pure white (255) so the texture acts strictly as a pure opacity mask,
             // preventing black edge bleeding, and preserve linear alpha coverage without crushing:
             for (int i = 0; i < outInfo.width * outInfo.height; i++) {
-                unsigned char* p = &lin_pixels[i * 4];
+                unsigned char* p = &lin_pixels[static_cast<size_t>(i) * 4];
                 p[0] = 255;
                 p[1] = 255;
                 p[2] = 255;

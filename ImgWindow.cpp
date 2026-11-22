@@ -369,7 +369,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, ImTextureID& textureID)
                     ImgWindow::DeleteTexture(textureID);
                 }
                 
-                std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (outInfo.width * outInfo.height * 4));
+                std::vector<unsigned char> lin_pixels(outInfo.pixels, outInfo.pixels + (static_cast<size_t>(outInfo.width) * static_cast<size_t>(outInfo.height) * 4));
                 
                 // N.B.: ImGui's font atlas generator can sometimes leave RGB values as black (0,0,0) in otherwise fully transparent areas.
                 // Because X-Plane Panel Graphics uses straight alpha blending, those black pixels would bleed into the semi-transparent,
@@ -378,7 +378,7 @@ void CheckAndRebuildAtlas(ImFontAtlas* atlas, ImTextureID& textureID)
                 // so the text color comes 100% from the vertex color.
                 // (This loop only runs ONCE when the font atlas is rebuilt, so the CPU cost is negligible. It does NOT run every frame!)
                 for (int i = 0; i < outInfo.width * outInfo.height; i++) {
-                    unsigned char* p = &lin_pixels[i * 4];
+                    unsigned char* p = &lin_pixels[static_cast<size_t>(i) * 4];
                     p[0] = 255;
                     p[1] = 255;
                     p[2] = 255;
@@ -1374,7 +1374,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
             mesh.indices = (const uint16_t*)cmd_list->IdxBuffer.Data;
             
             std::vector<XPLMDrawCall_t> draw_calls;
-            draw_calls.reserve(cmd_list->CmdBuffer.Size);
+            draw_calls.reserve(static_cast<size_t>(cmd_list->CmdBuffer.Size));
 
             for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
             {
@@ -1406,9 +1406,9 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
                     dc.scissors[1] = pcmd->ClipRect.y;
                     dc.scissors[2] = pcmd->ClipRect.z;
                     dc.scissors[3] = pcmd->ClipRect.w;
-                    dc.idx_offset = pcmd->IdxOffset;
-                    dc.element_count = pcmd->ElemCount;
-                    dc.vtx_offset = pcmd->VtxOffset;
+                    dc.idx_offset = static_cast<int>(pcmd->IdxOffset);
+                    dc.element_count = static_cast<int>(pcmd->ElemCount);
+                    dc.vtx_offset = static_cast<int>(pcmd->VtxOffset);
                     draw_calls.push_back(dc);
                 }
             }
@@ -1659,10 +1659,10 @@ ImgWindow::updateImgui()
             int width = 0, height = 0;
             io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
             if (pixels && width > 0 && height > 0) {
-                std::vector<unsigned char> lin_pixels(pixels, pixels + (width * height * 4));
+                std::vector<unsigned char> lin_pixels(pixels, pixels + (static_cast<size_t>(width) * static_cast<size_t>(height) * 4));
                 // Force RGB to pure white (255) so the texture acts strictly as a pure opacity mask:
                 for (int i = 0; i < width * height; i++) {
-                    unsigned char* p = &lin_pixels[i * 4];
+                    unsigned char* p = &lin_pixels[static_cast<size_t>(i) * 4];
                     p[0] = 255;
                     p[1] = 255;
                     p[2] = 255;
