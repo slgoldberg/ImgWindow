@@ -120,6 +120,11 @@ struct WindowGeometry {
         return WindowGeometry(x, y, x + width, y - height);
     }
 
+    // 3b. Top-left offset (offsetX, offsetY) relative to the Main Monitor's usable top-left corner
+    static WindowGeometry FromMainMonitorTopLeft(
+        int offsetX, int offsetY, int width, int height,
+        XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle);
+
     // 4. Auto-centered on main monitor
     static WindowGeometry Centered(int width, int height, XPLMWindowDecoration decoration = xplm_WindowDecorationRoundRectangle);
 
@@ -317,6 +322,17 @@ public:
     /** Returns true if the simulator itself is running in full-screen mode on any monitor.
      *  In windowed desktop mode, in-sim top menu bar conflicts do not exist. */
     static bool IsSimulatorFullScreen();
+
+    /** Queries the global boxel bounds of X-Plane's Main Monitor (the primary monitor containing
+     *  global boxel origin (0, 0) and the simulator menu bar) via XPLMGetAllMonitorBoundsGlobal.
+     *  Falls back to XPLMGetScreenBoundsGlobal when running in desktop windowed mode. */
+    static void GetMainMonitorBoundsGlobal(int* outLeft, int* outTop, int* outRight, int* outBottom);
+
+    /** Controls whether WindowGeometry::Centered, Sanitize, and ClampGeometryToScreen treat all
+     *  monitors as a single combined virtual desktop (true) or target individual monitors with
+     *  default placement on the Main Monitor (false, default). */
+    static void SetSpanMonitorsForCentering(bool enable) { sSpanMonitorsForCentering = enable; }
+    static bool GetSpanMonitorsForCentering() { return sSpanMonitorsForCentering; }
 
     /** Gets the decoration style specified at creation */
     XPLMWindowDecoration GetWindowDecoration() const { return mDecoration; }
@@ -768,6 +784,9 @@ private:
 
     /** Estimated native system title bar height in boxels */
     static int sSystemTitleBarHeight;
+
+    /** Whether centering and clamping span all monitors as a combined virtual desktop */
+    static bool sSpanMonitorsForCentering;
 
     /** Window drag area in ImGui coordinates (0,0 is top/left corner) */
     int dragLeft    = -1;

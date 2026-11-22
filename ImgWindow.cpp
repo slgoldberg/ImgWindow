@@ -268,6 +268,7 @@ ImgWindow* ImgWindow::s_CurrentBuildingWindow = nullptr;
 int ImgWindow::sBlankoutUntilCycle = 0;
 int ImgWindow::sTopMenuBarMargin = ImgWindow::kDefaultTopMenuBarMargin;
 int ImgWindow::sSystemTitleBarHeight = ImgWindow::kDefaultSystemTitleBarHeight;
+bool ImgWindow::sSpanMonitorsForCentering = false;
 
 // Tracks textures pending destruction and the cycle they were queued
 static std::vector<std::pair<ImTextureID, int>> s_TexturesPendingDestruction;
@@ -665,11 +666,167 @@ ImgWindow::~ImgWindow()
     XPLMDestroyWindow(mWindowID);
 }
 
+namespace {
+struct GlobalMonitorInfo {
+    int index = 0;
+    int l = 0, t = 0, r = 0, b = 0;
+    bool containsOrigin = false;
+    bool isMain = false;
+};
+
+static std::vector<GlobalMonitorInfo> QueryGlobalMonitors()
+{
+    std::vector<GlobalMonitorInfo> monitors;
+#if defined(XPLM300)
+    XPLMGetAllMonitorBoundsGlobal([](int inMonitorIndex, int inLeftBx, int inTopBx, int inRightBx, int inBottomBx, void* inRefcon) {
+        auto* vec = static_cast<std::vector<GlobalMonitorInfo>*>(inRefcon);
+        if (!vec) return;
+        GlobalMonitorInfo info;
+        info.index = inMonitorIndex;
+        info.l = inLeftBx;
+        info.t = inTopBx;
+        info.r = inRightBx;
+        info.b = inBottomBx;
+        info.containsOrigin = (inLeftBx <= 0 && inRightBx > 0 && inBottomBx <= 0 && inTopBx > 0);
+        vec->push_back(info);
+    }, &monitors);
+
+    if (!monitors.empty()) {
+        size_t mainIdx = 0;
+        bool foundOrigin = false;
+        for (size_t i = 0; i < monitors.size(); ++i) {
+            if (monitors[i].containsOrigin) {
+                mainIdx = i;
+                foundOrigin = true;
+                break;
+            }
+            if (monitors[i].index < monitors[mainIdx].index) {
+                mainIdx = i;
+            }
+        }
+        (void)foundOrigin;
+        monitors[mainIdx].isMain = true;
+    }
+#endif
+    return monitors;
+}
+
+// Finds the monitor that best overlaps (winL, winT, winR, winB).
+// Returns true if the window overlaps the chosen monitor (overlap > 0), or false if completely off-screen
+// (in which case outMonL..B are populated with the closest monitor for ClampGeometryToScreen, and the caller
+// can choose whether to snap to Main Monitor center in Sanitize).
+static bool FindTargetGlobalMonitor(
+    int winL, int winT, int winR, int winB,
+    int& outMonL, int& outMonT, int& outMonR, int& outMonB,
+    bool& outIsMainMonitor)
+{
+    if (!ImgWindow::GetSpanMonitorsForCentering()) {
+        std::vector<GlobalMonitorInfo> monitors = QueryGlobalMonitors();
+        if (!monitors.empty()) {
+            const int winMinX = (std::min)(winL, winR);
+            const int winMaxX = (std::max)(winL, winR);
+            const int winMinY = (std::min)(winB, winT);
+            const int winMaxY = (std::max)(winB, winT);
+            const int cx = (winMinX + winMaxX) / 2;
+            const int cy = (winMinY + winMaxY) / 2;
+
+            size_t bestIdx = 0;
+            long long bestOverlap = -1;
+            long long bestDistSq = 0;
+            for (size_t i = 0; i < monitors.size(); ++i) {
+                const auto& m = monitors[i];
+                const int ix0 = (std::max)(winMinX, m.l);
+                const int iy0 = (std::max)(winMinY, m.b);
+                const int ix1 = (std::min)(winMaxX, m.r);
+                const int iy1 = (std::min)(winMaxY, m.t);
+                const long long overlap = (ix1 > ix0 && iy1 > iy0)
+                    ? static_cast<long long>(ix1 - ix0) * static_cast<long long>(iy1 - iy0)
+                    : 0;
+                const long long dx = (cx < m.l) ? (m.l - cx) : ((cx > m.r) ? (cx - m.r) : 0);
+                const long long dy = (cy < m.b) ? (m.b - cy) : ((cy > m.t) ? (cy - m.t) : 0);
+                const long long distSq = dx * dx + dy * dy;
+
+                if (i == 0 ||
+                    overlap > bestOverlap ||
+                    (overlap == bestOverlap && distSq < bestDistSq) ||
+                    (overlap == bestOverlap && distSq == bestDistSq && m.isMain)) {
+                    bestIdx = i;
+                    bestOverlap = overlap;
+                    bestDistSq = distSq;
+                }
+            }
+
+            const auto& chosen = monitors[bestIdx];
+            outMonL = chosen.l;
+            outMonT = chosen.t;
+            outMonR = chosen.r;
+            outMonB = chosen.b;
+            outIsMainMonitor = chosen.isMain;
+            return (bestOverlap > 0);
+        }
+    }
+
+    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+    outMonL = sLeft;
+    outMonT = sTop;
+    outMonR = sRight;
+    outMonB = sBottom;
+    outIsMainMonitor = true;
+
+    const int ix0 = (std::max)((std::min)(winL, winR), sLeft);
+    const int iy0 = (std::max)((std::min)(winB, winT), sBottom);
+    const int ix1 = (std::min)((std::max)(winL, winR), sRight);
+    const int iy1 = (std::min)((std::max)(winB, winT), sTop);
+    return (ix1 > ix0 && iy1 > iy0);
+}
+} // namespace
+
+void
+ImgWindow::GetMainMonitorBoundsGlobal(int* outLeft, int* outTop, int* outRight, int* outBottom)
+{
+    int l = 0, t = 0, r = 0, b = 0;
+    std::vector<GlobalMonitorInfo> monitors = QueryGlobalMonitors();
+    bool found = false;
+    for (size_t i = 0; i < monitors.size(); ++i) {
+        if (monitors[i].isMain) {
+            l = monitors[i].l;
+            t = monitors[i].t;
+            r = monitors[i].r;
+            b = monitors[i].b;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        XPLMGetScreenBoundsGlobal(&l, &t, &r, &b);
+    }
+    if (outLeft)   *outLeft   = l;
+    if (outTop)    *outTop    = t;
+    if (outRight)  *outRight  = r;
+    if (outBottom) *outBottom = b;
+}
+
+WindowGeometry
+WindowGeometry::FromMainMonitorTopLeft(int offsetX, int offsetY, int width, int height, XPLMWindowDecoration decoration)
+{
+    int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
+    ImgWindow::GetMainMonitorBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+    int effective_sTop = sTop - ImgWindow::GetTopMargin(decoration);
+    int x = sLeft + offsetX;
+    int y = effective_sTop - offsetY;
+    return WindowGeometry(x, y, x + width, y - height);
+}
+
 WindowGeometry
 WindowGeometry::Centered(int width, int height, XPLMWindowDecoration decoration)
 {
     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
-    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+    if (ImgWindow::GetSpanMonitorsForCentering()) {
+        XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+    } else {
+        ImgWindow::GetMainMonitorBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+    }
     int sWidth  = sRight - sLeft;
     int effective_sTop = sTop - ImgWindow::GetTopMargin(decoration);
     int sHeight = effective_sTop - sBottom;
@@ -707,8 +864,14 @@ WindowGeometry::Sanitize(
     }
 
     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
-    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
-    const int effective_sTop = sTop - ImgWindow::GetTopMargin(decoration);
+    bool isMainMonitor = true;
+    const bool hasMonitorOverlap = FindTargetGlobalMonitor(l, t, r, b, sLeft, sTop, sRight, sBottom, isMainMonitor);
+    if (!hasMonitorOverlap) {
+        return Centered(w > 0 ? w : defaultW, h > 0 ? h : defaultH, decoration);
+    }
+
+    // Only the Main Monitor has X-Plane's top menu bar trigger zone
+    const int effective_sTop = isMainMonitor ? (sTop - ImgWindow::GetTopMargin(decoration)) : sTop;
 
     int interLeft   = (std::max)(l, sLeft);
     int interRight  = (std::min)(r, sRight);
@@ -818,9 +981,12 @@ ImgWindow::ClampGeometryToScreen(
     int top_margin)
 {
     int sLeft = 0, sTop = 0, sRight = 0, sBottom = 0;
-    XPLMGetScreenBoundsGlobal(&sLeft, &sTop, &sRight, &sBottom);
+    bool isMainMonitor = true;
+    FindTargetGlobalMonitor(in_out_l, in_out_t, in_out_r, in_out_b, sLeft, sTop, sRight, sBottom, isMainMonitor);
 
-    const int topMargin = (top_margin >= 0) ? top_margin : GetTopMargin(xplm_WindowDecorationRoundRectangle);
+    const int topMargin = isMainMonitor
+        ? ((top_margin >= 0) ? top_margin : GetTopMargin(xplm_WindowDecorationRoundRectangle))
+        : 0;
     const int effective_sTop = sTop - topMargin;
 
     int req_w = std::abs(in_out_r - in_out_l);
@@ -1598,7 +1764,8 @@ ImgWindow::updateImgui()
     }
 #endif /* IMGUI_V190_REFACTOR */
 
-    bool wantFocus = io.WantTextInput || bExplicitKeyboardFocus || (bCaptureKeyboardOnMouseFocus && bHasMouseFocus);
+    const bool hasOpenPopup = (mImGuiContext != nullptr && mImGuiContext->OpenPopupStack.Size > 0);
+    bool wantFocus = io.WantTextInput || hasOpenPopup || bExplicitKeyboardFocus || (bCaptureKeyboardOnMouseFocus && bHasMouseFocus);
     if (wantFocus && !hasKeyboardFocus) {
         XPLMTakeKeyboardFocus(mWindowID);
     }
@@ -1863,7 +2030,8 @@ ImgWindow::HandleKeyFuncCB(
     }
 
     int hasKeyboardFocus = XPLMHasKeyboardFocus(thisWindow->mWindowID);
-    if (io.WantCaptureKeyboard || hasKeyboardFocus || thisWindow->bExplicitKeyboardFocus || (thisWindow->bCaptureKeyboardOnMouseFocus && thisWindow->bHasMouseFocus)) {
+    const bool hasOpenPopup = (thisWindow->mImGuiContext != nullptr && thisWindow->mImGuiContext->OpenPopupStack.Size > 0);
+    if (io.WantCaptureKeyboard || hasOpenPopup || hasKeyboardFocus || thisWindow->bExplicitKeyboardFocus || (thisWindow->bCaptureKeyboardOnMouseFocus && thisWindow->bHasMouseFocus)) {
         // Hack for the Backspace key in VR:
         // Apparently, the virtual VR keyboard sends both the Up and the Down
         // event within the same drawing cycle, which would overwrite
@@ -1941,8 +2109,10 @@ ImgWindow::HandleKeyFuncCB(
             io.AddKeyEvent(key, isDown); // send the actual key
         }
 
-        // Escape outside an active text input releases keyboard focus back to the sim
-        if (inVirtualKey == XPLM_VK_ESCAPE && !io.WantTextInput && isDown) {
+        // Escape outside an active text input or open popup releases keyboard focus back to the sim.
+        // When a popup/lightbox is open, let Dear ImGui process the Escape key event in the next frame
+        // to close the popup; updateImgui() will then automatically release keyboard focus once OpenPopupStack is empty!
+        if (inVirtualKey == XPLM_VK_ESCAPE && !io.WantTextInput && !hasOpenPopup && isDown) {
             thisWindow->bHasMouseFocus = false;
             thisWindow->bExplicitKeyboardFocus = false;
             XPLMTakeKeyboardFocus(nullptr);
