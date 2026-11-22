@@ -1488,9 +1488,8 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
                 boxelsToNative(bLeft, bTop, nLeft, nTop);
                 boxelsToNative(bRight, bBottom, nRight, nBottom);
                 glScissor(nLeft, nBottom, nRight-nLeft, nTop-nBottom);
-                glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, idx_buffer);
+                glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, idx_buffer + pcmd->IdxOffset);
             }
-            idx_buffer += pcmd->ElemCount;
         }
     }
 
