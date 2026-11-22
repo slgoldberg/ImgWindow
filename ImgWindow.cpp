@@ -1766,11 +1766,14 @@ ImgWindow::updateImgui()
 
     const bool hasOpenPopup = (mImGuiContext != nullptr && mImGuiContext->OpenPopupStack.Size > 0);
     bool wantFocus = io.WantTextInput || hasOpenPopup || bExplicitKeyboardFocus || (bCaptureKeyboardOnMouseFocus && bHasMouseFocus);
+    const bool anyMouseDown = io.MouseDown[0] || io.MouseDown[1] || io.MouseDown[2];
     if (wantFocus && !hasKeyboardFocus) {
         XPLMTakeKeyboardFocus(mWindowID);
     }
-    else if (!wantFocus && hasKeyboardFocus) {
+    else if (!wantFocus && hasKeyboardFocus && !anyMouseDown) {
+        bReleasingKeyboardFocus = true;
         XPLMTakeKeyboardFocus(nullptr);
+        bReleasingKeyboardFocus = false;
         // reset keysdown otherwise we'll think any keys used to defocus the keyboard are still down!
 #ifndef IMGUI_V190_REFACTOR
         for (auto &key : io.KeysDown) {
@@ -2011,8 +2014,21 @@ ImgWindow::HandleKeyFuncCB(
     // Loosing focus? That's not exactly something ImGui allows us to do...
     // we try convincing ImGui to let it go by sending an [Esc] key for the legacy version, or by sending a focus-lost event for the modern version.
     if (blosingFocus) {
-        thisWindow->bHasMouseFocus = false;
         thisWindow->bExplicitKeyboardFocus = false;
+        if (thisWindow->bReleasingKeyboardFocus) {
+            // Self-initiated voluntary release of keyboard focus back to X-Plane (e.g. popup closed
+            // or InputText deactivated while mouse is still inside thisWindow): only clear keyboard
+            // state so mouse hover, active drags/clicks, and software cursors remain uninterrupted!
+#ifdef IMGUI_V190_REFACTOR
+            io.ClearInputKeys();
+#else
+            for (auto &key : io.KeysDown) {
+                key = false;
+            }
+#endif
+            return;
+        }
+        thisWindow->bHasMouseFocus = false;
         if (thisWindow->bUseImgCursors) {
             io.MouseDrawCursor = false;
         }
@@ -2115,7 +2131,9 @@ ImgWindow::HandleKeyFuncCB(
         if (inVirtualKey == XPLM_VK_ESCAPE && !io.WantTextInput && !hasOpenPopup && isDown) {
             thisWindow->bHasMouseFocus = false;
             thisWindow->bExplicitKeyboardFocus = false;
+            thisWindow->bReleasingKeyboardFocus = true;
             XPLMTakeKeyboardFocus(nullptr);
+            thisWindow->bReleasingKeyboardFocus = false;
         }
 
         // Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).
