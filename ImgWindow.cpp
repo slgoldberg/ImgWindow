@@ -1769,11 +1769,18 @@ ImgWindow::updateImgui()
     const bool anyMouseDown = io.MouseDown[0] || io.MouseDown[1] || io.MouseDown[2];
     if (wantFocus && !hasKeyboardFocus) {
         XPLMTakeKeyboardFocus(mWindowID);
+#ifdef IMGUI_V190_REFACTOR
+        bLastKeyboardFocused = 1;
+        io.AddFocusEvent(true);
+#endif
     }
     else if (!wantFocus && hasKeyboardFocus && !anyMouseDown) {
         bReleasingKeyboardFocus = true;
         XPLMTakeKeyboardFocus(nullptr);
         bReleasingKeyboardFocus = false;
+#ifdef IMGUI_V190_REFACTOR
+        bLastKeyboardFocused = 0;
+#endif
         // reset keysdown otherwise we'll think any keys used to defocus the keyboard are still down!
 #ifndef IMGUI_V190_REFACTOR
         for (auto &key : io.KeysDown) {
@@ -2033,6 +2040,7 @@ ImgWindow::HandleKeyFuncCB(
             io.MouseDrawCursor = false;
         }
 #ifdef IMGUI_V190_REFACTOR
+        thisWindow->bLastKeyboardFocused = 0;
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
         io.AddFocusEvent(false); // tell ImGui it lost focus
 #endif /* IMGUI_V190_REFACTOR */
@@ -2134,6 +2142,9 @@ ImgWindow::HandleKeyFuncCB(
             thisWindow->bReleasingKeyboardFocus = true;
             XPLMTakeKeyboardFocus(nullptr);
             thisWindow->bReleasingKeyboardFocus = false;
+#ifdef IMGUI_V190_REFACTOR
+            thisWindow->bLastKeyboardFocused = 0;
+#endif
         }
 
         // Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).
