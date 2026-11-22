@@ -808,7 +808,6 @@ protected:
     bool bCaptureKeyboardOnMouseFocus = false;
     bool bAllowBackgroundHover = false;
     bool bHasMouseFocus = false;
-    bool bReleasingKeyboardFocus = false;
     float mCustomExtensionScale = 0.0f;
 
     /** What are we dragging right now? */

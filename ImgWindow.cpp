@@ -1764,23 +1764,12 @@ ImgWindow::updateImgui()
     }
 #endif /* IMGUI_V190_REFACTOR */
 
-    const bool hasOpenPopup = (mImGuiContext != nullptr && mImGuiContext->OpenPopupStack.Size > 0);
-    bool wantFocus = io.WantTextInput || hasOpenPopup || bExplicitKeyboardFocus || (bCaptureKeyboardOnMouseFocus && bHasMouseFocus);
-    const bool anyMouseDown = io.MouseDown[0] || io.MouseDown[1] || io.MouseDown[2];
+    bool wantFocus = io.WantTextInput || bExplicitKeyboardFocus || (bCaptureKeyboardOnMouseFocus && bHasMouseFocus);
     if (wantFocus && !hasKeyboardFocus) {
         XPLMTakeKeyboardFocus(mWindowID);
-#ifdef IMGUI_V190_REFACTOR
-        bLastKeyboardFocused = 1;
-        io.AddFocusEvent(true);
-#endif
     }
-    else if (!wantFocus && hasKeyboardFocus && !anyMouseDown) {
-        bReleasingKeyboardFocus = true;
+    else if (!wantFocus && hasKeyboardFocus) {
         XPLMTakeKeyboardFocus(nullptr);
-        bReleasingKeyboardFocus = false;
-#ifdef IMGUI_V190_REFACTOR
-        bLastKeyboardFocused = 0;
-#endif
         // reset keysdown otherwise we'll think any keys used to defocus the keyboard are still down!
 #ifndef IMGUI_V190_REFACTOR
         for (auto &key : io.KeysDown) {
@@ -2021,26 +2010,12 @@ ImgWindow::HandleKeyFuncCB(
     // Loosing focus? That's not exactly something ImGui allows us to do...
     // we try convincing ImGui to let it go by sending an [Esc] key for the legacy version, or by sending a focus-lost event for the modern version.
     if (blosingFocus) {
-        thisWindow->bExplicitKeyboardFocus = false;
-        if (thisWindow->bReleasingKeyboardFocus) {
-            // Self-initiated voluntary release of keyboard focus back to X-Plane (e.g. popup closed
-            // or InputText deactivated while mouse is still inside thisWindow): only clear keyboard
-            // state so mouse hover, active drags/clicks, and software cursors remain uninterrupted!
-#ifdef IMGUI_V190_REFACTOR
-            io.ClearInputKeys();
-#else
-            for (auto &key : io.KeysDown) {
-                key = false;
-            }
-#endif
-            return;
-        }
         thisWindow->bHasMouseFocus = false;
+        thisWindow->bExplicitKeyboardFocus = false;
         if (thisWindow->bUseImgCursors) {
             io.MouseDrawCursor = false;
         }
 #ifdef IMGUI_V190_REFACTOR
-        thisWindow->bLastKeyboardFocused = 0;
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
         io.AddFocusEvent(false); // tell ImGui it lost focus
 #endif /* IMGUI_V190_REFACTOR */
@@ -2054,8 +2029,7 @@ ImgWindow::HandleKeyFuncCB(
     }
 
     int hasKeyboardFocus = XPLMHasKeyboardFocus(thisWindow->mWindowID);
-    const bool hasOpenPopup = (thisWindow->mImGuiContext != nullptr && thisWindow->mImGuiContext->OpenPopupStack.Size > 0);
-    if (io.WantCaptureKeyboard || hasOpenPopup || hasKeyboardFocus || thisWindow->bExplicitKeyboardFocus || (thisWindow->bCaptureKeyboardOnMouseFocus && thisWindow->bHasMouseFocus)) {
+    if (io.WantCaptureKeyboard || hasKeyboardFocus || thisWindow->bExplicitKeyboardFocus || (thisWindow->bCaptureKeyboardOnMouseFocus && thisWindow->bHasMouseFocus)) {
         // Hack for the Backspace key in VR:
         // Apparently, the virtual VR keyboard sends both the Up and the Down
         // event within the same drawing cycle, which would overwrite
@@ -2133,18 +2107,11 @@ ImgWindow::HandleKeyFuncCB(
             io.AddKeyEvent(key, isDown); // send the actual key
         }
 
-        // Escape outside an active text input or open popup releases keyboard focus back to the sim.
-        // When a popup/lightbox is open, let Dear ImGui process the Escape key event in the next frame
-        // to close the popup; updateImgui() will then automatically release keyboard focus once OpenPopupStack is empty!
-        if (inVirtualKey == XPLM_VK_ESCAPE && !io.WantTextInput && !hasOpenPopup && isDown) {
+        // Escape outside an active text input releases keyboard focus back to the sim
+        if (inVirtualKey == XPLM_VK_ESCAPE && !io.WantTextInput && isDown) {
             thisWindow->bHasMouseFocus = false;
             thisWindow->bExplicitKeyboardFocus = false;
-            thisWindow->bReleasingKeyboardFocus = true;
             XPLMTakeKeyboardFocus(nullptr);
-            thisWindow->bReleasingKeyboardFocus = false;
-#ifdef IMGUI_V190_REFACTOR
-            thisWindow->bLastKeyboardFocused = 0;
-#endif
         }
 
         // Filter out and only show any true input characters after the key events (i.e., don't send 'v' with "ctrl+v" since we added the shortcut event above instead).
