@@ -5,7 +5,7 @@ Welcome to the `contrib/` directory of **ImgWindow**.
 `ImgWindow/contrib/` is `ImgWindow`'s general **community third-party container** -- an open home for optional, community-contributed libraries, packages, and add-ons that work alongside `ImgWindow`, enhance Dear ImGui development, or both.
 
 * **`contrib.h` (Community Umbrella Header):** Pulls in all bundled packages inside `contrib/` (via `contrib/includes.h`).
-* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](ImGee/README.md)** (`v1.0.0`, [`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee)), a 100% generic, standalone Dear ImGui UI toolkit bundled here as a git submodule for `ImgWindow` users out of the box.
+* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](https://github.com/slgoldberg/ImGee)** (`v1.1.0`, [`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee)), a 100% generic, standalone Dear ImGui UI toolkit bundled here as a git submodule for `ImgWindow` users out of the box.
 * **Future Community Packages (`contrib/<PackageName>/`):** Third-party developers are welcome to submit independent packages under `contrib/` without coupling them to `ImgWindow` core or `ImGee`.
 
 ---
@@ -30,7 +30,7 @@ Look at the spectrum of common UI tasks, and how **ImGee** covers them today:
 | **Fearless Settings Tweaking** | No standard "revert to default" pattern; users hesitate to adjust complex tuning parameters. | **`ImGui::AdjustItemOnMouseWheel` & Reset Chasers**<br>Inline 1-click restore-to-default icon chaser with instant undo history. |
 | **One-Click Clipboard Copying** | Requires manual clipboard handling, lacks transient visual feedback, and twitches layout. | **`ImGui::CopyButton` & `CopyLastItemButton`**<br>Procedural vector icons (clipboard & checkmark), 1.5s feedback, anti-twitch sizing, and automatic chaser extraction from InputText. |
 | **Interactive Data Tables** | Tables require dozens of manual `TableSetupColumn` / `TableHeadersRow` lines, manual sort callbacks, and custom sizing persistence. | **`ImGui::MD` CommonMark Tables**<br>Standard GFM table syntax with tristate column sorting, divider drag resizing, right-border width grip, A/B toggle memory, and 2-tier comment persistence (`<!-- table-preset: ... -->` / `<!-- table-state: ... -->`). |
-| **Universal Vector Icons & Glyphs** | Missing glyph diamond boxes (``) when font atlases omit extended Unicode blocks (e.g. `↺`, `▲`, `▼`, `✓`, `⚙`). | **`ImGui::Icon` & Procedural Engine**<br>Zero-texture, zero-font procedural vector icon engine. Markdown `<icon ...>`, emoji shortcodes (`:gear:`), fallback link macros (`#[^](ICON_CARET_UP)`), and automatic raw Unicode glyph rescue. |
+| **Universal Vector Icons & Glyphs** | Missing glyph diamond boxes (`?`) when font atlases omit extended Unicode blocks (e.g. `↺`, `▲`, `▼`, `✓`, `⚙`). | **`ImGui::Icon` & Procedural Engine**<br>Zero-texture, zero-font procedural vector icon engine. Markdown `<icon ...>`, emoji shortcodes (`:gear:`), fallback link macros (`#[^](ICON_CARET_UP)`), and automatic raw Unicode glyph rescue. |
 | **External Docs & Web Links** | Raw text URLs or awkward styled buttons with default arrow cursors. | **`ImGui::ButtonLink`, `TextLink`, `MenuItemLink`**<br>Native OS hand cursors (`ImGuiMouseCursor_Hand`), hover underlines, and one-click browser launch via `XPLMOpenURL`. |
 
 
@@ -94,7 +94,7 @@ ImgWindow/
     ├── imgee.h                            # Convenience forwarder strictly for ImGee (-> ImGee/imgee.h)
     ├── ImgDocWindow.h                     # Optional turnkey X-Plane manual window subclassing ImgWindow
     │
-    ├── ImGee/                             # Package 1: ImGee Modern Ergonomic UI Toolkit (v1.1.0-dev)
+    ├── ImGee/                             # Package 1: ImGee Modern Ergonomic UI Toolkit (v1.1.0)
     │   ├── imgee.h                        # Canonical ImGee master header & IMGEE_* switches
     │   ├── imgee-global.h                 # Opt-in global namespace aliases
     │   ├── docs/                          # ImGee User Guide & UX Design Manifesto (MD + PDF)
@@ -107,7 +107,7 @@ ImgWindow/
 ```
 
 ### 1. ImGee Suite (`contrib/ImGee/`)
-The complete modern ergonomic UI toolkit for Dear ImGui. See &rarr; **[ImGee User Guide](ImGee/docs/ImGee_User_Guide.md)** and **[contrib/ImGee/README.md](ImGee/README.md)**.
+The complete modern ergonomic UI toolkit for Dear ImGui. See &rarr; **[ImGee User Guide](https://github.com/slgoldberg/ImGee/blob/master/docs/ImGee_User_Guide.md)** and **[ImGee README](https://github.com/slgoldberg/ImGee/blob/master/README.md)**.
 
 ### 2. Turnkey X-Plane Manual Window (`contrib/ImgDocWindow.h`)
 Want a complete in-sim Markdown User Guide window (with `1.0x` zoom/TOC/opacity/theme header chrome, proportional X-Plane window scaling, Pop-Out/VR transitions, and automatic plugin-relative image/file lookup) while keeping core `ImgWindow.h` 100% decoupled? Include `contrib/ImgDocWindow.h`:
@@ -169,6 +169,6 @@ Uncomment or pass any of these macros to selectively exclude individual ImGee su
 We welcome community contributions!
 
 1. **Contributing a New Third-Party Package (`contrib/<PackageName>/`):** If you have built a standalone library, utility, or add-on that works with `ImgWindow` or Dear ImGui, place it in its own self-contained folder under `contrib/<PackageName>/` with a primary `.h` entry point, license header, and `README.md`.
-2. **Contributing to ImGee (`contrib/ImGee/`):** To propose a new widget, theme, or extension for the **ImGee** toolkit itself, see the architecture and namespacing guidelines in **[`contrib/ImGee/README.md`](ImGee/README.md)**.
+2. **Contributing to ImGee (`contrib/ImGee/`):** To propose a new widget, theme, or extension for the **ImGee** toolkit itself, see the architecture and namespacing guidelines in **[`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee/blob/master/README.md)**.
 3. **Keep Dependencies Minimal:** Header-only or clean single-file implementations with zero build-system friction are strongly preferred.
 4. **Open a PR:** Submit a Pull Request against the repository with a clear description and sample screenshot or code snippet.

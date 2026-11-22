@@ -14,11 +14,11 @@ Here are the major additions to the framework since it was forked:
   This is a completely transparent rewrite under the hood. XPLM Window API's keyboard handling remains identical from your plugin's perspective, but it fully supports ImGui's v1.90 keyboard IO refactor. You still get full "editing shortcuts" (Ctrl+C/V, Shift+arrow selections) working perfectly across Windows, Linux, and macOS.
   
     * **Hardware Modifier Key Synchronization:**<br>
-      Eliminates the long-standing XPLM "sticky Shift / stuck Ctrl" bug. In every frame, `ImgWindow` queries physical hardware modifier states via `XPLMGetVirtualKeyVKState` and synchronizes Dear ImGui's modifier latches, preventing keys from remaining stuck down if key-up events are consumed by X-Plane or the OS during focus changes.
+      Eliminates the long-standing XPLM "sticky Shift / stuck Ctrl" bug. Every frame, `ImgWindow` queries OS hardware modifier state directly (`CGEventSourceFlagsState` on macOS, `GetKeyState` on Windows) and synchronizes Dear ImGui's modifier latches, preventing keys from remaining stuck down if key-up events are consumed by X-Plane or the OS during focus changes.
     * **Comprehensive Virtual Key Mapping:**<br>
       Provides complete mapping in `vpXPLMKeyToImGuiKey` for all X-Plane virtual keys (equals, minus, letters A-Z, punctuation, numpad, F1-F12), enabling window-level hotkeys (e.g. `Cmd+=`, `Cmd+-`, `Ctrl+Z`, `Ctrl+F`) to work reliably.
     * **Window-Level Keyboard Focus Management:**<br>
-      Adds `SetCaptureKeyboardOnMouseFocus()`, `SetExplicitKeyboardFocus()`, and auto-release on Escape. Windows can capture keyboard focus on mouse click for seamless hotkey navigation and automatically release focus back to X-Plane flight controls when blurred.
+      Adds opt-in `SetCaptureKeyboardOnMouseFocus()` (disabled by default so windows do not steal simulator hotkeys unless explicitly requested), `SetExplicitKeyboardFocus()`, and auto-release on Escape back to X-Plane.
   
     * _**Note:**_<br>
 	_The "legacy" keyboard processing logic is **still supported** in `ImgWindow` for ImGui v1.8x! The framework **automatically** detects which version of ImGui you are using (based on `imgui.h` defining it in `IMGUI_VERSION_NUM`). As long as your version of ImGui contains this definition, and sets it correctly, `ImgWindow` will still support it with no changes needed vis-à-vis the original `ImgWindow` repository!_
@@ -51,8 +51,11 @@ Automatically invalidates the cursor position when the window loses focus, ensur
 + **Background Window Hover Freeze & Blur Safety (v2.5+):**<br>
 Prevents phantom clicks and hover flickering when X-Plane is unfocused in the background (e.g. while interacting with charts, web browsers, or Discord on a secondary display). `ImgWindow` automatically detects when the simulator loses OS-level application focus and freezes mouse hover and cursor state transitions. Plugins that intentionally require active background cursor interaction can selectively opt out via `SetAllowBackgroundHover(true)`.
 
-+ **Turnkey In-Sim Documentation Windows (`ImgDocWindow.h`, v2.5+):**<br>
-Single-include drop-in window class (`contrib/ImgDocWindow.h`) combining `ImgWindow` with `ImGee::DocumentViewer` to deliver searchable, table-of-contents navigated, zoomable, thematic documentation windows with zero boilerplate.
++ **Multi-Monitor Default Placement & OpenGL Modal Compatibility (v2.5+):**<br>
+`WindowGeometry::Centered`, `Sanitize`, and `ClampGeometryToScreen` now target individual monitors (defaulting to X-Plane's Main Monitor containing `(0, 0)` instead of straddling two displays, with top menu-bar clearance reserved only on the Main Monitor), alongside `GetMainMonitorBoundsGlobal()`, `FromMainMonitorTopLeft()`, and opt-in `SetSpanMonitorsForCentering(true)`. Also updates the OpenGL fallback renderer to honor `pcmd->IdxOffset` so Dear ImGui 1.92 reordered modal dim overlays render cleanly on X-Plane 11 and pre-12.4.4 X-Plane 12.
+
++ **Turnkey In-Simulator Documentation Windows (`ImgDocWindow.h`, v2.5+):**<br>
+Single-include drop-in window class (`contrib/ImgDocWindow.h`) combining `ImgWindow` with `ImGee::DocumentViewer` to deliver searchable, table-of-contents navigated, zoomable, thematic documentation windows with zero boilerplate -- supporting in-sim floating, native OS pop-out windows, and VR mode out of the box.
 
 + **Optional Per-Window Custom ImGui Cursors:**<br>
 Opt-in support for dynamic ImGui mouse cursors. If enabled, the plugin can change the mouse cursor based on what ImGui is hovering over (e.g., an I-beam over text inputs, or a pointing finger over buttons). These were always part of the ImGui API, but ImgWindow used to ignore them. Now, it ensures the cursor is properly handed off between X-Plane and ImGui.
@@ -61,7 +64,7 @@ Opt-in support for dynamic ImGui mouse cursors. If enabled, the plugin can chang
 
 ---
 
-This repository is maintained by **Steven L. Goldberg (`slgoldberg`)**, and was forked from Chris Collins' original `xsb_public` repository. Going forward, this fork **only** contains the source files needed for `ImgWindow` and `ImgFontAtlas`. If you need the other legacy utility code from the original project -- specifically `WavFile` or `XOGLUtils` -- please see the original repository instead. Going forward, please submit any Pull Requests or other feedback, directly on **this** repository, which can be found at &lt;https&#8203;://github.com/slgoldberg/ImgWindow&gt;. **Read below** for detailed usage information, as well as an important migration guide for the new **Panel Graphics** support if you are planning to enable it for your plugin.
+This repository is maintained by **Steven L. Goldberg (`slgoldberg`)**, and was forked from Chris Collins' original `xsb_public` repository. Going forward, this fork focuses strictly on `ImgWindow`, `ImgFontAtlas`, the `ImgPanelGraphics` bridge, and optional community extensions under `contrib/`. If you need the other legacy utility code from the original project -- specifically `WavFile` or `XOGLUtils` -- please see the original repository instead. Please submit any Pull Requests or other feedback directly on **this** repository at [https://github.com/slgoldberg/ImgWindow](https://github.com/slgoldberg/ImgWindow). **Read below** for detailed usage information, as well as an important migration guide for the **Panel Graphics** support if you are planning to enable it for your plugin.
 
 ## Licensing Note
 
@@ -87,25 +90,17 @@ installed (compatible with Dear ImGui v1.78 WIP through v1.92+, with native supp
 * **Dynamic X-Plane 12.4.4+ Panel Graphics support** - Enable your build to render ImGui via **Panel Graphics** _or_ **OpenGL fallback**, depending on which version of X-Plane it is loaded on! (I.e., build a single backward-compatible binary for each target platform.)
   - _Note: this includes an option to build with the entire v4.4 SDK, **only** supporting Panel Graphics on X-Plane v12.4.4 and later (**without** backwards compatibility support for OpenGL rendering)._
 * `ImgPanelGraphics::` - Dynamic runtime symbol proxy namespace for zero-dependency backward compatibility (!!). Details within.
-* **Modern Window Geometry & Ergonomic Constructors (v2.2+)** - Eliminates inverted $Y$ boxel math and prevents off-screen window bugs via `WindowGeometry` and C++11 delegating constructors:
-  - **Auto-Centered**: `ImgWindow(width, height)` auto-centers on the primary display with zero coordinate boilerplate.
-  - **Top-Left Origin**: `WindowGeometry::FromTopLeft(x, y, w, h)` provides natural 2D desktop origin coordinates.
-  - **Safe Out-of-Bounds Recovery**: `WindowGeometry::Sanitize(...)` audits saved window coordinates on startup, recovering windows from disconnected monitors or resolution shifts while preserving "poor-man's docking" margins.
+* **Modern Window Geometry & Ergonomic Constructors (v2.2+ / v2.5+)** -- Eliminates inverted Y boxel math and prevents off-screen window bugs via `WindowGeometry` and C++11 delegating constructors:
+  - **Auto-Centered on Main Monitor**: `ImgWindow(width, height)` and `WindowGeometry::Centered(w, h)` auto-center cleanly on X-Plane's primary display (with optional `SetSpanMonitorsForCentering(true)` for virtual-desktop centering).
+  - **Top-Left Origin**: `WindowGeometry::FromTopLeft(x, y, w, h)` and `WindowGeometry::FromMainMonitorTopLeft(dx, dy, w, h)` provide natural 2D top-left coordinates.
+  - **Safe Out-of-Bounds Recovery**: `WindowGeometry::Sanitize(...)` and `ClampGeometryToScreen(...)` keep saved window coordinates visible per-monitor across disconnected displays or resolution shifts.
   - **VR-Ready**: Automatically initializes VR window geometry and aspect ratio via `XPLMSetWindowGeometryVR`.
-  - **Proportional Window & Font Scaling**: `ScaleWindowGeometry(from_scale, to_scale)`, `ResizeToScale(target_scale)`, and `ConvertSizeForScale(...)` resize the X-Plane window proportionally to font zoom changes with top-left anchoring, maintaining cockpit bounds and VR/OS window contracts. Supports `SetUnscaledChrome(fixed_w, fixed_h)` so composite windows with fixed headers, footers, or sidebars scale their content canvas without distorting invariant UI chrome.
-  - **Dynamic Decoration-Aware Top Menu Bar Clearance**: Automatically adjusts top screen clamping (`GetTopMargin()`) based on window decoration style (`RoundRectangle` vs. `SelfDecorated`), ensuring title bars and drag handles never get trapped under the X-Plane top menu bar trigger zone.
-* **ImGee UI Toolkit (`contrib/ImGee`, v1.0.0)** & **Community Container (`contrib/`)** - `ImgWindow/contrib/` is an open container for community third-party add-ons, anchored by **ImGee** -- a standalone-ready, single-header Dear ImGui UI toolkit that transforms debug-style windows into polished desktop and cockpit panels (see [ImGee User Guide](docs/ImGee_User_Guide.md), [ImGee UX Design Manifesto](docs/ImGee_UX_Design_Manifesto.md), and [`contrib/ImGee/README.md`](contrib/ImGee/README.md)):
-  - **`TimedTooltip`**: Polite, hover-delayed stationary tooltips that lock in place, clamp to viewport boundaries, scale cleanly with window zoom, and auto-dismiss after reading.
-  - **`Markdown` (`ImGui::Markdown` & `ImGui::MD`)**: Rich CommonMark parsing and rendering with dynamic font scaling, token lookahead, hanging bullet indents, thematic breaks, responsive fenced code blocks, custom styling tags, **continuous vertical baseline alignment in `<pill>`/`<badge>`/`<kbd>`**, **centering primitives (`<center>` and `-> text <-`)**, **interactive tristate column sorting**, **column divider & total width resizing**, **multi-cycle A/B toggle memory**, **two-tier metadata comment persistence (`<!-- table-preset: ... -->` / `<!-- table-state: ... -->`)** with turnkey serialization (`ApplyTableStateToMarkdown`), and **3-tier image services** (named memory textures, local disk images, zero-stall **Tier 3 asynchronous remote web image loading** with background decoding, auto-constraints to viewport width, Pandoc/HTML sizing syntax, border treatments, and VRAM texture cache deduplication).
-  - **Named Texture & In-Memory Image Service**: Register raw RGBA pixel buffers or decode PNG/JPG byte arrays directly into GPU textures with zero disk/network I/O (`ImgWindow::RegisterNamedTexture`, `ImgWindow::RegisterMemoryImage`, `UnregisterNamedTexture`, `GetNamedTexture`, `ImGui::ImageNamed`). Automatically aliased into Markdown (`![Alt](name)`), `StyledText` (`<img name="name" width=... />`), and native icon capsules.
-  - **Typography Registry & Inline `StyledText` Engine**: Semantic 9-slot hierarchy (`ImFontRole::Regular`, `Title`, `Small`, `Bold`, `BoldLarge`, `Monospace`, `Italic`, `MonospaceMedium`, `BoldItalic`) with 4-tier fallback and commutative scoped stack (`ScopedFontRole`). Rich inline text flows (`<b>`, `<i>`, `<mono>`, `<color>`, `<pill>`, `<badge>`, `<kbd>`, `<img name=...>`) with continuous baseline alignment.
-  - **Badges, Pills & Unary Annunciators**: Native icon capsules (`<pill icon=... color=...>`, `<badge icon=...>`), standalone unary annunciators (`<pill icon=... />`), and direct C++ APIs (`ImGui::PillNamed`, `ImGui::BadgeNamed`).
-  - **Procedural Vector Icon Engine & Icon Buttons (`imgui_icons.h`)**: Zero-texture, zero-font procedural vector icon engine rendering antialiased geometry directly to `ImDrawList` (`undo`, `redo`, `caret-up`, `caret-down`, `check`, `gear`, `plane`, etc.). Fully eliminates missing-glyph diamond boxes (`?`). Integrates into `ButtonMD` (rendering vector icons directly on button faces with hand cursor and rich Markdown tooltips), dedicated `IconButton` / `ButtonIcon` immediate-mode push-buttons, Markdown `<icon ...>`, emoji shortcodes (`:gear:`), link macros (`#[^](ICON_CARET_UP)`), and automatic raw Unicode glyph rescue (`▲`, `▼`, `↺`, `✓`, `⚙`).
-  - **Directional Popups, Item Anchoring & SelectPulldown**: Font-scale invariant item-relative popups (`OpenPopupAtItem`, `BeginAnchoredPopup`) with sub-pixel alignment, muscle-memory toggle protection, headroom reporting (`GetLastPopupHeight`), and 1-line dataref selectors (`SelectPulldown`) with closed scroll pass-through and open wheel cycling.
-  - **`CopyButton` Suite**: Standalone and chaser copy buttons (`CopyButton`, `CopyLastItemButton`, `CopyBufferButton`, `CopyTextFieldButton`) with procedural vector icons, anti-twitch fixed width layouts, and automatic chaser extraction from preceding `InputText` fields.
-  - **Widgets & Themes**: Animated toggle switches (`ToggleButton`), mouse-wheel sliders/combos (`MouseWheelSlider`, `ComboWithReset`), 1-click resets with undo history (`↺`/`↻`), clickable web/doc links (`ButtonLink`, `TextLink`), status badges/pills (`Badge`, `Pill`, `<kbd>`), rotary avionics knobs (`Knob`, `DimmerKnob`), non-blocking file pickers (`FilePickerCombo`, `OpenFileDialog`, `SaveFileDialog`), activity spinners (`Spinner`, `CountdownTimer`), and curated themes (`StyleColorsCharcoal`, `StyleColorsRusty`).
-  - **Mouse-Wheel Scroll-Defeat**: Automatic protection on scrollable viewports preventing inadvertent slider, toggle, or combobox adjustment when scrolling through content.
-  - **Turnkey Inclusion**: `#include "contrib/imgee.h"` activates strictly the ImGee toolkit in one line (or `#include "contrib.h"` for `ImgWindow`'s full community umbrella header), with 3-tier namespacing (sub-namespaces, root `ImGui::` shorthands, or opt-in global namespaces).
+  - **Proportional Window & Font Scaling**: `ScaleWindowGeometry(from_scale, to_scale)`, `ResizeToScale(target_scale)`, and `ConvertSizeForScale(...)` resize the X-Plane window proportionally to font zoom changes with top-left anchoring, supporting `SetUnscaledChrome(fixed_w, fixed_h)` so fixed headers, footers, or sidebars stay crisp at `1.0x`.
+  - **Dynamic Decoration-Aware Top Menu Bar Clearance**: Automatically reserves top screen clearance on the Main Monitor based on window decoration style (`RoundRectangle` vs. `SelfDecorated`), keeping title bars and drag handles out from under X-Plane's top menu bar trigger zone.
+* **Named Texture & In-Memory Image Service (Core `ImgWindow.h`, v2.4+)** -- Register raw RGBA pixel buffers (`ImgWindow::RegisterNamedTexture`) or compressed PNG/JPG byte arrays (`ImgWindow::RegisterMemoryImage`) into GPU textures with zero disk I/O, and draw them anywhere via `ImGui::ImageNamed(...)`.
+* **Optional Community Container (`contrib/`) & Bundled ImGee UI Toolkit (`contrib/ImGee`, v1.1.0)** -- `ImgWindow/contrib/` is an open, 100% opt-in container for community add-ons (core `ImgWindow.h` never includes anything from `contrib/`):
+  - **`contrib/ImgDocWindow.h`**: Turnkey drop-in in-simulator Markdown manual window combining `ImgWindow` with `ImGee::DocumentViewer` (zoom, TOC, themes, pop-out, and VR support).
+  - **`contrib/ImGee/` ([`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee), v1.1.0)**: Pinned Git submodule for the standalone Dear ImGui UI toolkit -- providing stationary hover-delayed tooltips (`TimedTooltip`), rich CommonMark/GFM tables & image lightboxes (`ImGui::MD`), semantic font roles (`ImFontRole`) & inline `StyledText`, procedural vector icons (`ImGui::Icon`), mouse-wheel sliders/combos/knobs with 1-click reset & undo, animated toggles, directional `SelectPulldown` menus, non-blocking file pickers, and curated themes. Activate in one line with `#include "contrib/imgee.h"` (or `#include "contrib.h"`). See [contrib/README.md](contrib/README.md), the [ImGee User Guide](https://github.com/slgoldberg/ImGee/blob/master/docs/ImGee_User_Guide.md), and the [ImGee UX Design Manifesto](https://github.com/slgoldberg/ImGee/blob/master/docs/ImGee_UX_Design_Manifesto.md).
 
 ## No longer supported (see original repository):
 
@@ -165,7 +160,7 @@ The transition to native **Panel Graphics** brings substantially **improved rend
 * **Internal Lifecycle & Atlas Safeguards:** The framework automatically manages the shared font atlas across multi-window environments and guards against Vulkan null-descriptor pipeline crashes.
 
 ### 🛠️ Developing with `ImgWindow` (X-Plane 12.4.4+)
-Because Laminar Research relaxed earlier Panel Graphics phase restrictions in X-Plane 12.4.4, developing for modern Vulkan/Metal now feels exactly like legacy OpenGL! You can safely create and destroy textures or manage windows directly inside your draw callbacks without manually managing deferred flight-loops.
+Because Laminar Research relaxed earlier Panel Graphics phase restrictions in X-Plane 12.4.4, texture management under modern Vulkan/Metal now works just like legacy OpenGL: you can safely create and destroy textures directly on the main thread (including inside draw callbacks) without building custom deferred flight-loop texture queues. *(Note: constructing or destroying `ImgWindow` instances or switching Pop-Out/VR positioning modes should still be deferred outside active draw callbacks -- use `SafeDelete()` for destruction and a 1-shot flight-loop callback for window creation or mode transitions.)*
 
 Just keep these two simple rules in mind:
 
@@ -178,7 +173,7 @@ Just keep these two simple rules in mind:
 
 ## Using this repository (as a "submodule" in your own project)
 
-This repository *only* contains the `ImgWindow` and the `ImgFontAtlas` classes (headers and C++ implementations) and some ancillary files including some fonts you can include in your sources and add to your ImGui environment with ImgFontAtlas.
+This repository contains the core `ImgWindow`, `ImgFontAtlas`, and `ImgPanelGraphics` sources (headers and C++ implementations), sample font/initialization helpers in `sample-code/`, and optional community extensions under `contrib/` (such as `contrib/ImgDocWindow.h` and the pinned `contrib/ImGee` submodule, which core-only plugins do not need to populate).
 
 This can be included as a "submodule" (see below) within your X-Plane plugin sources, along with a submodule for the latest [dear imgui](https://github.com/ocornut/imgui) sources.
 
@@ -226,7 +221,7 @@ To update the submodule any time (including nested packages such as `contrib/ImG
 
 > [!IMPORTANT]
 > **Upgrading from ImgWindow v2.4.x or earlier (ImGee Users):**
-> Starting with ImGee v1.0.0, `contrib/ImGee` is bundled as a nested git submodule inside `ImgWindow`.
+> Starting with `ImgWindow v2.5.0` (`ImGee v1.1.0`), `contrib/ImGee` is bundled as a nested git submodule inside `ImgWindow`.
 > * If your plugin **only uses core `ImgWindow.h`** (and never includes `contrib.h` or `contrib/imgee.h`), you do not need `contrib/ImGee` populated at all.
 > * If your plugin **uses ImGee (`contrib/imgee.h` or `contrib.h`)**, run `git submodule update --init --recursive` once after pulling so Git populates `contrib/ImGee/`.
 

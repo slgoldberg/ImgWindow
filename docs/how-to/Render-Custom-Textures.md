@@ -244,7 +244,7 @@ void deleteImage() {
 
 ## ⚡ Step 5: Turnkey In-Memory Image Service (`ImgWindow::RegisterNamedTexture` & `RegisterMemoryImage`)
 
-If your plugin bundles embedded images (e.g. static `.h` or `.png` byte arrays compiled directly into your binary) or downloads images from memory streams, `ImgWindow v2.4.0+` provides a turnkey **In-Memory Image Service** (codenamed `xyzzy`).
+If your plugin bundles embedded images (e.g. static `.h` or `.png` byte arrays compiled directly into your binary) or downloads images from memory streams, `ImgWindow v2.4+` provides a turnkey **In-Memory Image Service**.
 
 It handles the entire lifecycle -- uploading raw RGBA8 pixels or decoding PNG/JPG buffers via `stb_image`, uploading to the active GPU driver (Panel Graphics or OpenGL), caching dimensions, and registering global texture aliases -- with **zero disk I/O and a single line of C++**:
 
@@ -274,8 +274,8 @@ void InitializePluginAssets() {
 }
 ```
 
-### 1. Automatic Unified Markdown & StyledText Aliasing
-Registering a named texture automatically aliases it for all Markdown and `StyledText` consumers when opting into ImGee (`#include "contrib/imgee.h"` or `"contrib.h"`):
+### 1. Automatic Unified Markdown & StyledText Aliasing (Optional `ImGee` Submodule)
+If you opt into the nested `contrib/ImGee` submodule (`git submodule update --init --recursive` + `#include "contrib/imgee.h"`), registering a named texture automatically aliases it for all `ImGee` Markdown and `StyledText` consumers:
 * **Standard Markdown**:
   ```markdown
   ![Beacon Icon](avionics_beacon)
@@ -286,8 +286,8 @@ Registering a named texture automatically aliases it for all Markdown and `Style
   ImGui::StyledText("Transponder: <img name='avionics_beacon' width=24 height=24 /> ACTIVE");
   ```
 
-### 2. Native Icon Badges, Pills & Unary Annunciators
-Named textures automatically bridge directly into `ImGui::Badge` and `ImGui::Pill`:
+### 2. Native Icon Badges, Pills & Annunciators (Optional `ImGee` Submodule)
+When opting into `ImGee`, named textures also bridge directly into `ImGui::Badge` and `ImGui::Pill`:
 * **Embedded Icon Capsules**:
   ```markdown
   * Transponder: <pill icon=avionics_beacon color=#2ecc71>ACTIVE</pill>
@@ -324,4 +324,4 @@ ImgWindow::UnregisterNamedTexture("avionics_beacon");
 * 🚀 **Migrating an existing plugin framework?**
   Review **[TripTik 2: Support Panel Graphics (`Support-Panel-Graphics.md`)](Support-Panel-Graphics.md)** for build configuration and shutdown rules.
 * 🎨 **Ready to enhance your UI controls?**
-  Check out the **[ImGee UX Suite](../../contrib/ImGee/README.md)** for toggle buttons, mouse-wheel dials, 1-click resets with undo, and rich Markdown tooltips.
+  Check out the optional **[ImGee UI Toolkit](https://github.com/slgoldberg/ImGee)** (mounted as an opt-in nested submodule at `contrib/ImGee/` -- initialize with `git submodule update --init --recursive` and include `"contrib/imgee.h"` for toggle buttons, mouse-wheel dials, 1-click resets with undo, and rich Markdown tooltips).

@@ -228,9 +228,9 @@ Widgets often need to live in specific corners of the screen. You can combine sh
 
 ```cpp
 void SmartWidget::snapToTopRight() {
-    // Get the size of the user's primary monitor
+    // Get the bounds of X-Plane's Main Monitor (v2.5+; safe on multi-monitor setups):
     int screenLeft, screenTop, screenRight, screenBottom;
-    XPLMGetScreenBoundsGlobal(&screenLeft, &screenTop, &screenRight, &screenBottom);
+    ImgWindow::GetMainMonitorBoundsGlobal(&screenLeft, &screenTop, &screenRight, &screenBottom);
 
     // Get our current window dimensions
     int winLeft, winTop, winRight, winBottom;

@@ -1,1 +1,0 @@
-../contrib/ImGee/docs/ImGee_UX_Design_Manifesto.md

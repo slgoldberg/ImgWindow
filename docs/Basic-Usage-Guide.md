@@ -134,7 +134,7 @@ ImgWindow(
 **Base Constructor Options:**
 * **`left, top, right, bottom`**: The initial bounds of the window in global X-Plane screen coordinates. 
 * **`width, height`**: Initial window dimensions; the window is centered automatically on the primary monitor.
-* **`geometry`**: A `WindowGeometry` parameter object (supports `WindowGeometry::Centered(w, h)`, `WindowGeometry::FromTopLeft(x, y, w, h)`, and safe out-of-bounds recovery via `WindowGeometry::Sanitize(...)`).
+* **`geometry`**: A `WindowGeometry` parameter object (supports `WindowGeometry::Centered(w, h)`, `WindowGeometry::FromTopLeft(x, y, w, h)`, `WindowGeometry::FromMainMonitorTopLeft(dx, dy, w, h)`, and safe per-monitor out-of-bounds recovery via `WindowGeometry::Sanitize(...)`).
 * **`decoration`**: Dictates how X-Plane borders the window. The default (`xplm_WindowDecorationRoundRectangle`) provides the standard translucent X-Plane 11/12 bezel. If you want ImGui to render its own square borders and title bars without the X-Plane bezel, you can pass `xplm_WindowDecorationSelfDecorated` (or `xplm_WindowDecorationSelfDecoratedResizable`).
 * **`layer`**: Dictates the Z-order of the window. The default (`xplm_WindowLayerFloatingWindows`) keeps the window above the cockpit but below system alerts.
 * **`cursors`**: If set to true, allows ImGui to render its own *software* cursors (e.g., a hand icon over links, or an I-beam over text inputs) inside the window's content area. This provides cursor variety that X-Plane historically lacks. The framework automatically negotiates the hand-off so X-Plane retains hardware cursor control over the outer window edges for standard resizing interactions. Because ImGui's cursors are drawn during the UI frame cycle, they may feel slightly less snappy than the native X-Plane hardware cursor. By default (`false`), X-Plane strictly manages the standard hardware arrow cursor everywhere.
@@ -226,11 +226,11 @@ Instead, always call **`SafeDelete()`**, which is an `ImgWindow` helper method. 
 
 ---
 
-## 4. Modern UI, Image Services & Optional ImGee Enhancements (`v2.3.0+` / `v2.4.0`)
+## 4. Modern UI, Image Services & Optional ImGee Enhancements (`v2.3+`)
 
-Core `ImgWindow` (`ImgWindow.h`) provides a built-in named texture and memory-image registry, and seamlessly pairs with **[ImGee](ImGee_User_Guide.md)** (`#include "contrib/imgee.h"`, or `"contrib.h"` for `ImgWindow`'s full community umbrella header) when you want semantic typography, first-class menus, and zero-font vector icons:
+Core `ImgWindow` (`ImgWindow.h`) provides a built-in named texture and memory-image registry with zero UI-toolkit dependencies. If you choose to opt into the standalone **[ImGee UI Toolkit](https://github.com/slgoldberg/ImGee/blob/master/docs/ImGee_User_Guide.md)** (mounted as an optional nested Git submodule at `contrib/ImGee/` -- initialize with `git submodule update --init --recursive` and `#include "contrib/imgee.h"`), it seamlessly adds semantic typography, first-class menus, and zero-font vector icons:
 
-### 4.1 In-Memory Image Service (`ImgWindow::RegisterNamedTexture` & `RegisterMemoryImage` — Core `ImgWindow.h`)
+### 4.1 In-Memory Image Service (`ImgWindow::RegisterNamedTexture` & `RegisterMemoryImage` -- Core `ImgWindow.h`)
 Register raw RGBA pixel buffers or load static `.png`/`.jpg` byte arrays compiled into your plugin directly into GPU textures with zero disk I/O:
 ```cpp
 // Option A: Raw RGBA pixel buffer (built directly into core ImgWindow.h):
@@ -249,7 +249,7 @@ ImGui::TextMD("![Badge](my_badge)");
 ImGui::StyledText("Transponder: <img name='my_badge' width=24 height=24 /> ACTIVE");
 ```
 
-### 4.2 Semantic Font Roles (`ImGui::ImFontRole` — ImGee `contrib/imgee.h`)
+### 4.2 Semantic Font Roles (`ImGui::ImFontRole` -- ImGee `contrib/imgee.h`)
 Instead of hardcoding raw pointer manipulations or guessing font indices, ImGee's Typography extension provides a semantic font registry:
 * **Roles:** `ImGui::ImFontRole::Regular`, `Title`, `Small`, `Bold`, `BoldLarge`, `Monospace`, `Italic`, `MonospaceMedium`, and `BoldItalic` (plus `Heading1`..`Heading3` and `Tiny`).
 * **4-Tier Fallback Hierarchy:** If an explicit font role is not configured, it gracefully falls back (e.g. `Title` → `BoldLarge` → `Bold` → `Regular` → `DefaultFont`), guaranteeing that UI text never crashes.

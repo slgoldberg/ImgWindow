@@ -44,7 +44,7 @@ This TripTik is for developers who **already have a working X-Plane plugin** usi
 
 `ImgWindow v2` maintains strict backward compatibility with your existing window classes. You do not need to rewrite your UI layouts, widget loops, or window event logic.
 
-1. Download or copy the latest `ImgWindow.h` and `ImgWindow.cpp` from the [`ImgWindow` repository](https://github.com/slgoldberg/ImgWindow) into your plugin's source tree, replacing your existing files.
+1. Update your `ImgWindow` submodule (or copy `ImgWindow.h` and `ImgWindow.cpp` from the [`ImgWindow` repository](https://github.com/slgoldberg/ImgWindow)) into your plugin's source tree. *(If you only use core `ImgWindow.h`, you do **not** need to initialize the optional nested `contrib/ImGee` submodule.)*
 2. If your plugin uses custom TrueType/OpenType fonts, also update `ImgFontAtlas.h` and `ImgFontAtlas.cpp`.
 
 ### Early Adopters Note (Upgrading from v1.3.0)
@@ -127,7 +127,7 @@ PLUGIN_API void XPluginStop(void) {
 Build your plugin and launch X-Plane. When your first window is displayed on X-Plane 12.4.4+, `ImgWindow` logs its dynamic routing decision to X-Plane's `Log.txt`:
 
 ```text
-ImgWindow v2.4.0: [YourPlugin] using Panel Graphics for ImGui rendering.
+ImgWindow v2.5.0: [YourPlugin] using Panel Graphics for ImGui rendering.
 ```
 
 *(On X-Plane 11 or earlier X-Plane 12 versions, `ImgWindow` falls back to its legacy OpenGL pipeline and logs the reason.)*
@@ -141,4 +141,4 @@ If you see this log entry, your plugin is officially running on the modern Panel
 * 🖼️ **Does your plugin draw `.png` / `.jpg` images with `ImGui::Image()`?**
   Continue to **[TripTik 3: Render Custom Textures (`Render-Custom-Textures.md`)](Render-Custom-Textures.md)** to eliminate raw `glTexImage2D` calls and migrate to `ImgWindow::CreateTexture()`.
 * 🎨 **Want to elevate your UI beyond default game-dev debug menus?**
-  Explore the **[ImGee UX Suite](../../contrib/ImGee/README.md)** for animated physical switches, mouse-wheel stepped dials and sliders, 1-click resets with undo, stationary tooltips, and Markdown rendering.
+  Explore the optional **[ImGee UI Toolkit](https://github.com/slgoldberg/ImGee)** (mounted as an opt-in nested submodule at `contrib/ImGee/` -- initialize with `git submodule update --init --recursive` and include `"contrib/imgee.h"` if you want animated physical switches, mouse-wheel stepped dials and sliders, 1-click resets with undo, stationary tooltips, and Markdown rendering).

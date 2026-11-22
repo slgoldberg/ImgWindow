@@ -62,14 +62,15 @@ void MySettingsWindow::buildInterface() {
         XPLMSetDataf(mFovDataRef, mFov); // Only runs on the exact frame the user moves the slider
     }
 
-    // 2. Flight-deck-ready tooltip (polite, hover-delayed, auto-dismissing):
-    ImGui::TimedTooltip::Text("Adjusts lateral peripheral vision (Default: 60.0°).");
+    // 2. Tooltip directly below the widget (vanilla Dear ImGui, or ImGui::TimedTooltip::Text
+    //    if you opt into the optional ImGee submodule via #include "contrib/imgee.h"):
+    ImGui::SetItemTooltip("Adjusts lateral peripheral vision (Default: 60.0 deg).");
 }
 ```
 
 > [!NOTE]
 > **Look ma, no event-callback spaghetti!**
-> Notice how `ImGui::TimedTooltip::Text(...)` sits directly beneath the widget it annotates -- with zero timers, coordinates, or mouse-tracking state. In `XPWidgets`, building a slider with an interactive tooltip required registering multiple widget trees, manual layout math, and an event pump. In Dear ImGui, your UI code matches your visual layout line-for-line.
+> Notice how the tooltip sits directly beneath the widget it annotates -- with zero manual coordinate tracking or event-pump plumbing. In `XPWidgets`, building a slider with an interactive tooltip required registering multiple widget trees, manual layout math, and an event loop. In Dear ImGui, your UI code matches your visual layout line-for-line.
 
 ---
 
@@ -126,7 +127,7 @@ Depending on what your command does, you handle these phases differently:
   * `return 0;` tells X-Plane: *"I have consumed this command. Halt processing and do not pass it to X-Plane or other plugins."*
   * `return 1;` tells X-Plane: *"Pass this command along to other plugins and the simulator."*
   * For custom commands created by your plugin, **you own the command** -- always consume it by returning `0;`.
-* **The Phase Consistency Rule (Stanza $X$):**
+* **The Phase Consistency Rule:**
   * Whatever value you return on `xplm_CommandBegin`, you **must** return on `xplm_CommandContinue` and `xplm_CommandEnd`!
   * If a handler returns `0` on `Begin` (consuming the press) but returns `1` on `End`, downstream handlers receive an orphaned `End` without ever seeing the `Begin`. This desynchronizes X-Plane's internal dispatch table, causing phantom button repeats, stuck keys, and broken state machines across the simulator.
 * **The Unified Multiplexer Pattern:**
@@ -145,7 +146,7 @@ For years, the original `ImgWindow` (created by Christopher Collins / `@kuroneko
 | **1. Community Roll-Up** | Incorporates years of community fixes and enhancements across known `ImgWindow` forks (VR window attach/detach handling, boxel/HiDPI scaling, window positioning/gravity helpers, safe popup closure, and universal Dear ImGui v1.78 WIP through v1.92+ compatibility). |
 | **2. Native Panel Graphics + Backward Compatibility** | Automatically renders via X-Plane 12.4.4+'s native **Panel Graphics (`XPLMPanelGraphics`)** pipeline across **all** Dear ImGui versions (v1.78 WIP through v1.92+) when available, while falling back to OpenGL at runtime on X-Plane 11.10 -- 12.4.3 -- **from a single compiled `.xpl` binary**. |
 | **3. Zero-OpenGL Texture Management** | Built-in `ImgWindow::CreateTexture()` and `ImgWindow::DeleteTexture()` APIs let you render `.png`/`.jpg` images via `ImGui::Image()` without writing a single line of OpenGL code. |
-| **4. Optional ImGee UX Suite (`contrib/ImGee`)** | A header-only collection (`#include "contrib.h"` or `#include "contrib/imgee.h"`) of X-Plane-ready avionics ImGui widgets and extensions: mouse-wheel sliders/combos with 1-click Reset/Undo, Markdown rendering (`ImGui::MD`), clickable links, stationary sticky-note `TimedTooltip`s, procedural vector icons, and toggle buttons. |
+| **4. Optional ImGee UI Toolkit (`contrib/ImGee` Submodule)** | Core `ImgWindow.h` has zero UI-toolkit dependencies. If you choose to opt in (`git submodule update --init --recursive` + `#include "contrib/imgee.h"`), the standalone [`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee) submodule adds header-only mouse-wheel sliders/combos with 1-click Reset/Undo, Markdown rendering (`ImGui::MD`), clickable links, stationary hover-delayed `TimedTooltip`s, procedural vector icons, and toggle buttons. |
 
 ---
 
@@ -169,8 +170,8 @@ flowchart TD
 
     subgraph Phase3["3. ImgWindow v2 Dynamic Switchyard"]
         Router{"Is XPLMPanelGraphics\npresent at runtime?\n(X-Plane 12.4.4+)"}
-        PG["Lane A: Native Panel Graphics\n(renderInterfacePanelGraphics)\nDirect zero-overhead handoff to X-Plane's\nVulkan / Metal 2D renderer"]
-        GL["Lane B: OpenGL Bridge\n(renderInterfaceGL)\nUploads VBOs/Triangles to X-Plane's\nOpenGL-to-Vulkan/Metal bridge"]
+        PG["Lane A: Native Panel Graphics\n(RenderImGui Panel Graphics path)\nDirect zero-overhead handoff to X-Plane's\nVulkan / Metal 2D renderer"]
+        GL["Lane B: OpenGL Bridge\n(RenderImGui OpenGL fallback)\nUploads vertices & triangles to X-Plane's\nOpenGL-to-Vulkan/Metal bridge"]
     end
 
     subgraph Phase4["4. X-Plane Compositor (GPU)"]
@@ -192,7 +193,7 @@ flowchart TD
 3. **Two High-Efficiency Receptacles for the Same Firehose:**
    Ever since X-Plane 11.50 and X-Plane 12, X-Plane's core rendering engine has run on **Vulkan** (Windows/Linux) and **Metal** (macOS). How does that engine ingest `ImgWindow`'s `ImDrawList` firehose?
    * **Receptacle 1 -- X-Plane's OpenGL Bridge (XP 11.10 through XP 12.x):**
-     Laminar Research invested heavily in open-source and custom OpenGL translation layers so that plugins emitting standard OpenGL draw calls (`glDrawElementsBaseVertex`) are ingested into X-Plane's Vulkan/Metal pipeline during render time. It works well, but it still requires setting up and tearing down an OpenGL state machine every frame.
+     Laminar Research invested heavily in open-source and custom OpenGL translation layers so that plugins emitting standard OpenGL draw calls (`glDrawElements`) are ingested into X-Plane's Vulkan/Metal pipeline during render time. It works well, but it still requires setting up and tearing down an OpenGL state machine every frame.
    * **Receptacle 2 -- Native Panel Graphics (`XPLMPanelGraphics`, XP 12.4.4+):**
      Laminar recognized that almost every modern C++ plugin UI is powered by Dear ImGui's `ImDrawList` firehose. So in X-Plane 12.4.4 (SDK 4.4.0 / `XPLM440`), they introduced **Panel Graphics** -- a rendering API shaped *specifically* as a direct, native receptacle for Dear ImGui vertex and index buffers! It bypasses the OpenGL state machine completely and hands your `ImDrawList` arrays straight to X-Plane's native Vulkan/Metal compositor.
 4. **Why Dual-Backend Support Isn't "Pure Magic":**
@@ -210,7 +211,7 @@ Historically, `ImgWindow` v1 only managed the **Font Atlas texture** for you. If
 
 In **`ImgWindow v2`**, you don't even have to do that anymore!
 * `ImgWindow::CreateTexture(rgba_pixels, width, height)` takes your raw RGBA image bytes and creates the underlying texture on whichever backend X-Plane is running (Panel Graphics or OpenGL) behind the scenes, returning a standard `ImTextureID` you can pass straight to `ImGui::Image()`.
-* **Turnkey In-Memory Texture Service (`ImgWindow::RegisterMemoryImage`)**: You can register static PNG/JPG byte arrays compiled into your plugin (e.g. `RegisterMemoryImage("beacon", bytes, len, &w, &h)`) with zero disk I/O. It automatically aliases the texture for C++ (`ImGui::ImageNamed("beacon")`), Markdown (`![Beacon](beacon)`), `StyledText` (`<img name='beacon' />`), and native icon capsules (`<pill icon=beacon color=#2ecc71>ACTIVE</pill>`).
+* **Turnkey In-Memory Texture Service (`ImgWindow::RegisterNamedTexture` & `RegisterMemoryImage`)**: Register raw RGBA pixel buffers directly in core `ImgWindow.h`, or compressed PNG/JPG byte arrays (decoded automatically when opting into `ImGee`, or via `SetMemoryImageDecoder` in pure core builds) with zero disk I/O -- drawable anywhere via `ImGui::ImageNamed("beacon")`, and automatically aliased into Markdown/`StyledText`/`<pill>` if you opt into `ImGee`.
 * That means **you can delete 100% of custom OpenGL code from your plugin**, let `ImgWindow v2` manage all of your textures alongside the font atlas, and get native Panel Graphics + OpenGL compatibility for free.
 
 ---

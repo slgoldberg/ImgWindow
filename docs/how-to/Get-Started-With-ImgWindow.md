@@ -70,11 +70,11 @@ Because `ImgWindow` is tracked as a git submodule in `imgui4xp`, it already live
 ```text
 my-xplane-plugin/
 ├── src/
-│   ├── ImgWindow/                <-- Complete ImgWindow module (Core + contrib/)
+│   ├── ImgWindow/                <-- Complete ImgWindow module (Core + optional contrib/)
 │   │   ├── ImgWindow.h / .cpp    <-- Core window wrapper & dynamic bridge
 │   │   ├── ImgFontAtlas.h / .cpp <-- Font management & glyph ranges
-│   │   ├── contrib.h             <-- Community umbrella header for all contrib/ packages
-│   │   └── contrib/              <-- Community container (houses ImGee via contrib/imgee.h)
+│   │   ├── contrib.h             <-- Optional umbrella header for contrib/ packages
+│   │   └── contrib/              <-- Optional community container (ImgDocWindow.h & nested ImGee submodule)
 │   ├── imgui/                    <-- Dear ImGui core library
 │   ├── imgui_starter_window.cpp  <-- Reference starter window (customize or replace)
 │   ├── imgui_starter_window.h
@@ -102,13 +102,15 @@ You develop your plugin directly inside this project tree:
 
 > [!WARNING]
 > **Never Rip Out Loose Files!**
-> Do **not** cherry-pick loose `.h` and `.cpp` files from `ImgWindow` and scatter them into your root `src/` folder. `ImgWindow` is an integrated package: keeping the `ImgWindow/` folder intact allows you to update cleanly via `git submodule update`, and gives your plugin instant access to the bundled **[ImGee UI Toolkit](../../contrib/ImGee/README.md)** (`#include "contrib/imgee.h"`, or `"contrib.h"` for the full community container).
+> Do **not** cherry-pick loose `.h` and `.cpp` files from `ImgWindow` and scatter them into your root `src/` folder. Keeping the `ImgWindow/` submodule folder intact lets you update cleanly via `git submodule update`, and keeps optional extensions under `contrib/` (including the opt-in nested **[ImGee UI Toolkit](https://github.com/slgoldberg/ImGee)** submodule at `contrib/ImGee/`) working cleanly if you choose to use them.
 
 > [!NOTE]
 > **Adding to an Existing Plugin (Not Seeded from `imgui4xp`):**
 > If you already have an established C++ plugin repository, the best practice is to add `ImgWindow` as a git submodule:
 > ```bash
 > git submodule add https://github.com/slgoldberg/ImgWindow.git src/ImgWindow
+> # Optional -- ONLY needed if you want to opt into the ImGee UI Toolkit (#include "contrib/imgee.h"):
+> git submodule update --init --recursive
 > ```
 > In this case (since you aren't using `imgui4xp`'s preconfigured CMake file), you **must** configure your build manually:
 > 1. Add `ImgWindow` to your compiler's header search paths:
@@ -169,7 +171,7 @@ protected:
 > * **Auto-Centered (Fastest & Simplest)**:
 >   `ImgWindow(width, height)` -- centers automatically on the primary monitor with zero coordinate math (very similar to FlyWithLua's window creation!).
 > * **Top-Left Origin (Familiar 2D Desktop Math)**:
->   `ImgWindow(WindowGeometry::FromTopLeft(x, y, width, height))` -- eliminates inverted $Y$ coordinate headaches.
+>   `ImgWindow(WindowGeometry::FromTopLeft(x, y, width, height))` (or `WindowGeometry::FromMainMonitorTopLeft(dx, dy, width, height)`) -- eliminates inverted Y coordinate headaches.
 > * **Saved Settings (.ini) with Auto-Docking**:
 >   `ImgWindow(WindowGeometry::Sanitize(savedL, savedT, savedR, savedB))` -- guarantees windows never spawn off-screen if monitors or resolutions change, while preserving "poor-man's docking" margins.
 > * **Legacy Raw Boxels**:
@@ -221,6 +223,7 @@ static int ToggleSettingsCommandHandler(XPLMCommandRef inCommand,
     }
     return 0; // 0 = we own and consume this command across all phases
 }
+```
 
 > [!TIP]
 > **Why `return 0;`? The Phase Consistency Rule:**
@@ -228,7 +231,7 @@ static int ToggleSettingsCommandHandler(XPLMCommandRef inCommand,
 > 
 > For advanced patterns -- including continuous held commands with acceleration curves, multi-command multiplexing, and hardware switch integration -- see the in-depth guide in [**Ground School: The Command System**](Ground-School.md#the-command-system-how-modern-x-plane-plugins-dispatch-actions).
 
-
+```cpp
 // 3. In your XPluginEnable() entry point:
 PLUGIN_API int XPluginEnable(void) {
     // A. Create the command:
@@ -480,7 +483,7 @@ In the example above, you might notice a few widgets that don't exist in vanilla
 * **`ImGui::TimedTooltip::Text(...)`**: Classic desktop-style tooltips that behave politely. Unlike default ImGui tooltips (which pop up instantly on first contact and follow your cursor around like an annoying swarm of gnats), `TimedTooltip` waits for an intentional hover pause before appearing, locks into a stationary position so it is easy to read, and automatically dismisses after reading so it never stays permanently stuck on screen obstructing your view.
 * **`ImGui::MouseWheelSlider(...)`**: Sliders and dials that respond naturally to mouse-wheel scrolling without awkward click-dragging.
 
-These widgets are part of `ImgWindow`'s bundled **[ImGee UI Toolkit](../../contrib/ImGee/README.md)**. If you want to use them in your window, simply `#include "contrib/imgee.h"` (or `#include "contrib.h"` for `ImgWindow`'s community umbrella header). (If you prefer 100% vanilla Dear ImGui, standard `ImGui::Text()`, `ImGui::SliderFloat()`, and `ImGui::SetItemTooltip()` work identically.)
+These widgets come from the optional **[ImGee UI Toolkit](https://github.com/slgoldberg/ImGee)**, which is an independent upstream project mounted as a nested Git submodule at `contrib/ImGee/`. Core `ImgWindow.h` never requires or compiles `ImGee` -- if you prefer 100% vanilla Dear ImGui, standard `ImGui::Text()`, `ImGui::SliderFloat()`, and `ImGui::SetItemTooltip()` work out of the box without initializing `contrib/ImGee`. If you do want to opt into `ImGee`, make sure submodules are initialized (`git submodule update --init --recursive`) and add `#include "contrib/imgee.h"`.
 
 ---
 
@@ -532,7 +535,7 @@ Compile your plugin, drop the resulting `.xpl` into your `X-Plane/Resources/plug
 Look at X-Plane's `Log.txt` to verify `ImgWindow` initializing its modern graphics bridge:
 
 ```text
-ImgWindow v2.4.0: [YourPlugin] using Panel Graphics for ImGui rendering.
+ImgWindow v2.5.0: [YourPlugin] using Panel Graphics for ImGui rendering.
 ```
 *(On older simulator versions without Panel Graphics support, `ImgWindow` falls back to its legacy OpenGL pipeline and logs the reason.)*
 
@@ -544,11 +547,11 @@ Trigger your command (or click your menu item), and your Dear ImGui window will 
 
 Now that your window infrastructure is rock-solid, where should you go next?
 
-### 1. Elevate Your UI with ImGee (Enhanced UI Ergonomics)
-Vanilla Dear ImGui was built for video game debug menus. To turn your window into a polished, desktop-grade interface -- with animated toggle switches, mouse-wheel dials and sliders, 1-click resets with undo, and stationary Markdown tooltips -- check out the **[ImGee UI Toolkit](../../contrib/ImGee/README.md)** (detailed in the [**ImGee User Guide**](../ImGee_User_Guide.md)). You can activate the entire toolkit in one line:
+### 1. Elevate Your UI with ImGee (Optional Standalone UI Toolkit)
+Vanilla Dear ImGui was built for video game debug menus. If you want to opt into a polished, desktop-grade widget toolkit -- with animated toggle switches, mouse-wheel dials and sliders, 1-click resets with undo, and stationary Markdown tooltips -- check out the **[ImGee UI Toolkit](https://github.com/slgoldberg/ImGee)** (detailed in the [**ImGee User Guide**](https://github.com/slgoldberg/ImGee/blob/master/docs/ImGee_User_Guide.md)). `ImGee` is mounted as an optional nested Git submodule at `contrib/ImGee/` (populated automatically when cloning with `--recursive`, or on demand via `git submodule update --init --recursive`), and activates in one line:
 
 ```cpp
-#include "contrib/imgee.h" // Turnkey access to all ImGee widgets, themes, and extensions
+#include "contrib/imgee.h" // Opt-in access to ImGee widgets, themes, and extensions
 ```
 
 ### 2. Upgrading an Existing v1 Plugin?
