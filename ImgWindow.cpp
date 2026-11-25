@@ -1346,11 +1346,19 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         io.DisplayFramebufferScale.y != 1.0)
         draw_data->ScaleClipRects(io.DisplayFramebufferScale);
 
+    // ImDrawData::CmdLists became ImVector<ImDrawList*> in Dear ImGui v1.89.8+,
+    // and CmdListsCount was obsoleted in Dear ImGui v1.93.0.
+#ifdef IMGUI_V190_REFACTOR
+    const int cmdListsCount = draw_data->CmdLists.Size;
+#else
+    const int cmdListsCount = draw_data->CmdListsCount;
+#endif
+
 #if defined(IMGWINDOW_USE_PANEL_GRAPHICS)
     if (ImgPanelGraphics::IsAvailable()) {
         LogBackendOnce(true);
 
-        if (mFontTexture == (ImTextureID)0 || draw_data->CmdListsCount == 0)
+        if (mFontTexture == (ImTextureID)0 || cmdListsCount == 0)
             return;
 
         int left, top, right, bottom;
@@ -1362,7 +1370,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
         ImgPanelGraphics::TransformScale(1.0f, -1.0f);
 
         // Render command lists
-        for (int n = 0; n < draw_data->CmdListsCount; n++)
+        for (int n = 0; n < cmdListsCount; n++)
         {
             const ImDrawList* cmd_list = draw_data->CmdLists[n];
 
@@ -1448,7 +1456,7 @@ ImgWindow::RenderImGui(ImDrawData *draw_data)
     glTranslatef(static_cast<GLfloat>(mLeft), static_cast<GLfloat>(-mTop), 0.0f);
 
     // Render command lists
-    for (int n = 0; n < draw_data->CmdListsCount; n++)
+    for (int n = 0; n < cmdListsCount; n++)
     {
         const ImDrawList* cmd_list = draw_data->CmdLists[n];
         const ImDrawVert* vtx_buffer = cmd_list->VtxBuffer.Data;
