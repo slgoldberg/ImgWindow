@@ -5,7 +5,7 @@ Welcome to the `contrib/` directory of **ImgWindow**.
 `ImgWindow/contrib/` is `ImgWindow`'s general **community third-party container** -- an open home for optional, community-contributed libraries, packages, and add-ons that work alongside `ImgWindow`, enhance Dear ImGui development, or both.
 
 * **`contrib.h` (Community Umbrella Header):** Pulls in all bundled packages inside `contrib/` (via `contrib/includes.h`).
-* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](https://github.com/slgoldberg/ImGee)** (`v1.1.0`, [`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee)), a 100% generic, standalone Dear ImGui UI toolkit bundled here as a git submodule for `ImgWindow` users out of the box.
+* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](https://github.com/slgoldberg/ImGee)** (`v1.4.2`, [`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee) -- live visual catalog at [slgoldberg.github.io/ImGee](https://slgoldberg.github.io/ImGee/)), a 100% generic, standalone Dear ImGui UI toolkit bundled here as a git submodule for `ImgWindow` users out of the box.
 * **Future Community Packages (`contrib/<PackageName>/`):** Third-party developers are welcome to submit independent packages under `contrib/` without coupling them to `ImgWindow` core or `ImGee`.
 
 ---
@@ -92,22 +92,24 @@ ImgWindow/
 └── contrib/
     ├── includes.h                         # Level-1 Container Switchboard (cascades to packages)
     ├── imgee.h                            # Convenience forwarder strictly for ImGee (-> ImGee/imgee.h)
+    ├── imgee_demo.h                       # Opt-in 8-tab interactive showcase forwarder (-> ImGee/imgee_demo.h)
     ├── ImgDocWindow.h                     # Optional turnkey X-Plane manual window subclassing ImgWindow
     │
-    ├── ImGee/                             # Package 1: ImGee Modern Ergonomic UI Toolkit (v1.1.0)
+    ├── ImGee/                             # Package 1: ImGee Modern Ergonomic UI Toolkit (v1.4.2)
     │   ├── imgee.h                        # Canonical ImGee master header & IMGEE_* switches
+    │   ├── imgee_demo.h                   # Opt-in 8-tab interactive showcase (ShowImGeeDemoWindow/Content)
     │   ├── imgee-global.h                 # Opt-in global namespace aliases
-    │   ├── docs/                          # ImGee User Guide & UX Design Manifesto (MD + PDF)
+    │   ├── docs/                          # Visual Dashboard (index.html), User Guide & UX Manifesto (MD + PDF)
     │   ├── extensions/                    # Subsystems (Typography, Markdown, TimedTooltip, Viewport, DocViewer)
-    │   ├── widgets/                       # Immediate-mode controls, file dialogs & vector icons
-    │   └── themes/                        # Curated color palettes (Charcoal, Rusty)
+    │   ├── widgets/                       # Immediate-mode controls, Menu Strips, file dialogs & vector icons
+    │   └── themes/                        # Curated color palettes (Charcoal, Rusty, Paper Light)
     │
     ├── extensions/                        # Backward-Compatible Forwarding Headers
     └── widgets/                           # Backward-Compatible Forwarding Headers
 ```
 
 ### 1. ImGee Suite (`contrib/ImGee/`)
-The complete modern ergonomic UI toolkit for Dear ImGui. See &rarr; **[ImGee User Guide](https://github.com/slgoldberg/ImGee/blob/master/docs/ImGee_User_Guide.md)** and **[ImGee README](https://github.com/slgoldberg/ImGee/blob/master/README.md)**.
+The complete modern ergonomic UI toolkit for Dear ImGui. Browse all 20 headers visually on the **[ImGee Visual Dashboard](https://slgoldberg.github.io/ImGee/)**, or see **[ImGee User Guide](https://github.com/slgoldberg/ImGee/blob/master/docs/ImGee_User_Guide.md)** and **[ImGee README](https://github.com/slgoldberg/ImGee/blob/master/README.md)**.
 
 ### 2. Turnkey X-Plane Manual Window (`contrib/ImgDocWindow.h`)
 Want a complete in-sim Markdown User Guide window (with `1.0x` zoom/TOC/opacity/theme header chrome, proportional X-Plane window scaling, Pop-Out/VR transitions, and automatic plugin-relative image/file lookup) while keeping core `ImgWindow.h` 100% decoupled? Include `contrib/ImgDocWindow.h`:

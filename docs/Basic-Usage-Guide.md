@@ -278,7 +278,8 @@ Eliminates missing-glyph diamond replacement boxes (`?`) when font atlases omit 
   ```cpp
   ImGui::Icon("undo");
   ImGui::Icon("caret-up", 18.0f);
-  ImGui::Icon("gear", 16.0f, &ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
+  ImVec4 amber(1.0f, 0.6f, 0.0f, 1.0f);
+  ImGui::Icon("gear", 16.0f, &amber);
   ```
 * **Interactive Button Faces (`ImGui::Markdown::Button`, `ButtonMD`, `IconButton`, `ButtonIcon`)**:
   ```cpp
