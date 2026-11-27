@@ -121,6 +121,46 @@ static bool IsHostAppForeground()
 #endif
 }
 
+XPLMKeyFlags
+ImgWindow::GetModifierKeys(bool* outIsLive)
+{
+    using GetModifierKeysFn = XPLMKeyFlags (*)();
+    static bool sResolved = false;
+    static GetModifierKeysFn sGetModifierKeys = nullptr;
+    if (!sResolved) {
+        sGetModifierKeys = reinterpret_cast<GetModifierKeysFn>(XPLMFindSymbol("XPLMGetModifierKeys"));
+        sResolved = true;
+    }
+
+    if (sGetModifierKeys) {
+        if (outIsLive) *outIsLive = true;
+        return sGetModifierKeys();
+    }
+
+    // XPLM 440 xplm_CapsLockFlag bit (32) for consistent return semantics on older SDK headers
+    constexpr XPLMKeyFlags kCapsLockFlag = 32;
+    XPLMKeyFlags flags = 0;
+
+#if defined(__APPLE__) || defined(__MACH__)
+    const CGEventFlags modFlags = CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState);
+    if (modFlags & kCGEventFlagMaskShift)      flags |= xplm_ShiftFlag;
+    if (modFlags & kCGEventFlagMaskAlternate)  flags |= xplm_OptionAltFlag;
+    if (modFlags & (kCGEventFlagMaskControl | kCGEventFlagMaskCommand)) flags |= xplm_ControlFlag;
+    if (modFlags & kCGEventFlagMaskAlphaShift) flags |= kCapsLockFlag;
+    if (outIsLive) *outIsLive = true;
+#elif defined(_WIN32)
+    if ((GetKeyState(VK_SHIFT)   & 0x8000) != 0) flags |= xplm_ShiftFlag;
+    if ((GetKeyState(VK_MENU)    & 0x8000) != 0) flags |= xplm_OptionAltFlag;
+    if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) flags |= xplm_ControlFlag;
+    if ((GetKeyState(VK_CAPITAL) & 0x0001) != 0) flags |= kCapsLockFlag;
+    if (outIsLive) *outIsLive = true;
+#else
+    if (outIsLive) *outIsLive = false;
+#endif
+
+    return flags;
+}
+
 /* ImGui version checks and refactor macros.
  * IMGUI_V190_REFACTOR defined for ImGui v1.90.0 and above (keyboard API refactor).
  * IMGUI_V192_REFACTOR defined for ImGui v1.92.0 and above (font atlas refactor).
@@ -584,23 +624,22 @@ ImgWindow::ImgWindow(
     } else 
 #endif
     {
-        XPLMCreateWindow_t windowParams = {
-            sizeof(windowParams),
-            left,
-            top,
-            right,
-            bottom,
-            0,
-            DrawWindowCB,
-            HandleMouseClickCB,
-            HandleKeyFuncCB,
-            HandleCursorFuncCB,
-            HandleMouseWheelFuncCB,
-            reinterpret_cast<void*>(this),
-            decoration,
-            layer,
-            HandleRightClickFuncCB,
-        };
+        XPLMCreateWindow_t windowParams = {};
+        windowParams.structSize = sizeof(windowParams);
+        windowParams.left = left;
+        windowParams.top = top;
+        windowParams.right = right;
+        windowParams.bottom = bottom;
+        windowParams.visible = 0;
+        windowParams.drawWindowFunc = DrawWindowCB;
+        windowParams.handleMouseClickFunc = HandleMouseClickCB;
+        windowParams.handleKeyFunc = HandleKeyFuncCB;
+        windowParams.handleCursorFunc = HandleCursorFuncCB;
+        windowParams.handleMouseWheelFunc = HandleMouseWheelFuncCB;
+        windowParams.refcon = reinterpret_cast<void*>(this);
+        windowParams.decorateAsFloatingWindow = decoration;
+        windowParams.layer = layer;
+        windowParams.handleRightClickFunc = HandleRightClickFuncCB;
         mWindowID = XPLMCreateWindowEx(&windowParams);
     }
 
@@ -1607,42 +1646,42 @@ ImgWindow::updateImgui()
         }
     }
 
-    // Sync modifier key state with physical hardware state every frame.
+    // Sync modifier key state with physical hardware state every frame via the unified
+    // ImgWindow::GetModifierKeys() proxy (XPLM 440 XPLMGetModifierKeys() on XP 12.4.4+ across
+    // macOS/Windows/Linux, with transparent OS fallback on older X-Plane builds).
     // In X-Plane SDK, handleKeyFunc is only called when a virtual key is pressed or released,
     // NEVER when a modifier key (Shift, Ctrl, Alt, Command) is pressed or released alone.
-    // Syncing with OS hardware state prevents "sticky Shift" / "sticky Ctrl" from corrupting
-    // mouse clicks into text edit fields (e.g. accidental range selection via Shift+Click).
+    // Syncing with live state prevents "sticky Shift" / "sticky Ctrl" from corrupting mouse
+    // clicks into text edit fields and enables modifier-aware wheel/drag interactions.
+    bool hasLiveMods = false;
+    const XPLMKeyFlags liveMods = ImgWindow::GetModifierKeys(&hasLiveMods);
+    if (hasLiveMods) {
+        const bool realShift = (liveMods & xplm_ShiftFlag)     != 0;
+        const bool realAlt   = (liveMods & xplm_OptionAltFlag) != 0;
+        const bool realCtrl  = (liveMods & xplm_ControlFlag)   != 0;
 #if defined(__APPLE__) || defined(__MACH__)
-    CGEventFlags modFlags = CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState);
-    bool realShift = (modFlags & kCGEventFlagMaskShift) != 0;
-    bool realAlt   = (modFlags & kCGEventFlagMaskAlternate) != 0;
-    bool realCtrl  = (modFlags & kCGEventFlagMaskControl) != 0;
-    bool realSuper = (modFlags & kCGEventFlagMaskCommand) != 0;
-
+        // Preserve macOS mapping: Command/Control -> Super (ConfigMacOSXBehaviors), KeyCtrl = false
 #ifdef IMGUI_V190_REFACTOR
-    io.AddKeyEvent(ImGuiMod_Shift, realShift);
-    io.AddKeyEvent(ImGuiMod_Alt,   realAlt);
-    io.AddKeyEvent(ImGuiMod_Super, realSuper || realCtrl);
-    io.AddKeyEvent(ImGuiMod_Ctrl,  false);
+        io.AddKeyEvent(ImGuiMod_Shift, realShift);
+        io.AddKeyEvent(ImGuiMod_Alt,   realAlt);
+        io.AddKeyEvent(ImGuiMod_Super, realCtrl);
+        io.AddKeyEvent(ImGuiMod_Ctrl,  false);
 #endif
-    io.KeyShift = realShift;
-    io.KeyAlt   = realAlt;
-    io.KeySuper = realSuper || realCtrl;
-    io.KeyCtrl  = false;
-#elif defined(_WIN32)
-    bool realShift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-    bool realCtrl  = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
-    bool realAlt   = (GetKeyState(VK_MENU) & 0x8000) != 0;
-
+        io.KeyShift = realShift;
+        io.KeyAlt   = realAlt;
+        io.KeySuper = realCtrl;
+        io.KeyCtrl  = false;
+#else
 #ifdef IMGUI_V190_REFACTOR
-    io.AddKeyEvent(ImGuiMod_Shift, realShift);
-    io.AddKeyEvent(ImGuiMod_Ctrl,  realCtrl);
-    io.AddKeyEvent(ImGuiMod_Alt,   realAlt);
+        io.AddKeyEvent(ImGuiMod_Shift, realShift);
+        io.AddKeyEvent(ImGuiMod_Ctrl,  realCtrl);
+        io.AddKeyEvent(ImGuiMod_Alt,   realAlt);
 #endif
-    io.KeyShift = realShift;
-    io.KeyCtrl  = realCtrl;
-    io.KeyAlt   = realAlt;
+        io.KeyShift = realShift;
+        io.KeyCtrl  = realCtrl;
+        io.KeyAlt   = realAlt;
 #endif
+    }
 
 #ifdef IMGUI_V192_REFACTOR
     // Just-in-time build & GPU upload (both for shared sFontAtlas and per-window fallback io.Fonts):

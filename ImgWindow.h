@@ -505,6 +505,16 @@ public:
     void SetAllowBackgroundHover(bool enable) { bAllowBackgroundHover = enable; }
     bool GetAllowBackgroundHover() const { return bAllowBackgroundHover; }
 
+    /** Queries the live physical modifier key state as an XPLMKeyFlags bitfield
+     *  (xplm_ShiftFlag, xplm_OptionAltFlag, xplm_ControlFlag, and CapsLock bit 0x20).
+     *  Uses XPLMGetModifierKeys() natively via runtime symbol lookup on X-Plane 12.4.4+
+     *  (macOS, Windows, and Linux), transparently falling back to OS hardware queries
+     *  on macOS (CGEventSourceFlagsState) and Windows (GetKeyState) for older X-Plane builds.
+     *  As in the X-Plane SDK, macOS Command is folded into xplm_ControlFlag.
+     *  @param outIsLive Optional; set to true if live hardware state was queried, false if
+     *                   unavailable on the current platform/simulator (e.g. pre-12.4.4 Linux). */
+    static XPLMKeyFlags GetModifierKeys(bool* outIsLive = nullptr);
+
     // -----------------------------------------------------------------------
     // DEPRECATED ALIASES (Retained for API backwards compatibility for now)
     // -----------------------------------------------------------------------
