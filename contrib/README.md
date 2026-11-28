@@ -5,7 +5,7 @@ Welcome to the `contrib/` directory of **ImgWindow**.
 `ImgWindow/contrib/` is `ImgWindow`'s general **community third-party container** -- an open home for optional, community-contributed libraries, packages, and add-ons that work alongside `ImgWindow`, enhance Dear ImGui development, or both.
 
 * **`contrib.h` (Community Umbrella Header):** Pulls in all bundled packages inside `contrib/` (via `contrib/includes.h`).
-* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](https://github.com/slgoldberg/ImGee)** (`v1.5.1`, [`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee) -- live visual catalog at [slgoldberg.github.io/ImGee](https://slgoldberg.github.io/ImGee/) & live browser playground at [slgoldberg.github.io/ImGee/playground](https://slgoldberg.github.io/ImGee/playground/)), a 100% generic, standalone Dear ImGui UI toolkit bundled here as a git submodule for `ImgWindow` users out of the box.
+* **`contrib/ImGee/` (Inaugural Flagship Toolkit, via `contrib/imgee.h`):** Houses **[ImGee](https://github.com/slgoldberg/ImGee)** (`v1.5.2`, [`slgoldberg/ImGee`](https://github.com/slgoldberg/ImGee) -- live visual catalog at [slgoldberg.github.io/ImGee](https://slgoldberg.github.io/ImGee/) & live browser playground at [slgoldberg.github.io/ImGee/playground](https://slgoldberg.github.io/ImGee/playground/)), a 100% generic, standalone Dear ImGui UI toolkit bundled here as a git submodule for `ImgWindow` users out of the box.
 * **Future Community Packages (`contrib/<PackageName>/`):** Third-party developers are welcome to submit independent packages under `contrib/` without coupling them to `ImgWindow` core or `ImGee`.
 
 ---
@@ -95,7 +95,7 @@ ImgWindow/
     ├── imgee_demo.h                       # Opt-in 8-tab interactive showcase forwarder (-> ImGee/imgee_demo.h)
     ├── ImgDocWindow.h                     # Optional turnkey X-Plane manual window subclassing ImgWindow
     │
-    ├── ImGee/                             # Package 1: ImGee Modern Ergonomic UI Toolkit (v1.5.1)
+    ├── ImGee/                             # Package 1: ImGee Modern Ergonomic UI Toolkit (v1.5.2)
     │   ├── imgee.h                        # Canonical ImGee master header & IMGEE_* switches
     │   ├── imgee_demo.h                   # Opt-in 8-tab interactive showcase (ShowImGeeDemoWindow/Content)
     │   ├── imgee-global.h                 # Opt-in global namespace aliases
